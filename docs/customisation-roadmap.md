@@ -1,14 +1,72 @@
 # Customisation roadmap
 
-Status: proposal, source-reviewed against `b72f285` on 2026-09-10. This
-document plans implementation; it does not amend repository policy or claim
-that the proposed APIs or tests already exist.
+Status: **Phases 0–6 are closed for 0.13.** Written as a proposal against
+`b72f285` on 2026-09-10; most of it landed in 0.9.0–0.10.1, and the 0.13
+close-out (2026-09-29) implemented the remaining gaps and decided the rest.
+[Status of Phases 0–6](#status-of-phases-06-013-close-out) is the item-by-item
+matrix; the phase sections below keep the original plan and its reasoning,
+which the matrix cites. Repository policy lives in the
+[parity guide](agents/parity.md) (including the size/radius extension
+exception this plan asked for), not here.
 
 Authority: [workflow](agents/workflow.md), [component guide](agents/components.md),
 [parity policy](agents/parity.md), and the root [AGENTS.md](../AGENTS.md).
 Upstream evidence comes from the checked-in HeroUI **v3.2.4** bundle/CSS and
 the unpacked **gpui-pre 0.3.5** registry sources. Recheck source symbols when
 starting each phase; line numbers are not durable contracts.
+
+## Status of Phases 0–6 (0.13 close-out)
+
+Cross-checked against the tree on 2026-09-29. "Done" gives the first release
+that shipped the item (from `git tag --contains` on the commit that
+introduced it); "0.13" is this close-out; "declined" gives the policy or
+evidence that decided it. Every new builder is a HeroGPUI extension recorded
+in `.shots/extra_audit.py`, kept out of `reference_metadata`, documented in
+`llms.txt` and shown in a gallery section.
+
+| Phase | Item | Status |
+|---|---|---|
+| 0.0 | Owner-scoped reasons for the existing extension surface | Done 0.9.0 — `extra_audit.py` reports 0 unexplained names |
+| 0.1 | `sx_padding` / `sx_radius` (pixels only, per edge/corner) | Done 0.9.0 (`util.rs`, with `sx_pixel_size`) |
+| 0.1 | Part-scoped `sx` ownership inventory with scoped scanner fixtures | Done 0.9.0 (`tests/sx_ownership.rs`) |
+| 0.1 | The inventory's 18 pending parts | **0.13**: Accordion's Surface triggers wired (their fade rested on the stock surface over an `sx` card); the other 17 ruled *independent* — the root `sx` refines a wrapper they do not paint over (own control fill, field chrome, transparent rest, detached panel), principle 2 forbids forwarding it, and each has a named hover seam. An independent part that starts reading the extractor now fails the test |
+| 0.2 | `tabs_hover_opacity`, `tooltip_cooldown_ms`, `long_press_ms`, `hover_fade_ms`; builder and document keys for `tooltip_delay_ms` / `tooltip_close_delay_ms` | Done 0.9.0 (layout field, `ThemeBuilder`, `ThemeDocument`, consumer) |
+| 0.2 | Tests that a themed token changes the consumer's behaviour | **0.13** (`tests/theme_tokens.rs`: delays, cooldown, long press, fade duration, Tabs wash); document keys → layout stay in `herogpui-theme --features serde` |
+| 0.2 | `overlay_zoom_offset` | Declined — `ZoomBox::panel` takes resting padding, not a motion amplitude (§0.2); padding is Phase 3's seam |
+| 0.3 | Crate-internal `FieldBox` | Done 0.9.0 |
+| 1 | `height` / `padding_x` / `is_bare` on NumberField, Select, ComboBox, Autocomplete, DateField, TimeField, ColorField, InputGroup, SearchField | Done 0.9.0 |
+| 1 | Row geometry (`row_padding_x` / `row_padding_y`) on Select, ListBox, ComboBox, Autocomplete; `Select::padding_y` | Done 0.9.0; `padding_y` 0.10.0 |
+| 1 | ColorField `sx` on both render paths | **0.13** (`ColorField::sx`) |
+| 2 | `hover_bg` on Button, ToggleButton, CloseButton (Button's endpoint contract) | Done 0.9.0 |
+| 2 | Pagination, TagGroup tag/remove, Toast close, Dropdown/Menu rows | Done 0.9.0 |
+| 2 | Row hovers on Select, ComboBox, Autocomplete, ListBox; TimeField stepper, InputOTP slot, Input clear, DateRangePicker trigger | Done 0.9.0 |
+| 2 | Select trigger, Autocomplete trigger and clear button, NumberField group, InputGroup | **0.13** (`trigger_hover_bg`, `clear_hover_bg`, `group_hover_bg`); focus, invalid, disabled and bare chrome keep precedence |
+| 2 | Calendar/RangeCalendar day, nav, year; Accordion header; Switch and Checkbox (Tween paths) | Done 0.9.0 |
+| 2 | Table `row_hover_bg` for unselected interactive rows | Done 0.9.0 |
+| 2 | Table selected-row hover | Declined — in the pinned `table.css` the `[data-selected]` cell fill follows the `:hover` rule at equal specificity, so a selected row has no hover state to recolour |
+| 2 | Independent Pagination `pressed_bg` | Declined — hover and pressed share one upstream value; §2 keeps the pair coupled and the override feeds both |
+| 2 | Per-instance hover-fade duration builders | Declined — no consumer; the theme's `hover_fade_ms` covers it (§ principles) |
+| 2 | Tabs opacity token, `list_bg`, indicator parts, `hover_fill` | Done 0.9.0–0.10.1 |
+| 2 | Link underline/icon seam | Declined — no distinct consumer requirement (§2's own condition) |
+| 3 | `CheckboxSize`, `RadioSize`, `TabsSize` (with `SliderSize`) | Done 0.9.0, under the parity guide's size exception |
+| 3 | Panel padding on Popover, Toast, Select, Dropdown (resting and zoom geometry) | Done 0.9.0 |
+| 3 | Panel padding on the other overlays | Declined until a consumer asks — §3 adds the seam "to a concrete overlay when needed" |
+| 4 | Per-corner `sx` reconciliation for child and animated shapes | Done 0.9.0 (`util::fill_unspecified_corners`) |
+| 4 | Per-component `radius` builders | Done 0.9.0 (Tabs 0.10.0), under the parity guide's radius exception |
+| 4 | `is_pill` | Declined — `radius(px)` with a large value is already a pill (the painter clamps to half the shorter side) and `sx` names corners; §4 defers it unless it adds a shorthand beyond those. Checkbox keeps `is_round` |
+| 5 | `font_family` on TimeField, DateField, ColorPicker, Typography; InputGroup forwarding; `row_font_family` on detached rows | Done 0.9.0 |
+| 5 | `font_family` on SearchField, NumberField, ColorField, Select, ComboBox, Autocomplete | **0.13** — composed fields forward it to their `Input` (caret measurement), pickers to the trigger |
+| 5 | `text_size` on Input, TextField, SearchField, Badge, Chip, Breadcrumbs, Button; Select trigger/row | Done 0.9.0–0.10.0 |
+| 5 | `text_size` on Checkbox, RadioGroup, Tabs, Switch | **0.13** — label type only; control geometry keeps its size step |
+| 5 | Font knobs on Kbd, Table cells, Toast | Declined — none hardcodes a family (§5), so a knob would be a new capability with no consumer |
+| 6 | `full_width` on TagGroup, Pagination, Breadcrumbs, horizontal RadioGroup, Toolbar | Done 0.9.0 |
+| 6 | ComboBox root minimum; vertical Tabs item minimum | **0.13** (`ComboBox::min_width`, `Tabs::vertical_tab_min_width`) |
+
+Totals: 20 done in 0.9.0–0.10.1, 7 implemented in 0.13, 8 declined.
+
+Not part of Phases 0–6: `Styled` on components landed in 0.13 after this
+ownership contract; keyboard `ContextMenu` anchoring at the focused element
+remains on the 0.13 integration queue.
 
 ## Corrections to the previous proposal
 
@@ -37,8 +95,8 @@ starting each phase; line numbers are not durable contracts.
   independently incomplete PRs and promising to synchronise them later.
 - `demo_audit.py` unpacks `.shots/heroui-demos-v3.2.6.tar.gz` on a routine run
   and only fetches on `--fetch`. A clean machine stays offline.
-  The current CI test command uses `.shots/run-tests.sh`; the lint script's
-  actual Clippy invocation does not include `--all-features`.
+  The current CI test command uses `.shots/run-tests.sh`; the lint script runs
+  Clippy with the default features and again with `--all-features` (0.13).
 
 ## Principles and decisions
 
@@ -371,16 +429,12 @@ focused tests, discoverable gallery example, accurate reference metadata,
 Do not defer these to a later merge. A batch may have preparatory draft
 branches, but the integration PR must satisfy the complete contract.
 
-When gallery example bodies/descriptions change, rebuild the checked-in wasm
-artifact, then run `pnpm run wasm:manifest`, `pnpm run extract` and
-`pnpm run extract:check` from `web/` before the batch is mergeable. Follow the
-root guide's pinned stable/wasm-bindgen instructions and never set RUSTFLAGS.
-Do not regenerate manifests against a stale binary merely to make checks pass.
-
-The manifests hash the artifact/glue and example code/descriptions; they do
-not hash every component implementation. Thus `extract:check` alone cannot
-prove the binary implements current Rust internals. Account for source-only
-behavior changes when choosing the artifact rebuild batch as well.
+When gallery example bodies/descriptions or any wasm build input change, run
+`pnpm run wasm:manifest`, `pnpm run extract` and `pnpm run extract:check`
+from `web/` before the batch is mergeable. The wasm artifact is not committed:
+CI builds it from the merged tree and publishes it under the manifest's
+`inputsSha256`, so there is no binary to rebuild by hand and no stale binary
+to regenerate against (`web/DEPLOYMENT.md`, section 6).
 
 ## Verification per change
 
@@ -394,9 +448,10 @@ behavior changes when choosing the artifact rebuild batch as well.
   changes, including known-negative parser checks where applicable.
 - Current CI uses `bash .shots/run-tests.sh --workspace --locked` and a
   separate `bash .shots/run-tests.sh -p herogpui-theme --features serde --locked`.
-  Format check is `cargo fmt --all -- --check`. `.shots/lint.ps1` requires
-  PowerShell and includes `cargo clippy --workspace --all-targets -- -D warnings`;
-  its cargo-deny check depends on the tool being installed. Feature isolation,
+  Format check is `cargo fmt --all -- --check`. `bash .shots/lint.sh` runs on
+  any host and includes `cargo clippy --workspace --all-targets -- -D warnings`;
+  its cargo-deny check depends on the tool being installed (CI passes
+  `--require-deny`). Feature isolation,
   Rustdoc, website and wasm build jobs are additional CI gates.
 - Rebuild and visually verify component/gallery changes using the gallery
   guide. The checked-in rebuild/capture scripts contain Windows-specific
@@ -424,7 +479,7 @@ behavior changes when choosing the artifact rebuild batch as well.
 | Scope/classification and metric readers | [extra audit](../.shots/extra_audit.py), [design audit](../.shots/design_audit.py), [theme serde audit](../.shots/theme_serde_audit.py) |
 | Bounds versus source/refinement evidence | [slider tests](../crates/herogpui-components/tests/slider_geometry_deep.rs), [cursor tests](../crates/herogpui-components/tests/cursor_token.rs) |
 | Artifact check coverage | [manifest tests](../web/scripts/extract-rust-examples.test.mjs), [website commands](../web/package.json) |
-| Current verification and network behavior | [CI](../.github/workflows/ci.yml), [lint](../.shots/lint.ps1), [demo audit](../.shots/demo_audit.py) |
+| Current verification and network behavior | [CI](../.github/workflows/ci.yml), [lint](../.shots/lint.sh), [demo audit](../.shots/demo_audit.py) |
 
 GPUI evidence: re-derive from the unpacked `gpui-pre-0.3.5` registry sources
 (the earlier `gpui-pre-0.3.3/src/style.rs` `corner_radii` reference was
@@ -457,37 +512,76 @@ reach yet, and are the next candidates.
 
 Deliberately not done, and next in this order:
 
-1. **`Styled` on components** (comparison §4 #3, L). Replaces per-prop box
-   builders with GPUI's full style surface backed by the existing `sx`
-   refinement. Needs the per-part ownership rules above first, because a root
-   `Styled` call must not silently restyle child parts.
-2. **VirtualList for the fixed-height paths.** 0.12.0 moved the
-   `estimated_row_height` bodies of `ListBox` and `Table` onto `VirtualList`
-   (same `ListState`, so no behaviour change). The fixed `row_height` paths of
-   both, and ComboBox's popover list (which has only that path), stay on
-   `uniform_list` deliberately: all three scroll the keyboard cursor with
-   `ScrollStrategy::Center`, which `ListState` has no equivalent for;
-   ListBox's and Table's PageUp/PageDown step by the declared row height over
-   the uniform list's viewport, and Table's load-more sentinel reads the
-   uniform list's `last_item_size` (its viewport, and a content height of the
-   row count times the one measured row) (`list_box.rs`,
-   `combo_box.rs`, `table.rs`; `collection_contracts`, `virtual_and_feedback`,
-   `table_deep`). Moving them needs a uniform mode on `VirtualList` that
-   keeps these, not a switch to the measured list.
+1. **`Styled` on components** (comparison §4 #3, L). Landed in 0.13 for every
+   component with an `sx` root slot: GPUI's style methods and `sx` share one
+   refinement, with builder order deciding overlapping properties. The
+   per-part ownership rules above keep root styling off independent child
+   parts.
+2. **VirtualList for the fixed-height paths.** Done for 0.13.
+   `VirtualListHandle::uniform` gives `VirtualList` a uniform mode (GPUI's
+   `uniform_list` underneath, so a row is still measured once and
+   multiplied), and the fixed `row_height` paths of `ListBox` and `Table`
+   and ComboBox's popover list render through it. The handle keeps what
+   they relied on: `VirtualListScroll::Center` is `ScrollStrategy::Center`
+   (non-strict, clamped), `viewport_bounds()` is the laid-out viewport
+   PageUp/PageDown step over by the declared row height, and
+   `remaining_below()` is `Table`'s load-more reading (row count times the
+   measured row, less the scroll offset and the viewport); the
+   `collection_contracts`, `virtual_and_feedback` and `table_deep` suites
+   pass unchanged. `Select` and `Autocomplete` still call `uniform_list`
+   directly and are the next candidates.
 3. **Theme hot reload** (`watch_dir`); **i18n** for more locales (non-Latin locales also need the web
    font subsets extended) and for the remaining hard-coded strings (NumberField
-   stepper names, ColorPicker channel names, DateField segment names).
-4. **Follow-ups on the 0.12.0 split, tree and icon extensions.** `ResizablePanel`
-   limits are percentages only (a pixel minimum needs the measured group
-   length at every clamp), panels do not collapse, and there is no
-   `on_resize_end`. `TreeView` has no Shift range selection, no
-   virtualisation (every visible row is built) and no `aria-posinset` /
-   `aria-setsize`, which it could count from its own items. `Icon` takes a
-   pixel size rather than a `Sizable` step and has no stroke-width control
-   (Lucide's `absoluteStrokeWidth`); the icon set is a curated subset with no
-   sync script, and adding an icon is a copied file plus one enum line. The
-   gallery has no Icons page yet: the set is documented on the website's
-   Icons guide and in `llms.txt`.
+   stepper names, ColorPicker channel names, DateField segment names). Done
+   for 0.13: `watch_themes_dir`, four more locales, and every chrome string,
+   the last being `Table`'s load-more row (`UiString::LoadingMore`).
+4. **Follow-ups on the 0.12.0 split, tree and icon extensions.** Done for
+   0.13. `ResizablePanel` takes pixel limits (`min_size_px`/`max_size_px`,
+   converted against the measured group length at every clamp, from the
+   frame after the first layout), collapses (`collapsible`,
+   `collapsed_size`; drag past halfway, arrows, Home/End, Enter on the
+   handle) and reports `on_resize_end`. `TreeView` extends a multiple
+   selection with Shift, renders through a uniform `VirtualList` (`max_h`
+   or a bounding parent builds only the rows in view) and reports
+   `aria-posinset` / `aria-setsize` among siblings. `Icon` takes an
+   `IconSize` step (`Sizable`) and a stroke width (`stroke_width`,
+   `absolute_stroke_width`: the asset source rewrites the SVG's
+   `stroke-width` per width, since gpui paints an SVG as one mask); the set
+   is `.shots/lucide-icons.txt`, synced by `.shots/sync-lucide.py` (`--check`
+   in CI's parity job); and the gallery has an Icons page. Left: stroke
+   width reaches only the Lucide set, not the chrome icons or an app's own
+   SVGs, and a pixel limit cannot hold on the very first frame, before the
+   group has been measured.
+
+### Extensions from the gpui-kit gap list (0.13, unreleased)
+
+Landed on the 0.13 line, each a labelled HeroGPUI extension outside
+`reference_metadata`, with a focused behaviour binary, a gallery section on a
+related component page, an `llms.txt` entry and an `a11y_audit.py` row:
+`Sidebar` (groups, collapsible headings on `Disclosure`'s panel motion, one
+roving tab stop, collapse to icons with tooltips), `TitleBar` and
+`WindowBorder` (drag, double-click zoom and the per-platform control split
+on the pinned window APIs), `CommandPalette` (a modal search on the overlay
+stack and `matches.rs`), `HoverCard` (the Tooltip's generation-timer scheme
+with Radix's 700/300ms delays), and on `Table` column reordering and cell
+selection. The comparison's "Toolbar extras" row names no single feature;
+the concrete gaps against gpui-kit's `toolbar.rs` were its size propagation
+to the controls and a named group, which landed as `Toolbar::size` /
+`sized_child` and `Toolbar::label`. gpui-kit's toolbar has no overflow menu,
+so there is none to port. `TableColumn::frozen` also landed after the
+`table.rs` render split: a frozen header and each frozen row keep a leading
+part alongside a clipped scrolling part, with a shared horizontal scroll
+handle. Row hover, press, selection and keyboard cell navigation cross the
+boundary; `tests/table_extras.rs` covers plain and virtual bodies.
+
+Not done, with the reason:
+
+- **Sidebar width drag.** `ResizablePanelGroup` sizes panels in percent
+  (see item 4 above), so a sidebar in a panel resizes but has no pixel
+  minimum; the sidebar's own widths are fixed pixels.
+- **TitleBar resize edges on Windows and macOS** are the OS's; `WindowBorder`
+  draws edges only for Linux client-side decorations. The browser has no
+  window to move, zoom or close.
 
 ## Remaining work after 0.12.0
 
@@ -500,30 +594,31 @@ to five days, L over a week.
 
 | Pri | Item | Why it matters | Effort | Target |
 |---|---|---|---|---|
-| P1 | Release hygiene: `cargo semver-checks` in CI and the release, an MSRV (1.98) job, a `--no-default-features` job | Public-API breaks in a minor or patch release are caught by review only | S | 0.12.1 |
-| P1 | Stale CI and agent comments ("70 test binaries" in `ci.yml` and `rust-env`, now 110+; "Git GPUI is not registry-publishable" in `ci.yml`; "stable wasm32 build" in `docs/agents/workflow.md`) | Contradictory guidance misleads contributors and agents | S | 0.12.1 |
-| P1 | Website command palette a11y (`combobox`/`listbox`/`aria-activedescendant`) and search over API items | Keyboard selection is silent to screen readers; Rust users search by builder name | M | 0.12.1 |
-| P1 | Website SEO and links: canonical URLs, sitemap, robots, per-page OG metadata, docs.rs and source links on component pages | Discoverability and a path from the site to rustdoc | M | 0.12.1 |
-| P1 | Wasm cold load: `wasm-opt` pass and a lazily mounted hero embed | The ~19 MB artifact is the slowest thing on the site | S | 0.12.1 |
-| P1 | Cross-platform lint gate: port `.shots/lint.ps1` to bash (like `run-tests.sh`) and make `demo_audit` runnable offline | The documented gate cannot run on macOS or Linux without pwsh | M | 0.13 |
-| P2 | Remaining ~116 source-text assertions (overlay panels, fields, wiring) to painted-scene or behaviour tests | They pin source shape and block refactoring the large render functions | L | 0.13 |
-| P2 | VirtualList uniform mode for the fixed `row_height` paths of ListBox, Table and ComboBox (see item 2 above) | Removes the last `uniform_list` split without losing centred scrolling, paging or load-more | M | 0.13 |
-| P2 | TreeView: Shift range selection, virtualisation, `aria-posinset`/`aria-setsize` | Large trees build every visible row; set position is missing for assistive technology | M | 0.13 |
-| P2 | ResizablePanel: pixel min/max, collapsible panels, `on_resize_end` | The common split-pane needs beyond percentages | M | 0.13 |
-| P2 | Icon: `Sizable` steps, stroke width, a Lucide sync script, a gallery Icons page | The set cannot grow or be browsed without hand work | M | 0.13 |
-| P2 | Theme API safety: typed roles for `ThemeBuilder::role` (a typo silently recolours the accent); stop reading `HEROGPUI_REDUCE_MOTION` from the environment inside the library | Silent misconfiguration in a library API | S | 0.13 |
-| P2 | `#[must_use]` on builders (none today) and a `missing_docs` ratchet | A dropped builder does nothing, silently; public docs have gaps | S / M | 0.13 |
-| P2 | i18n: more locales, the hard-coded NumberField/ColorPicker/DateField strings, non-Latin web font subsets | Localisation is incomplete for real users | M | 0.13 |
-| P2 | Theme hot reload (`watch_dir`; `ThemeRegistry` has `load_dir` only) | Faster theming workflow | S–M | 0.13 |
-| P2 | Website hardening: CSP and `frame-ancestors`, remove the unused `web/public/shots/` images, PR preview deploys | Security headers and deploy size | M | 0.13 |
-| P3 | Stop committing the wasm artifact; build it in CI and publish it with the site | Repository weight grows ~19 MB per gallery change | L | 0.14 |
-| P3 | `Styled` on components (item 1 above), after the per-part ownership rules of Phase 0.1 | Largest API change and semver risk; needs part ownership first | L | 0.14 |
-| P3 | Split the largest `render` functions (`table.rs` and others), merge the 110+ test binaries into a few suites | Review cost and link time | L | 0.14 |
-| P3 | Customisation Phases 0.2–6 (theme tokens, field geometry, state colours, sizing, shape, typography) | The largest documented backlog; opt-in and unscheduled | L | 0.14+ |
-| P3 | Opt-in -O1/-O3 (`Cargo.toml` profile) test job on pull requests, by label or path filter | It is push-only by design, so an optimisation-level regression first shows on master or at tag time | S | 0.13 |
-| P3 | Extensions from the gpui-kit gap list: Sidebar, TitleBar, CommandPalette, HoverCard, Toolbar extras, data-table extras | Desktop-app demand outside HeroUI parity | L | later |
-| P3 | Keyboard ContextMenu anchored at the focused element | Needs GPUI to report focused-element bounds | S once upstream lands | later |
-| P3 | Upstream GPUI work: IME-mirror resync after paste, the retired patches, the `block` 0.1.6 future-incompatibility warning every macOS build prints; multithreaded wasm needs a COOP/COEP deployment | External dependencies | M each | later |
+| P1 | ~~Release hygiene: `cargo semver-checks` in CI and the release, an MSRV (1.98) job, a `--no-default-features` job~~ **Done (0.13):** `semver` PR job (label `semver:breaking` to accept a deliberate break) and a release `semver` job gating the GitHub Release; `no-default-features` job; no MSRV job because the toolchain pin is the MSRV release, asserted by `package_audit.py` | Public-API breaks in a minor or patch release are caught by review only | S | 0.12.1 |
+| P1 | ~~Stale CI and agent comments ("70 test binaries" in `ci.yml` and `rust-env`, now 110+; "Git GPUI is not registry-publishable" in `ci.yml`; "stable wasm32 build" in `docs/agents/workflow.md`)~~ **Done (0.13):** fixed with the other stale facts found (deny.toml, RELEASING.md, clippy/toolchain comments); `.shots/stale_docs_audit.py` fails on a reintroduced phrase | Contradictory guidance misleads contributors and agents | S | 0.12.1 |
+| P1 | ~~Website command palette a11y (`combobox`/`listbox`/`aria-activedescendant`) and search over API items~~ Done in 0.13: ARIA combobox pattern; builders and types indexed from `reference.json` | Keyboard selection is silent to screen readers; Rust users search by builder name | M | 0.12.1 |
+| P1 | ~~Website SEO and links: canonical URLs, sitemap, robots, per-page OG metadata, docs.rs and source links on component pages~~ Done in 0.13 (the parent zone's `robots.txt` should list the zone sitemap; see `web/DEPLOYMENT.md`) | Discoverability and a path from the site to rustdoc | M | 0.12.1 |
+| P1 | ~~Wasm cold load: `wasm-opt` pass and a lazily mounted hero embed~~ **Done (0.13):** binaryen version_133 `wasm-opt -O1` in `.shots/build-wasm.sh` and CI (-3.6% raw, -0.5% brotli; `-Oz` shrinks raw 10.7% but compresses 3.8% worse, measured in `web/DEPLOYMENT.md` section 6); the hero already mounts on demand, with an intent prefetch of the versioned artifact | The ~19 MB artifact is the slowest thing on the site | S | 0.13 |
+| P1 | ~~Cross-platform lint gate: port `.shots/lint.ps1` to bash (like `run-tests.sh`) and make `demo_audit` runnable offline~~ **Done (0.13):** `.shots/lint.sh` (CI calls it; `lint.ps1` forwards to it); `demo_audit` already ran offline from the checked-in archive since #15, and its self-test now runs in CI | The documented gate cannot run on macOS or Linux without pwsh | M | 0.13 |
+| P2 | ~~Remaining ~116 source-text assertions (overlay panels, fields, wiring) to painted-scene or behaviour tests~~ Done in 0.13: `include_str!` 115 → 0; the 63 source-reading tests in those 21 files → 19, each kept one listed with its reason in `crates/herogpui-components/tests/README.md` (svg/sprite, shadow, cursor and AccessKit output, and text with no probe slot are not exposed headlessly) | They pinned source shape and blocked refactoring the large render functions | L | 0.13 |
+| P2 | VirtualList uniform mode for the fixed `row_height` paths of ListBox, Table and ComboBox (see item 2 above) | Removes the last `uniform_list` split without losing centred scrolling, paging or load-more | M | done (0.13) |
+| P2 | TreeView: Shift range selection, virtualisation, `aria-posinset`/`aria-setsize` | Large trees build every visible row; set position is missing for assistive technology | M | done (0.13) |
+| P2 | ResizablePanel: pixel min/max, collapsible panels, `on_resize_end` | The common split-pane needs beyond percentages | M | done (0.13) |
+| P2 | Icon: `Sizable` steps, stroke width, a Lucide sync script, a gallery Icons page | The set cannot grow or be browsed without hand work | M | done (0.13) |
+| P2 | Theme API safety: typed roles for `ThemeBuilder::role` (a typo silently recolours the accent); stop reading `HEROGPUI_REDUCE_MOTION` from the environment inside the library | Silent misconfiguration in a library API | S | **Done** (0.13): `ThemeBuilder::role`/`role_hover` and `ThemeColors::role` take `Color` (`FromStr` fails on an unknown name); `set_reduce_motion` is the only setter, the gallery maps the variable |
+| P2 | `#[must_use]` on builders (none today) and a `missing_docs` ratchet | A dropped builder does nothing, silently; public docs have gaps | S / M | **Done** (0.13): type-level `#[must_use]` on every component and builder type; `missing_docs` warns (so `clippy -D warnings` fails) in core, theme, components and the facade. Every public item is documented |
+| P2 | i18n: more locales, the hard-coded NumberField/ColorPicker/DateField strings, non-Latin web font subsets | Localisation is incomplete for real users | M | **Done** (0.13): ja-JP, zh-CN, ko-KR, ru-RU; steppers, segments, channels, DatePicker trigger, selected day, Autocomplete clear, Pagination; Noto Sans KR subset and a wider SC pre-reduction; `Table`'s "Loading…" row (`UiString::LoadingMore`) |
+| P2 | Theme hot reload (`watch_dir`; `ThemeRegistry` has `load_dir` only) | Faster theming workflow | S–M | **Done** (0.13): `watch_themes_dir` behind the `watch` feature (polling, no new dependency); the native gallery watches `HEROGPUI_THEME_DIR` |
+| P2 | ~~Website hardening: CSP and `frame-ancestors`, remove the unused `web/public/shots/` images, PR preview deploys~~ Done in 0.13 (previews were already on through Vercel's Git integration) | Security headers and deploy size | M | 0.13 |
+| P3 | ~~Stop committing the wasm artifact; build it in CI and publish it with the site~~ **Done (0.13):** CI publishes it as a `gallery-<key16>` prerelease per wasm build-input hash (assets attached while a draft, so immutable releases are fine); the Vercel build downloads and verifies the one for its checkout (previews fall back to master's with a banner; production waits, then fails rather than ship a mismatch). No secrets, no manual step; `web/DEPLOYMENT.md` section 6 | Repository weight grows ~19 MB per gallery change | L | 0.13 |
+| P3 | ~~`Styled` on components~~ **Done (0.13):** all components with an `sx` root slot implement GPUI `Styled`, backed by that slot; `sx` and direct methods compose in builder order | GPUI's full root style API is available without duplicating per-prop builders | L | 0.13 |
+| P3 | ~~Split the largest `render` functions (`table.rs` and others), merge the 110+ test binaries into a few suites~~ **Done (0.13):** `table.rs`, Select, ComboBox and Autocomplete are split into per-part helpers; the component integration sources run in nine feature-area suites, with an integrity test for omitted sources | Lower review cost and link time while retaining focused module filters | L | 0.13 |
+| P3 | ~~Customisation Phases 0.2–6 (theme tokens, field geometry, state colours, sizing, shape, typography)~~ **Done (0.13):** most landed in 0.9.0–0.10.1; the close-out implemented the rest and recorded each decline (see [Status of Phases 0–6](#status-of-phases-06-013-close-out)) | The largest documented backlog | L | 0.13 |
+| P3 | ~~Opt-in -O1/-O3 (`Cargo.toml` profile) test job on pull requests, by label or path filter~~ **Done (0.13):** `ci:opt-levels` label, or a PR touching build configuration | It is push-only by design, so an optimisation-level regression first shows on master or at tag time | S | 0.13 |
+| P3 | Extensions from the gpui-kit gap list: Sidebar, TitleBar, CommandPalette, HoverCard, Toolbar extras, data-table extras | Done on the 0.13 line, including frozen table columns (see "Extensions from the gpui-kit gap list" above) | L | 0.13 |
+| P3 | ~~Frozen table columns~~ **Done (0.13):** `TableColumn::frozen` keeps the leading columns and selection column fixed with split header and row parts; plain and virtual paths are covered by `table_extras` | GPUI has no sticky positioning, so the table uses clipped scroll parts | M | 0.13 |
+| P3 | ~~Keyboard ContextMenu anchored at the focused element~~ **Done (0.13):** a focused-bounds registry anchors Shift+F10 below supported HeroGPUI controls, collection rows, MenuBar triggers and calendar grids; unrecorded application content and overlay scopes retain the area's corner fallback (design: [`docs/upstream/prs/context-menu-focus-anchor.md`](upstream/prs/context-menu-focus-anchor.md)) | M | 0.13 |
+| P3 | Upstream GPUI work: IME-mirror resync after paste, the retired patches, the `block` 0.1.6 future-incompatibility warning every macOS build prints (chain and requested fix in [`docs/upstream/gpui-block-future-incompat.md`](upstream/gpui-block-future-incompat.md)); multithreaded wasm. **0.13:** ready-to-submit patches and PR texts for the IME resync and the retired patches against zed@d89e9c2 in [`docs/upstream/prs/`](upstream/prs/README.md) (submission needs a maintainer with a Zed CLA); HeroGPUI's own `locale_config` edge to `block` is gone (replaced by `system_locale.rs`); multithreaded wasm evaluated and not adopted ([`docs/upstream/gpui-web-multithreaded.md`](upstream/gpui-web-multithreaded.md)) | External dependencies | M each | later |
 
 Ordering: P1 is cheap, user-visible or process-critical and safe for a patch
 release; P2 is the 0.12.0 follow-ups and library-quality debt sized for one

@@ -90,8 +90,24 @@ pub struct Gallery {
     pub menu_bar_last: SharedString,
     /// Last sizes reported by the ResizablePanelGroup extension demo.
     pub resizable_sizes: SharedString,
+    /// Sizes the collapsible ResizablePanelGroup demo last settled on.
+    pub resizable_settled: SharedString,
     /// Selection of the TreeView extension demo.
     pub tree_selected: SharedString,
+    /// Whether the CommandPalette extension demo is open (Cmd/Ctrl-K).
+    pub command_palette_open: bool,
+    /// Last command the CommandPalette extension demo ran.
+    pub command_palette_last: SharedString,
+    /// Active item of the Sidebar extension demo.
+    pub sidebar_active: SharedString,
+    /// Whether the Sidebar extension demo is collapsed to icons.
+    pub sidebar_collapsed: bool,
+    /// Last window action the TitleBar extension demo reported.
+    pub title_bar_last: SharedString,
+    /// Column order of the Table column-reordering extension demo.
+    pub table_column_order: Vec<usize>,
+    /// Selected cell of the Table cell-selection extension demo.
+    pub table_selected_cell: Option<h::TableCell>,
     /// Scroll state of the VirtualList extension demo.
     pub virtual_list: h::VirtualListHandle,
     pub dropdown_last_basic: SharedString,
@@ -149,6 +165,9 @@ pub struct Gallery {
     pub swatch_selected: h::PickerColor,
     pub search_state: Entity<h::InputState>,
     pub search_query: String,
+    /// The Icons page's name filter.
+    pub icons_search: Entity<h::InputState>,
+    pub icons_query: String,
     pub group_amount: Entity<h::InputState>,
     pub cal_year_picker: bool,
     pub table_selection: Vec<SharedString>,
@@ -182,6 +201,74 @@ pub struct Gallery {
 }
 
 impl Gallery {
+    /// The gallery-wide CommandPalette extension demo: every page, grouped by
+    /// its navigation section, plus the two appearance toggles. Rendered at the
+    /// shell's root so Cmd-K (Ctrl-K off macOS) opens it from any page.
+    fn command_palette(&self, cx: &mut Context<'_, Self>) -> h::CommandPalette {
+        let mut pages: Vec<(SharedString, Page)> = Vec::new();
+        let mut items = Vec::new();
+        for section in nav_sections() {
+            for page in section.items {
+                let key = SharedString::from(format!("page:{page:?}"));
+                if pages.iter().any(|(known, _)| *known == key) {
+                    continue;
+                }
+                items.push(
+                    h::CommandItem::new(key.clone(), page.title())
+                        .group(section.title)
+                        .icon(h::IconName::File),
+                );
+                pages.push((key, page));
+            }
+        }
+        items.push(
+            h::CommandItem::new("toggle-theme", "Toggle dark mode")
+                .group("Preferences")
+                .icon(h::IconName::Moon)
+                .keywords(["theme", "light", "dark", "appearance"]),
+        );
+        items.push(
+            h::CommandItem::new("toggle-motion", "Toggle reduced motion")
+                .group("Preferences")
+                .keywords(["animation", "accessibility"]),
+        );
+        h::CommandPalette::new("gallery-command-palette", items)
+            .placeholder("Search pages and commands")
+            .is_open(self.command_palette_open)
+            .on_open_change(cx.listener(|this, open: &bool, _, cx| {
+                this.command_palette_open = *open;
+                cx.notify();
+            }))
+            .on_select(cx.listener(move |this, key: &SharedString, _, cx| {
+                match key.as_ref() {
+                    "toggle-theme" => toggle_light_dark(cx),
+                    "toggle-motion" => toggle_reduce_motion(cx),
+                    _ => {
+                        if let Some((_, page)) = pages.iter().find(|(known, _)| known == key) {
+                            this.page = *page;
+                        }
+                    }
+                }
+                this.command_palette_last = key.clone();
+                cx.notify();
+            }))
+    }
+
+    /// Cmd-K (Ctrl-K off macOS) toggles the CommandPalette demo from anywhere
+    /// in the shell.
+    fn toggle_command_palette(
+        &mut self,
+        event: &gpui::KeyDownEvent,
+        _: &mut Window,
+        cx: &mut Context<'_, Self>,
+    ) {
+        if h::is_command_palette_shortcut(&event.keystroke) {
+            self.command_palette_open = !self.command_palette_open;
+            cx.stop_propagation();
+            cx.notify();
+        }
+    }
+
     fn toast_viewport(&self) -> h::ToastViewport {
         h::ToastViewport::new()
             .placement(self.toast_placement)
@@ -353,6 +440,7 @@ Enter inserts a newline here, and a long paragraph wraps inside the field instea
             n
         });
         let search_state = cx.new(|cx| h::InputState::new(cx));
+        let icons_search = cx.new(|cx| h::InputState::new(cx));
         let group_amount = cx.new(|cx| h::InputState::new(cx));
 
         // Re-render the shell whenever toasts change.
@@ -392,7 +480,15 @@ Enter inserts a newline here, and a long paragraph wraps inside the field instea
             context_menu_last: SharedString::from("none yet"),
             menu_bar_last: SharedString::from("none yet"),
             resizable_sizes: SharedString::from("30, 70"),
+            resizable_settled: SharedString::from("25, 75"),
             tree_selected: SharedString::from("nothing"),
+            command_palette_open: false,
+            command_palette_last: SharedString::from("none yet"),
+            sidebar_active: SharedString::from("home"),
+            sidebar_collapsed: false,
+            title_bar_last: SharedString::from("none yet"),
+            table_column_order: vec![0, 1, 2],
+            table_selected_cell: None,
             virtual_list: h::VirtualListHandle::new(1000),
             dropdown_last_basic: SharedString::from("none yet"),
             dropdown_doc_marks: vec![SharedString::from("bold")],
@@ -447,6 +543,8 @@ Enter inserts a newline here, and a long paragraph wraps inside the field instea
             swatch_selected: h::PickerColor::from_hex("#0085F5").unwrap_or_default(),
             search_state,
             search_query: String::new(),
+            icons_search,
+            icons_query: String::new(),
             group_amount,
             cal_year_picker: std::env::var("HEROGPUI_OPEN_OVERLAYS").is_ok(),
             table_selection: Vec::new(),
@@ -527,7 +625,9 @@ impl Render for Gallery {
                 .text_size(px(14.))
                 .line_height(px(20.))
                 .relative()
+                .on_key_down(cx.listener(Self::toggle_command_palette))
                 .child(self.render_current_page(cx))
+                .child(self.command_palette(cx))
                 .child(self.toast_viewport());
         }
 
@@ -831,8 +931,10 @@ impl Render for Gallery {
             .text_size(px(14.))
             .line_height(px(20.))
             .relative()
+            .on_key_down(cx.listener(Self::toggle_command_palette))
             .child(navbar)
             .child(gpui::div().flex().flex_1().min_h_0().child(sidebar).child(content))
+            .child(self.command_palette(cx))
             // Toasts last so they paint above the shell. Modal and Drawer
             // demos live on their own pages.
             .child(self.toast_viewport())

@@ -1,7 +1,7 @@
 //! Deeper Table behaviour not covered by the sorting, selection, resize,
 //! virtualisation, footer and load-more suites.
 
-mod harness;
+use crate::harness;
 
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;

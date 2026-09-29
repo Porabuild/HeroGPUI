@@ -430,11 +430,48 @@ EXPOSES_A_ROLE = {
         'the line the handle draws and a value range bounded by the two '
         'panels\' limits. The group and its panels are layout and report no '
         'node.',
+    ('hover_card.rs', 'HoverCard'):
+        'HeroGPUI extension with no HeroUI v3 upstream and no React Aria '
+        'hook. Role::Group on the card, named by `label` when one is given. '
+        'Radix\'s `HoverCard.Content` (the behaviour this ports) is a plain '
+        'element with no role, documented as a pointer enhancement; the port '
+        'makes the card one labelled region instead of loose text, and '
+        'deliberately not Role::Tooltip, whose content is a plain-text '
+        'description of the trigger. The trigger is the caller\'s element '
+        'and reports its own node.',
+    ('command_palette.rs', 'CommandPalette'):
+        'HeroGPUI extension with no HeroUI v3 upstream. Role::Dialog named by '
+        '`label` on the panel (the `Modal` dialog shape), Role::ListBox on '
+        'the results and Role::ListBoxOption named by its label (described '
+        'by its description) on each command, the highlighted one '
+        '`aria-selected` and the active descendant while the search field '
+        'keeps the focus: the search-driven virtual-focus list that cmdk '
+        'and RAC\'s `Autocomplete` (`useAutocomplete`) render. The search '
+        'field is an `Input`, which reports its own text node.',
+    ('sidebar.rs', 'Sidebar'):
+        'HeroGPUI extension with no HeroUI v3 upstream. Role::Navigation '
+        'named by `label` on the root (shadcn/ui\'s and gpui-kit\'s sidebar '
+        'is a navigation landmark), Role::Group named by its label on each '
+        'group, Role::Button with `aria-expanded` on a collapsible group\'s '
+        'heading (the disclosure trigger `useDisclosure` renders), and '
+        'Role::Link named by its label on each item, the cursor row marked '
+        'as the active descendant of the menu\'s single focus handle. The '
+        'active item\'s `aria-current="page"` goes through `a11y_current`, '
+        'which the pinned gpui cannot express (see `a11y.rs`).',
+    ('title_bar.rs', 'TitleBar'):
+        'HeroGPUI extension with no HeroUI v3 upstream (window chrome is '
+        'outside a web library). Role::TitleBar named by `title` on the bar '
+        '(AccessKit\'s role for a window\'s title bar) and Role::Button on '
+        'each drawn control, named "Minimize", "Maximize" / "Restore" and '
+        'the `Close` UI string. The controls are not tab stops, as native '
+        'caption buttons are not.',
     ('tree_view.rs', 'TreeView'):
         'HeroGPUI extension with no HeroUI v3 upstream; the roles follow the '
         'WAI-ARIA tree pattern that RAC\'s `Tree` implements. Role::Tree on '
         'the root and Role::TreeItem named by its label on each visible row, '
-        'with `aria-level` (depth + 1), `aria-expanded` on parents and '
+        'with `aria-level` (depth + 1), `aria-posinset` / `aria-setsize` '
+        'among its siblings (always, as `useGridListItem` sets them on a '
+        'tree row), `aria-expanded` on parents and '
         '`aria-selected` when the tree selects. Like `ListBox`, the tree '
         'keeps one focus handle and marks the cursor row as the active '
         'descendant.',
@@ -760,6 +797,11 @@ NO_NODE = {
         'container over caller-built rows, which carry their own nodes; a '
         '`list` role here would claim `listitem` children it does not own. '
         'A semantic list belongs on `ListBox`, which has one.',
+    ('title_bar.rs', 'WindowBorder'):
+        'HeroGPUI extension with no HeroUI v3 upstream. A frame (shadow, '
+        'border and resize bands) around the window content, drawn only for '
+        'Linux client-side decorations; a native window frame is not an '
+        'accessibility node either, and the content keeps its own nodes.',
     ('icon.rs', 'Icon'):
         'HeroGPUI extension with no HeroUI v3 upstream. The glyphs are '
         'Lucide\'s, and `lucide-react` 1.31.0 (`dist/esm/Icon.mjs`, pinned in '

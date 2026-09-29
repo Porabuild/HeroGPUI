@@ -34,7 +34,12 @@ release if the lockfile drifts off the pinned version.
 1. Confirm the public `Porabuild/HeroGPUI` GitHub repository is in place and
    the working tree is pushed to it.
 2. Create a protected `release` GitHub environment and protect `v*` tags.
-3. Enable immutable GitHub Releases.
+3. Enable immutable GitHub Releases. This is safe for the website: its
+   gallery artifacts are published one prerelease per build key, with every
+   asset attached while the release is still a draft, and CI afterwards only
+   edits titles and deletes whole old releases, both of which immutability
+   allows (`web/DEPLOYMENT.md`, section 6). Do not add a tag ruleset that
+   blocks GitHub Actions from creating or deleting `gallery-*` tags.
 4. Reserve the five crates.io names. They were unclaimed when checked on
    2026-08-27, but registry ownership is first-come.
 
@@ -74,13 +79,19 @@ is stored in GitHub.
    cargo package -p herogpui --allow-dirty --no-verify --list
    cargo package -p herogpui-gallery --allow-dirty --no-verify --list
    cargo publish --workspace --dry-run --allow-dirty --locked --no-verify
+   # What the release's `semver` job runs (install: cargo install
+   # cargo-semver-checks --locked --version 0.50.0, the version CI pins):
+   cargo semver-checks -p herogpui-core -p herogpui-theme -p herogpui-components -p herogpui
    ```
 
 4. Commit, create an annotated `vX.Y.Z` tag, and push the commit and tag.
 5. The release workflow builds every supported gallery binary, attests them,
    and creates the immutable GitHub Release with those binaries plus
    `LICENSE`, `NOTICE` and `LICENSE-lucide` (the ISC/MIT license of the
-   Lucide icons the binaries embed). It does not publish to crates.io.
+   Lucide icons the binaries embed). It is created only after the `semver`
+   job has checked the four library crates' public API against their latest
+   crates.io release with `cargo semver-checks`: a breaking change needs a
+   0.x minor (or major) version, never a patch.
 6. The workflow's `publish-crates` job publishes the crates. To publish by
    hand instead (first release of a crate, or a workflow outage), from the
    tagged commit and in dependency order:
@@ -95,6 +106,16 @@ is stored in GitHub.
 
 7. Verify a new project with `cargo add herogpui`, and install the gallery
    with `cargo install herogpui-gallery` on at least one clean machine.
+
+The web gallery (the WebAssembly build the website embeds) is **not** a
+release asset. CI builds it on every pull request and publishes it on master pushes as its
+own `gallery-<key16>` prerelease, keyed by its build inputs, and the website
+deploys from master on its own (`web/DEPLOYMENT.md`, section 6). The release
+workflow's CI run builds the tagged tree again under a read-only token; the
+master push has already published its artifact.
+Those prereleases are never marked Latest and their `gallery-*` tags do not
+match the `v*` pattern this workflow triggers on, so they neither show as a
+HeroGPUI version nor start a release.
 
 If a registry publish partially succeeds, never reuse or overwrite a published
 version. Retry only the missing packages when safe; otherwise increment the

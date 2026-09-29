@@ -1150,6 +1150,27 @@ impl Gallery {
                         .into_any_element(),
                     ]), cx),
                 ),
+                (
+                    "Command Palette", "HeroGPUI extension, not a HeroUI v3 example: `CommandPalette` is a modal command search on the same overlay stack as `Modal`. Press Cmd-K (Ctrl-K off macOS) anywhere in the gallery, or the button below: type to filter every page and two appearance commands (each query word must match a label, keyword or group), Up and Down move the highlight, Enter runs it and Escape closes. The shell binds the shortcut in a root `on_key_down` with `is_command_palette_shortcut`.",
+                    specimen_body("md-command-palette", col(vec![
+                        h::Button::new("md-command-palette-open")
+                            .label("Open command palette")
+                            .variant(Variant::Secondary)
+                            .child(
+                                gpui::div()
+                                    .flex()
+                                    .gap(px(2.))
+                                    .child(h::Kbd::new().child(if cfg!(target_os = "macos") { "⌘" } else { "Ctrl" }))
+                                    .child(h::Kbd::new().child("K")),
+                            )
+                            .on_press(cx.listener(|this, _, _, cx| {
+                                this.command_palette_open = true;
+                                cx.notify();
+                            }))
+                            .into_any_element(),
+                        para(&format!("Last command: {}", self.command_palette_last), cx),
+                    ]), cx),
+                ),
             ],
             cx,
         )
@@ -2121,6 +2142,47 @@ impl Gallery {
                             .child(h::Button::new("tip-slow").label("500ms").into_any_element())
                             .into_any_element(),
                     ]),
+                ),
+                (
+                    "Hover Card", "HeroGPUI extension, not a HeroUI v3 example: `HoverCard` previews rich content while its trigger is hovered (after `open_delay`, 700ms by default) or focused from the keyboard (at once). Moving the pointer onto the card keeps it open so its content can be read and pressed; leaving both starts `close_delay`, and Escape or a press outside closes it. The card is a labelled group, not a tooltip.",
+                    specimen_body("tt-hover-card", row(vec![
+                        h::HoverCard::new("tt-hover-card-profile")
+                            .label("Jane Doe's profile")
+                            .content(|_, cx| {
+                                let muted = cx.colors().muted;
+                                gpui::div()
+                                    .flex()
+                                    .gap(px(12.))
+                                    .child(h::Avatar::new("tt-hover-card-avatar").name("Jane Doe"))
+                                    .child(
+                                        gpui::div()
+                                            .flex()
+                                            .flex_col()
+                                            .gap(px(4.))
+                                            .child(
+                                                gpui::div()
+                                                    .font_weight(gpui::FontWeight::MEDIUM)
+                                                    .child("Jane Doe"),
+                                            )
+                                            .child(
+                                                gpui::div()
+                                                    .text_color(muted)
+                                                    .child("Design engineer. Builds the component library and its docs."),
+                                            )
+                                            .child(
+                                                h::Link::new("tt-hover-card-link")
+                                                    .label("View profile"),
+                                            ),
+                                    )
+                                    .into_any_element()
+                            })
+                            .child(
+                                h::Button::new("tt-hover-card-trigger")
+                                    .label("@jane")
+                                    .variant(Variant::Tertiary),
+                            )
+                            .into_any_element(),
+                    ]), cx),
                 ),
             ],
             cx,

@@ -23,6 +23,7 @@ pub struct DatePickerRenderState {
 }
 
 /// HeroUI DatePicker (controlled open state; selection lives in the entity).
+#[must_use = "a component does nothing until it is rendered: add it as a child or return it from `render`"]
 #[derive(IntoElement)]
 pub struct DatePicker {
     /// The locale whose calendar system the popover's grid is drawn in, when
@@ -123,6 +124,7 @@ impl DatePicker {
         self
     }
 
+    /// Sets whether the picker is disabled (`isDisabled`).
     pub fn is_disabled(mut self, v: bool) -> Self {
         self.is_disabled = v;
         self
@@ -161,6 +163,7 @@ impl DatePicker {
         self
     }
 
+    /// Sets whether the picker is invalid (`isInvalid`).
     pub fn is_invalid(mut self, v: bool) -> Self {
         self.is_invalid = v;
         self
@@ -178,6 +181,7 @@ impl DatePicker {
         self
     }
 
+    /// Creates a date picker bound to `state`.
     pub fn new(state: Entity<CalendarState>) -> Self {
         let form_state = date_picker_form_state(state.entity_id().as_u64());
         let form_is_disabled = Rc::new(Cell::new(false));
@@ -311,6 +315,7 @@ impl DatePicker {
         self
     }
 
+    /// Sets the controlled open state of the popover (`isOpen`).
     pub fn is_open(mut self, v: bool) -> Self {
         self.is_open = Some(v);
         self
@@ -338,6 +343,7 @@ impl DatePicker {
         self
     }
 
+    /// Sets the label shown above the picker.
     pub fn label(mut self, l: impl Into<SharedString>) -> Self {
         self.label = Some(l.into());
         self
@@ -358,6 +364,7 @@ impl DatePicker {
         self
     }
 
+    /// Sets the handler called when the date changes (`onChange`).
     pub fn on_change(mut self, f: impl Fn(&Option<Date>, &mut Window, &mut App) + 'static) -> Self {
         let callback = std::sync::Arc::new(f);
         *self.form_on_change.borrow_mut() = Some(callback.clone());
@@ -370,7 +377,7 @@ impl DatePicker {
     /// applied to the picker's root element after every value the component
     /// and the active theme chose, so they win.
     pub fn sx(mut self, style: impl FnOnce(gpui::Div) -> gpui::Div) -> Self {
-        self.sx = Some(crate::util::capture_sx(style));
+        crate::util::refine_sx(&mut self.sx, style);
         self
     }
 }
@@ -640,7 +647,10 @@ impl RenderOnce for DatePicker {
         // it is a button with `aria-expanded`. `aria-haspopup` has no gpui
         // builder (see `crate::a11y`).
         trigger = trigger
-            .a11y_named(a11y::Role::Button, &a11y::Name::labelled("Calendar"))
+            .a11y_named(
+                a11y::Role::Button,
+                &a11y::Name::labelled(crate::i18n::ui_string(crate::i18n::UiString::Calendar, cx)),
+            )
             .a11y_expanded(is_open);
         if !self.is_disabled && !self.is_read_only {
             let focus_on_press = trigger_focus.clone();
@@ -669,6 +679,9 @@ impl RenderOnce for DatePicker {
                         cb(&!was_open, window, cx);
                     }
                 });
+        }
+        if !self.is_disabled && !self.is_read_only {
+            trigger = crate::util::record_focus_bounds(trigger, &trigger_focus, window, cx);
         }
         let mut date_field = DateField::new(field_state)
             .embedded(false)
@@ -931,3 +944,5 @@ pub(super) fn picker_panel(
 }
 
 // ---------------------------------------------------------------------------
+
+crate::util::impl_component_styled!(DatePicker);

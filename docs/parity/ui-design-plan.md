@@ -367,7 +367,7 @@ Test IME, composed characters, clipboard, selection, pointer/wheel and focus tra
 
 Regenerate `reference.json` and `rust-examples.json` with `pnpm run extract`; never hand-edit generated JSON. Regenerate catalog data when routes/categories/imports change and public shots when their source captures change, using the existing extractors. Run `pnpm run extract:check`.
 
-After any Rust component or gallery change that affects the shipped runtime, rebuild `herogpui-web` on pinned stable, run the matching `wasm-bindgen`, regenerate `wasm-sections.json` and `wasm-parity.json`, and verify the live preview against its displayed code. Do not regenerate hashes around an old binary to make checks pass.
+After any Rust component or gallery change that affects the shipped runtime, rebuild `herogpui-web` on nightly (see the root guide), run the matching `wasm-bindgen`, regenerate `wasm-sections.json` and `wasm-parity.json`, and verify the live preview against its displayed code. Do not regenerate hashes around an old binary to make checks pass.
 
 Measure preview cold start, warm navigation, WASM transfer/parse, input responsiveness, long-list scrolling and memory before and after work. Set budgets from that baseline and investigate regressions. Preserve lazy boot and browser caching; repeated example switching should not leak canvases, applications, handlers or timers. Do not claim performance numbers without the device/browser and procedure.
 
@@ -406,18 +406,20 @@ python3 .shots/subset-fonts.py --check
 python3 .shots/write_only.py
 ```
 
-Run `.shots/lint.ps1` using an appropriate PowerShell host, and every `.shots/*audit.py` with output checked for actual unresolved rows. Preserve CI's rustdoc flags and host matrix when reproducing that gate. Do not describe the commands above alone as a full CI pass.
+Run `bash .shots/lint.sh`, and every `.shots/*audit.py` with output checked for actual unresolved rows. Preserve CI's rustdoc flags and host matrix when reproducing that gate. Do not describe the commands above alone as a full CI pass.
 
-Rebuild the browser artifact from the repository root:
+The browser artifact is not committed: CI builds and publishes it, and the
+website build downloads the one for its checkout (`web/DEPLOYMENT.md`,
+section 6). To check a change in the browser locally, build it from the
+repository root:
 
 ```sh
-rustup target add wasm32-unknown-unknown
-cargo build --locked --target wasm32-unknown-unknown --profile wasm-release -p herogpui-web
-wasm-bindgen --target web --no-typescript --out-dir web/public/gallery \
-  target/wasm32-unknown-unknown/wasm-release/herogpui_web.wasm
+bash .shots/build-wasm.sh   # nightly wasm32 build, wasm-bindgen, wasm-opt -> web/public/gallery/
 ```
 
-Use the actual Cargo target directory if overridden. The CLI must match `wasm-bindgen` in `Cargo.lock`. Never set `RUSTFLAGS` or a nightly toolchain override for this build; preserve the vendored web platform's single-threaded default.
+The `wasm-bindgen` CLI must match `Cargo.lock` and binaryen's `wasm-opt`
+the version the script pins (or pass `--no-opt`); the script checks both.
+Never set `RUSTFLAGS` for this build.
 
 Then from `web/`:
 

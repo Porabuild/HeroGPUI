@@ -3,11 +3,13 @@ import Link from "next/link";
 import { PageHeader } from "@/components/ui/page-header";
 import { CodeBlock } from "@/components/ui/code-block";
 import { Callout } from "@/components/ui/callout";
+import { pageMetadata } from "@/lib/seo";
 
-export const metadata: Metadata = {
+export const metadata: Metadata = pageMetadata({
+  path: "/docs/getting-started/dark-mode",
   title: "Dark Mode",
   description: "Register and switch light and dark themes at runtime in a GPUI application.",
-};
+});
 
 const INIT = `application().with_assets(HeroGpuiAssets).run(|cx: &mut App| {
     ThemeProvider::init(cx); // registers light + dark
@@ -93,11 +95,12 @@ export default function DarkModePage() {
       <h2 id="reduced-motion">Reduced motion</h2>
       <p>
         The same provider holds the app-level reduced-motion preference, because GPUI does not
-        surface the OS <code>prefers-reduced-motion</code> setting. Seed it at startup with{" "}
-        <code>HEROGPUI_REDUCE_MOTION=1</code>, or override it at any time with{" "}
-        <code>theme::set_reduce_motion(bool, cx)</code> / <code>toggle_reduce_motion(cx)</code> —
-        the app-level equivalent of enabling a reduced-motion setting. Every animated component
-        honours it through <code>cx.reduce_motion()</code> without caller opt-in.
+        surface the OS <code>prefers-reduced-motion</code> setting. Set it from your own settings
+        with <code>theme::set_reduce_motion(bool, cx)</code> / <code>toggle_reduce_motion(cx)</code>{" "}
+        — the app-level equivalent of enabling a reduced-motion setting. The library reads no
+        environment variable; the gallery maps <code>HEROGPUI_REDUCE_MOTION=1</code> onto the
+        setter. Every animated component honours it through <code>cx.reduce_motion()</code> without
+        caller opt-in.
       </p>
     </>
   );

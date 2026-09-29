@@ -41,8 +41,10 @@ follows `web/AGENTS.md`:
 6. **Related components** — siblings in the same catalog category.
 
 Never substitute a checked-in screenshot for the live frame, and never embed
-the full gallery shell on a component page. When `public/gallery/herogpui_web*`
-is regenerated, also regenerate `src/data/wasm-sections.json` and
+the full gallery shell on a component page. `public/gallery/herogpui_web*`
+is not committed: the build installs CI's artifact for the checkout
+(`scripts/gallery-artifact.mjs`, `DEPLOYMENT.md` section 6). After a Rust
+change, regenerate `src/data/wasm-sections.json` and
 `src/data/wasm-parity.json` from the native gallery source
 (`gallery/src/pages/components/`) with `pnpm run wasm:manifest`.
 
@@ -156,8 +158,8 @@ snippets and GPUI mentions read them from here (`SITE` in `src/lib/nav.ts`).
       "description": "A pressable button with variants and states.",
       "category": "Buttons",
       "importLine": "use herogpui::prelude::{Button, Size, Variant};",
-      "shot": "/shots/button-v3.png",
-      "shotDark": "/shots/button-dark-v3.png",
+      "tile": "/shots/button-tile-v3.png",
+      "tileDark": "/shots/button-tile-dark-v3.png",
       "demos": [],
       "hasReference": true
     }
@@ -165,7 +167,7 @@ snippets and GPUI mentions read them from here (`SITE` in `src/lib/nav.ts`).
 }
 ```
 
-`shot`, `shotDark` and `hasReference` may be `null` / `false`. `demos` is kept
+`tile`, `tileDark` and `hasReference` may be `null` / `false`. `demos` is kept
 as an empty compatibility field. Consumers must handle all three.
 
 ### `src/data/reference.json`
@@ -232,14 +234,16 @@ per dated `## [X.Y.Z] - YYYY-MM-DD` section, newest first. No network.
 
 ### `src/data/wasm-sections.json` and `src/data/wasm-parity.json`
 
-The live selector's contract with the checked-in artifact. `wasm-sections.json`
-maps each catalog slug to the example headings compiled into
+The live selector's contract with the artifact. `wasm-sections.json` maps
+each catalog slug to the example headings compiled into
 `public/gallery/herogpui_web_bg.wasm`; component pages only offer those.
-`wasm-parity.json` records the artifact's hash (`artifactSha256`, whose first
-12 hex are the embed's `?v=` cache key), the glue hash, every example body's
-hash, and `inputsSha256` over every wasm build input. Both are regenerated with
+`wasm-parity.json` records `inputsSha256` over every wasm build input — the
+key CI publishes the artifact under and the build downloads it by — and every
+example body's hash. The artifact's own hash (the embed's `?v=` cache key)
+comes from `public/gallery/build-info.json`, which the build writes when it
+installs the artifact. Both JSON files are regenerated with
 `pnpm run wasm:manifest`; `extract-wasm-sections.mjs --check` (part of
-`extract:check`) fails when any of them is stale. Do not hand-edit them.
+`extract:check`) fails when either is stale. Do not hand-edit them.
 
 ## Attribution
 

@@ -59,7 +59,7 @@
 //! components play an exit animation, so no animation phase can swallow a
 //! probe.
 
-mod harness;
+use crate::harness;
 
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;

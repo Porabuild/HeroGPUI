@@ -362,6 +362,43 @@ impl Gallery {
                         para(&format!("Sidebar and main, in percent: {}", self.resizable_sizes), cx),
                     ]), cx),
                 ),
+                (
+                    "Collapsible Panels", "HeroGPUI extension: the sidebar is at least 120px wide whatever the group's width (`min_size_px`) and is `collapsible`. Drag its handle past halfway to its minimum to collapse it and back to expand it, or focus the handle and press Enter to collapse and restore it. `on_resize_end` reports once per gesture, when a drag is released or a key lands, which is where a layout would be saved.",
+                    specimen_body("sep-collapsible", col(vec![
+                        gpui::div()
+                            .w(px(560.))
+                            .h(px(200.))
+                            .rounded(px(12.))
+                            .border_1()
+                            .border_color(cx.colors().border)
+                            .overflow_hidden()
+                            .child(
+                                h::ResizablePanelGroup::new("sep-collapsible-group")
+                                    .panel(
+                                        h::ResizablePanel::new()
+                                            .default_size(25.)
+                                            .min_size_px(px(120.))
+                                            .max_size(50.)
+                                            .collapsible(true)
+                                            .child(resizable_pane("Sidebar", cx)),
+                                    )
+                                    .panel(h::ResizablePanel::new().child(resizable_pane("Main", cx)))
+                                    .on_resize_end({
+                                        let view = cx.entity().downgrade();
+                                        move |sizes, _, cx| {
+                                            let text: Vec<String> = sizes.iter().map(|v| format!("{v:.0}")).collect();
+                                            view.update(cx, |this, cx| {
+                                                this.resizable_settled = SharedString::from(text.join(", "));
+                                                cx.notify();
+                                            })
+                                            .ok();
+                                        }
+                                    }),
+                            )
+                            .into_any_element(),
+                        para(&format!("Last settled layout, in percent: {}", self.resizable_settled), cx),
+                    ]), cx),
+                ),
             ],
             cx,
         )
@@ -534,6 +571,54 @@ impl Gallery {
                     col(vec![
                         bar("v", false, Orientation::Vertical).into_any_element()
                     ]),
+                ),
+                (
+                    "Sized Controls", "HeroGPUI extension, not a HeroUI v3 example (after gpui-kit's toolbar): `Toolbar::size` reaches every control added with `sized_child`, whatever the order of the builder calls, so the whole bar is sized in one place; controls added with `child` keep their own size. `label` names the toolbar (or the group a nested toolbar becomes) for assistive technology.",
+                    col(vec![h::Toolbar::new()
+                        .id("tb-sized")
+                        .label("Formatting")
+                        .size(Size::Sm)
+                        .sized_children([
+                            h::Button::new("tb-sized-undo").label("Undo").variant(Variant::Tertiary),
+                            h::Button::new("tb-sized-redo").label("Redo").variant(Variant::Tertiary),
+                        ])
+                        .separator()
+                        .sized_child(
+                            h::ToggleButton::new("tb-sized-bold").label("Bold"),
+                        )
+                        .into_any_element()]),
+                ),
+                (
+                    "Title Bar", "HeroGPUI extension, not a HeroUI v3 example: `TitleBar` is custom window chrome for a frameless window (open it with `TitleBar::window_options()`). Its empty area drags the window and a double-click zooms it; children such as the Share button keep their own presses. `TitleBarControls::Custom` draws minimize, maximize and close on every platform (`Auto` keeps the macOS traffic lights and lets Windows perform its caption buttons). This demo intercepts every action with `on_window_action` and only a drag is performed, so dragging the bar below moves the gallery window.",
+                    specimen_body("tb-title-bar", col(vec![
+                        gpui::div()
+                            .w(px(560.))
+                            .rounded(px(12.))
+                            .border_1()
+                            .border_color(cx.colors().border)
+                            .overflow_hidden()
+                            .child(
+                                h::TitleBar::new("tb-title-bar-chrome")
+                                    .title("Untitled — HeroGPUI")
+                                    .controls(h::TitleBarControls::Custom)
+                                    .on_window_action(cx.listener(|this, action: &h::WindowAction, window, cx| {
+                                        if *action == h::WindowAction::Move {
+                                            action.perform(window);
+                                        }
+                                        this.title_bar_last = SharedString::from(format!("{action:?}"));
+                                        cx.notify();
+                                    }))
+                                    .child(
+                                        h::Button::new("tb-title-bar-share")
+                                            .label("Share")
+                                            .variant(Variant::Tertiary)
+                                            .size(Size::Sm),
+                                    ),
+                            )
+                            .child(gpui::div().h(px(96.)).bg(cx.colors().background))
+                            .into_any_element(),
+                        para(&format!("Last window action: {}", self.title_bar_last), cx),
+                    ]), cx),
                 ),
             ],
             cx,

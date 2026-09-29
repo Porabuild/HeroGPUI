@@ -39,7 +39,8 @@ macro_rules! svg_assets {
                     .find(|(asset_path, _)| *asset_path == path)
                     .map(|(_, data)| *data)
                     .or_else(|| IconName::from_path(path).map(IconName::svg))
-                    .map(Cow::Borrowed))
+                    .map(Cow::Borrowed)
+                    .or_else(|| crate::icon::stroked_svg(path).map(Cow::Owned)))
             }
 
             fn list(&self, path: &str) -> Result<Vec<SharedString>> {

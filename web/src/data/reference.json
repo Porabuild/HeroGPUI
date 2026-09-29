@@ -19925,7 +19925,7 @@
       {
         "token": "reduced motion",
         "description": "The panel renders immediately without geometric animation.",
-        "rust": "HEROGPUI_REDUCE_MOTION + animation helpers",
+        "rust": "theme::set_reduce_motion + animation helpers",
         "status": "implemented"
       }
     ]
@@ -21092,7 +21092,7 @@
         "prop": "rowHeight",
         "type": "number | undefined",
         "default": "48",
-        "description": "Fixed virtual row height; with virtual_rows this selects gpui uniform_list, caps at max_h, shrinks below it in a bounded parent, and pages by the visible viewport while skipping disabled stops.",
+        "description": "Fixed virtual row height; with virtual_rows this selects a uniform VirtualList, caps at max_h, shrinks below it in a bounded parent, and pages by the visible viewport while skipping disabled stops.",
         "rustOwner": "Table",
         "rust": "row_height(height)",
         "status": "implemented"
@@ -21102,7 +21102,7 @@
         "prop": "estimatedRowHeight",
         "type": "number | undefined",
         "default": "—",
-        "description": "Estimated height for variable virtual rows; selects gpui list instead of uniform_list.",
+        "description": "Estimated height for variable virtual rows; selects a measured VirtualList instead of the uniform one.",
         "rustOwner": "Table",
         "rust": "estimated_row_height(height)",
         "status": "implemented"
@@ -21179,7 +21179,7 @@
       {
         "name": "Table.ScrollContainer",
         "slot": "table-scroll-container",
-        "description": "Horizontal overflow wrapper around the content column so a wide table can scroll without stretching the footer.",
+        "description": "Horizontal overflow wrapper around the content column so a wide table can scroll without stretching the footer. HeroGPUI's frozen-column extension splits the header and each row into a fixed leading part and a scrolling part.",
         "rustOwner": "Table",
         "status": "implemented"
       },

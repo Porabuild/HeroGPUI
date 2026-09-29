@@ -29,13 +29,37 @@ jobs:
           echo "version=$version" >> "$GITHUB_OUTPUT"
 
   # The full CI workflow -- fmt, clippy, audits, the three-OS test matrix via
-  # .shots/run-tests.sh, docs, install, the -O1/-O3 suite and the wasm build --
+  # .shots/run-tests.sh, docs, install, the no-default-features builds, the
+  # -O1/-O3 suite and the wasm build (its PR-only jobs skip on a tag push) --
   # run on the tagged commit itself. Nothing below is built, released or
   # published unless its aggregating `ci` job succeeds.
   ci:
     uses: ./.github/workflows/ci.yml
+    # The web artifact is published on trusted master pushes. The tagged
+    # checkout builds it again, but this reusable CI invocation has no
+    # release-write token.
     permissions:
       contents: read
+
+  # The tagged public API of the four library crates against the latest
+  # crates.io release, before anything irreversible happens: the GitHub
+  # Release is immutable and crates.io versions cannot be replaced.
+  # cargo-semver-checks derives the allowed change from the tagged version
+  # against that baseline (a 0.x minor bump or a major bump may break; a
+  # patch release may not), so there is no label override here -- a breaking
+  # change needs the right version. A re-run after a partial publish compares
+  # the tag with its own already-published crates, which is a no-op pass.
+  semver:
+    needs: [plan]
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v6
+      - uses: ./.github/actions/rust-env
+      # Pinned with ci.yml's `semver` job; see the reason there.
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-semver-checks@0.50.0
+      - run: cargo semver-checks -p herogpui-core -p herogpui-theme -p herogpui-components -p herogpui
 
   build-gallery:
     needs: [plan, ci]
@@ -118,7 +142,7 @@ jobs:
           if-no-files-found: error
 
   github-release:
-    needs: [plan, prepare-release]
+    needs: [plan, prepare-release, semver]
     runs-on: ubuntu-24.04
     environment: release
     permissions:

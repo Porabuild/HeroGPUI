@@ -2,14 +2,17 @@
 //! Dropdown `Menu` at the pointer; choosing an item, Escape or a press
 //! outside closes it; a disabled context menu ignores the press.
 
-mod harness;
+use crate::harness;
 
 use gpui::{
     point, prelude::*, px, Bounds, Modifiers, MouseButton, Pixels, TestAppContext,
     VisualTestContext,
 };
 use harness::{events, open_host, press, still, Events};
-use herogpui_components::{ContextMenu, MenuItem};
+use herogpui_components::{
+    Breadcrumbs, Button, ColorArea, ContextMenu, Crumb, ListBox, ListBoxItem, MenuBar, MenuBarMenu,
+    MenuItem, PickerColor, Table, TreeItem, TreeView,
+};
 
 const PANEL: &str = "context-menu";
 
@@ -201,6 +204,239 @@ fn shift_f10_opens_at_the_area_with_the_first_item_focused(cx: &mut TestAppConte
     );
     let refocused = cx.update(|window, _| child.is_focused(window));
     assert!(refocused, "dismissal hands the focus back to the child");
+}
+
+#[gpui::test]
+fn shift_f10_opens_below_a_focused_herogpui_button(cx: &mut TestAppContext) {
+    still();
+    let cx = open_host(cx, move || {
+        gpui::div()
+            .p(px(40.))
+            .child(ContextMenu::new(
+                "button-context-menu",
+                gpui::div()
+                    .w(px(400.))
+                    .h(px(300.))
+                    .p(px(40.))
+                    .debug_selector(|| "button-context-area".into())
+                    .child(Button::new("context-button").label("Actions").w(px(120.))),
+                vec![MenuItem::new("copy", "Copy")],
+            ))
+            .into_any_element()
+    });
+    frame(cx);
+    press(cx, "tab");
+    frame(cx);
+    press(cx, "shift-f10");
+    frame(cx);
+    let area = cx.debug_bounds("button-context-area").unwrap();
+    let menu = panel(cx).expect("keyboard menu opened");
+    assert_eq!(menu.left(), area.left() + px(40.));
+    assert_eq!(menu.top(), area.top() + px(76.));
+}
+
+#[gpui::test]
+fn shift_f10_opens_below_a_focused_breadcrumb(cx: &mut TestAppContext) {
+    still();
+    let cx = open_host(cx, move || {
+        gpui::div()
+            .p(px(40.))
+            .child(ContextMenu::new(
+                "crumb-context-menu",
+                gpui::div()
+                    .w(px(400.))
+                    .h(px(300.))
+                    .p(px(40.))
+                    .debug_selector(|| "crumb-context-area".into())
+                    .child(Breadcrumbs::new(vec![
+                        Crumb::new("Build"),
+                        Crumb::new("Live"),
+                    ])),
+                vec![MenuItem::new("copy", "Copy")],
+            ))
+            .into_any_element()
+    });
+    frame(cx);
+    press(cx, "tab");
+    frame(cx);
+    press(cx, "shift-f10");
+    frame(cx);
+    let area = cx.debug_bounds("crumb-context-area").unwrap();
+    let menu = panel(cx).expect("keyboard menu opened");
+    assert_eq!(menu.left(), area.left() + px(40.));
+    assert_eq!(menu.top(), area.top() + px(60.));
+}
+
+#[gpui::test]
+fn shift_f10_opens_below_a_focused_color_area(cx: &mut TestAppContext) {
+    still();
+    let cx = open_host(cx, move || {
+        gpui::div()
+            .p(px(40.))
+            .child(ContextMenu::new(
+                "color-context-menu",
+                gpui::div()
+                    .w(px(400.))
+                    .h(px(300.))
+                    .p(px(40.))
+                    .debug_selector(|| "color-context-area".into())
+                    .child(
+                        ColorArea::new("context-color", PickerColor::hsb(210., 0.5, 0.5))
+                            .size(px(120.), px(80.)),
+                    ),
+                vec![MenuItem::new("copy", "Copy")],
+            ))
+            .into_any_element()
+    });
+    frame(cx);
+    press(cx, "tab");
+    frame(cx);
+    press(cx, "shift-f10");
+    frame(cx);
+    let area = cx.debug_bounds("color-context-area").unwrap();
+    let menu = panel(cx).expect("keyboard menu opened");
+    assert_eq!(menu.left(), area.left() + px(40.));
+    assert_eq!(menu.top(), area.top() + px(120.));
+}
+
+#[gpui::test]
+fn shift_f10_opens_below_a_focused_menu_bar_trigger(cx: &mut TestAppContext) {
+    still();
+    let cx = open_host(cx, move || {
+        gpui::div()
+            .p(px(40.))
+            .child(ContextMenu::new(
+                "menu-bar-context-menu",
+                gpui::div()
+                    .w(px(400.))
+                    .h(px(300.))
+                    .p(px(40.))
+                    .child(MenuBar::new(
+                        "context-menu-bar",
+                        vec![MenuBarMenu::new(
+                            "file",
+                            "File",
+                            vec![MenuItem::new("new", "New")],
+                        )],
+                    )),
+                vec![MenuItem::new("copy", "Copy")],
+            ))
+            .into_any_element()
+    });
+    frame(cx);
+    press(cx, "tab");
+    frame(cx);
+    let trigger = cx.debug_bounds("menu-bar-trigger-file").unwrap();
+    press(cx, "shift-f10");
+    frame(cx);
+    let menu = panel(cx).expect("keyboard menu opened");
+    assert_eq!(menu.left(), trigger.left());
+    assert_eq!(menu.top(), trigger.bottom());
+}
+
+#[gpui::test]
+fn shift_f10_uses_the_active_list_row_instead_of_the_list_box(cx: &mut TestAppContext) {
+    still();
+    let cx = open_host(cx, move || {
+        gpui::div()
+            .p(px(40.))
+            .child(ContextMenu::new(
+                "list-context-menu",
+                gpui::div()
+                    .w(px(400.))
+                    .h(px(300.))
+                    .p(px(40.))
+                    .debug_selector(|| "list-context-area".into())
+                    .child(
+                        ListBox::new(
+                            "list-context-list",
+                            vec![
+                                ListBoxItem::new("first", "First"),
+                                ListBoxItem::new("second", "Second"),
+                            ],
+                        )
+                        .w(px(220.)),
+                    ),
+                vec![MenuItem::new("copy", "Copy")],
+            ))
+            .into_any_element()
+    });
+    frame(cx);
+    let area = cx.debug_bounds("list-context-area").unwrap();
+    cx.simulate_click(area.origin + point(px(70.), px(62.)), Modifiers::none());
+    frame(cx);
+    press(cx, "shift-f10");
+    frame(cx);
+    let area = cx.debug_bounds("list-context-area").unwrap();
+    let menu = panel(cx).expect("keyboard menu opened");
+    assert_eq!(menu.left(), area.left() + px(44.));
+    assert_eq!(menu.top(), area.top() + px(80.));
+}
+
+#[gpui::test]
+fn shift_f10_uses_the_active_tree_row(cx: &mut TestAppContext) {
+    still();
+    let cx = open_host(cx, move || {
+        gpui::div()
+            .p(px(40.))
+            .child(ContextMenu::new(
+                "tree-context-menu",
+                gpui::div()
+                    .w(px(400.))
+                    .h(px(300.))
+                    .p(px(40.))
+                    .child(TreeView::new(
+                        "context-tree",
+                        vec![
+                            TreeItem::new("first", "First"),
+                            TreeItem::new("second", "Second"),
+                        ],
+                    )),
+                vec![MenuItem::new("copy", "Copy")],
+            ))
+            .into_any_element()
+    });
+    frame(cx);
+    press(cx, "tab");
+    frame(cx);
+    press(cx, "shift-f10");
+    frame(cx);
+    let row = cx.debug_bounds("context-tree-row-first").unwrap();
+    let menu = panel(cx).expect("keyboard menu opened");
+    assert_eq!(menu.left(), row.left());
+    assert_eq!(menu.top(), row.bottom());
+}
+
+#[gpui::test]
+fn shift_f10_uses_the_active_table_row(cx: &mut TestAppContext) {
+    still();
+    let cx = open_host(cx, move || {
+        gpui::div()
+            .p(px(40.))
+            .child(ContextMenu::new(
+                "table-context-menu",
+                gpui::div().w(px(400.)).h(px(300.)).p(px(40.)).child(
+                    Table::new(vec!["Name".into(), "Role".into()])
+                        .id("context-table")
+                        .row(vec![
+                            gpui::div().child("Alice").into_any_element(),
+                            gpui::div().child("Developer").into_any_element(),
+                        ]),
+                ),
+                vec![MenuItem::new("copy", "Copy")],
+            ))
+            .into_any_element()
+    });
+    frame(cx);
+    press(cx, "tab");
+    press(cx, "down");
+    frame(cx);
+    press(cx, "shift-f10");
+    frame(cx);
+    let cell = cx.debug_bounds("table-row-track-0-0").unwrap();
+    let menu = panel(cx).expect("keyboard menu opened");
+    assert_eq!(menu.left(), cell.left());
+    assert_eq!(menu.top(), cell.bottom());
 }
 
 #[gpui::test]

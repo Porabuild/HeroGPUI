@@ -15,7 +15,8 @@
 //! (`DateConstraints::lead_cells`, Monday-start default) for a day's
 //! row/column.
 
-mod harness;
+use crate::harness;
+use crate::source_scan;
 
 use std::cell::RefCell;
 use std::collections::HashMap;
@@ -29,22 +30,97 @@ use herogpui_components::{
     VisibleDuration, Weekday,
 };
 
+/// v3 dims an unavailable date with `status-disabled`'s opacity but keeps it
+/// focusable. The dim is an element opacity on the day cell, so it scales
+/// every quad the cell paints: a caller-drawn marker inside an unavailable
+/// cell paints at the disabled opacity, one in an available cell at full
+/// strength. Both calendars, and the keyboard still lands on the date.
+#[gpui::test]
+fn calendar_unavailable_cells_use_status_disabled_visuals_without_losing_keyboard_focus(
+    cx: &mut TestAppContext,
+) {
+    fn marker(day: u32) -> gpui::AnyElement {
+        let hue = match day {
+            15 => Some(0.0),
+            16 => Some(0.33),
+            _ => None,
+        };
+        match hue {
+            Some(h) => gpui::div()
+                .size(px(6.))
+                .bg(gpui::hsla(h, 1., 0.5, 1.))
+                .into_any_element(),
+            None => gpui::div().into_any_element(),
+        }
+    }
+    fn alphas(scene: &harness::Painted) -> (f32, f32) {
+        let alpha = |h: f32| {
+            scene
+                .solids()
+                .into_iter()
+                .find(|c| (c.h - h).abs() < 1e-3 && (c.s - 1.).abs() < 1e-3)
+                .map_or_else(|| panic!("the marker with hue {h} must paint"), |c| c.a)
+        };
+        (alpha(0.0), alpha(0.33))
+    }
+
+    let focused = events();
+    let seen = focused.clone();
+    let state = cx.new(|cx| CalendarState::with_selected(cx, Date::new(2025, 12, 8)));
+    harness::still();
+    let vcx = open_host(cx, move || {
+        let seen = seen.clone();
+        Calendar::new(state.clone())
+            .is_date_unavailable(|date| date.day == 15)
+            .cell(|cell| marker(cell.date.day))
+            .on_focus_change(move |date, _, _| seen.borrow_mut().push(date.format_iso()))
+            .into_any_element()
+    });
+    let scene = harness::painted(vcx);
+    let dim = vcx.update(|_, cx| {
+        use herogpui_theme::ActiveTheme;
+        cx.layout().disabled_opacity
+    });
+    let (unavailable, available) = alphas(&scene);
+    assert!(
+        (unavailable - dim).abs() < 1e-3 && (available - 1.).abs() < 1e-3,
+        "Calendar: the unavailable cell must paint at {dim}, got {unavailable} \
+         (available {available})"
+    );
+    press(vcx, "tab");
+    press(vcx, "down");
+    assert_eq!(
+        focused.borrow().last().map(String::as_str),
+        Some("2025-12-15"),
+        "an unavailable date must stay reachable by the keyboard"
+    );
+
+    let range = cx.new(|cx| DateRangeState::new(cx));
+    harness::still();
+    let vcx = open_host(cx, move || {
+        RangeCalendar::new(range.clone())
+            .is_date_unavailable(|date, _| date.day == 15)
+            .cell(|cell| marker(cell.date.day))
+            .into_any_element()
+    });
+    let scene = harness::painted(vcx);
+    let (unavailable, available) = alphas(&scene);
+    assert!(
+        (unavailable - dim).abs() < 1e-3 && (available - 1.).abs() < 1e-3,
+        "RangeCalendar: the unavailable cell must paint at {dim}, got \
+         {unavailable} (available {available})"
+    );
+}
+
+/// Remaining source-text check: the not-allowed cursor. The test platform
+/// records the cursor it is asked for privately and offers no readback.
 #[test]
-fn calendar_unavailable_cells_use_status_disabled_visuals_without_losing_keyboard_focus() {
-    let calendar = include_str!("../src/calendar.rs");
-    let range = include_str!("../src/range_calendar.rs");
-    for source in [calendar, range] {
+fn calendar_unavailable_cells_ask_for_the_not_allowed_cursor() {
+    for file in ["calendar.rs", "range_calendar.rs"] {
+        let source = source_scan::component_src(file);
         assert!(
             source.contains("CursorStyle::OperationNotAllowed"),
-            "unavailable calendar cells need the v3 not-allowed cursor"
-        );
-        assert!(
-            source.contains("disabled_opacity"),
-            "unavailable calendar cells need the v3 disabled opacity"
-        );
-        assert!(
-            source.contains("is_unavailable") || source.contains("unavailable"),
-            "the disabled visual branch must stay attached to unavailable state"
+            "{file}: unavailable calendar cells need the v3 not-allowed cursor"
         );
     }
 }

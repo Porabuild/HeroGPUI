@@ -6,6 +6,7 @@ use super::*;
 // ---------------------------------------------------------------------------
 
 /// ColorPicker — a swatch trigger plus a full picking surface.
+#[must_use = "a component does nothing until it is rendered: add it as a child or return it from `render`"]
 #[derive(IntoElement)]
 pub struct ColorPicker {
     /// `defaultValue` — set it to hand this component its own state.
@@ -25,6 +26,7 @@ pub struct ColorPicker {
 }
 
 impl ColorPicker {
+    /// Creates a color picker with the id `id`, showing `value`.
     pub fn new(id: impl Into<ElementId>, value: PickerColor) -> Self {
         Self {
             default_value: None,
@@ -56,6 +58,7 @@ impl ColorPicker {
         self
     }
 
+    /// Sets the label shown above the picker.
     pub fn label(mut self, text: impl Into<SharedString>) -> Self {
         self.label = Some(text.into());
         self
@@ -67,21 +70,25 @@ impl ColorPicker {
         self
     }
 
+    /// Sets the controlled open state of the popover (`isOpen`).
     pub fn is_open(mut self, v: bool) -> Self {
         self.is_open = Some(v);
         self
     }
 
+    /// Sets whether an alpha slider is shown under the hue slider.
     pub fn show_alpha(mut self, v: bool) -> Self {
         self.show_alpha = v;
         self
     }
 
+    /// Sets whether the picker is disabled (`isDisabled`).
     pub fn is_disabled(mut self, v: bool) -> Self {
         self.is_disabled = v;
         self
     }
 
+    /// Sets the handler called with the new color (`onChange`).
     pub fn on_change(
         mut self,
         handler: impl Fn(&PickerColor, &mut Window, &mut App) + 'static,
@@ -90,6 +97,7 @@ impl ColorPicker {
         self
     }
 
+    /// Sets the handler called when the popover opens or closes (`onOpenChange`).
     pub fn on_open_change(
         mut self,
         handler: impl Fn(&bool, &mut Window, &mut App) + 'static,
@@ -283,6 +291,11 @@ impl RenderOnce for ColorPicker {
         let trigger = trigger
             .a11y_named(a11y::Role::Button, &trigger_name)
             .a11y_expanded(is_open);
+        let trigger = if self.is_disabled {
+            trigger
+        } else {
+            util::record_focus_bounds(trigger, &trigger_focus, window, cx)
+        };
         let trigger = trigger_focus_motion.render(trigger, Vec::new(), true, cx);
 
         // The popover overlays the page rather than pushing it down.

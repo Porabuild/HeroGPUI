@@ -2,12 +2,14 @@ import type { Metadata } from "next";
 import { PageHeader } from "@/components/ui/page-header";
 import { CodeBlock } from "@/components/ui/code-block";
 import { Callout } from "@/components/ui/callout";
+import { pageMetadata } from "@/lib/seo";
 
-export const metadata: Metadata = {
+export const metadata: Metadata = pageMetadata({
+  path: "/docs/getting-started/animation",
   title: "Animation",
   description:
     "Where the motion lives, how reduced motion is honoured, and how presses render without transforms.",
-};
+});
 
 const REDUCE = `// Anywhere you have an App context.
 herogpui::theme::set_reduce_motion(true, cx);
@@ -59,8 +61,8 @@ export default function AnimationPage() {
         <CodeBlock code={REDUCE} lang="rust" />
       </div>
       <p>
-        HeroGPUI keeps its own animation preference, separate from GPUI&apos;s App setting. Seed it
-        at startup:
+        The library reads no environment variable for this. The gallery maps one onto the setter at
+        startup, which is how to try it:
       </p>
       <div className="mt-4">
         <CodeBlock code={ENV} lang="bash" />

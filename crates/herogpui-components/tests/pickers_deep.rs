@@ -64,8 +64,8 @@
 //! as `placement.rs` does. The pickers need neither: their panels leave the
 //! tree outright when closed.
 
-mod harness;
-mod source_scan;
+use crate::harness;
+use crate::source_scan;
 
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
@@ -5607,38 +5607,85 @@ fn autocomplete_filter_reads_labels_and_end_commits_the_last_match(cx: &mut Test
 // Select row_height
 // ---------------------------------------------------------------------------
 
-#[test]
-fn select_option_visuals_follow_the_pinned_indicator_only_contract() {
-    let source = include_str!("../src/select.rs");
-    assert!(
-        source.contains("item = item.text_color(row_fg);"),
-        "selected Select rows must keep the normal foreground"
+/// `.list-box-item[data-selected]` is indicator-only in v3: selection does
+/// not recolour the option, so a probe in the selected row's indicator slot
+/// inherits the same text colour as one in an unselected row. The keyboard
+/// cursor rings its row with the shared offset overlay (its `ring-offset`
+/// band is a painted quad), and moving the cursor changes no row geometry — a
+/// border treatment would. (Long labels wrapping in the trigger and in
+/// natural-height rows is `select_long_values_wrap_the_trigger_and_natural_option_row`.)
+#[gpui::test]
+fn select_option_visuals_follow_the_pinned_indicator_only_contract(cx: &mut TestAppContext) {
+    still();
+    let selected = harness::style_sink();
+    let unselected = harness::style_sink();
+    let (sel, other) = (selected.clone(), unselected.clone());
+    let cx = open_host(cx, move || {
+        let (sel, other) = (sel.clone(), other.clone());
+        Select::new("sel-visuals", keyed(&["Alpha", "Beta"]))
+            .default_value(Some("Alpha".into()))
+            .indicator(move |is_sel| harness::style_probe(if is_sel { &sel } else { &other }))
+            .into_any_element()
+    });
+    click(cx, 60., 18.);
+    harness::settle(cx);
+    let (sel_color, other_color) = (
+        harness::seen_style(&selected, "selected row").color,
+        harness::seen_style(&unselected, "unselected row").color,
     );
-    assert!(
-        source.contains("util::with_focus_ring_overlay("),
-        "focused Select rows must use the shared status-ring overlay"
+    assert_eq!(
+        sel_color, other_color,
+        "a selected Select row must keep the normal row foreground"
     );
-    assert!(
-        source.contains(".flex_1().min_w_0().whitespace_normal()"),
-        "Select rows must keep long option labels in normal text flow"
+
+    let row = "select-list-Name(\"sel-visuals\")-opt-1";
+    let before = cx
+        .debug_bounds(row)
+        .expect("the second row must be laid out");
+    let (bg, gap) = cx.update(|_, cx| {
+        use herogpui_theme::ActiveTheme;
+        (
+            cx.colors().background,
+            f32::from(cx.layout().ring_offset_width),
+        )
+    });
+    let idle = harness::painted(cx);
+    let idle_rings = idle.ring_gaps(bg, gap).len();
+    press(cx, "down");
+    press(cx, "down");
+    let scene = harness::painted(cx);
+    let after = cx
+        .debug_bounds(row)
+        .expect("the second row must stay laid out");
+    assert_eq!(
+        before, after,
+        "the cursor must not change the row's geometry"
     );
+    let rings = scene.ring_gaps(bg, gap);
+    let around_row = rings.iter().any(|q| {
+        let b = scene.bounds(q);
+        (f32::from(b.origin.y) - (f32::from(after.origin.y) - gap)).abs() < 0.5
+            && (f32::from(b.size.height) - (f32::from(after.size.height) + 2. * gap)).abs() < 0.5
+    });
     assert!(
-        source.contains(".min_w_0()\n            .whitespace_normal()"),
-        "the trigger value slot must wrap inside the space left by its indicator"
-    );
-    assert!(
-        !source.contains("item = item.border_2().border_color(row_focus);"),
-        "the Select option focus treatment must not change row geometry with a border"
+        around_row && rings.len() > idle_rings,
+        "the cursor row must take the shared offset overlay ring\n{}",
+        scene.describe()
     );
 }
-
+/// Remaining source-text check. The option label is a bare text box with no
+/// caller slot inside it, and the headless scene exposes no glyph runs, so
+/// whether a fixed-height (virtual) row's label wraps or ellipsizes is not
+/// observable; the natural-height wrap is proven on layout by
+/// `select_long_values_wrap_the_trigger_and_natural_option_row`.
 #[test]
 fn picker_option_labels_never_add_a_virtual_row_ellipsis() {
-    for (name, source) in [
-        ("Select", include_str!("../src/select.rs")),
-        ("Autocomplete", include_str!("../src/autocomplete.rs")),
-        ("ComboBox", include_str!("../src/combo_box.rs")),
+    for (name, file) in [
+        ("Select", "select.rs"),
+        ("Autocomplete", "autocomplete.rs"),
+        ("ComboBox", "combo_box.rs"),
     ] {
+        let source = source_scan::component_src(file);
         assert!(
             source.contains(".flex_1().min_w_0().whitespace_normal()"),
             "{name} option labels must keep HeroUI's normal wrapping in every row mode"
@@ -5649,42 +5696,33 @@ fn picker_option_labels_never_add_a_virtual_row_ellipsis() {
         );
     }
 }
-
+/// Remaining source-text check. The chevron is an `svg()` glyph rotated by
+/// a paint transformation: the test platform ships no asset source (every
+/// svg draws nothing) and the scene exposes no sprites or transforms, so
+/// which path is drawn and how it turns is not observable. The indicator
+/// *slot* geometry is measured in
+/// `picker_indicators_sit_in_the_pinned_absolute_end_slot`.
 #[test]
 fn picker_trigger_chevrons_use_one_rotating_down_svg() {
-    let select = include_str!("../src/select.rs");
-    let autocomplete = include_str!("../src/autocomplete.rs");
-    let combo_box = include_str!("../src/combo_box.rs");
-
-    assert!(
-        select.contains("trigger_indicator")
-            && select.contains("rotating_indicator_with_duration")
-            && select.contains(".path(icons::CHEVRON_DOWN)"),
-        "Select's trigger chevron must use the shared 150ms rotation helper"
-    );
-    assert!(
-        autocomplete.contains("rotating_indicator_with_duration")
-            && autocomplete.contains(".path(icons::CHEVRON_DOWN)"),
-        "Autocomplete's trigger chevron must use the shared 150ms rotation helper"
-    );
-    assert!(
-        combo_box.contains("rotating_indicator_with_duration")
-            && combo_box.contains(".path(icons::CHEVRON_DOWN)"),
-        "ComboBox's trigger chevron must use the shared 150ms rotation helper"
-    );
+    let select = source_scan::component_src("select.rs");
+    let autocomplete = source_scan::component_src("autocomplete.rs");
+    let combo_box = source_scan::component_src("combo_box.rs");
+    for (name, source) in [
+        ("Select", &select),
+        ("Autocomplete", &autocomplete),
+        ("ComboBox", &combo_box),
+    ] {
+        assert!(
+            source.contains("rotating_indicator_with_duration")
+                && source.contains(".path(icons::CHEVRON_DOWN)"),
+            "{name}'s trigger chevron must use the shared rotation helper"
+        );
+    }
     assert!(
         !select.contains(".path(if is_open") && !autocomplete.contains(".path(if open"),
         "picker triggers must not swap up/down paths as an immediate state change"
     );
-    assert!(
-        select.contains(".pr(px(28.))")
-            && select.contains(".absolute()")
-            && select.contains(".right(px(8.))")
-            && select.contains(".w(px(16.))"),
-        "Select's trigger indicator must use the pinned absolute end slot"
-    );
 }
-
 #[gpui::test]
 fn select_custom_trigger_indicator_receives_open_state(cx: &mut TestAppContext) {
     let seen = Rc::new(RefCell::new(None));
@@ -5707,49 +5745,114 @@ fn select_custom_trigger_indicator_receives_open_state(cx: &mut TestAppContext) 
     );
 }
 
-#[test]
-fn autocomplete_value_visuals_follow_the_pinned_wrap_contract() {
-    let source = include_str!("../src/autocomplete.rs");
-    assert!(
-        source.contains(".min_w_0()\n            .whitespace_normal()"),
-        "the Autocomplete value slot must wrap long selected labels"
-    );
-    assert!(
-        !source.contains(".min_w_0()\n            .truncate()"),
-        "the Autocomplete value slot must not ellipsize selected labels"
-    );
-}
-
-#[test]
-fn picker_collection_indicators_use_the_pinned_absolute_slot() {
-    for (name, source) in [
-        ("Select", include_str!("../src/select.rs")),
-        ("Autocomplete", include_str!("../src/autocomplete.rs")),
-        ("ComboBox", include_str!("../src/combo_box.rs")),
-    ] {
-        assert!(
-            source.contains(".relative()"),
-            "{name} rows need a positioning context"
+/// v3's `ListBox.ItemIndicator` and `Select.Indicator` sit in an absolute
+/// 16px slot 8px from the inline end, vertically centred, so a long label
+/// can never push them. A 10px probe drawn as the indicator lands centred in
+/// that slot: its left edge is `right - 8 - 16 + 3`, whatever the label.
+#[gpui::test]
+fn picker_indicators_sit_in_the_pinned_absolute_end_slot(cx: &mut TestAppContext) {
+    const LONG: &str = "A label long enough to fill the row and wrap onto a second line";
+    fn assert_slot(
+        what: &str,
+        host: gpui::Bounds<gpui::Pixels>,
+        probe: gpui::Bounds<gpui::Pixels>,
+    ) {
+        let want_x = f32::from(host.origin.x + host.size.width) - 8. - 16. + 3.;
+        let (host_mid, probe_mid) = (
+            f32::from(host.origin.y + host.size.height / 2.),
+            f32::from(probe.origin.y + probe.size.height / 2.),
         );
         assert!(
-            source.contains(".pr(px(28.))"),
-            "{name} rows need the pinned end padding"
-        );
-        assert!(
-            source.contains(".absolute()"),
-            "{name} indicators need an absolute slot"
-        );
-        assert!(
-            source.contains(".right(px(8.))"),
-            "{name} indicators need the end offset"
-        );
-        assert!(
-            source.contains(".w(px(16.))"),
-            "{name} indicators need the 16px slot"
+            (f32::from(probe.origin.x) - want_x).abs() < 0.5 && (host_mid - probe_mid).abs() < 0.5,
+            "{what}: the indicator must sit centred in the 16px slot 8px from \
+             the end, host {host:?}, probe {probe:?}"
         );
     }
-}
 
+    still();
+    let cx = open_host(cx, || {
+        Select::new("sel-slot", keyed(&["Alpha", LONG]))
+            .default_value(Some(LONG.into()))
+            .trigger_indicator(|_| part_probe("sel-trigger-ind"))
+            .indicator(|is_sel| {
+                if is_sel {
+                    part_probe("sel-row-ind")
+                } else {
+                    gpui::div().into_any_element()
+                }
+            })
+            .into_any_element()
+    });
+    settle_select(cx, 640., 900.);
+    let trigger = cx
+        .debug_bounds("select-trigger-Name(\"sel-slot\")")
+        .expect("the trigger must be laid out");
+    assert_slot(
+        "Select trigger",
+        trigger,
+        cx.debug_bounds("sel-trigger-ind").unwrap(),
+    );
+    click(cx, 60., 18.);
+    settle_select(cx, 640., 900.);
+    let row = cx
+        .debug_bounds("select-list-Name(\"sel-slot\")-opt-1")
+        .expect("the long row must be laid out");
+    assert_slot("Select row", row, cx.debug_bounds("sel-row-ind").unwrap());
+
+    let state = search_state(cx);
+    let id = state.entity_id().as_u64();
+    let cx = open_host(cx, move || {
+        combo_at(
+            40.,
+            ComboBox::new(state.clone(), keyed(&["Alpha", LONG]))
+                .default_value([LONG])
+                .default_open(true)
+                .indicator(|is_sel| {
+                    if is_sel {
+                        part_probe("combo-row-ind")
+                    } else {
+                        gpui::div().into_any_element()
+                    }
+                }),
+        )
+    });
+    settle_select(cx, 640., 900.);
+    let row = cx
+        .debug_bounds(combo_probe(format!("combobox-{id}-item-{LONG}")))
+        .expect("the ComboBox row must be laid out");
+    assert_slot(
+        "ComboBox row",
+        row,
+        cx.debug_bounds("combo-row-ind").unwrap(),
+    );
+
+    let state = search_state(cx);
+    let id = state.entity_id().as_u64();
+    let cx = open_host(cx, move || {
+        auto_at(
+            40.,
+            Autocomplete::new(state.clone(), keyed(&["Alpha", LONG]))
+                .default_value([LONG])
+                .default_open(true)
+                .item_indicator(|is_sel| {
+                    if is_sel {
+                        part_probe("auto-row-ind")
+                    } else {
+                        gpui::div().into_any_element()
+                    }
+                }),
+        )
+    });
+    settle_select(cx, 640., 900.);
+    let row = cx
+        .debug_bounds(combo_probe(format!("autocomplete-{id}-list-{LONG}")))
+        .expect("the Autocomplete row must be laid out");
+    assert_slot(
+        "Autocomplete row",
+        row,
+        cx.debug_bounds("auto-row-ind").unwrap(),
+    );
+}
 /// HeroUI's Select value and natural-height list rows use `wrap-break-word`.
 /// Keep a long label visible in both places instead of silently clipping it
 /// with the one-line trigger/row ellipsis used by the virtualized path.
@@ -5823,17 +5926,6 @@ fn autocomplete_long_selected_value_wraps_the_trigger(cx: &mut TestAppContext) {
     assert!(
         f32::from(trigger.size.height) > f32::from(herogpui_components::extend::FIELD_HEIGHT) + 8.,
         "a long selected Autocomplete value must wrap and grow the trigger, got {trigger:?}"
-    );
-}
-
-#[test]
-fn combo_box_value_visuals_follow_the_pinned_wrap_contract() {
-    let source = include_str!("../src/combo_box.rs");
-    assert!(
-        source.contains(
-            ".w_full()\n                .min_w_0()\n                .whitespace_normal()"
-        ),
-        "the default ComboBox.Value content must wrap long selected labels"
     );
 }
 
@@ -6058,24 +6150,44 @@ fn autocomplete_trigger_height_replaces_the_min_height(cx: &mut TestAppContext) 
 
 /// The collection triggers either gate their one chrome call site on the bare
 /// flag (Select, Autocomplete) or forward it to the inner Input (ComboBox).
-#[test]
-fn collection_triggers_gate_or_forward_the_bare_flag() {
-    for (source, guard) in [
-        (include_str!("../src/select.rs"), "if !field_box.is_bare {"),
-        (
-            include_str!("../src/autocomplete.rs"),
-            "if !field_box.is_bare {",
-        ),
-    ] {
-        source_scan::assert_chrome_call_is_under(source, guard);
+/// The collection triggers either gate their one chrome call site on the bare
+/// flag (Select, Autocomplete) or forward it to the inner Input (ComboBox):
+/// a bare trigger paints no field fill, the stock one does.
+#[gpui::test]
+fn collection_triggers_gate_or_forward_the_bare_flag(cx: &mut TestAppContext) {
+    for bare in [false, true] {
+        let combo = search_state(cx);
+        let auto = search_state(cx);
+        still();
+        let cx = open_host(cx, move || {
+            gpui::div()
+                .flex()
+                .flex_col()
+                .gap(px(40.))
+                .w(px(320.))
+                .child(Select::new("sel-bare", keyed(&["Alpha"])).is_bare(bare))
+                .child(ComboBox::new(combo.clone(), keyed(&["Alpha"])).is_bare(bare))
+                .child(Autocomplete::new(auto.clone(), keyed(&["Alpha"])).is_bare(bare))
+                .into_any_element()
+        });
+        let scene = harness::painted(cx);
+        let field = cx.update(|_, cx| {
+            use herogpui_theme::ActiveTheme;
+            cx.colors().field.background
+        });
+        let boxes = scene
+            .filled(field)
+            .into_iter()
+            .filter(|q| (f32::from(scene.bounds(q).size.width) - 320.).abs() < 0.5)
+            .count();
+        assert_eq!(
+            boxes,
+            if bare { 0 } else { 3 },
+            "bare={bare}: each trigger paints its field chrome unless bare\n{}",
+            scene.describe()
+        );
     }
-    let combo = include_str!("../src/combo_box.rs");
-    assert!(
-        combo.contains(".with_field_box(self.field)"),
-        "ComboBox must forward its box seam to the inner Input"
-    );
 }
-
 /// `value_content` lands inside the trigger, so a probe there measures the
 /// trigger's leading padding: `padding_x` must move it by the requested delta.
 #[gpui::test]

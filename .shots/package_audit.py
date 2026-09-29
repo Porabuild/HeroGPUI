@@ -183,6 +183,37 @@ def main():
         errors.append("release workflow does not attach the Lucide license")
     if "needs: [plan, ci, github-release]" not in release:
         errors.append("publish-crates does not depend on the CI gate")
+    # Public-API breaks are caught by cargo-semver-checks, not only by review:
+    # on pull requests in CI, and in the release before the immutable GitHub
+    # Release (and so before any publish) exists.
+    if "cargo semver-checks" not in ci:
+        errors.append("CI does not run cargo semver-checks on pull requests")
+    if "cargo semver-checks" not in release:
+        errors.append("release workflow does not run cargo semver-checks")
+    if "needs: [plan, prepare-release, semver]" not in release:
+        errors.append("github-release does not depend on the semver check")
+    if "bash .shots/lint.sh" not in ci:
+        errors.append("CI does not run the lint gate (.shots/lint.sh)")
+
+    # MSRV. There is no separate MSRV job because the pinned toolchain *is*
+    # the MSRV: every job builds on rust-toolchain.toml's channel. That only
+    # holds while the channel is a release of `rust-version`, and clippy's
+    # `msrv` mirrors the same value; the day either drifts, a real MSRV job
+    # (or a pin bump) is needed, so this fails instead of letting CI quietly
+    # stop testing the advertised minimum.
+    msrv = shared.get("rust-version", "")
+    toolchain = manifest(ROOT / "rust-toolchain.toml").get("toolchain", {})
+    channel = toolchain.get("channel", "")
+    if not re.fullmatch(r"\d+\.\d+\.\d+", channel):
+        errors.append(f"rust-toolchain.toml: channel must pin an exact release, got {channel!r}")
+    elif channel.rsplit(".", 1)[0] != msrv:
+        errors.append(
+            f"rust-toolchain.toml channel {channel} is not a {msrv} release; CI no longer "
+            "builds on the MSRV, so add an MSRV job or move rust-version with the pin"
+        )
+    clippy_msrv = manifest(ROOT / "clippy.toml").get("msrv")
+    if clippy_msrv != msrv:
+        errors.append(f"clippy.toml msrv {clippy_msrv!r} differs from rust-version {msrv!r}")
 
     # The facade contract: `herogpui` must carry GPUI itself, so a consumer's
     # dependency list is one line. Both GPUI crates are therefore mandatory --
@@ -262,6 +293,7 @@ def main():
     print(f"source packages      : {len(PACKAGES)}")
     print(f"library install      : {registry_dep} (the only dependency)")
     print(f"facade features      : {' '.join(sorted(facade_features))}")
+    print(f"msrv                 : {msrv} (toolchain pin {channel or 'missing'})")
     print("gallery install      : cargo install --path gallery --locked")
     print("license contract     : Apache-2.0 + NOTICE (components: + ISC AND MIT, Lucide)")
     print(f"PACKAGING ERRORS     : {len(errors)}")

@@ -1,6 +1,6 @@
 //! Deep focus-scope and nested-dismissal contracts for Popover.
 
-mod harness;
+use crate::harness;
 
 use std::{cell::Cell, cell::RefCell, rc::Rc, time::Duration};
 

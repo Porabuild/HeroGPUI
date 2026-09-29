@@ -6,7 +6,7 @@
 //! `avatar--sm`, `avatar__fallback--accent`, ...). Every host here is static,
 //! so `debug_bounds` presence is a reliable "rendered" signal.
 
-mod harness;
+use crate::harness;
 
 use gpui::{prelude::*, px, TestAppContext, VisualTestContext};
 use harness::{open_host, probe};

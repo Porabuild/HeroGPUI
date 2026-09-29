@@ -21,7 +21,7 @@
 //! (`--separator`) and its corner radius belong to the pinned stylesheet and
 //! the static audits, which read both.
 
-mod harness;
+use crate::harness;
 
 use gpui::{div, prelude::*, px, TestAppContext, VisualTestContext};
 use harness::open_host;

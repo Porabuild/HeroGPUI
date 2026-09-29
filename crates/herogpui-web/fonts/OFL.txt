@@ -3,8 +3,9 @@ Decoded to TTF with fontTools 4.64.0; variable axes and all glyphs retained.
 Inter-Medium.ttf, Inter-Semibold.ttf and Inter-Bold.ttf are static instances of that bundled Inter-Regular.ttf, preserving every glyph.
 Reproduce with fontTools 4.64.0 from this directory (WEIGHT/NAME: 500/Medium, 600/Semibold, 700/Bold):
 python -m fontTools.varLib.instancer Inter-Regular.ttf wght=WEIGHT opsz=14 --update-name-table --no-recalc-timestamp -o Inter-NAME.ttf
-Noto Sans SC and Noto Emoji: https://github.com/google/fonts/tree/5e35378e6bda803962ee6fd257e444a7d459660d/ofl
-Static regular instances generated with fontTools 4.64.0 varLib.instancer: wght=400; Noto Sans SC updateFontNames=True. Glyphs are not subsetted.
+Noto Sans SC, Noto Sans KR and Noto Emoji: https://github.com/google/fonts/tree/5e35378e6bda803962ee6fd257e444a7d459660d/ofl
+Static regular instances generated with fontTools 4.64.0 varLib.instancer: wght=400; Noto Sans SC and Noto Sans KR updateFontNames=True.
+The *.source.ttf files of Noto Sans SC and Noto Sans KR are pre-reduced to a glyph headroom (see .shots/subset-fonts.py); the other sources are not subsetted.
 
 Font copyrights:
 - Copyright 2014-2021 Adobe, with Reserved Font Name 'Source'

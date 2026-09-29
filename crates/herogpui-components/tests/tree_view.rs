@@ -3,7 +3,7 @@
 //! first child and Left to the parent, typeahead, single and multiple
 //! selection, and disabled rows that the cursor skips.
 
-mod harness;
+use crate::harness;
 
 use std::collections::HashSet;
 
@@ -313,4 +313,138 @@ fn a_row_press_after_keyboard_use_hides_the_focus_ring(cx: &mut TestAppContext) 
     cx.update(|_, cx| herogpui_components::extend::set_focus_visible(true, cx));
     click(cx, "tree-row-readme");
     assert!(!visible(cx), "a row press hides the ring");
+}
+
+fn shift_click(cx: &mut VisualTestContext, name: &str) {
+    let at = cx
+        .debug_bounds(Box::leak(name.to_owned().into_boxed_str()))
+        .unwrap_or_else(|| panic!("{name} laid out"))
+        .center();
+    cx.simulate_click(
+        at,
+        Modifiers {
+            shift: true,
+            ..Modifiers::none()
+        },
+    );
+    frame(cx);
+}
+
+fn multiple_open_src() -> Config {
+    Config {
+        mode: SelectionMode::Multiple,
+        open_src: true,
+        ..Config::default()
+    }
+}
+
+#[gpui::test]
+fn shift_down_extends_a_multiple_selection_from_the_anchor(cx: &mut TestAppContext) {
+    let (seen, cx) = host(cx, multiple_open_src());
+    frame(cx);
+    // Rows: docs, src, lib, main (disabled), readme, secret (disabled).
+    // Space on Docs seats the anchor; Shift+Down twice grows the range over
+    // Sources and lib; Shift+Up shrinks it back to Sources. Shift+Down past
+    // the disabled main.rs reaches Readme and skips main.rs in the range.
+    keys(
+        cx,
+        &[
+            "tab",
+            "space",
+            "shift-down",
+            "shift-down",
+            "shift-up",
+            "shift-down",
+            "shift-down",
+        ],
+    );
+    assert_eq!(
+        log(&seen),
+        [
+            "sel:docs",
+            "sel:docs,src",
+            "sel:docs,lib,src",
+            "sel:docs,src",
+            "sel:docs,lib,src",
+            "sel:docs,lib,readme,src",
+        ]
+    );
+    // Shift+Home only moves the cursor; Space then toggles Docs off.
+    keys(cx, &["shift-home", "space"]);
+    assert_eq!(log(&seen)[6..], ["sel:lib,readme,src"]);
+}
+
+#[gpui::test]
+fn shift_click_selects_the_visible_range(cx: &mut TestAppContext) {
+    let (seen, cx) = host(cx, multiple_open_src());
+    frame(cx);
+    click(cx, "tree-row-src");
+    shift_click(cx, "tree-row-readme");
+    // A second Shift press replaces the range from the same anchor.
+    shift_click(cx, "tree-row-docs");
+    assert_eq!(
+        log(&seen),
+        ["sel:src", "sel:lib,readme,src", "sel:docs,src"]
+    );
+}
+
+#[gpui::test]
+fn shift_does_not_extend_a_single_selection(cx: &mut TestAppContext) {
+    let config = Config {
+        open_src: true,
+        ..Config::default()
+    };
+    let (seen, cx) = host(cx, config);
+    frame(cx);
+    click(cx, "tree-row-src");
+    shift_click(cx, "tree-row-readme");
+    keys(cx, &["shift-up"]);
+    assert_eq!(log(&seen), ["sel:src", "sel:readme"]);
+}
+
+/// A flat tree of `n` rows, all top-level, so the visible count is `n`.
+fn wide_items(n: usize) -> Vec<TreeItem> {
+    (0..n)
+        .map(|i| TreeItem::new(format!("n{i}"), format!("Node {i}")))
+        .collect()
+}
+
+#[gpui::test]
+fn a_capped_tree_builds_only_the_rows_in_view(cx: &mut TestAppContext) {
+    let cx = open_host(cx, || {
+        gpui::div()
+            .w(px(300.))
+            .child(
+                TreeView::new("tree", wide_items(5_000))
+                    .selection_mode(SelectionMode::Single)
+                    .max_h(px(200.)),
+            )
+            .into_any_element()
+    });
+    frame(cx);
+    let tree = cx.debug_bounds("tree-tree").expect("tree laid out");
+    assert_eq!(tree.size.height, px(200.), "capped at max_h");
+    assert!(row(cx, "n0").is_some());
+    assert!(row(cx, "n5").is_some(), "rows in view are built");
+    assert!(row(cx, "n10").is_none(), "rows below the cap are not");
+    assert!(row(cx, "n4999").is_none());
+    // End moves the cursor to the last row and scrolls it into view.
+    keys(cx, &["tab", "end"]);
+    let last = row(cx, "n4999").expect("the last row scrolled into view");
+    assert!(last.bottom() <= tree.bottom(), "{last:?} inside {tree:?}");
+    assert!(row(cx, "n0").is_none(), "the first row scrolled out");
+}
+
+#[gpui::test]
+fn an_uncapped_tree_keeps_its_flex_column_geometry(cx: &mut TestAppContext) {
+    let (_, cx) = host(cx, Config::default());
+    frame(cx);
+    // Four top-level rows: 4px padding, 32px rows 2px apart, 4px padding.
+    let tree = cx.debug_bounds("tree-tree").expect("tree laid out");
+    assert_eq!(tree.size.height, px(4. + 4. * 32. + 3. * 2. + 4.));
+    let docs = row(cx, "docs").unwrap();
+    let src = row(cx, "src").unwrap();
+    assert_eq!(docs.origin.y, tree.origin.y + px(4.));
+    assert_eq!(src.origin.y, docs.origin.y + px(34.));
+    assert_eq!(docs.origin.x, tree.origin.x + px(4.));
 }

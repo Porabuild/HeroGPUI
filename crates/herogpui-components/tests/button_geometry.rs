@@ -17,8 +17,7 @@
 //! Every builder is additive: each test pins the untouched default next to
 //! the override where a mix could hide a changed fallback.
 
-mod harness;
-mod source_scan;
+use crate::harness;
 
 use std::cell::RefCell;
 use std::rc::Rc;
@@ -26,7 +25,6 @@ use std::rc::Rc;
 use gpui::{prelude::*, px, Bounds, FontWeight, Pixels, TestAppContext, VisualTestContext};
 use herogpui_components::Button;
 use herogpui_core::Size;
-use source_scan::{component_src, scope_contains};
 
 type Sink = Rc<RefCell<Option<Bounds<Pixels>>>>;
 
@@ -383,25 +381,36 @@ fn text_size_resizes_the_label_and_beats_the_size_ladder(cx: &mut TestAppContext
     );
 }
 
+/// The platform's system font shapes bold and medium to the same advance
+/// width, so no footprint can pin this; a style probe composed into the
+/// button reads the weight its label draws with instead: `.button`'s
+/// `font-medium` by default, replaced by `font_weight`.
 #[gpui::test]
-fn font_weight_builder_replaces_the_medium_default() {
-    // The platform's system font shapes bold and medium to the same advance
-    // width, so no footprint can pin this; the wiring scan is the proof, per
-    // the `text_size_knobs.rs` convention. The builder must store the weight
-    // and the render must resolve it over `.button`'s `font-medium`.
-    let source = component_src("button.rs");
-    scope_contains(
-        &source,
-        "pub fn font_weight(",
-        "self.font_weight = Some(weight);",
-    )
-    .unwrap();
-    scope_contains(
-        &source,
-        "fn render(mut self",
-        "self.font_weight.unwrap_or(gpui::FontWeight::MEDIUM)",
-    )
-    .unwrap();
+fn font_weight_builder_replaces_the_medium_default(cx: &mut TestAppContext) {
+    for (weight, want) in [
+        (None, FontWeight::MEDIUM),
+        (Some(FontWeight::BOLD), FontWeight::BOLD),
+    ] {
+        let style = harness::style_sink();
+        let seen = style.clone();
+        harness::still();
+        let cx = harness::open_host(cx, move || {
+            let button = Button::new("fw")
+                .label("Save")
+                .child(harness::style_probe(&style));
+            match weight {
+                Some(w) => button.font_weight(w),
+                None => button,
+            }
+            .into_any_element()
+        });
+        harness::settle(cx);
+        assert_eq!(
+            harness::seen_style(&seen, "button label").font_weight,
+            want,
+            "font_weight {weight:?}"
+        );
+    }
 }
 
 #[gpui::test]

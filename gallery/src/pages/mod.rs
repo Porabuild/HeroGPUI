@@ -33,6 +33,7 @@ impl Gallery {
             Page::DarkMode => self.page_dark_mode(cx),
             Page::Customization => self.page_customization(cx),
             Page::Styling => self.page_styling(cx),
+            Page::Icons => self.page_icons(cx),
             Page::DesignPrinciples => self.page_design_principles(cx),
 
             // Buttons
@@ -152,6 +153,7 @@ pub enum Page {
     DarkMode,
     Customization,
     Styling,
+    Icons,
     DesignPrinciples,
 
     // Buttons
@@ -265,6 +267,7 @@ impl Page {
             Page::DarkMode => "Dark Mode",
             Page::Customization => "Customization",
             Page::Styling => "Styling",
+            Page::Icons => "Icons",
             Page::DesignPrinciples => "Design Principles",
             Page::Button => "Button",
             Page::ButtonGroup => "Button Group",
@@ -355,6 +358,7 @@ impl Page {
                 "Build custom themes by overriding tokens and ThemeBuilder::components recipes."
             }
             Page::Styling => "Typed props, theme tokens, slots and render closures — there are no CSS classes.",
+            Page::Icons => "The embedded Lucide icon set: sizes, stroke width and every name.",
             Page::DesignPrinciples => "The ten principles behind every HeroGPUI component.",
             Page::Button => "A pressable button with variants and states.",
             Page::ButtonGroup => "Group related buttons with a shared variant and merged edges.",
@@ -562,6 +566,7 @@ pub fn nav_sections() -> Vec<NavSection> {
                 Page::DarkMode,
                 Page::Customization,
                 Page::Styling,
+                Page::Icons,
                 Page::DesignPrinciples,
             ],
         },

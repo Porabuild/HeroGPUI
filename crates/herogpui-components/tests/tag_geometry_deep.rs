@@ -1,6 +1,6 @@
 //! Tag line boxes must match v3.2.4 even outside the gallery's 14/20 text root.
 
-mod harness;
+use crate::harness;
 
 use gpui::{prelude::*, px, TestAppContext};
 use herogpui_components::{SelectionMode, Size, Tag, TagGroup, TagVariant};

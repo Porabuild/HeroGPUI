@@ -534,7 +534,9 @@ pub(crate) fn window_overlay(el: impl gpui::IntoElement, window: &gpui::Window) 
 /// the control under the pointer, matching React Aria's `useOverlay`.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum DismissResult {
+    /// The dismissal was handled and the event is consumed.
     Handled,
+    /// The dismissal was declined and the event continues to the control underneath.
     Declined,
 }
 
@@ -1485,10 +1487,12 @@ where
     .child(release)
 }
 
+/// Whether focus rings should currently be shown, i.e. the last interaction was keyboard-driven.
 pub fn focus_visible(cx: &App) -> bool {
     cx.try_global::<FocusVisible>().is_some_and(|v| v.0)
 }
 
+/// Sets whether focus rings should be shown, refreshing windows when the value changes.
 pub fn set_focus_visible(visible: bool, cx: &mut App) {
     if focus_visible(cx) != visible {
         cx.set_global(FocusVisible(visible));
@@ -1989,6 +1993,103 @@ pub fn ring_if_focused<T: Styled>(
 /// a new one.
 pub fn capture_sx(style: impl FnOnce(Div) -> Div) -> Box<gpui::StyleRefinement> {
     Box::new(style(gpui::div()).style().clone())
+}
+
+/// Adds a closure's root refinement to one already set through GPUI's
+/// `Styled` methods (or an earlier `sx` call). Builder order stays meaningful
+/// for fields both calls set; unrelated fields remain in place.
+pub(crate) fn refine_sx(
+    sx: &mut Option<Box<gpui::StyleRefinement>>,
+    style: impl FnOnce(Div) -> Div,
+) {
+    let next = capture_sx(style);
+    if let Some(current) = sx {
+        current.as_mut().refine(&next);
+    } else {
+        *sx = Some(next);
+    }
+}
+
+/// The `Styled` storage is the same root-only refinement that `sx` uses.
+/// Invoke this beside each component type with an `sx` field so GPUI's full
+/// style vocabulary can be used without forwarding styles into child parts.
+macro_rules! impl_component_styled {
+    ($($component:ty),+ $(,)?) => {
+        $(
+            impl gpui::Styled for $component {
+                fn style(&mut self) -> &mut gpui::StyleRefinement {
+                    self.sx
+                        .get_or_insert_with(|| Box::new(gpui::StyleRefinement::default()))
+                        .as_mut()
+                }
+            }
+        )+
+    };
+}
+pub(crate) use impl_component_styled;
+
+/// The last laid-out bounds of a focused HeroGPUI control in each window.
+/// GPUI exposes the focus handle and prepaint bounds separately, so controls
+/// record the pair for keyboard ContextMenu placement. Weak handles prevent
+/// the registry from keeping retired controls alive.
+#[derive(Clone, Default)]
+struct FocusedBounds(
+    std::rc::Rc<
+        std::cell::RefCell<
+            std::collections::HashMap<
+                gpui::WindowId,
+                (gpui::WeakFocusHandle, gpui::Bounds<Pixels>),
+            >,
+        >,
+    >,
+);
+
+impl gpui::Global for FocusedBounds {}
+
+/// Append a layout-free probe to the focus-owning element, after its content.
+/// A stale prepaint cannot anchor a later focus: lookup checks handle identity.
+pub(crate) fn record_focus_bounds<T: ParentElement>(
+    el: T,
+    handle: &gpui::FocusHandle,
+    window: &gpui::Window,
+    cx: &mut App,
+) -> T {
+    if !handle.is_focused(window) {
+        return el;
+    }
+    let registry = if let Some(registry) = cx.try_global::<FocusedBounds>() {
+        registry.clone()
+    } else {
+        let registry = FocusedBounds::default();
+        cx.set_global(registry.clone());
+        registry
+    };
+    let weak = handle.downgrade();
+    el.child(
+        gpui::canvas(
+            move |bounds, window, _| {
+                registry
+                    .0
+                    .borrow_mut()
+                    .insert(window.window_handle().window_id(), (weak, bounds));
+            },
+            |_, _, _, _| {},
+        )
+        .absolute()
+        .inset_0(),
+    )
+}
+
+/// Bounds recorded in the last prepaint for this window's current focus.
+pub(crate) fn focused_element_bounds(
+    window: &gpui::Window,
+    cx: &App,
+) -> Option<gpui::Bounds<Pixels>> {
+    let focused = window.focused(cx)?;
+    let registry = cx.try_global::<FocusedBounds>()?;
+    let bounds = registry.0.borrow();
+    let (handle, bounds) = bounds.get(&window.window_handle().window_id())?;
+    (*handle == focused).then_some(*bounds)
 }
 
 /// Merges a captured `sx` refinement over a root element's own style.

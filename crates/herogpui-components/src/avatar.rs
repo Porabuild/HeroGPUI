@@ -79,8 +79,10 @@ pub enum AvatarVariant {
 }
 
 impl AvatarVariant {
+    /// Every avatar variant, in declaration order.
     pub const ALL: [AvatarVariant; 2] = [AvatarVariant::Default, AvatarVariant::Soft];
 
+    /// A human-readable label for this variant.
     pub fn label(self) -> &'static str {
         match self {
             AvatarVariant::Default => "Default",
@@ -90,6 +92,7 @@ impl AvatarVariant {
 }
 
 /// HeroUI Avatar: image or name-initials fallback.
+#[must_use = "a component does nothing until it is rendered: add it as a child or return it from `render`"]
 #[derive(IntoElement)]
 pub struct Avatar {
     /// The instance's element id, required at construction. The image
@@ -185,11 +188,13 @@ impl Avatar {
         self
     }
 
+    /// Sets the name the avatar represents.
     pub fn name(mut self, name: impl Into<SharedString>) -> Self {
         self.name = name.into();
         self
     }
 
+    /// Sets the avatar variant.
     pub fn variant(mut self, variant: AvatarVariant) -> Self {
         self.variant = variant;
         self.explicit.variant = true;
@@ -253,6 +258,7 @@ impl Avatar {
         self
     }
 
+    /// Sets the avatar size.
     pub fn size(mut self, size: herogpui_core::Size) -> Self {
         self.size_px = match size {
             herogpui_core::Size::Sm => px(32.),
@@ -267,6 +273,7 @@ impl Avatar {
         self
     }
 
+    /// Sets the color role.
     pub fn color(mut self, c: Color) -> Self {
         self.color = c;
         self.explicit.color = true;
@@ -286,7 +293,7 @@ impl Avatar {
     /// applied to the avatar's root element after every value the variant, the
     /// color and the active theme chose, so they win.
     pub fn sx(mut self, style: impl FnOnce(gpui::Div) -> gpui::Div) -> Self {
-        self.sx = Some(crate::util::capture_sx(style));
+        crate::util::refine_sx(&mut self.sx, style);
         self
     }
 
@@ -775,3 +782,5 @@ mod outcome_guard {
         assert!(!first_completion(true, 1, 1));
     }
 }
+
+crate::util::impl_component_styled!(Avatar);

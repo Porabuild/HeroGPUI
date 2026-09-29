@@ -34,7 +34,7 @@
 //! dismissing them, while the Autocomplete and ComboBox panels leave the tree
 //! outright when closed.
 
-mod harness;
+use crate::harness;
 
 use std::{cell::RefCell, rc::Rc};
 

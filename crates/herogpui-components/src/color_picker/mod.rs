@@ -312,15 +312,20 @@ pub(super) fn color_focus_ring_motion(
 /// The color space a channel belongs to.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum ColorSpace {
+    /// Hue, saturation and brightness.
     #[default]
     Hsb,
+    /// Hue, saturation and lightness.
     Hsl,
+    /// Red, green and blue.
     Rgb,
 }
 
 impl ColorSpace {
+    /// Every color space, in display order.
     pub const ALL: [ColorSpace; 3] = [ColorSpace::Hsb, ColorSpace::Hsl, ColorSpace::Rgb];
 
+    /// The uppercase name of this color space.
     pub fn label(self) -> &'static str {
         match self {
             ColorSpace::Hsb => "HSB",
@@ -342,19 +347,26 @@ impl ColorSpace {
 /// A single editable channel of a color.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ColorChannel {
+    /// Hue, in degrees.
     Hue,
+    /// Saturation.
     Saturation,
     /// HSB value / "brightness".
     Brightness,
     /// HSL lightness.
     Lightness,
+    /// Opacity.
     Alpha,
+    /// Red component.
     Red,
+    /// Green component.
     Green,
+    /// Blue component.
     Blue,
 }
 
 impl ColorChannel {
+    /// The human-readable name of this channel.
     pub fn label(self) -> &'static str {
         match self {
             ColorChannel::Hue => "Hue",
@@ -366,6 +378,25 @@ impl ColorChannel {
             ColorChannel::Green => "Green",
             ColorChannel::Blue => "Blue",
         }
+    }
+
+    /// The channel's name in the active chrome locale (React Stately's
+    /// colour dictionary; [`ColorChannel::label`] is the en-US name).
+    pub fn localized_label(self, cx: &App) -> SharedString {
+        use crate::i18n::{ui_string, UiString};
+        ui_string(
+            match self {
+                ColorChannel::Hue => UiString::Hue,
+                ColorChannel::Saturation => UiString::Saturation,
+                ColorChannel::Brightness => UiString::Brightness,
+                ColorChannel::Lightness => UiString::Lightness,
+                ColorChannel::Alpha => UiString::Alpha,
+                ColorChannel::Red => UiString::Red,
+                ColorChannel::Green => UiString::Green,
+                ColorChannel::Blue => UiString::Blue,
+            },
+            cx,
+        )
     }
 
     /// The inclusive value range of this channel.
@@ -393,6 +424,7 @@ pub struct PickerColor {
     model: ColorModel,
 }
 
+/// The HSB representation of a `PickerColor`, with hue in degrees and the other components normalised to `0..1`.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct HsbCoordinates {
     /// Hue in degrees, `0..360`.
@@ -433,6 +465,7 @@ impl Default for PickerColor {
 }
 
 impl PickerColor {
+    /// Creates an opaque color from `hue` (wrapped to `0..360`), `saturation` and `brightness` (clamped to `0..1`).
     pub fn hsb(hue: f32, saturation: f32, brightness: f32) -> Self {
         Self {
             coordinates: HsbCoordinates {
@@ -445,6 +478,7 @@ impl PickerColor {
         }
     }
 
+    /// Returns the color with its alpha replaced, clamped to `0..1`.
     pub fn with_alpha(mut self, alpha: f32) -> Self {
         self.coordinates.alpha = alpha.clamp(0.0, 1.0);
         self
@@ -641,6 +675,7 @@ impl PickerColor {
         }
     }
 
+    /// The value of `channel`: hue in degrees, red/green/blue on `0..255`, the others on `0..1`.
     pub fn channel(self, channel: ColorChannel) -> f32 {
         let (r, g, b) = self.to_rgb();
         match channel {
@@ -729,14 +764,18 @@ pub(super) type OnColorFieldChange =
 /// Shape of a swatch.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum SwatchShape {
+    /// A circular swatch.
     #[default]
     Circle,
+    /// A square swatch.
     Square,
 }
 
 impl SwatchShape {
+    /// Both swatch shapes, in display order.
     pub const ALL: [SwatchShape; 2] = [SwatchShape::Circle, SwatchShape::Square];
 
+    /// The human-readable name of this shape.
     pub fn label(self) -> &'static str {
         match self {
             SwatchShape::Circle => "Circle",

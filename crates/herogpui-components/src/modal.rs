@@ -15,10 +15,14 @@ use crate::a11y::{self, A11y as _};
 /// Modal width preset (`size`) — `xs | sm | md | lg | cover | full`.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum ModalSize {
+    /// Extra small width.
     Xs,
+    /// Small width.
     Sm,
+    /// Medium width.
     #[default]
     Md,
+    /// Large width.
     Lg,
     /// Nearly fills the viewport, keeping a margin.
     Cover,
@@ -27,6 +31,7 @@ pub enum ModalSize {
 }
 
 impl ModalSize {
+    /// Every size, in display order.
     pub const ALL: [ModalSize; 6] = [
         ModalSize::Xs,
         ModalSize::Sm,
@@ -49,6 +54,7 @@ impl ModalSize {
         }
     }
 
+    /// The display name of this size.
     pub fn label(self) -> &'static str {
         match self {
             ModalSize::Xs => "Xs",
@@ -67,8 +73,11 @@ pub enum ModalPlacement {
     /// `"auto"` — centred on desktop; v3 only switches to a sheet on mobile.
     #[default]
     Auto,
+    /// Vertically centered.
     Center,
+    /// Anchored toward the top.
     Top,
+    /// Anchored toward the bottom.
     Bottom,
 }
 
@@ -125,6 +134,7 @@ pub type OnClose = std::sync::Arc<dyn Fn(&DismissReason, &mut Window, &mut App) 
 pub type OnOpenChange = std::sync::Arc<dyn Fn(&bool, &mut Window, &mut App) + 'static>;
 
 /// HeroUI Modal (controlled).
+#[must_use = "a component does nothing until it is rendered: add it as a child or return it from `render`"]
 #[derive(IntoElement)]
 pub struct Modal {
     /// Keys this dialog's own state; see [`Modal::id`].
@@ -394,6 +404,7 @@ pub struct ModalCloseTrigger {
 }
 
 impl ModalCloseTrigger {
+    /// Creates a close trigger with no children.
     pub fn new() -> Self {
         Self {
             on_dismiss: None,
@@ -417,6 +428,7 @@ impl Modal {
         self
     }
 
+    /// Creates a closed modal.
     pub fn new() -> Self {
         Self {
             id: gpui::ElementId::Name("modal".into()),
@@ -439,11 +451,13 @@ impl Modal {
         }
     }
 
+    /// Sets whether the modal is open (v3 `isOpen`).
     pub fn is_open(mut self, v: bool) -> Self {
         self.is_open = v;
         self
     }
 
+    /// Sets the title text.
     pub fn title(mut self, t: impl Into<SharedString>) -> Self {
         self.title = Some(t.into());
         self
@@ -463,6 +477,7 @@ impl Modal {
         self
     }
 
+    /// Sets the width preset (v3 `size`).
     pub fn size(mut self, s: ModalSize) -> Self {
         self.size = s;
         self
@@ -474,11 +489,13 @@ impl Modal {
         self
     }
 
+    /// Sets the backdrop style.
     pub fn backdrop(mut self, b: Backdrop) -> Self {
         self.backdrop = b;
         self
     }
 
+    /// Sets the vertical placement (v3 `placement`).
     pub fn placement(mut self, p: ModalPlacement) -> Self {
         self.placement = p;
         self
@@ -499,7 +516,7 @@ impl Modal {
     /// and the backdrop sit in — after every value the size, the placement and
     /// the active theme chose, so they win.
     pub fn sx(mut self, style: impl FnOnce(gpui::Div) -> gpui::Div) -> Self {
-        self.sx = Some(crate::util::capture_sx(style));
+        crate::util::refine_sx(&mut self.sx, style);
         self
     }
 
@@ -517,6 +534,7 @@ impl Modal {
         self
     }
 
+    /// Sets whether the keyboard cannot dismiss the modal (v3 `isKeyboardDismissDisabled`).
     pub fn is_keyboard_dismiss_disabled(mut self, v: bool) -> Self {
         self.is_keyboard_dismiss_disabled = v;
         self
@@ -958,3 +976,5 @@ mod tests {
         assert_eq!(placement_entry_offset(ModalPlacement::Center), (0.0, 0.0));
     }
 }
+
+crate::util::impl_component_styled!(Modal);

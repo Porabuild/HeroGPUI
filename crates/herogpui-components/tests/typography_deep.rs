@@ -16,7 +16,7 @@
 //! background colour and radius leave no trace in layout and are covered by
 //! code reading plus the design audit, not here.
 
-mod harness;
+use crate::harness;
 
 use std::cell::RefCell;
 use std::rc::Rc;

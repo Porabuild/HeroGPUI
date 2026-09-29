@@ -4,8 +4,6 @@
 //! are inherited unless the builder set them. A missing id falls back to a
 //! new toast. The updated card keeps its stack position.
 
-mod harness;
-
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 use std::time::Duration;

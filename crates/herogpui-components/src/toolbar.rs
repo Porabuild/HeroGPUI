@@ -14,9 +14,12 @@ use std::collections::HashMap;
 
 use gpui::{
     div, px, AnyElement, App, BorrowAppContext, ElementId, FocusHandle, InteractiveElement,
-    IntoElement, KeyDownEvent, ParentElement, Pixels, RenderOnce, Styled, WeakFocusHandle, Window,
+    IntoElement, KeyDownEvent, ParentElement, Pixels, RenderOnce, SharedString, Styled,
+    WeakFocusHandle, Window,
 };
-use herogpui_core::{element_id, Orientation};
+use herogpui_core::{element_id, Orientation, Size};
+
+use crate::traits::Sizable;
 use herogpui_theme::ActiveTheme;
 
 use crate::a11y::{self, A11y as _};
@@ -75,14 +78,29 @@ fn sync_toolbar_scope(scope: &FocusHandle, window: &Window, cx: &mut App) -> boo
     })
 }
 
+/// A child whose size the toolbar applies when it renders (see
+/// [`Toolbar::sized_child`]); `None` keeps the child's own size.
+type SizedChild = Box<dyn FnOnce(Option<Size>) -> AnyElement>;
+
+/// One toolbar child: an element as given, or a control sized by the bar.
+enum ToolbarChild {
+    Element(AnyElement),
+    Sized(SizedChild),
+}
+
 /// HeroUI Toolbar.
+#[must_use = "a component does nothing until it is rendered: add it as a child or return it from `render`"]
 #[derive(IntoElement)]
 pub struct Toolbar {
     id: Option<ElementId>,
     orientation: Orientation,
     is_attached: bool,
     gap: Option<Pixels>,
-    children: Vec<AnyElement>,
+    children: Vec<ToolbarChild>,
+    /// The size handed to every [`Toolbar::sized_child`] (HeroGPUI extension).
+    size: Option<Size>,
+    /// The accessible name of the toolbar or group (HeroGPUI extension).
+    label: Option<SharedString>,
     /// Expands the root to the available width.
     full_width: bool,
     /// The `sx` slot, refined over the root style at the end of render.
@@ -90,6 +108,7 @@ pub struct Toolbar {
 }
 
 impl Toolbar {
+    /// Creates a horizontal toolbar.
     pub fn new() -> Self {
         Self {
             id: None,
@@ -97,6 +116,8 @@ impl Toolbar {
             is_attached: false,
             gap: None,
             children: Vec::new(),
+            size: None,
+            label: None,
             full_width: false,
             sx: None,
         }
@@ -110,6 +131,7 @@ impl Toolbar {
         self
     }
 
+    /// Sets the toolbar orientation.
     pub fn orientation(mut self, orientation: Orientation) -> Self {
         self.orientation = orientation;
         self
@@ -122,6 +144,7 @@ impl Toolbar {
         self
     }
 
+    /// Sets the gap between children.
     pub fn gap(mut self, gap: impl Into<Pixels>) -> Self {
         self.gap = Some(gap.into());
         self
@@ -141,12 +164,55 @@ impl Toolbar {
             Orientation::Horizontal => Orientation::Vertical,
             Orientation::Vertical => Orientation::Horizontal,
         };
-        self.children.push(
+        self.children.push(ToolbarChild::Element(
             crate::separator::Separator::new()
                 .orientation(crossed)
                 .in_toolbar()
                 .into_any_element(),
-        );
+        ));
+        self
+    }
+
+    /// The size every [`Toolbar::sized_child`] takes, whatever the order of
+    /// the calls (HeroGPUI extension, after gpui-kit's toolbar). Children
+    /// added through `child`/`children` keep their own size.
+    pub fn size(mut self, size: Size) -> Self {
+        self.size = Some(size);
+        self
+    }
+
+    /// Appends a control that takes the toolbar's [`Toolbar::size`] when the
+    /// toolbar renders, so a bar of buttons, toggles and groups is sized in
+    /// one place (HeroGPUI extension). Without a toolbar size the control
+    /// keeps its own.
+    pub fn sized_child<T>(mut self, child: T) -> Self
+    where
+        T: Sizable<Size = Size> + IntoElement + 'static,
+    {
+        self.children
+            .push(ToolbarChild::Sized(Box::new(move |size| match size {
+                Some(size) => child.size(size).into_any_element(),
+                None => child.into_any_element(),
+            })));
+        self
+    }
+
+    /// Appends controls sized like [`Toolbar::sized_child`].
+    pub fn sized_children<T>(mut self, children: impl IntoIterator<Item = T>) -> Self
+    where
+        T: Sizable<Size = Size> + IntoElement + 'static,
+    {
+        for child in children {
+            self = self.sized_child(child);
+        }
+        self
+    }
+
+    /// The accessible name of the toolbar — or, nested in another toolbar,
+    /// of the group it becomes — `aria-label` on RAC's `Toolbar` (HeroGPUI
+    /// extension spelling; the name is reported only with an [`Toolbar::id`]).
+    pub fn label(mut self, label: impl Into<SharedString>) -> Self {
+        self.label = Some(label.into());
         self
     }
 
@@ -162,7 +228,7 @@ impl Toolbar {
     /// applied to the toolbar's root element after every value the orientation,
     /// the attached surface and the active theme chose, so they win.
     pub fn sx(mut self, style: impl FnOnce(gpui::Div) -> gpui::Div) -> Self {
-        self.sx = Some(crate::util::capture_sx(style));
+        crate::util::refine_sx(&mut self.sx, style);
         self
     }
 }
@@ -175,7 +241,8 @@ impl Default for Toolbar {
 
 impl ParentElement for Toolbar {
     fn extend(&mut self, elements: impl IntoIterator<Item = AnyElement>) {
-        self.children.extend(elements);
+        self.children
+            .extend(elements.into_iter().map(ToolbarChild::Element));
     }
 }
 
@@ -279,6 +346,7 @@ impl RenderOnce for Toolbar {
         }
 
         el = el.track_focus(&scope);
+        el = crate::util::record_focus_bounds(el, &scope, window, cx);
         // Pinned `useToolbar` handles exactly the orientation's axis —
         // ArrowRight/ArrowLeft when horizontal, ArrowDown/ArrowUp when
         // vertical — through a FocusManager scoped to the toolbar's element
@@ -403,7 +471,11 @@ impl RenderOnce for Toolbar {
                 }
             }
         });
-        let el = el.children(self.children);
+        let size = self.size;
+        let el = el.children(self.children.into_iter().map(|child| match child {
+            ToolbarChild::Element(el) => el,
+            ToolbarChild::Sized(build) => build(size),
+        }));
         let el = if self.full_width { el.w_full() } else { el };
         let el = crate::util::apply_sx(el, &self.sx);
 
@@ -426,14 +498,19 @@ impl RenderOnce for Toolbar {
         match self.id {
             Some(id) => el
                 .id(id)
-                .a11y(if nested {
-                    a11y::Role::Group
-                } else {
-                    a11y::Role::Toolbar
-                })
+                .a11y_named(
+                    if nested {
+                        a11y::Role::Group
+                    } else {
+                        a11y::Role::Toolbar
+                    },
+                    &a11y::Name::maybe(self.label),
+                )
                 .a11y_orientation(self.orientation)
                 .into_any_element(),
             None => el.into_any_element(),
         }
     }
 }
+
+crate::util::impl_component_styled!(Toolbar);

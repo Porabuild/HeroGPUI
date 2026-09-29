@@ -51,8 +51,10 @@ pub enum AvatarGroupOverlap {
 }
 
 impl AvatarGroupOverlap {
+    /// Every overlap style, in declaration order.
     pub const ALL: [AvatarGroupOverlap; 2] = [AvatarGroupOverlap::Clip, AvatarGroupOverlap::Ring];
 
+    /// A human-readable label for this overlap style.
     pub fn label(self) -> &'static str {
         match self {
             AvatarGroupOverlap::Clip => "Clip",
@@ -71,6 +73,7 @@ impl AvatarGroupOverlap {
 /// `AvatarGroup.Count` (`.avatar-group__count`): an [`Avatar`] whose fallback
 /// is the count content, e.g. `+3`. Its own `size`/`color`/`variant` override
 /// the group's; it is never truncated by [`AvatarGroup::max`].
+#[must_use = "a component does nothing until it is rendered: add it as a child or return it from `render`"]
 #[derive(IntoElement)]
 pub struct AvatarGroupCount {
     id: ElementId,
@@ -81,6 +84,7 @@ pub struct AvatarGroupCount {
 }
 
 impl AvatarGroupCount {
+    /// Creates a count item with the given id.
     pub fn new(id: impl Into<ElementId>) -> Self {
         Self {
             id: id.into(),
@@ -163,6 +167,7 @@ enum Member {
 
 /// HeroUI v3 `AvatarGroup`: a stacked or grid row of avatars with an
 /// overflow count.
+#[must_use = "a component does nothing until it is rendered: add it as a child or return it from `render`"]
 #[derive(IntoElement)]
 pub struct AvatarGroup {
     id: ElementId,
@@ -278,7 +283,7 @@ impl AvatarGroup {
 
     /// The one slot for caller-owned low-level styling of the group root.
     pub fn sx(mut self, style: impl FnOnce(gpui::Div) -> gpui::Div) -> Self {
-        self.sx = Some(crate::util::capture_sx(style));
+        crate::util::refine_sx(&mut self.sx, style);
         self
     }
 }
@@ -371,3 +376,5 @@ impl RenderOnce for AvatarGroup {
         crate::util::apply_sx(root, &self.sx)
     }
 }
+
+crate::util::impl_component_styled!(AvatarGroup);

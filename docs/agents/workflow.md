@@ -89,7 +89,7 @@ actually reads.
   `Box<dyn Fn ...>`.
 - Interactive elements need unique ids per page and per component instance.
 - Every workspace crate must inherit `[workspace.lints]` with
-  `[lints] workspace = true`; `.shots/lint.ps1` enforces this.
+  `[lints] workspace = true`; `bash .shots/lint.sh` enforces this.
 - Do not copy totals from audit output into instructions. Route, prop, example,
   and coverage counts change; let the scripts print the current values.
 
@@ -97,7 +97,7 @@ actually reads.
 
 | Change | Iterate with | Before broad handoff |
 |---|---|---|
-| Rust logic in one component | Focused `cargo test -p herogpui-components --test <name>` | Component suite, format, lint, relevant audits |
+| Rust logic in one component | Focused `cargo test -p herogpui-components --test suite_<area> <module>::` (see the [test index](../../crates/herogpui-components/tests/README.md)) | Component suite, format, lint, relevant audits |
 | Public builder/API | Focused tests plus `api_audit.py`, `extra_audit.py`, `write_only.py` | All audits and package checks when release-facing |
 | Tokens or component metrics | `token_audit.py`, `design_audit.py`, focused screenshots | Format, lint, affected behavior tests, visual check |
 | Interaction, focus, overlay, or state | Focused behavior binary | Gallery drive for the real path, then component suite |
@@ -119,13 +119,18 @@ command in a fresh clone is just `cargo`. Its jobs cover:
 - Strict parity reports, inventory freshness, reader regressions and web font
   subset checks. The aggregate runs every `*audit.py` plus `write_only.py` and
   checks reported gaps as well as exit codes; see [parity](parity.md).
-- Workspace lint inheritance, Clippy, cargo-deny, unused dependencies and
-  each-feature compilation.
+- Workspace lint inheritance, Clippy and cargo-deny (`bash .shots/lint.sh`,
+  which runs on any host with bash), unused dependencies, each-feature
+  compilation, and each library crate with `--no-default-features`.
 - Workspace tests through `.shots/run-tests.sh` on Linux, macOS and Windows,
-  plus the theme's optional serde feature. Optimized tests run on pushes and
-  manual dispatches. The Windows job also exercises the gallery control-file
-  helpers with `.shots/test-control.ps1`.
-- Rustdoc, gallery CLI installation from source, and a stable wasm32 build
+  plus the theme's optional serde feature. Optimized (`Cargo.toml` profile)
+  tests run on pushes and manual dispatches, and on a pull request labelled
+  `ci:opt-levels` or touching build configuration. The Windows job also
+  exercises the gallery control-file helpers with `.shots/test-control.ps1`.
+- On pull requests, `cargo semver-checks` for the four library crates against
+  their latest crates.io release; a deliberate break carries the
+  `semver:breaking` label. The release repeats the check before publishing.
+- Rustdoc, gallery CLI installation from source, and a nightly wasm32 build
   followed by the lockfile-matched wasm-bindgen pass.
 
 Do not claim the full gate passed after running only a focused test or one audit.

@@ -19,14 +19,23 @@ use crate::a11y::{self, A11y as _};
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 #[non_exhaustive]
 pub struct SwitchState {
+    /// Whether the switch is on.
     pub is_selected: bool,
+    /// Whether the pointer is over the switch.
     pub is_hovered: bool,
+    /// Whether the switch is being pressed.
     pub is_pressed: bool,
+    /// Whether the switch has keyboard focus.
     pub is_focused: bool,
+    /// Whether the focus ring is visible (keyboard focus).
     pub is_focus_visible: bool,
+    /// Whether the switch is disabled.
     pub is_disabled: bool,
+    /// Whether the switch is read-only.
     pub is_read_only: bool,
+    /// Whether the switch is invalid.
     pub is_invalid: bool,
+    /// Whether the switch is required.
     pub is_required: bool,
 }
 
@@ -251,6 +260,7 @@ fn thumb_color_motion(
 }
 
 /// HeroUI Switch (`<Switch>`).
+#[must_use = "a component does nothing until it is rendered: add it as a child or return it from `render`"]
 #[derive(IntoElement)]
 pub struct Switch {
     /// `value` — what this control submits when checked. HTML's default is
@@ -270,6 +280,8 @@ pub struct Switch {
     checked: Option<bool>,
     default_checked: bool,
     size: Size,
+    /// The label's and content's font size, in place of `text-sm`.
+    text_size: Option<gpui::Pixels>,
     is_disabled: bool,
     is_invalid: bool,
     /// `validate` — run by the component, not the caller.
@@ -327,21 +339,25 @@ impl Switch {
         self
     }
 
+    /// Sets the invalid state (v3 `isInvalid`).
     pub fn is_invalid(mut self, v: bool) -> Self {
         self.is_invalid = v;
         self
     }
 
+    /// Sets the required state (v3 `isRequired`).
     pub fn is_required(mut self, v: bool) -> Self {
         self.is_required = v;
         self
     }
 
+    /// Sets the read-only state (v3 `isReadOnly`).
     pub fn is_read_only(mut self, v: bool) -> Self {
         self.is_read_only = v;
         self
     }
 
+    /// Creates a switch with the given element id.
     pub fn new(id: impl Into<gpui::ElementId>) -> Self {
         Self {
             content: None,
@@ -352,6 +368,7 @@ impl Switch {
             checked: None,
             default_checked: false,
             size: Size::Md,
+            text_size: None,
             is_disabled: false,
             is_invalid: false,
             validate: None,
@@ -470,8 +487,20 @@ impl Switch {
         self
     }
 
+    /// Sets the size (v3 `size`).
     pub fn size(mut self, s: Size) -> Self {
         self.size = s;
+        self
+    }
+
+    /// The label's (and `content` row's) font size, in place of the shared
+    /// label's `text-sm`. A 12/14/16px size takes v3's leading pair
+    /// (16/20/24); any other keeps the 20px leading. The track, thumb, gap and
+    /// description keep their metrics, so the override changes the text and
+    /// its line box only. Not a v3 prop: v3 sets it with a class on
+    /// `Switch.Content`.
+    pub fn text_size(mut self, size: impl Into<gpui::Pixels>) -> Self {
+        self.text_size = Some(size.into());
         self
     }
 
@@ -487,10 +516,11 @@ impl Switch {
     /// applied to the switch's root element after every value the size, the
     /// state and the active theme chose, so they win.
     pub fn sx(mut self, style: impl FnOnce(gpui::Div) -> gpui::Div) -> Self {
-        self.sx = Some(crate::util::capture_sx(style));
+        crate::util::refine_sx(&mut self.sx, style);
         self
     }
 
+    /// Sets the disabled state (v3 `isDisabled`).
     pub fn is_disabled(mut self, v: bool) -> Self {
         self.is_disabled = v;
         self
@@ -505,6 +535,7 @@ impl Switch {
         self
     }
 
+    /// Sets the label content rendered beside the control.
     pub fn label(mut self, el: impl IntoElement) -> Self {
         self.label = Some(el.into_any_element());
         self
@@ -533,6 +564,7 @@ impl Switch {
         self
     }
 
+    /// Sets the handler called with the new selected state (v3 `onChange`).
     pub fn on_change(mut self, f: impl Fn(&bool, &mut Window, &mut App) + 'static) -> Self {
         self.on_change = Some(std::sync::Arc::new(f));
         self
@@ -810,6 +842,10 @@ impl RenderOnce for Switch {
             .gap(px(12.))
             .text_size(px(14.))
             .line_height(px(20.))
+            .when_some(self.text_size, |el, size| {
+                el.text_size(size)
+                    .line_height(crate::util::leading_for(size).unwrap_or(px(20.)))
+            })
             .font_weight(gpui::FontWeight::MEDIUM)
             .when(!self.is_disabled, |root| {
                 root.cursor(crate::util::interactive_cursor(cx))
@@ -829,6 +865,7 @@ impl RenderOnce for Switch {
                 is_required: self.is_required,
             })
         });
+        let label_text_size = self.text_size;
         let label_row = self.label.map(|label| {
             gpui::div()
                 .flex()
@@ -839,6 +876,10 @@ impl RenderOnce for Switch {
                 .text_size(px(14.))
                 // Tailwind pairs `text-sm` with a 20px leading.
                 .line_height(px(20.))
+                .when_some(label_text_size, |el, size| {
+                    el.text_size(size)
+                        .line_height(crate::util::leading_for(size).unwrap_or(px(20.)))
+                })
                 .font_weight(gpui::FontWeight::MEDIUM)
                 .gap(px(4.))
                 .child(label)
@@ -875,6 +916,9 @@ impl RenderOnce for Switch {
             });
         }
 
+        if !self.is_disabled {
+            el = crate::util::record_focus_bounds(el, &focus_handle, window, cx);
+        }
         // Description and FieldError are direct siblings of Switch.Content.
         // Both use the size-specific track width plus the 12px content gap.
         let indent = w + px(12.);
@@ -905,6 +949,7 @@ impl RenderOnce for Switch {
 /// that is `flex gap-4`, and the orientation modifier is what turns that inner
 /// row into a column. The outer gap is for the label and description a caller
 /// puts beside the items.
+#[must_use = "a component does nothing until it is rendered: add it as a child or return it from `render`"]
 #[derive(IntoElement)]
 pub struct SwitchGroup {
     orientation: herogpui_core::Orientation,
@@ -914,6 +959,7 @@ pub struct SwitchGroup {
 }
 
 impl SwitchGroup {
+    /// Creates an empty group with vertical orientation.
     pub fn new() -> Self {
         Self {
             // v3 documents `vertical` as the default.
@@ -923,6 +969,7 @@ impl SwitchGroup {
         }
     }
 
+    /// Sets the layout direction of the items (v3 `orientation`).
     pub fn orientation(mut self, orientation: herogpui_core::Orientation) -> Self {
         self.orientation = orientation;
         self
@@ -933,10 +980,11 @@ impl SwitchGroup {
     /// applied to the group's root element after every value the orientation
     /// chose, so it wins.
     pub fn sx(mut self, style: impl FnOnce(gpui::Div) -> gpui::Div) -> Self {
-        self.sx = Some(crate::util::capture_sx(style));
+        crate::util::refine_sx(&mut self.sx, style);
         self
     }
 
+    /// Appends an item to the group.
     pub fn child(mut self, el: impl IntoElement) -> Self {
         self.items.push(el.into_any_element());
         self
@@ -974,3 +1022,5 @@ impl RenderOnce for SwitchGroup {
         crate::util::apply_sx(root, &self.sx)
     }
 }
+
+crate::util::impl_component_styled!(Switch, SwitchGroup);

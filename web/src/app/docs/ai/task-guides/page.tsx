@@ -4,12 +4,14 @@ import path from "node:path";
 import Link from "next/link";
 import { PageHeader } from "@/components/ui/page-header";
 import { C, H2, Md, P, Td, Th } from "@/app/docs/ai/_components/docs";
+import { pageMetadata } from "@/lib/seo";
 
-export const metadata: Metadata = {
+export const metadata: Metadata = pageMetadata({
+  path: "/docs/ai/task-guides",
   title: "Task guides",
   description:
     "The four agent task guides in docs/agents: what each owns, when to load it, and the change-to-verification matrix.",
-};
+});
 
 // Read the guides at build time so this page cannot drift from the
 // instructions agents actually receive. The "when" line under each guide is

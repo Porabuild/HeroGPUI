@@ -32,7 +32,7 @@
 //! click cannot select a cell or trigger a duplicate outside dismissal while
 //! the panel is leaving.
 
-mod harness;
+use crate::harness;
 
 use gpui::{prelude::*, Focusable, TestAppContext};
 use herogpui_components::{

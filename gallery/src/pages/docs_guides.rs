@@ -1,5 +1,6 @@
-//! The two getting-started guides that describe *how* to use the library:
-//! v3's Styling page and its Design Principles page.
+//! The getting-started guides that describe *how* to use the library: v3's
+//! Styling page and its Design Principles page, and the Icons page (a
+//! HeroGPUI extension: v3 documents no icon set of its own).
 //!
 //! Both are ported rather than paraphrased. Where a principle cannot hold in a
 //! gpui port — there is no accessibility tree, so React Aria's ARIA layer has
@@ -505,9 +506,174 @@ let violet = Theme::builder("violet", Theme::light())
 // `accent.hover()` and `accent.soft()` are the same color-mix
 // expressions, so they move with the base color."#;
 
+const ICONS_USAGE: &str = r#"use herogpui::components::{Icon, IconName, IconSize};
+
+// 16px in the theme foreground by default.
+Icon::new(IconName::Search);
+// A size step (the `Sizable` trait) or any pixel length.
+Icon::new(IconName::Folder).size(IconSize::Lg);
+Icon::new(IconName::Heart).size(px(28.)).color(cx.colors().danger.color);
+// Lucide's `strokeWidth` and `absoluteStrokeWidth`.
+Icon::new(IconName::Star).stroke_width(1.5);
+Icon::new(IconName::Star).size(IconSize::Xl).stroke_width(1.).absolute_stroke_width(true);
+
+// Every builder that takes an icon path takes a name.
+let path: SharedString = IconName::Settings.into();"#;
+
+impl Gallery {
+    /// The Lucide set: size steps, stroke widths, and a searchable grid of
+    /// every `IconName` with its name.
+    pub fn page_icons(&mut self, cx: &mut Context<'_, Self>) -> gpui::AnyElement {
+        let colors = cx.colors().clone();
+        let caption = |text: String| {
+            gpui::div()
+                .text_size(px(12.))
+                .text_color(colors.muted)
+                .child(text)
+        };
+
+        let steps = gpui::div()
+            .flex()
+            .flex_wrap()
+            .items_end()
+            .gap(px(24.))
+            .children(h::IconSize::ALL.iter().map(|&step| {
+                gpui::div()
+                    .flex()
+                    .flex_col()
+                    .items_center()
+                    .gap(px(6.))
+                    .child(h::Icon::new(h::IconName::Star).size(step))
+                    .child(caption(format!("{step:?} {}px", f32::from(step.pixels()))))
+            }))
+            .into_any_element();
+
+        let strokes = gpui::div()
+            .flex()
+            .flex_col()
+            .gap(px(16.))
+            .child(
+                gpui::div()
+                    .flex()
+                    .flex_wrap()
+                    .items_end()
+                    .gap(px(24.))
+                    .children([1., 1.5, 2., 2.5, 3.].map(|width: f32| {
+                        gpui::div()
+                            .flex()
+                            .flex_col()
+                            .items_center()
+                            .gap(px(6.))
+                            .child(
+                                h::Icon::new(h::IconName::Heart)
+                                    .size(h::IconSize::Xl)
+                                    .stroke_width(width),
+                            )
+                            .child(caption(format!("stroke_width({width})")))
+                    })),
+            )
+            .child(
+                gpui::div()
+                    .flex()
+                    .flex_wrap()
+                    .items_end()
+                    .gap(px(24.))
+                    .children([16., 24., 32., 48.].map(|size: f32| {
+                        gpui::div()
+                            .flex()
+                            .flex_col()
+                            .items_center()
+                            .gap(px(6.))
+                            .child(
+                                h::Icon::new(h::IconName::Heart)
+                                    .size(px(size))
+                                    .stroke_width(1.5)
+                                    .absolute_stroke_width(true),
+                            )
+                            .child(caption(format!("{size}px, absolute 1.5")))
+                    })),
+            )
+            .into_any_element();
+
+        let query = self.icons_query.trim().to_lowercase();
+        let matches: Vec<h::IconName> = h::IconName::ALL
+            .iter()
+            .copied()
+            .filter(|icon| query.is_empty() || icon.name().contains(query.as_str()))
+            .collect();
+        let count = matches.len();
+        let grid = gpui::div()
+            .flex()
+            .flex_wrap()
+            .gap(px(8.))
+            .children(matches.into_iter().map(|icon| {
+                gpui::div()
+                    .w(px(124.))
+                    .h(px(76.))
+                    .flex()
+                    .flex_col()
+                    .items_center()
+                    .justify_center()
+                    .gap(px(8.))
+                    .rounded(px(10.))
+                    .border_1()
+                    .border_color(colors.separator)
+                    .child(h::Icon::new(icon).size(h::IconSize::Lg))
+                    .child(
+                        gpui::div()
+                            .max_w_full()
+                            .px(px(6.))
+                            .truncate()
+                            .text_size(px(11.5))
+                            .font_family(crate::app::MONO_FONT)
+                            .text_color(colors.muted)
+                            .child(icon.name()),
+                    )
+            }));
+        let browser = gpui::div()
+            .flex()
+            .flex_col()
+            .gap(px(12.))
+            .child(
+                gpui::div().w(px(320.)).child(
+                    h::SearchField::new(self.icons_search.clone())
+                        .label("Search icons")
+                        .placeholder("Filter by name, e.g. arrow")
+                        .on_change(cx.listener(|this, text: &str, _, cx| {
+                            this.icons_query = text.to_owned();
+                            cx.notify();
+                        })),
+                ),
+            )
+            .child(caption(format!(
+                "{count} of {} icons from lucide-static {}",
+                h::IconName::ALL.len(),
+                h::LUCIDE_VERSION
+            )))
+            .child(grid)
+            .into_any_element();
+
+        doc_page(
+            "Icons",
+            "HeroGPUI extension: a curated Lucide icon set embedded in herogpui-components \
+             and served by HeroGpuiAssets with no setup. IconName names each icon and Icon \
+             draws it at a size step or pixel length, in any colour, at any stroke width.",
+            "use herogpui::components::{Icon, IconName, IconSize};",
+            vec![
+                ("Usage", code_block(ICONS_USAGE, cx)),
+                ("Sizes", steps),
+                ("Stroke width", strokes),
+                ("All icons", browser),
+            ],
+            cx,
+        )
+    }
+}
+
 #[cfg(test)]
 pub(super) fn doc_code_blocks() -> Vec<(&'static str, &'static str)> {
     vec![
+        ("Icons/usage", ICONS_USAGE),
         ("Styling/variants", STYLING_VARIANTS),
         ("Styling/states", STYLING_STATES),
         ("Styling/render", STYLING_RENDER),

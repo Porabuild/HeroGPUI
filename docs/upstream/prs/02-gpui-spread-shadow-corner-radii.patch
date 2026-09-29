@@ -1,0 +1,88 @@
+diff --git a/crates/gpui/src/window.rs b/crates/gpui/src/window.rs
+index c39e577cece780fae1050f2e89f27680164d7a2b..67e30a4eebd8d3a4cb4bfb5d77bc5fc18a91b50c 100644
+--- a/crates/gpui/src/window.rs
++++ b/crates/gpui/src/window.rs
+@@ -2700,6 +2700,13 @@ impl Window {
+         self.rendered_frame.scene.quads.clone()
+     }
+ 
++    /// Returns the shadows in the most recently rendered frame's scene, so
++    /// tests can assert on painted shadow geometry without rasterizing.
++    #[cfg(any(test, feature = "test-support"))]
++    pub fn painted_shadows(&self) -> Vec<Shadow> {
++        self.rendered_frame.scene.shadows.clone()
++    }
++
+     /// Set the content size of the window.
+     pub fn resize(&mut self, size: Size<Pixels>) {
+         self.platform_window.resize(size);
+@@ -4275,12 +4282,20 @@ impl Window {
+                 continue;
+             }
+             let shadow_bounds = (bounds + shadow.offset).dilate(shadow.spread_radius);
++            // CSS grows a spread shadow's corner curve together with its box:
++            // the shadow is `spread` larger on every side, so each corner
++            // radius grows by the same amount. Reusing the element's radius
++            // makes the outer edge visibly squarer than the element, which is
++            // most obvious on focus rings drawn as spread shadows. Negative
++            // spreads shrink the curve and clamp at zero.
++            let shadow_corner_radii =
++                corner_radii.map(|radius| (*radius + shadow.spread_radius).max(Pixels::ZERO));
+             self.next_frame.scene.insert_primitive(Shadow {
+                 order: 0,
+                 blur_radius: shadow.blur_radius.scale(scale_factor),
+                 bounds: self.cover_bounds(shadow_bounds),
+                 content_mask,
+-                corner_radii: corner_radii.scale(scale_factor),
++                corner_radii: shadow_corner_radii.scale(scale_factor),
+                 color: shadow.color.opacity(opacity),
+                 element_bounds,
+                 element_corner_radii,
+@@ -8641,4 +8656,47 @@ mod tests {
+             })
+             .unwrap();
+     }
++
++    struct SpreadShadowView;
++
++    impl Render for SpreadShadowView {
++        fn render(&mut self, _window: &mut Window, _cx: &mut Context<Self>) -> impl IntoElement {
++            div()
++                .p(px(20.))
++                .child(div().size(px(40.)).rounded(px(8.)).shadow(vec![
++                    crate::BoxShadow {
++                        color: crate::black(),
++                        offset: point(px(0.), px(0.)),
++                        blur_radius: px(0.),
++                        spread_radius: px(4.),
++                        inset: false,
++                    },
++                    crate::BoxShadow {
++                        color: crate::black(),
++                        offset: point(px(0.), px(0.)),
++                        blur_radius: px(0.),
++                        spread_radius: px(-12.),
++                        inset: false,
++                    },
++                ]))
++        }
++    }
++
++    #[gpui::test]
++    fn test_spread_shadow_corner_radii_follow_the_spread(cx: &mut TestAppContext) {
++        let (_, cx) = cx.add_window_view(|_, _| SpreadShadowView);
++        cx.run_until_parked();
++        cx.update(|window, _| {
++            let scale_factor = window.scale_factor();
++            let mut radii = window
++                .painted_shadows()
++                .iter()
++                .map(|shadow| shadow.corner_radii.top_left.0 / scale_factor)
++                .collect::<Vec<_>>();
++            radii.sort_by(f32::total_cmp);
++            // A negative spread larger than the 8px radius clamps at zero; a
++            // 4px spread grows it to 12px.
++            assert_eq!(radii, vec![0., 12.]);
++        });
++    }
+ }

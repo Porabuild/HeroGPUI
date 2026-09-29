@@ -1,6 +1,6 @@
 //! Explicit overlay-stack contracts for DatePicker and DateRangePicker.
 
-mod harness;
+use crate::harness;
 
 use std::{cell::Cell, rc::Rc};
 

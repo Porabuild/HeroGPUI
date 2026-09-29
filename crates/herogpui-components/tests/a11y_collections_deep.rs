@@ -43,7 +43,7 @@
 //! its keyed focus scope falls back to would fold every unnamed toolbar in the
 //! window into one AccessKit node. It must still work.
 
-mod harness;
+use crate::harness;
 
 use std::collections::HashSet;
 

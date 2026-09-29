@@ -15,6 +15,7 @@ use crate::{icons, input::InputState};
 
 /// State for a numeric input: text + parsed value.
 pub struct NumberState {
+    /// The text input entity that displays and edits the number.
     pub input: Entity<InputState>,
     value: f64,
     min: f64,
@@ -28,6 +29,7 @@ pub struct NumberState {
 }
 
 impl NumberState {
+    /// Creates a state seeded with `initial`, with no bounds and a step of 1.
     pub fn new(cx: &mut App, initial: f64) -> Self {
         let input = cx.new(|cx| {
             let mut s = InputState::new(cx);
@@ -54,6 +56,7 @@ impl NumberState {
         Self::new(cx, value)
     }
 
+    /// The current numeric value.
     pub fn value(&self) -> f64 {
         self.value
     }
@@ -87,6 +90,7 @@ impl NumberState {
         self.input.update(cx, |i, _| i.set_value(text));
     }
 
+    /// Sets the minimum and maximum bounds.
     pub fn set_range(&mut self, min: f64, max: f64) {
         self.min = min;
         self.max = max;
@@ -94,6 +98,7 @@ impl NumberState {
         self.has_max = true;
     }
 
+    /// The current `(min, max)` bounds.
     pub fn range(&self) -> (f64, f64) {
         (self.min, self.max)
     }
@@ -116,10 +121,12 @@ impl NumberState {
         )
     }
 
+    /// The current step size.
     pub fn step_size(&self) -> f64 {
         self.step
     }
 
+    /// Sets the step size; non-finite or non-positive values fall back to 1.
     pub fn set_step(&mut self, step: f64) {
         self.step = if step.is_finite() && step > 0.0 {
             step
@@ -248,20 +255,32 @@ type OnChange = Arc<dyn Fn(&f64, &mut Window, &mut App) + 'static>;
 #[derive(Clone, Copy, Debug)]
 #[non_exhaustive]
 pub struct NumberFieldRenderState {
+    /// Whether the field is disabled.
     pub is_disabled: bool,
+    /// Whether the field is invalid.
     pub is_invalid: bool,
+    /// Whether the field is read-only.
     pub is_read_only: bool,
+    /// Whether the field is required.
     pub is_required: bool,
+    /// Whether the field has focus.
     pub is_focused: bool,
+    /// Whether focus is within the field.
     pub is_focus_within: bool,
+    /// Whether focus is visible (keyboard focus).
     pub is_focus_visible: bool,
+    /// The current value.
     pub value: f64,
+    /// The minimum bound, if any.
     pub min_value: Option<f64>,
+    /// The maximum bound, if any.
     pub max_value: Option<f64>,
+    /// The step size.
     pub step: f64,
 }
 
 /// HeroUI NumberField.
+#[must_use = "a component does nothing until it is rendered: add it as a child or return it from `render`"]
 #[derive(IntoElement)]
 pub struct NumberField {
     state: Entity<NumberState>,
@@ -279,6 +298,8 @@ pub struct NumberField {
     full_width: bool,
     /// Optional box geometry/chrome overrides; defaults are the stock group.
     field: crate::util::FieldBox,
+    /// The group's hover endpoint, in place of the variant's token.
+    group_hover_bg: Option<gpui::Hsla>,
     min_value: Option<f64>,
     max_value: Option<f64>,
     step: Option<f64>,
@@ -304,6 +325,8 @@ pub struct NumberField {
     is_wheel_disabled: bool,
     /// `autoFocus` — take focus on the first render.
     auto_focus: bool,
+    /// The field text's family, forwarded to the inner `Input`.
+    font_family: Option<SharedString>,
     on_change: Option<OnChange>,
     /// The `sx` slot, refined over the root style at the end of render.
     sx: Option<Box<gpui::StyleRefinement>>,
@@ -385,11 +408,13 @@ impl NumberField {
         self
     }
 
+    /// Sets the field variant.
     pub fn variant(mut self, variant: FieldVariant) -> Self {
         self.variant = variant;
         self
     }
 
+    /// Sets whether the field fills the available width.
     pub fn full_width(mut self, v: bool) -> Self {
         self.full_width = v;
         self
@@ -418,6 +443,26 @@ impl NumberField {
         self
     }
 
+    /// The group's fill while hovered, in place of `--field-hover`
+    /// (`--default-hover` on the secondary variant). The 150ms ease-smooth
+    /// ramp and the border hover are unchanged; a focused, invalid, disabled
+    /// or bare group does not hover, so the override never reaches those
+    /// states. Not a v3 prop: v3 tints the group with a class.
+    pub fn group_hover_bg(mut self, color: impl Into<gpui::Hsla>) -> Self {
+        self.group_hover_bg = Some(color.into());
+        self
+    }
+
+    /// The field text's font family, forwarded to the inner [`crate::Input`]
+    /// so the value, placeholder and caret measurement all use it (see
+    /// [`crate::Input::font_family`]), and set on the group so custom stepper
+    /// content inherits it; unset keeps the inherited family. Not a v3 prop;
+    /// v3 sets it with a class.
+    pub fn font_family(mut self, family: impl Into<SharedString>) -> Self {
+        self.font_family = Some(family.into());
+        self
+    }
+
     /// Shows or hides only the group's visual focus ring. The number field
     /// remains focusable, editable and stepper-accessible when set to `false`.
     pub fn focus_ring(mut self, v: bool) -> Self {
@@ -431,7 +476,7 @@ impl NumberField {
     /// group and the message — after every value the variant and the active
     /// theme chose, so they win. The group's own chrome stays with the variant.
     pub fn sx(mut self, style: impl FnOnce(gpui::Div) -> gpui::Div) -> Self {
-        self.sx = Some(crate::util::capture_sx(style));
+        crate::util::refine_sx(&mut self.sx, style);
         self
     }
 
@@ -453,11 +498,13 @@ impl NumberField {
         self
     }
 
+    /// Sets whether the field is invalid (`isInvalid`).
     pub fn is_invalid(mut self, v: bool) -> Self {
         self.is_invalid = v;
         self
     }
 
+    /// Sets whether the field is required (`isRequired`).
     pub fn is_required(mut self, v: bool) -> Self {
         self.is_required = v;
         self
@@ -469,6 +516,7 @@ impl NumberField {
         self
     }
 
+    /// Sets whether the field is read-only (`isReadOnly`).
     pub fn is_read_only(mut self, v: bool) -> Self {
         self.is_read_only = v;
         self
@@ -521,9 +569,11 @@ impl NumberField {
             is_read_only: false,
             is_wheel_disabled: false,
             auto_focus: false,
+            font_family: None,
             on_change: None,
             sx: None,
             field: crate::util::FieldBox::default(),
+            group_hover_bg: None,
         }
     }
 
@@ -533,6 +583,7 @@ impl NumberField {
         self
     }
 
+    /// Sets the label shown above the field.
     pub fn label(mut self, l: impl Into<SharedString>) -> Self {
         self.label = Some(l.into());
         self
@@ -563,11 +614,13 @@ impl NumberField {
         self
     }
 
+    /// Sets whether the field is disabled (`isDisabled`).
     pub fn is_disabled(mut self, v: bool) -> Self {
         self.is_disabled = v;
         self
     }
 
+    /// Sets the handler called when the value changes (`onChange`).
     pub fn on_change(mut self, f: impl Fn(&f64, &mut Window, &mut App) + 'static) -> Self {
         self.on_change = Some(Arc::new(f));
         self
@@ -706,6 +759,7 @@ impl RenderOnce for NumberField {
             .is_read_only(self.is_read_only)
             .is_required(self.is_required)
             .auto_focus(self.auto_focus)
+            .when_some(self.font_family.clone(), |f, family| f.font_family(family))
             .is_invalid(validity.is_invalid)
             .when_some(self.label.clone(), |f, label| f.a11y_label(label))
             .on_change(move |_text: &str, w, cx| {
@@ -756,6 +810,10 @@ impl RenderOnce for NumberField {
         let mut group = gpui::div()
             .id(element_id::scoped(&base_id, "group"))
             .a11y_named(crate::a11y::Role::Group, &a11y_name)
+            // The family also reaches caller stepper content (`increment_icon`
+            // / `decrement_icon`); the inner field takes it explicitly above
+            // for its caret measurement.
+            .when_some(self.font_family.clone(), |group, family| group.font_family(family))
             .flex()
             .items_center()
             .h(h)
@@ -830,12 +888,12 @@ impl RenderOnce for NumberField {
             };
             let hovered = (!self.is_disabled && !validity.is_invalid && !focused).then(|| {
                 crate::anim::FieldChrome {
-                    bg: match self.variant {
+                    bg: self.group_hover_bg.unwrap_or(match self.variant {
                         FieldVariant::Primary => colors.field.hover(),
                         // `.number-field--secondary` hovers
                         // `--number-field-group-bg-hover: var(--default-hover)`.
                         FieldVariant::Secondary => colors.default.hover(),
-                    },
+                    }),
                     border: colors.field.border_hover(),
                     border_width: layout.field_border_width,
                     ring: None,
@@ -1162,8 +1220,18 @@ fn stepper_btn(
     let focus_handle = state.read(cx).input.read(cx).focus_handle.clone();
     // `useNumberField` names each stepper "Increase {label}" / "Decrease
     // {label}", spelling the field's name into the button's own `aria-label`
-    // rather than pointing at the label element.
-    let stepper_name = field_name.prefixed(if dir >= 0.0 { "Increase" } else { "Decrease" });
+    // rather than pointing at the label element; the template (and its word
+    // order) comes from the locale's catalogue.
+    let stepper_key = if dir >= 0.0 {
+        crate::i18n::UiString::Increase
+    } else {
+        crate::i18n::UiString::Decrease
+    };
+    let stepper_name = crate::a11y::Name::labelled(crate::i18n::ui_string_with(
+        stepper_key,
+        field_name.label().map_or("", |label| label.as_ref()),
+        cx,
+    ));
     let mut b = gpui::div()
         .id(id)
         .a11y_named(crate::a11y::Role::Button, &stepper_name)
@@ -1426,3 +1494,5 @@ mod hover_tokens {
         );
     }
 }
+
+crate::util::impl_component_styled!(NumberField);

@@ -18,6 +18,7 @@ use crate::icons;
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum CloseButtonVariant {
     #[default]
+    /// The default close button style.
     Default,
 }
 
@@ -26,6 +27,7 @@ pub enum CloseButtonVariant {
 type OnPress = std::sync::Arc<dyn Fn(&ClickEvent, &mut Window, &mut App) + 'static>;
 
 /// HeroUI CloseButton.
+#[must_use = "a component does nothing until it is rendered: add it as a child or return it from `render`"]
 #[derive(IntoElement)]
 pub struct CloseButton {
     id: ElementId,
@@ -48,6 +50,7 @@ pub struct CloseButton {
 }
 
 impl CloseButton {
+    /// Creates a close button with the given id.
     pub fn new(id: impl Into<ElementId>) -> Self {
         Self {
             id: id.into(),
@@ -66,7 +69,7 @@ impl CloseButton {
     /// applied to the close button's root element after every value the active
     /// theme chose, so they win.
     pub fn sx(mut self, style: impl FnOnce(gpui::Div) -> gpui::Div) -> Self {
-        self.sx = Some(crate::util::capture_sx(style));
+        crate::util::refine_sx(&mut self.sx, style);
         self
     }
 
@@ -81,6 +84,7 @@ impl CloseButton {
         self
     }
 
+    /// Sets whether the button is disabled.
     pub fn is_disabled(mut self, v: bool) -> Self {
         self.is_disabled = v;
         self
@@ -108,11 +112,13 @@ impl CloseButton {
         self
     }
 
+    /// Replaces the default close icon.
     pub fn icon(mut self, icon: impl IntoElement) -> Self {
         self.icon = Some(icon.into_any_element());
         self
     }
 
+    /// Sets the handler run when the button is pressed.
     pub fn on_press(
         mut self,
         handler: impl Fn(&ClickEvent, &mut Window, &mut App) + 'static,
@@ -320,6 +326,7 @@ impl RenderOnce for CloseButton {
             window,
             cx,
         );
+        let el = crate::util::record_focus_bounds(el, &focus_handle, window, cx);
         let root = div()
             .size(box_size)
             .flex()
@@ -330,3 +337,5 @@ impl RenderOnce for CloseButton {
         crate::util::apply_sx(root, &self.sx)
     }
 }
+
+crate::util::impl_component_styled!(CloseButton);

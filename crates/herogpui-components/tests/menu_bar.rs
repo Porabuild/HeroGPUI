@@ -2,7 +2,7 @@
 //! roving arrow-key focus between the top-level items, keyboard and pointer
 //! opening, Left/Right and hover switching while a menu is open, and Escape.
 
-mod harness;
+use crate::harness;
 
 use gpui::{point, prelude::*, px, Modifiers, MouseButton, TestAppContext, VisualTestContext};
 use harness::{events, open_host, press, still, Events};

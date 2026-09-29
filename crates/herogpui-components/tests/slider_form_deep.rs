@@ -6,7 +6,7 @@
 //! passes through `name`, and sets `disabled` from the slider/thumb state.
 //! These tests exercise the equivalent FormField bridge across real renders.
 
-mod harness;
+use crate::harness;
 
 use std::{cell::RefCell, rc::Rc};
 

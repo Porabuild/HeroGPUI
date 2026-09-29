@@ -1,0 +1,30 @@
+diff --git a/crates/gpui_web/src/events.rs b/crates/gpui_web/src/events.rs
+index bc854cca7d21ff213b82e5523b858b4a1d8d15cb..771f810889f9b523e218d385506c9201077b56f5 100644
+--- a/crates/gpui_web/src/events.rs
++++ b/crates/gpui_web/src/events.rs
+@@ -649,14 +649,20 @@ impl WebWindowInner {
+             let position = mouse_position_in_element(mouse_event);
+             let modifiers = modifiers_from_wheel_event(mouse_event, this.is_mac);
+ 
++            // A mouse wheel reports only `deltaY`. Like the native platforms,
++            // treat shift+wheel as horizontal scrolling. Trackpads (and
++            // browsers that already swap the axes for shift+wheel) report a
++            // real `deltaX`, so only swap when it is zero.
++            let (delta_x, delta_y) = if modifiers.shift && event.delta_x() == 0.0 {
++                (event.delta_y(), 0.0)
++            } else {
++                (event.delta_x(), event.delta_y())
++            };
+             let delta_mode = event.delta_mode();
+             let delta = if delta_mode == 1 {
+-                ScrollDelta::Lines(point(-event.delta_x() as f32, -event.delta_y() as f32))
++                ScrollDelta::Lines(point(-delta_x as f32, -delta_y as f32))
+             } else {
+-                ScrollDelta::Pixels(point(
+-                    px(-event.delta_x() as f32),
+-                    px(-event.delta_y() as f32),
+-                ))
++                ScrollDelta::Pixels(point(px(-delta_x as f32), px(-delta_y as f32)))
+             };
+ 
+             {

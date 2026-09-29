@@ -9,7 +9,7 @@
 //! table-tested inline in `scrollbar.rs`; here `auto_hide(false)` proves the
 //! builder keeps the thumb painting with unchanged geometry.
 
-mod harness;
+use crate::harness;
 
 use std::{cell::Cell, rc::Rc};
 

@@ -13,21 +13,37 @@ use herogpui_core::{Color, FieldVariant, Size, Variant};
 /// A color resolved from the active palette, or an application-defined literal.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum ComponentColor {
+    /// A literal color supplied by the application.
     Literal(Hsla),
+    /// The theme's `--background`.
     Background,
+    /// The theme's `--foreground`.
     Foreground,
+    /// The theme's `--muted`.
     Muted,
+    /// The `--surface` background.
     Surface,
+    /// The `--surface-foreground` color.
     SurfaceForeground,
+    /// The `--surface-secondary` color.
     SurfaceSecondary,
+    /// The `--surface-tertiary` color.
     SurfaceTertiary,
+    /// The theme's `--border`.
     Border,
+    /// The `--field-background` color.
     FieldBackground,
+    /// The `--field-foreground` color.
     FieldForeground,
+    /// The `--field-placeholder` color.
     FieldPlaceholder,
+    /// A role's base color.
     Role(Color),
+    /// A role's on-color foreground.
     RoleForeground(Color),
+    /// A role's hover shade.
     RoleHover(Color),
+    /// A role's soft (tinted) shade.
     RoleSoft(Color),
 }
 
@@ -38,6 +54,7 @@ impl From<Hsla> for ComponentColor {
 }
 
 impl ComponentColor {
+    /// Resolves this color against `colors`.
     pub fn resolve(self, colors: &ThemeColors) -> Hsla {
         let role = |role| match role {
             Color::Default => &colors.default,
@@ -74,10 +91,13 @@ pub trait ComponentStyle: Clone + Default {
 }
 
 /// Application-wide defaults plus named overlays for one component family.
+#[must_use = "builder methods return a new value; the original is unchanged"]
 #[derive(Clone, Debug)]
 #[non_exhaustive]
 pub struct ComponentTheme<T> {
+    /// Defaults applied to every instance of the component.
     pub defaults: T,
+    /// Named overlays, refined over the defaults in the order they are requested.
     pub recipes: HashMap<SharedString, T>,
 }
 
@@ -88,6 +108,7 @@ impl<T: Default> Default for ComponentTheme<T> {
 }
 
 impl<T> ComponentTheme<T> {
+    /// Creates a theme with the given defaults and no recipes.
     pub fn new(defaults: T) -> Self {
         Self {
             defaults,
@@ -95,11 +116,13 @@ impl<T> ComponentTheme<T> {
         }
     }
 
+    /// Replaces the defaults.
     pub fn defaults(mut self, defaults: T) -> Self {
         self.defaults = defaults;
         self
     }
 
+    /// Registers a named recipe, replacing any earlier recipe of that name.
     pub fn recipe(mut self, name: impl Into<SharedString>, style: T) -> Self {
         self.recipes.insert(name.into(), style);
         self
@@ -123,6 +146,7 @@ impl<T: ComponentStyle> ComponentTheme<T> {
 macro_rules! component_style {
     ($(#[$meta:meta])* $name:ident { $($(#[$field_meta:meta])* $field:ident: $ty:ty),* $(,)? }) => {
         $(#[$meta])*
+        #[must_use = "builder methods return a new value; the original is unchanged"]
         #[derive(Clone, Debug, Default)]
         #[non_exhaustive]
         pub struct $name {
@@ -149,17 +173,26 @@ macro_rules! component_style {
 
 component_style! {
     /// Slider perimeter radius, including both thumb layers and edge caps.
-    SliderStyle { radius: Pixels }
+    SliderStyle {
+        /// Corner radius.
+        radius: Pixels,
+    }
 }
 component_style! {
     /// Switch track and thumb radius.
-    SwitchStyle { radius: Pixels }
+    SwitchStyle {
+        /// Corner radius.
+        radius: Pixels,
+    }
 }
 component_style! {
     /// Select trigger and detached option-panel presentation.
     SelectStyle {
+        /// Field variant.
         variant: FieldVariant,
+        /// Trigger height.
         height: Pixels,
+        /// Horizontal padding on the trigger.
         padding_x: Pixels,
         /// Vertical padding on the trigger, in place of v3's `py-2`.
         ///
@@ -169,32 +202,54 @@ component_style! {
         /// upstream's `py-2` does. Unset leaves the trigger unpadded, which is
         /// the pre-0.10.0 geometry.
         padding_y: Pixels,
+        /// Text size in the trigger.
         trigger_text_size: Pixels,
+        /// Option row height.
         row_height: Pixels,
+        /// Horizontal padding on an option row.
         row_padding_x: Pixels,
+        /// Vertical padding on an option row.
         row_padding_y: Pixels,
+        /// Text size in an option row.
         row_text_size: Pixels,
+        /// Padding inside the option panel.
         panel_padding: Pixels,
+        /// Corner radius.
         radius: Pixels,
+        /// Background of a hovered option row.
         row_hover_bg: ComponentColor,
+        /// Whether the trigger drops its own field chrome.
         is_bare: bool,
     }
 }
 component_style! {
     /// Menu panel and row presentation; also inherited by submenus.
     MenuStyle {
+        /// Minimum panel width.
         panel_min_width: Pixels,
+        /// Maximum panel width.
         panel_max_width: Pixels,
+        /// Maximum panel height.
         panel_max_height: Pixels,
+        /// Padding inside the panel.
         panel_padding: Pixels,
+        /// Gap between rows in the panel.
         panel_gap: Pixels,
+        /// Row height.
         row_height: Pixels,
+        /// Horizontal padding on a row.
         row_padding_x: Pixels,
+        /// Vertical padding on a row.
         row_padding_y: Pixels,
+        /// Row text size.
         row_text_size: Pixels,
+        /// Gap between a row's contents.
         row_gap: Pixels,
+        /// Background of a hovered row.
         row_hover_bg: ComponentColor,
+        /// Foreground of a hovered row.
         row_hover_foreground: ComponentColor,
+        /// Corner radius.
         radius: Pixels,
         /// An absolute horizontal inset on each edge of a
         /// `MenuItem::Separator`, in place of v3's proportional
@@ -209,6 +264,7 @@ component_style! {
         /// Unset keeps `LayoutTheme::border_width`, the hairline every other
         /// rule in the port uses.
         separator_thickness: Pixels,
+        /// Whether the panel and its submenus play their entry animation.
         animate_entry: bool,
     }
 }
@@ -216,34 +272,56 @@ component_style! {
     /// Shared Input/TextField/SearchField presentation. Glyph hit testing uses
     /// the same text size; the stock 20px line advance remains unchanged.
     TextFieldStyle {
+        /// Field variant.
         variant: FieldVariant,
+        /// Field height.
         height: Pixels,
+        /// Horizontal padding.
         padding_x: Pixels,
+        /// Text size.
         text_size: Pixels,
+        /// Corner radius.
         radius: Pixels,
+        /// Whether the field drops its own chrome (background, border, shadow and rings).
         is_bare: bool,
+        /// Whether the focus ring is drawn.
         focus_ring: bool,
+        /// Background color.
         background: ComponentColor,
+        /// Foreground (text) color.
         foreground: ComponentColor,
+        /// Placeholder color.
         placeholder: ComponentColor,
     }
 }
 
 /// Button recipes can combine semantic colors with a sparse GPUI root style.
 /// Instance `sx` is refined over this style; instance builders retain precedence.
+#[must_use = "builder methods return a new value; the original is unchanged"]
 #[derive(Clone, Debug, Default)]
 #[non_exhaustive]
 pub struct ButtonStyle {
+    /// The variant this recipe selects.
     pub variant: Option<Variant>,
+    /// The size this recipe selects.
     pub size: Option<Size>,
+    /// Corner radius.
     pub radius: Option<Pixels>,
+    /// Resting background.
     pub background: Option<ComponentColor>,
+    /// Resting foreground.
     pub foreground: Option<ComponentColor>,
+    /// Background while hovered.
     pub hover_bg: Option<ComponentColor>,
+    /// Foreground while hovered.
     pub hover_foreground: Option<ComponentColor>,
+    /// Background while pressed.
     pub pressed_bg: Option<ComponentColor>,
+    /// Foreground while pressed.
     pub pressed_foreground: Option<ComponentColor>,
+    /// Foreground while disabled.
     pub disabled_foreground: Option<ComponentColor>,
+    /// A sparse GPUI root style refined over the button.
     pub style: Option<StyleRefinement>,
 }
 
@@ -261,46 +339,55 @@ impl ButtonStyle {
         self
     }
 
+    /// Sets the size.
     pub fn size(mut self, size: Size) -> Self {
         self.size = Some(size);
         self
     }
 
+    /// Sets the corner radius.
     pub fn radius(mut self, radius: impl Into<Pixels>) -> Self {
         self.radius = Some(radius.into());
         self
     }
 
+    /// Sets the resting background.
     pub fn background(mut self, color: impl Into<ComponentColor>) -> Self {
         self.background = Some(color.into());
         self
     }
 
+    /// Sets the resting foreground.
     pub fn foreground(mut self, color: impl Into<ComponentColor>) -> Self {
         self.foreground = Some(color.into());
         self
     }
 
+    /// Sets the hover background.
     pub fn hover_bg(mut self, color: impl Into<ComponentColor>) -> Self {
         self.hover_bg = Some(color.into());
         self
     }
 
+    /// Sets the hover foreground.
     pub fn hover_foreground(mut self, color: impl Into<ComponentColor>) -> Self {
         self.hover_foreground = Some(color.into());
         self
     }
 
+    /// Sets the pressed background.
     pub fn pressed_bg(mut self, color: impl Into<ComponentColor>) -> Self {
         self.pressed_bg = Some(color.into());
         self
     }
 
+    /// Sets the pressed foreground.
     pub fn pressed_foreground(mut self, color: impl Into<ComponentColor>) -> Self {
         self.pressed_foreground = Some(color.into());
         self
     }
 
+    /// Sets the disabled foreground.
     pub fn disabled_foreground(mut self, color: impl Into<ComponentColor>) -> Self {
         self.disabled_foreground = Some(color.into());
         self
@@ -345,43 +432,56 @@ impl ComponentStyle for ButtonStyle {
 }
 
 /// Typed theme-owned defaults. No entry changes stock behavior until configured.
+#[must_use = "builder methods return a new value; the original is unchanged"]
 #[derive(Clone, Debug, Default)]
 #[non_exhaustive]
 pub struct ComponentThemes {
+    /// Slider defaults and recipes.
     pub slider: ComponentTheme<SliderStyle>,
+    /// Switch defaults and recipes.
     pub switch: ComponentTheme<SwitchStyle>,
+    /// Select defaults and recipes.
     pub select: ComponentTheme<SelectStyle>,
+    /// Menu defaults and recipes.
     pub menu: ComponentTheme<MenuStyle>,
+    /// Button defaults and recipes.
     pub button: ComponentTheme<ButtonStyle>,
+    /// Text field defaults and recipes.
     pub text_field: ComponentTheme<TextFieldStyle>,
 }
 
 impl ComponentThemes {
+    /// Sets the slider defaults and recipes.
     pub fn slider(mut self, slider: ComponentTheme<SliderStyle>) -> Self {
         self.slider = slider;
         self
     }
 
+    /// Sets the switch defaults and recipes.
     pub fn switch(mut self, switch: ComponentTheme<SwitchStyle>) -> Self {
         self.switch = switch;
         self
     }
 
+    /// Sets the select defaults and recipes.
     pub fn select(mut self, select: ComponentTheme<SelectStyle>) -> Self {
         self.select = select;
         self
     }
 
+    /// Sets the menu defaults and recipes.
     pub fn menu(mut self, menu: ComponentTheme<MenuStyle>) -> Self {
         self.menu = menu;
         self
     }
 
+    /// Sets the button defaults and recipes.
     pub fn button(mut self, button: ComponentTheme<ButtonStyle>) -> Self {
         self.button = button;
         self
     }
 
+    /// Sets the text field defaults and recipes.
     pub fn text_field(mut self, text_field: ComponentTheme<TextFieldStyle>) -> Self {
         self.text_field = text_field;
         self

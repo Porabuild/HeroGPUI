@@ -41,7 +41,7 @@
 //!   anchor at the origin puts the badge's box at x 43..71, y -7..21, centre
 //!   (57, 7).
 
-mod harness;
+use crate::harness;
 
 use std::time::Duration;
 

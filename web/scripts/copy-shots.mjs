@@ -1,14 +1,15 @@
-// Copy every gallery screenshot (.shots/*.png) into web/public/shots/ so the
-// site can serve them at /shots/<name>. Filenames are preserved verbatim —
-// catalog.json's `shot`/`shotDark` fields reference them by exact name (see
-// scripts/extract-catalog.mjs). Catalog tiles are cropped to their content on
-// the way (see lib/crop-tile.mjs); the .shots originals are left as captured.
+// Copy the gallery's catalog tiles (.shots/*-tile[-dark]-v3.png) into
+// web/public/shots/ so the components index can serve them at /shots/<name>.
+// Filenames are preserved verbatim — catalog.json's `tile`/`tileDark` fields
+// reference them by exact name (see scripts/extract-catalog.mjs). Tiles are
+// cropped to their content on the way (see lib/crop-tile.mjs); the .shots
+// originals are left as captured. The full-page captures stay in .shots/ as
+// parity goldens: no page shows them, so they are not published.
 // Offline step; part of build-data.
 //
 //   node scripts/copy-shots.mjs
 
 import {
-  copyFileSync,
   existsSync,
   mkdirSync,
   readdirSync,
@@ -51,22 +52,16 @@ export function run() {
     // The capture scripts prefix their scratch files with `~` (`~tmp.png`
     // and friends); the root .gitignore excludes them from .shots, and the
     // catalog never references them.
-    .filter((f) => f.endsWith(".png") && !f.startsWith("~"))
+    .filter((f) => TILE_RE.test(f) && !f.startsWith("~"))
     .sort();
   let bytes = 0;
-  let tiles = 0;
   for (const file of files) {
-    if (TILE_RE.test(file)) {
-      writeFileSync(join(DEST, file), cropTile(readFileSync(join(SRC, file))));
-      tiles += 1;
-    } else {
-      copyFileSync(join(SRC, file), join(DEST, file));
-    }
+    writeFileSync(join(DEST, file), cropTile(readFileSync(join(SRC, file))));
     bytes += statSync(join(DEST, file)).size;
   }
 
   console.log(
-    `copy-shots: ${files.length} screenshots (${tiles} tiles cropped), ${formatBytes(bytes)} -> public/shots`,
+    `copy-shots: ${files.length} catalog tiles (cropped), ${formatBytes(bytes)} -> public/shots`,
   );
   return { count: files.length, bytes };
 }

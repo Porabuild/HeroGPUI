@@ -35,7 +35,7 @@ Wayland/X11 dev packages on Linux; nothing extra on Windows).
 
 ```toml
 [dependencies]
-herogpui = "0.12"
+herogpui = "0.13"
 ```
 
 That is the whole list. A git or path dependency on this repository works the same way. `herogpui` is a facade: it depends on the matching
@@ -165,15 +165,19 @@ sources or git hooks.
 - `llms.txt` at the repository root: the full component API reference for
   agents. It is served verbatim at
   <https://porabuild.com/herogpui/llms.txt>.
+- [`docs/migration-0.13.md`](docs/migration-0.13.md): upgrading from 0.12
+  to 0.13, with before/after code for each breaking change.
 - [`docs/migration-0.11.md`](docs/migration-0.11.md): upgrading from 0.10
   to 0.11, with before/after code for each breaking change.
+- [`docs/migration-0.13.md`](docs/migration-0.13.md): upgrading from 0.12
+  to 0.13.
 - `AGENTS.md` and `docs/agents/`: the contributor and agent guides.
 
 ## Verification
 
 Audit tooling under `.shots/` checks the implementation against the upstream
 design system. See `docs/agents/parity.md` for what each audit reads and what
-it proves. The lint gate is `.shots/lint.ps1`.
+it proves. The lint gate is `bash .shots/lint.sh`.
 
 ## License
 

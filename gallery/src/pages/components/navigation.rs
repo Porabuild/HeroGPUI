@@ -744,6 +744,22 @@ impl Gallery {
                     .into_any_element()]), cx),
                 ),
                 (
+                    "Label Size",
+                    "`text_size` replaces the tab labels' size step; a 12/14/16px size takes v3's 16/20/24 leading. Each tab keeps its fixed height and padding.",
+                    specimen_body("tabs-label-size", col(vec![h::Tabs::new(
+                        "tabs-label-size",
+                        vec![
+                            h::TabItem::new("a", "Account")
+                                .content(gpui::div().child("12px labels.")),
+                            h::TabItem::new("b", "Billing")
+                                .content(gpui::div().child("12px labels.")),
+                        ],
+                        "a",
+                    )
+                    .text_size(px(12.))
+                    .into_any_element()]), cx),
+                ),
+                (
                     "Sizes",
                     "`size` is additive, not a v3 prop: `Md` is the pinned 32px box with 16px padding and a 14px label; `Sm` is 28/12/12 with 16px leading. The secondary underline keeps its thickness.",
                     specimen_body("tabs-sizes", col(vec![
@@ -788,6 +804,22 @@ impl Gallery {
                         "account",
                     )
                     .orientation(Orientation::Vertical)
+                    .into_any_element()]), cx),
+                ),
+                (
+                    "Vertical Tab Width",
+                    "`vertical_tab_min_width` replaces the 80px floor every tab of a vertical list keeps; a tab's own `width` still wins over it.",
+                    specimen_body("tabs-vertical-min-width", col(vec![h::Tabs::new(
+                        "tabs-vertical-min-width",
+                        vec![
+                            h::TabItem::new("a", "A").content(gpui::div().child("A 48px rail.")),
+                            h::TabItem::new("b", "B").content(gpui::div().child("Second pane.")),
+                            h::TabItem::new("c", "C").content(gpui::div().child("Third pane.")),
+                        ],
+                        "a",
+                    )
+                    .orientation(Orientation::Vertical)
+                    .vertical_tab_min_width(px(48.))
                     .into_any_element()]), cx),
                 ),
                 (
@@ -1077,6 +1109,70 @@ impl Gallery {
                             cx.notify();
                         }))
                         .into_any_element()]), cx),
+                ),
+                (
+                    "Sidebar", "HeroGPUI extension, not a HeroUI v3 example: `Sidebar` is an application sidebar with a header, groups of menu items (icon, label, badge) and a footer. The menu is one tab stop: Up and Down move over the items and the Projects heading (skipping the disabled Archive), Right and Left expand and collapse a group, Enter selects. The footer button collapses it to icons, each named by a tooltip.",
+                    specimen_body("tabs-sidebar", col(vec![
+                        gpui::div()
+                            .h(px(420.))
+                            .w(px(560.))
+                            .flex()
+                            .rounded(px(12.))
+                            .border_1()
+                            .border_color(cx.colors().border)
+                            .overflow_hidden()
+                            .child(
+                                h::Sidebar::new(
+                                    "tabs-sidebar-nav",
+                                    vec![
+                                        h::SidebarGroup::new("main").items(vec![
+                                            h::SidebarItem::new("home", "Home").icon(h::IconName::House),
+                                            h::SidebarItem::new("inbox", "Inbox").icon(h::IconName::Inbox).badge("12"),
+                                            h::SidebarItem::new("calendar", "Calendar").icon(h::IconName::Calendar),
+                                            h::SidebarItem::new("archive", "Archive").icon(h::IconName::Archive).is_disabled(true),
+                                        ]),
+                                        h::SidebarGroup::new("projects")
+                                            .label("Projects")
+                                            .is_collapsible(true)
+                                            .items(vec![
+                                                h::SidebarItem::new("website", "Website").icon(h::IconName::Globe),
+                                                h::SidebarItem::new("dashboard", "Dashboard").icon(h::IconName::LayoutDashboard),
+                                            ]),
+                                        h::SidebarGroup::new("account").label("Account").items(vec![
+                                            h::SidebarItem::new("team", "Team").icon(h::IconName::Users),
+                                            h::SidebarItem::new("settings", "Settings").icon(h::IconName::Settings),
+                                        ]),
+                                    ],
+                                )
+                                .width(px(220.))
+                                .header(
+                                    gpui::div()
+                                        .px(px(8.))
+                                        .py(px(4.))
+                                        .font_weight(gpui::FontWeight::SEMIBOLD)
+                                        .whitespace_nowrap()
+                                        .child(if self.sidebar_collapsed { "A" } else { "Acme Inc." }),
+                                )
+                                .active_key(Some(self.sidebar_active.clone()))
+                                .on_select(cx.listener(|this, key: &SharedString, _, cx| {
+                                    this.sidebar_active = key.clone();
+                                    cx.notify();
+                                }))
+                                .is_collapsed(self.sidebar_collapsed)
+                                .on_collapsed_change(cx.listener(|this, collapsed: &bool, _, cx| {
+                                    this.sidebar_collapsed = *collapsed;
+                                    cx.notify();
+                                })),
+                            )
+                            .child(
+                                gpui::div()
+                                    .flex_1()
+                                    .p(px(20.))
+                                    .text_color(cx.colors().muted)
+                                    .child(format!("Page: {}", self.sidebar_active)),
+                            )
+                            .into_any_element(),
+                    ]), cx),
                 ),
             ],
             cx,

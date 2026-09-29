@@ -16,7 +16,7 @@
 //! 100ms exit so close motion can play; the exit frame is visual-only and does
 //! not occlude a later pointer target.
 
-mod harness;
+use crate::harness;
 
 use std::time::Duration;
 

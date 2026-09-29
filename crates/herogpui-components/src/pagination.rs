@@ -25,6 +25,7 @@ fn pagination_stacks_for_width(width: gpui::Pixels) -> bool {
 }
 
 /// HeroUI Pagination (controlled).
+#[must_use = "a component does nothing until it is rendered: add it as a child or return it from `render`"]
 #[derive(IntoElement)]
 pub struct Pagination {
     /// `link` — v3's render prop for a page link, handed `isActive`.
@@ -54,6 +55,7 @@ pub struct Pagination {
 }
 
 impl Pagination {
+    /// Sets the size of the links and nav buttons.
     pub fn size(mut self, size: Size) -> Self {
         self.size = size;
         self
@@ -80,10 +82,11 @@ impl Pagination {
     /// active theme chose, so they win. The page cells and nav buttons keep
     /// their own ladder geometry.
     pub fn sx(mut self, style: impl FnOnce(gpui::Div) -> gpui::Div) -> Self {
-        self.sx = Some(crate::util::capture_sx(style));
+        crate::util::refine_sx(&mut self.sx, style);
         self
     }
 
+    /// Creates a pagination for `page` of `total` pages; both are clamped to at least 1.
     pub fn new(id: impl Into<gpui::ElementId>, page: usize, total: usize) -> Self {
         Self {
             link: None,
@@ -131,6 +134,7 @@ impl Pagination {
         self
     }
 
+    /// Sets whether the whole pagination is disabled (`isDisabled`).
     pub fn is_disabled(mut self, v: bool) -> Self {
         self.is_disabled = v;
         self
@@ -148,6 +152,7 @@ impl Pagination {
         self
     }
 
+    /// Sets the handler called with the page number to navigate to (`onChange`).
     pub fn on_change(mut self, f: impl Fn(&usize, &mut Window, &mut App) + 'static) -> Self {
         self.on_change = Some(std::sync::Arc::new(f));
         self
@@ -391,7 +396,7 @@ impl RenderOnce for Pagination {
                         }
                     }
                     // `.pagination__item:focus-visible` is `status-focused`.
-                    let btn = crate::util::with_focus_ring_overlay(
+                    let mut btn = crate::util::with_focus_ring_overlay(
                         btn,
                         ring_visible
                             && page_focus
@@ -402,6 +407,11 @@ impl RenderOnce for Pagination {
                         Vec::new(),
                         cx,
                     );
+                    if !link_disabled {
+                        if let Some((_, handle)) = page_focus.iter().find(|(p, _)| *p == n) {
+                            btn = crate::util::record_focus_bounds(btn, handle, window, cx);
+                        }
+                    }
                     row = row.child(btn);
                 }
                 PageRef::Ellipsis => {
@@ -492,9 +502,13 @@ impl RenderOnce for Pagination {
         // element here: this port draws the page cells straight into the
         // row, and a `list` node whose children are buttons rather than
         // list items would describe a structure that is not there.
-        let mut el = el
-            .id(root_id)
-            .a11y_named(a11y::Role::Navigation, &a11y::Name::labelled("pagination"));
+        let mut el = el.id(root_id).a11y_named(
+            a11y::Role::Navigation,
+            &a11y::Name::labelled(crate::i18n::ui_string(
+                crate::i18n::UiString::Pagination,
+                cx,
+            )),
+        );
         if self.full_width {
             el = el.w_full();
         }
@@ -611,7 +625,11 @@ fn nav_button(
     // and not on the skin inside it, which shrinks under a press. A disabled
     // arrow is no tab stop, so `ring` is never set for one and the branch
     // resolves to the bare button.
-    crate::util::with_focus_ring_overlay(btn, ring, true, radius, Vec::new(), cx)
+    let mut btn = crate::util::with_focus_ring_overlay(btn, ring, true, radius, Vec::new(), cx);
+    if enabled {
+        btn = crate::util::record_focus_bounds(btn, focus, window, cx);
+    }
+    btn
 }
 
 enum PageRef {
@@ -711,3 +729,5 @@ mod tests {
         );
     }
 }
+
+crate::util::impl_component_styled!(Pagination);

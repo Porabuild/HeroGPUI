@@ -25,6 +25,7 @@ pub enum ChipVariant {
 }
 
 impl ChipVariant {
+    /// Every chip variant, in display order.
     pub const ALL: [ChipVariant; 4] = [
         ChipVariant::Primary,
         ChipVariant::Secondary,
@@ -32,6 +33,7 @@ impl ChipVariant {
         ChipVariant::Soft,
     ];
 
+    /// The human-readable name of this variant.
     pub fn label(self) -> &'static str {
         match self {
             ChipVariant::Primary => "Primary",
@@ -49,6 +51,7 @@ impl ChipVariant {
 /// auto-wraps plain-text children in the label part. This port makes that
 /// wrap explicit: compose a [`ChipLabel`] where v3's basic usage relies on
 /// it.
+#[must_use = "a component does nothing until it is rendered: add it as a child or return it from `render`"]
 #[derive(IntoElement)]
 pub struct Chip {
     variant: ChipVariant,
@@ -64,6 +67,7 @@ pub struct Chip {
 }
 
 impl Chip {
+    /// Creates a chip with the default variant, default color and medium size.
     pub fn new() -> Self {
         Self {
             variant: ChipVariant::default(),
@@ -76,16 +80,19 @@ impl Chip {
         }
     }
 
+    /// Sets the visual variant (`variant`).
     pub fn variant(mut self, variant: ChipVariant) -> Self {
         self.variant = variant;
         self
     }
 
+    /// Sets the chip color (`color`).
     pub fn color(mut self, color: Color) -> Self {
         self.color = color;
         self
     }
 
+    /// Sets the size (`size`).
     pub fn size(mut self, size: Size) -> Self {
         self.size = size;
         self
@@ -112,7 +119,7 @@ impl Chip {
     /// applied to the chip's root element after every value the variant, the
     /// color and the active theme chose, so they win.
     pub fn sx(mut self, style: impl FnOnce(gpui::Div) -> gpui::Div) -> Self {
-        self.sx = Some(crate::util::capture_sx(style));
+        crate::util::refine_sx(&mut self.sx, style);
         self
     }
 }
@@ -133,6 +140,7 @@ impl ParentElement for Chip {
 ///
 /// The `.chip__label` `px-0.5` lives here and nowhere else: a chip root's
 /// arbitrary icon or dot children take no label padding.
+#[must_use = "a component does nothing until it is rendered: add it as a child or return it from `render`"]
 #[derive(IntoElement)]
 pub struct ChipLabel {
     children: Vec<AnyElement>,
@@ -141,6 +149,7 @@ pub struct ChipLabel {
 }
 
 impl ChipLabel {
+    /// Creates an empty chip label.
     pub fn new() -> Self {
         Self {
             children: Vec::new(),
@@ -153,7 +162,7 @@ impl ChipLabel {
     /// applied to the label's root element after every value the chip and the
     /// active theme chose, so they win.
     pub fn sx(mut self, style: impl FnOnce(gpui::Div) -> gpui::Div) -> Self {
-        self.sx = Some(crate::util::capture_sx(style));
+        crate::util::refine_sx(&mut self.sx, style);
         self
     }
 }
@@ -175,7 +184,7 @@ impl ParentElement for ChipLabel {
 /// variant×color rules. `None` paints no background (tertiary's transparent
 /// fill); no chip carries a border.
 fn paint(colors: &ThemeColors, variant: ChipVariant, color: Color) -> (Option<Hsla>, Hsla) {
-    let role = colors.role(color.token());
+    let role = colors.role(color);
     let muted_foreground = || {
         if color == Color::Default {
             colors.default.foreground
@@ -271,7 +280,7 @@ mod tests {
     fn paint_matrix_matches_the_chip_css_cascade() {
         for colors in [ThemeColors::light(), ThemeColors::dark()] {
             for color in Color::ALL {
-                let role = colors.role(color.token());
+                let role = colors.role(color);
                 let muted_foreground = if color == Color::Default {
                     colors.default.foreground
                 } else {
@@ -332,10 +341,12 @@ mod tests {
             (Color::Warning, Color::Danger),
         ] {
             assert_ne!(
-                colors.role(a.token()).color,
-                colors.role(b.token()).color,
+                colors.role(a).color,
+                colors.role(b).color,
                 "the {a:?} and {b:?} roles must not share a fill"
             );
         }
     }
 }
+
+crate::util::impl_component_styled!(Chip, ChipLabel);

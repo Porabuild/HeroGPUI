@@ -87,10 +87,11 @@ comes from the query string.
 
 ## Screenshots are screenshots
 
-Captures in `public/shots/` are of the real desktop application, including its
-window chrome. Frame them so a reader understands they are looking at a native
-application, and never present one in a way that implies the browser is
-rendering it.
+The only captures the site publishes are the catalog tiles in `public/shots/`
+(cropped from `.shots/` by `scripts/copy-shots.mjs`); pages show the live
+WebAssembly build instead of full-page captures, which stay in `.shots/` as
+parity goldens. A tile is a capture of the real desktop application: never
+present one in a way that implies the browser is rendering it.
 
 ## Porabuild brand layer over HeroUI
 
@@ -160,9 +161,9 @@ indices, nav links, footer, chips and captions all use it at 9–12px, weight
 - **Hairline rules** at `--line` doing structural work — section dividers, cell
   borders, the underline on a link-button.
 - **Short accent rules**: a 28×1px accent bar marking a section.
-- **Window chrome** for product captures: `.window-bar` with its three dots and
-  a mono label. Our GPUI screenshots are captures of a real desktop window, so
-  this device fits them exactly rather than being decoration.
+- **Window chrome** for product visuals: `.window-bar` with its three dots and
+  a mono label, framing the live GPUI/WebAssembly canvas as the application
+  window it is rather than as decoration.
 
 ### Light mode
 
@@ -232,7 +233,7 @@ Capture to a scratch `-OutDir`, then copy each file into `.shots/` under its
 **Next.js caches optimised images across builds.** `.next/cache/images` is
 keyed by source URL, and the URL does not change when the file behind it does.
 A rebuild alone keeps serving the previous image — which is how a replaced
-screenshot appeared not to have been replaced at all. After swapping any file
+screenshot appeared not to have been replaced at all. After swapping any tile
 in `public/shots/`, delete `.next/cache/images` before rebuilding.
 
 The full sequence: capture to a scratch directory, verify the geometry matches

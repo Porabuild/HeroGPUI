@@ -15,9 +15,9 @@
 //! stop is observed on the next frame. Every field here has an editable
 //! sibling because a lone tab stop cannot lose focus.
 
-mod harness;
+use crate::harness;
 
-mod source_scan;
+use crate::source_scan;
 
 use gpui::{prelude::*, px, TestAppContext, VisualTestContext};
 use herogpui_components::{ColorChannel, ColorField, InputState, PickerColor};

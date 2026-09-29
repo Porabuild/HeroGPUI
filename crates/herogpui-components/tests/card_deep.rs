@@ -12,7 +12,7 @@
 //! clipping) leave no trace in layout and are covered by the `.shots`
 //! audits plus code reading, not here.
 
-mod harness;
+use crate::harness;
 
 use gpui::{prelude::*, px, Bounds, Pixels, TestAppContext};
 use harness::open_host;

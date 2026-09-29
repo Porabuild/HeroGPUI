@@ -125,12 +125,15 @@ fn default_output(labels: &[String]) -> String {
 /// rounded on every part.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum SliderSize {
+    /// The compact scale.
     Sm,
     #[default]
+    /// The default scale.
     Md,
 }
 
 /// HeroUI Slider.
+#[must_use = "a component does nothing until it is rendered: add it as a child or return it from `render`"]
 #[derive(IntoElement)]
 pub struct Slider {
     /// `name` — the name this control submits under; read back by
@@ -204,6 +207,7 @@ impl Slider {
         self
     }
 
+    /// Creates a slider with the given id and initial value.
     pub fn new(id: impl Into<gpui::ElementId>, value: f32) -> Self {
         Self {
             name: None,
@@ -394,6 +398,7 @@ impl Slider {
         self
     }
 
+    /// Sets the step between values; a non-positive or non-finite step falls back to 1.
     pub fn step(mut self, v: f32) -> Self {
         self.steps.clear();
         self.step = if v.is_finite() && v > 0.0 { v } else { 1.0 };
@@ -436,11 +441,13 @@ impl Slider {
         self
     }
 
+    /// Sets whether the slider is disabled.
     pub fn is_disabled(mut self, v: bool) -> Self {
         self.is_disabled = v;
         self
     }
 
+    /// Sets the label text.
     pub fn label(mut self, l: impl Into<String>) -> Self {
         self.label = Some(l.into());
         self
@@ -452,6 +459,7 @@ impl Slider {
         self
     }
 
+    /// Sets whether the current value is shown.
     pub fn show_value(mut self, v: bool) -> Self {
         self.show_value = v;
         self
@@ -511,6 +519,7 @@ impl Slider {
         self
     }
 
+    /// Sets the handler run when the value changes.
     pub fn on_change(mut self, f: impl Fn(&f32, &mut Window, &mut App) + 'static) -> Self {
         self.on_change = Some(std::sync::Arc::new(f));
         self
@@ -544,7 +553,7 @@ impl Slider {
     /// applied to the slider's root element after every value the orientation
     /// and the active theme chose, so they win.
     pub fn sx(mut self, style: impl FnOnce(gpui::Div) -> gpui::Div) -> Self {
-        self.sx = Some(crate::util::capture_sx(style));
+        crate::util::refine_sx(&mut self.sx, style);
         self
     }
 }
@@ -1259,7 +1268,7 @@ impl RenderOnce for Slider {
             };
             let on_change_down = self.on_change.clone();
             let all_down = self.on_change_all.clone();
-            let focus_for_press = focus_handle;
+            let focus_for_press = focus_handle.clone();
             let active_for_press = active_thumb;
             let own_down = own.clone();
             let range_own_down = range_own.clone();
@@ -1417,6 +1426,9 @@ impl RenderOnce for Slider {
             );
         }
 
+        if any_enabled {
+            track = crate::util::record_focus_bounds(track, &focus_handle, window, cx);
+        }
         el = el.child(track);
         el = crate::util::apply_sx(el, &self.sx);
         el
@@ -1823,3 +1835,5 @@ mod tests {
         assert!(source.contains("font_features(crate::util::tabular_font_features())"));
     }
 }
+
+crate::util::impl_component_styled!(Slider);

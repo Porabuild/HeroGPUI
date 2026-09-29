@@ -29,6 +29,7 @@ pub struct ColorFieldRenderState {
 ///
 /// With no `channel` it edits the hex value; with one it edits that channel's
 /// numeric value.
+#[must_use = "a component does nothing until it is rendered: add it as a child or return it from `render`"]
 #[derive(IntoElement)]
 pub struct ColorField {
     /// See [`ColorField::content`].
@@ -61,6 +62,8 @@ pub struct ColorField {
     /// `autoFocus` — take focus on the first render.
     auto_focus: bool,
     placeholder: Option<SharedString>,
+    /// The value text's family; unset keeps the inherited family.
+    font_family: Option<SharedString>,
     /// Supplying an `InputState` makes the field editable; without one it is a
     /// read-only display of `value`.
     state: Option<Entity<crate::input::InputState>>,
@@ -81,15 +84,19 @@ pub struct ColorField {
     field: util::FieldBox,
     /// The corner radius, in place of the owning `field_radius` helper.
     radius: Option<Pixels>,
+    /// The `sx` slot, refined over the root style at the end of render.
+    sx: Option<Box<gpui::StyleRefinement>>,
     form_state: Rc<RefCell<crate::form::LiveFormFieldState>>,
 }
 
 impl ColorField {
+    /// Sets whether the field is read-only (`isReadOnly`).
     pub fn is_read_only(mut self, v: bool) -> Self {
         self.is_read_only = v;
         self
     }
 
+    /// Sets whether the field is required (`isRequired`).
     pub fn is_required(mut self, v: bool) -> Self {
         self.is_required = v;
         self
@@ -111,6 +118,30 @@ impl ColorField {
         self
     }
 
+    /// The family the value text is drawn with, on both paths: the editable
+    /// field forwards it to the [`crate::Input`] it composes, so the caret
+    /// measurement uses it too (see [`crate::Input::font_family`]), and the
+    /// static display sets it on its box. Unset keeps the inherited family.
+    /// Not a v3 prop; v3 sets it with a class.
+    pub fn font_family(mut self, family: impl Into<SharedString>) -> Self {
+        self.font_family = Some(family.into());
+        self
+    }
+
+    /// The one slot for caller-owned low-level styling: GPUI's styling methods
+    /// (`bg`, `text_color`, `w`, `h`, `p`, `rounded`, `border_color`, …)
+    /// applied to the field's root element — the column holding the label,
+    /// the box and the description or error — after every value the variant
+    /// and the active theme chose, so they win. Both paths land on that
+    /// column: the editable field hands the slot to the [`crate::Input`] it
+    /// composes, whose standalone root is the same column, and the static
+    /// display refines its own. The box's chrome stays with the variant.
+    pub fn sx(mut self, style: impl FnOnce(gpui::Div) -> gpui::Div) -> Self {
+        util::refine_sx(&mut self.sx, style);
+        self
+    }
+
+    /// Creates a color field with the id `id`, showing `value` (or empty for `None`).
     pub fn new(id: impl Into<ElementId>, value: impl Into<Option<PickerColor>>) -> Self {
         Self {
             content: None,
@@ -127,6 +158,7 @@ impl ColorField {
             is_wheel_disabled: false,
             auto_focus: false,
             placeholder: None,
+            font_family: None,
             state: None,
             on_change: None,
             on_blur: None,
@@ -140,6 +172,7 @@ impl ColorField {
             is_required: false,
             field: util::FieldBox::default(),
             radius: None,
+            sx: None,
             form_state: live_color_form_state(
                 crate::form::FormValue::Text(SharedString::default()),
             ),
@@ -297,31 +330,37 @@ impl ColorField {
         self
     }
 
+    /// Sets the label shown above the field.
     pub fn label(mut self, text: impl Into<SharedString>) -> Self {
         self.label = Some(text.into());
         self
     }
 
+    /// Sets the description shown below the field.
     pub fn description(mut self, text: impl Into<SharedString>) -> Self {
         self.description = Some(text.into());
         self
     }
 
+    /// Sets the field variant.
     pub fn variant(mut self, variant: FieldVariant) -> Self {
         self.variant = variant;
         self
     }
 
+    /// Sets whether the field fills the available width.
     pub fn full_width(mut self, v: bool) -> Self {
         self.full_width = v;
         self
     }
 
+    /// Sets whether the field is disabled (`isDisabled`).
     pub fn is_disabled(mut self, v: bool) -> Self {
         self.is_disabled = v;
         self
     }
 
+    /// Sets whether the field is invalid (`isInvalid`).
     pub fn is_invalid(mut self, v: bool) -> Self {
         self.is_invalid = v;
         self
@@ -702,7 +741,12 @@ impl RenderOnce for ColorField {
             if let Some(value) = self.value {
                 input = input.start_content(ColorSwatch::new(value).size(SizeXl::Xs));
             }
-            input = input.with_field_box(self.field);
+            input = input
+                .with_field_box(self.field)
+                .with_sx_refinement(self.sx.take());
+            if let Some(family) = self.font_family.clone() {
+                input = input.font_family(family);
+            }
             // The editable box is the inner field's own, so the radius rides
             // along with the field box, the way its `height` and `padding_x`
             // do; the static box below paints its own.
@@ -842,6 +886,9 @@ impl RenderOnce for ColorField {
         let radius = self.radius.unwrap_or_else(|| util::field_radius(cx));
         let mut field = div()
             .id(self.id.clone())
+            .when_some(self.font_family.clone(), |field, family| {
+                field.font_family(family)
+            })
             .flex()
             .flex_row()
             .items_center()
@@ -999,8 +1046,10 @@ impl RenderOnce for ColorField {
         if let Some(description) = self.description {
             root = root.child(crate::field::Description::new(description));
         }
-        root.into_any_element()
+        util::apply_sx(root, &self.sx).into_any_element()
     }
 }
 
 // ---------------------------------------------------------------------------
+
+crate::util::impl_component_styled!(ColorField);

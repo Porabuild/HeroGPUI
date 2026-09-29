@@ -41,7 +41,7 @@
 //! Each instance gets its own element id; two components sharing an id share
 //! their keyed state, which AGENTS.md documents as a silent failure.
 
-mod harness;
+use crate::harness;
 
 use std::cell::RefCell;
 use std::collections::{HashMap, HashSet};
@@ -607,24 +607,107 @@ fn fixed_height_virtual_list_box_caps_in_an_unbounded_parent(cx: &mut TestAppCon
 // TagGroup
 // ---------------------------------------------------------------------------
 
-#[test]
-fn tag_group_uses_the_pinned_smooth_hover_transition() {
-    let source = include_str!("../src/tag_group.rs");
-    assert!(
-        source.contains("hover_fade_with_duration_and_easing"),
-        "TagGroup must animate its background through the shared keyed fade"
+/// The distinct fills painted exactly over `target` (a control's skin and
+/// the hover-fade layer that covers it).
+fn fills_over(scene: &harness::Painted, target: gpui::Bounds<gpui::Pixels>) -> Vec<gpui::Hsla> {
+    let mut fills: Vec<gpui::Hsla> = Vec::new();
+    for q in &scene.quads {
+        let b = scene.bounds(q);
+        if harness::contains(b, target) && harness::contains(target, b) {
+            if let Some(c) = q.background.as_solid().filter(|c| c.a > 0.) {
+                if !harness::has_color(&fills, c) {
+                    fills.push(c);
+                }
+            }
+        }
+    }
+    fills
+}
+
+/// TagGroup's background transition is its stylesheet's own 100ms, not the
+/// theme's shared hover duration, and its fade layer shares the tag radius
+/// so a mid-transition frame cannot leak square corners. Observed on the
+/// real clock with the theme's shared duration stretched to a minute: after
+/// 300ms the tag's fade has settled (its layer paints the skin's endpoint),
+/// while a Button — which rides the theme duration — is still mid-fade.
+#[gpui::test]
+fn tag_group_uses_the_pinned_smooth_hover_transition(cx: &mut TestAppContext) {
+    use gpui::Modifiers;
+    use herogpui_components::Button;
+    use herogpui_theme::{set_theme, ActiveTheme, Theme};
+
+    let cx = open_host(cx, || {
+        gpui::div()
+            .flex()
+            .flex_col()
+            .items_start()
+            .gap(px(40.))
+            .p(px(24.))
+            .child(TagGroup::new("tg-fade", vec![Tag::new("a", "Alpha")]))
+            .child(Button::new("b-fade").label("Save"))
+            .into_any_element()
+    });
+    cx.update(|window, cx| {
+        set_theme(
+            Theme::builder("slow", Theme::light())
+                .hover_fade_ms(60_000)
+                .build(),
+            cx,
+        );
+        window.refresh();
+    });
+    let resting = harness::painted(cx);
+    let radius = cx.update(|_, cx| f32::from(herogpui_components::extend::small_radius(cx)));
+    let default = cx.update(|_, cx| cx.colors().default.color);
+    let chip = resting
+        .filled(default)
+        .into_iter()
+        .find(|q| resting.is_uniform(q, radius))
+        .map(|q| resting.bounds(q))
+        .expect("the tag chip must paint its resting fill at the tag radius");
+    let button = resting
+        .quads
+        .iter()
+        .filter(|q| {
+            f32::from(resting.bounds(q).origin.y) > f32::from(chip.origin.y + chip.size.height)
+        })
+        .find(|q| q.background.as_solid().is_some_and(|c| c.a > 0.))
+        .map(|q| resting.bounds(q))
+        .expect("the button must paint its skin");
+
+    cx.simulate_mouse_move(chip.center(), None, Modifiers::none());
+    harness::wait_real(cx, 300);
+    let scene = harness::painted(cx);
+    let tag_fills = fills_over(&scene, chip);
+    assert_eq!(
+        tag_fills.len(),
+        1,
+        "after 300ms the tag's own 100ms fade must have settled on its \
+         endpoint, painted {tag_fills:?}"
     );
+    let layers = scene
+        .quads
+        .iter()
+        .filter(|q| {
+            let b = scene.bounds(q);
+            harness::contains(b, chip) && harness::contains(chip, b)
+        })
+        .collect::<Vec<_>>();
     assert!(
-        source.contains("HoverFadeEasing::EaseSmooth"),
-        "TagGroup uses the stylesheet's ease-smooth curve"
+        layers.len() >= 2 && layers.iter().all(|q| scene.is_uniform(q, radius)),
+        "the skin and its fade layer must both carry the tag radius\n{}",
+        scene.describe()
     );
-    assert!(
-        source.contains("Some(100)"),
-        "TagGroup's background transition is the pinned 100ms duration"
-    );
-    assert!(
-        source.contains("fill.rounded(tag_radius)"),
-        "the animated fill must share the tag radius to prevent corner leaks"
+
+    cx.simulate_mouse_move(button.center(), None, Modifiers::none());
+    harness::wait_real(cx, 300);
+    let scene = harness::painted(cx);
+    let button_fills = fills_over(&scene, button);
+    assert_eq!(
+        button_fills.len(),
+        2,
+        "control: a Button on the theme's minute-long fade is still mid-way \
+         after 300ms, painted {button_fills:?}"
     );
 }
 

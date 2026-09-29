@@ -59,7 +59,8 @@
 //! `press` helper releases the last key because gpui activates a focused
 //! element's click listeners on key **up**.
 
-mod harness;
+use crate::harness;
+use crate::source_scan;
 
 use std::cell::{Cell, RefCell};
 use std::collections::{HashMap, HashSet};
@@ -70,9 +71,11 @@ use herogpui_components::Pagination;
 
 use harness::{click, events, open_host, press};
 
+/// Remaining source-text check: `aria-current` reaches only the AccessKit
+/// tree, which the headless platform never builds (`a11y_deep.rs`).
 #[test]
 fn active_page_publishes_accesskit_current_page_state() {
-    let source = include_str!("../src/pagination.rs");
+    let source = source_scan::component_src("pagination.rs");
     assert!(source.contains("a11y_current(a11y::AriaCurrent::Page)"));
     assert!(source.contains("when(active"));
 }

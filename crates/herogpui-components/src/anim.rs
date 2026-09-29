@@ -158,10 +158,12 @@ pub enum Curve {
     /// `--ease-out-quart`: `cubic-bezier(0.165, 0.84, 0.44, 1)` — the
     /// close button's transform curve.
     OutQuart,
+    /// Constant speed, no easing.
     Linear,
 }
 
 impl Curve {
+    /// Evaluates the curve at progress `t` (0 to 1), returning the eased progress.
     pub fn at(self, t: f32) -> f32 {
         match self {
             Curve::Out => cubic_bezier(0.0, 0.0, 0.2, 1.0, t),
@@ -183,10 +185,12 @@ impl Curve {
 /// per group, and `anim_audit.py` checks them against the CSS.
 #[derive(Clone, Copy, Debug)]
 pub struct Motion {
+    /// Duration in milliseconds.
     pub ms: u64,
     /// The scale the animation starts at (entering) or ends at (exiting).
     /// `1.0` means no scaling — a fade alone.
     pub scale: f32,
+    /// Easing curve.
     pub curve: Curve,
 }
 
@@ -256,6 +260,7 @@ impl Motion {
         scale: 1.0,
         curve: Curve::Smooth,
     };
+    /// Opacity transition of the field error row: 150ms with the `Out` curve.
     pub const FIELD_ERROR_OPACITY: Motion = Motion {
         ms: 150,
         scale: 1.0,
@@ -634,8 +639,11 @@ pub(crate) const LIST_ITEM_PRESS: PressTiming = PressTiming {
     transform: Curve::OutQuart,
     background: None,
 };
+/// Pressed scale of 0.96, used for large buttons and pagination links.
 pub const PRESSED_SCALE_FIRM: f32 = 0.96;
+/// Pressed scale of 0.95, used for smaller controls such as calendar cells and radio controls.
 pub const PRESSED_SCALE_DEEP: f32 = 0.95;
+/// Pressed scale of 0.9, used for range calendar cells.
 pub const PRESSED_SCALE_RANGE: f32 = 0.9;
 
 /// The inset that shrinks a control of `height` by a scale about its
@@ -713,6 +721,7 @@ fn resting_slot_corners(
 /// Everything a pressed control scales down.
 #[derive(Clone, Copy, Debug)]
 pub struct PressBox {
+    /// Resting height.
     pub height: gpui::Pixels,
     /// Horizontal padding for a control that sizes to its content, or `None`
     /// for one with a fixed width.
@@ -721,9 +730,13 @@ pub struct PressBox {
     pub width: Option<gpui::Pixels>,
     /// Minimum width, which has to scale too or it pins the box at full size.
     pub min_width: Option<gpui::Pixels>,
+    /// Font size.
     pub text_size: gpui::Pixels,
+    /// Line height.
     pub line_height: gpui::Pixels,
+    /// Gap between children.
     pub gap: gpui::Pixels,
+    /// Corner radius.
     pub radius: gpui::Pixels,
     /// How far the press scales. v3 uses 0.97 for a button, 0.98 for a menu row,
     /// 0.96 and 0.95 for the smaller controls, so it is per control rather than
@@ -1175,19 +1188,30 @@ pub const EXITING_MS: u64 = 100;
 /// size, so a panel sized by its content grows by its chrome alone.
 #[derive(Clone, Copy, Debug, Default)]
 pub struct ZoomBox {
+    /// Width, if known.
     pub width: Option<gpui::Pixels>,
+    /// Height, if known.
     pub height: Option<gpui::Pixels>,
+    /// Horizontal padding, if known.
     pub padding_x: Option<gpui::Pixels>,
+    /// Vertical padding, if known.
     pub padding_y: Option<gpui::Pixels>,
+    /// Top padding, if known; applied after `padding_y`.
     pub padding_top: Option<gpui::Pixels>,
+    /// Bottom padding, if known; applied after `padding_y`.
     pub padding_bottom: Option<gpui::Pixels>,
+    /// Gap between children, if known.
     pub gap: Option<gpui::Pixels>,
+    /// Font size, if known.
     pub text_size: Option<gpui::Pixels>,
+    /// Line height, if known.
     pub line_height: Option<gpui::Pixels>,
+    /// Corner radius, if known.
     pub radius: Option<gpui::Pixels>,
     /// Optional placement-relative entry offset. A positive value starts on
     /// the corresponding physical side and eases back to zero with the panel.
     pub slide_x: Option<gpui::Pixels>,
+    /// Vertical counterpart of `slide_x`.
     pub slide_y: Option<gpui::Pixels>,
 }
 
@@ -1202,6 +1226,7 @@ impl ZoomBox {
         }
     }
 
+    /// Sets the horizontal padding.
     pub fn padding_x(mut self, padding_x: gpui::Pixels) -> Self {
         self.padding_x = Some(padding_x);
         self
@@ -2380,9 +2405,13 @@ where
 /// Which window edge a sliding panel enters from.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Edge {
+    /// The left edge.
     Left,
+    /// The right edge.
     Right,
+    /// The top edge.
     Top,
+    /// The bottom edge.
     Bottom,
 }
 

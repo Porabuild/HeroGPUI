@@ -57,7 +57,7 @@
 //! Every instance has its own element id: two components sharing an id share
 //! their keyed state, which AGENTS.md records as a silent failure.
 
-mod harness;
+use crate::harness;
 
 use std::cell::RefCell;
 use std::collections::{HashMap, HashSet};

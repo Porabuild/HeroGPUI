@@ -12,7 +12,7 @@
 //! binaries. The thumb render prop carries a canvas that records the laid-out
 //! thumb container bounds, which is where the inset shows.
 
-mod harness;
+use crate::harness;
 
 use std::cell::RefCell;
 use std::rc::Rc;
@@ -376,22 +376,90 @@ fn small_shrinks_the_rail_the_inset_and_the_knob(cx: &mut TestAppContext) {
     assert_center(&probe, (8., 3.), "Sm axis inset and cross-axis centering");
 }
 
-/// The `Sm` default thumb is one round node, not `Md`'s pill-around-a-pill.
-#[test]
-fn small_default_thumb_is_a_single_pill_layer() {
-    let source = include_str!("../src/slider.rs");
-    assert!(
-        source.contains("None => thumb_el.rounded_full().bg(colors.foreground),"),
-        "Sm's default thumb must be a single fully rounded layer in the foreground token"
-    );
-    assert!(
-        source.contains(".when(small, |t| t.rounded_full())"),
-        "Sm's track must be a pill"
-    );
-    assert!(
-        source.contains(".when(small, |f| f.rounded_full())"),
-        "Sm's fill must be a pill"
-    );
+/// The `Sm` default thumb is one round node in the foreground token, not
+/// `Md`'s pill-around-a-pill, and the `Sm` track and fill are pills. Read off
+/// the painted scene: the quads at the knob's bounds, and the corner radii of
+/// the rail's quads (fully rounded = half the 6px rail).
+#[gpui::test]
+fn small_default_thumb_is_a_single_pill_layer(cx: &mut TestAppContext) {
+    for (size, layers) in [
+        (herogpui_components::SliderSize::Sm, 1usize),
+        (herogpui_components::SliderSize::Md, 2),
+    ] {
+        harness::still();
+        let cx = open_host(cx, move || {
+            gpui::div()
+                .p(px(24.))
+                .w(px(600.))
+                .child(Slider::new("geo-layers", 40.).size(size))
+                .into_any_element()
+        });
+        let scene = harness::painted(cx);
+        let foreground = cx.update(|_, cx| {
+            use herogpui_theme::ActiveTheme;
+            cx.colors().foreground
+        });
+        // The knob layers are the quads narrower than the rail but at least
+        // 8px tall; the rail is the widest quad.
+        let rail = scene
+            .quads
+            .iter()
+            .max_by(|a, b| a.bounds.size.width.0.total_cmp(&b.bounds.size.width.0))
+            .map(|q| scene.bounds(q))
+            .expect("the rail must paint");
+        let knob = scene
+            .quads
+            .iter()
+            .filter(|q| {
+                let b = scene.bounds(q);
+                f32::from(b.size.width) < 60. && f32::from(b.size.height) >= 8.
+            })
+            .filter(|q| {
+                // not a fill end cap flush with the rail start
+                (scene.bounds(q).origin.x - rail.origin.x).abs() > px(0.5)
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(
+            knob.len(),
+            layers,
+            "{size:?}: the default knob paints {layers} layer(s)\n{}",
+            scene.describe()
+        );
+        if layers == 1 {
+            assert_eq!(
+                knob[0].background.as_solid(),
+                Some(foreground),
+                "Sm's knob is the foreground token"
+            );
+            assert!(
+                scene.is_uniform(knob[0], f32::MAX),
+                "Sm's knob is fully rounded, got {:?}",
+                scene.corners(knob[0])
+            );
+            let rounded_rail = scene
+                .quads
+                .iter()
+                .filter(|q| {
+                    let b = scene.bounds(q);
+                    (f32::from(b.size.height) - 6.).abs() < 0.5 && f32::from(b.size.width) > 6.
+                })
+                .all(|q| {
+                    scene
+                        .corners(q)
+                        .iter()
+                        .all(|c| (c - 3.).abs() < 0.05 || *c < 0.05)
+                });
+            assert!(
+                rounded_rail
+                    && scene.quads.iter().any(|q| {
+                        let b = scene.bounds(q);
+                        (f32::from(b.size.height) - 6.).abs() < 0.5 && scene.is_uniform(q, 3.)
+                    }),
+                "Sm's track and fill must be pills\n{}",
+                scene.describe()
+            );
+        }
+    }
 }
 
 #[gpui::test]

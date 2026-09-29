@@ -44,8 +44,10 @@ pub enum TableVariant {
 }
 
 impl TableVariant {
+    /// Every table variant, in display order.
     pub const ALL: [TableVariant; 2] = [TableVariant::Primary, TableVariant::Secondary];
 
+    /// The variant's display name.
     pub fn label(self) -> &'static str {
         match self {
             TableVariant::Primary => "Primary",
@@ -57,7 +59,9 @@ impl TableVariant {
 /// `sortDirection` on `Table.SortableColumnHeader`.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum SortDirection {
+    /// Sort from lowest to highest.
     Ascending,
+    /// Sort from highest to lowest.
     Descending,
 }
 
@@ -76,11 +80,14 @@ type Indicator = std::sync::Arc<dyn Fn(SortDirection) -> AnyElement + 'static>;
 /// `sortDescriptor` — which column is sorted, and which way.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct SortDescriptor {
+    /// Key of the sorted column.
     pub column: SharedString,
+    /// Direction of the sort.
     pub direction: SortDirection,
 }
 
 impl SortDescriptor {
+    /// Creates a descriptor for `column` sorted in `direction`.
     pub fn new(column: impl Into<SharedString>, direction: SortDirection) -> Self {
         Self {
             column: column.into(),
@@ -108,6 +115,7 @@ impl SortDescriptor {
 }
 
 /// One column (`Table.Column`).
+#[must_use = "builder methods return a new value; pass the column to its table"]
 #[derive(Clone, Debug)]
 pub struct TableColumn {
     label: SharedString,
@@ -125,9 +133,12 @@ pub struct TableColumn {
     min_width: Option<Pixels>,
     /// `maxWidth` — the column's ceiling.
     max_width: Option<Pixels>,
+    /// Frozen at the leading edge (HeroGPUI extension).
+    frozen: bool,
 }
 
 impl TableColumn {
+    /// Creates a column with the given header label.
     pub fn new(label: impl Into<SharedString>) -> Self {
         Self {
             label: label.into(),
@@ -138,6 +149,7 @@ impl TableColumn {
             default_width: None,
             min_width: None,
             max_width: None,
+            frozen: false,
         }
     }
 
@@ -187,6 +199,24 @@ impl TableColumn {
         self.is_row_header = v;
         self
     }
+
+    /// Freezes this column at the table's leading edge (HeroGPUI extension,
+    /// after gpui-kit's `fixed_left` columns; not a HeroUI v3 prop): when the
+    /// table is wider than its box, the frozen columns (and the selection
+    /// column) stay put while the other columns scroll horizontally beneath
+    /// the header, which scrolls with them.
+    ///
+    /// Frozen columns are always displayed first, in their relative order, so
+    /// a `column_order` that interleaves them is shown with the frozen ones
+    /// moved to the front, and a column move never crosses from the frozen
+    /// region into the scrolling one or back: unfreeze the column to move it
+    /// there. A frozen column is sized at its explicit, resized or measured
+    /// width rather than sharing out the free space. When every column is
+    /// frozen nothing scrolls and the table renders as an ordinary one.
+    pub fn frozen(mut self, frozen: bool) -> Self {
+        self.frozen = frozen;
+        self
+    }
 }
 
 impl From<SharedString> for TableColumn {
@@ -202,6 +232,7 @@ impl From<&str> for TableColumn {
 }
 
 /// One row (`Table.Row`).
+#[must_use = "builder methods return a new value; pass it on to its component"]
 pub struct TableRow {
     key: Option<SharedString>,
     text_value: Option<SharedString>,
@@ -218,12 +249,16 @@ pub struct TableRow {
 /// indices without eagerly constructing any cells.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct VirtualTreeMetadata {
+    /// Nesting depth of the item; zero for a root.
     pub depth: usize,
+    /// Key of the item's parent, or `None` for a root.
     pub parent_key: Option<SharedString>,
+    /// Whether the item has children.
     pub has_children: bool,
 }
 
 impl TableRow {
+    /// Creates a row from its cells, with no key, text value or children.
     pub fn new(cells: Vec<AnyElement>) -> Self {
         Self {
             key: None,
@@ -320,7 +355,7 @@ struct TableTypeaheadNavigation {
     keys: Vec<SharedString>,
     cursor: gpui::Entity<Option<SharedString>>,
     fixed_virtual: bool,
-    fixed_scroll: gpui::UniformListScrollHandle,
+    fixed_scroll: crate::VirtualListHandle,
     variable_scroll: Option<gpui::ListState>,
 }
 
@@ -367,7 +402,7 @@ impl TableTypeaheadNavigation {
         });
         if self.fixed_virtual {
             self.fixed_scroll
-                .scroll_to_item(next, gpui::ScrollStrategy::Center);
+                .scroll_to_item(next, crate::VirtualListScroll::Center);
         } else if let Some(state) = &self.variable_scroll {
             state.scroll_to(gpui::ListOffset {
                 item_ix: next,
@@ -508,6 +543,100 @@ fn flex_cell(el: gpui::Div) -> gpui::Div {
     el.flex_basis(px(0.)).flex_1()
 }
 
+/// Frozen leading columns (HeroGPUI extension, see [`TableColumn::frozen`]):
+/// how many display positions are frozen, and the one horizontal scroll
+/// state every row's scrolling part and the header's share.
+///
+/// GPUI has no sticky positioning, so each row (and the header) is split in
+/// two: a frozen part that never moves and a clipped part that scrolls. The
+/// row element stays the parent of both, so its hover group, press,
+/// selection and keyboard cursor span the whole row, and a cell scrolled out
+/// of view is clipped by its part's content mask rather than hidden under a
+/// frozen cell, so a press on a frozen cell cannot reach it.
+#[derive(Clone)]
+struct FrozenColumns {
+    /// The frozen display positions, `0..count`; always fewer than the
+    /// columns, since a table with every column frozen does not split.
+    count: usize,
+    scroll: gpui::ScrollHandle,
+    /// The view to notify when a wheel over a frozen part scrolls.
+    view: gpui::EntityId,
+}
+
+impl FrozenColumns {
+    /// The frozen part of a row or of the header. A horizontal wheel over it
+    /// scrolls the rest of the table, the way it does over the scrolling
+    /// part.
+    fn frozen_part(&self) -> gpui::Div {
+        let scroll = self.scroll.clone();
+        let view = self.view;
+        gpui::div()
+            .flex()
+            .flex_shrink_0()
+            .on_scroll_wheel(move |event, window, cx| {
+                let at = scroll.offset();
+                crate::util::shift_wheel_scroll_x(&scroll, event);
+                let delta = event.delta.pixel_delta(window.line_height());
+                let x_delta = if delta.x != px(0.) {
+                    delta.x
+                } else {
+                    scroll.offset().x - at.x
+                };
+                if x_delta == px(0.) {
+                    return;
+                }
+                let x = (at.x + x_delta).clamp(-scroll.max_offset().x, px(0.));
+                if x != at.x {
+                    scroll.set_offset(gpui::point(x, at.y));
+                    cx.notify(view);
+                }
+            })
+    }
+
+    /// The scrolling part: its cells are direct children, so the shared
+    /// handle's child bounds are the cells' and `scroll_to_item` can reveal
+    /// one. `restrict_scroll_to_axis` leaves a vertical wheel to the body.
+    fn scrolling_part(&self, part: gpui::Div, id: gpui::ElementId) -> gpui::Stateful<gpui::Div> {
+        part.flex()
+            .flex_1()
+            .min_w_0()
+            .id(id)
+            .overflow_x_scroll()
+            .track_scroll(&self.scroll)
+            .restrict_scroll_to_axis()
+    }
+
+    /// Reveals the cell at display position `column` when it scrolls.
+    fn reveal(&self, column: usize) {
+        if column >= self.count {
+            self.scroll.scroll_to_item(column - self.count);
+        }
+    }
+}
+
+/// `to` held inside the region `from` is in, so a column move never crosses
+/// between the frozen and the scrolling columns.
+fn clamp_to_region(from: usize, to: usize, frozen: usize) -> usize {
+    if frozen == 0 {
+        to
+    } else if from < frozen {
+        to.min(frozen - 1)
+    } else {
+        to.max(frozen)
+    }
+}
+
+/// `order` with the frozen columns first, each region keeping its order.
+fn frozen_first(order: &[usize], columns: &[TableColumn]) -> Vec<usize> {
+    let frozen = |ix: &usize| columns.get(*ix).is_some_and(|c| c.frozen);
+    order
+        .iter()
+        .copied()
+        .filter(frozen)
+        .chain(order.iter().copied().filter(|ix| !frozen(ix)))
+        .collect()
+}
+
 /// The pinned table stylesheet replaces the tree column's start padding with
 /// one `1rem` step for every 1-based row level. `flatten_tree` stores the root
 /// at depth zero, so a root keeps the regular 16px cell padding and a child at
@@ -601,6 +730,7 @@ fn table_cell_focus_ring(cx: &App, first: bool, last: bool) -> gpui::Div {
 }
 
 /// HeroUI Table.
+#[must_use = "a component does nothing until it is rendered: add it as a child or return it from `render`"]
 #[derive(IntoElement)]
 pub struct Table {
     /// Distinguishes one table's keyed state from another's: the resized column
@@ -671,9 +801,14 @@ pub struct Table {
     radius: Option<Pixels>,
     /// The `sx` slot, refined over the root style at the end of render.
     sx: Option<Box<gpui::StyleRefinement>>,
+    /// Column reordering (HeroGPUI extension; see [`Table::allows_column_reorder`]).
+    column_reorder: ColumnReorder,
+    /// Cell selection (HeroGPUI extension; see [`Table::cell_selectable`]).
+    cell_selection: CellSelection,
 }
 
 impl Table {
+    /// Creates a table with the given column labels.
     pub fn new(columns: Vec<SharedString>) -> Self {
         Self {
             id: SharedString::from("table"),
@@ -716,6 +851,8 @@ impl Table {
             row_hover_bg: None,
             radius: None,
             sx: None,
+            column_reorder: ColumnReorder::default(),
+            cell_selection: CellSelection::default(),
         }
     }
 
@@ -751,6 +888,7 @@ impl Table {
         self
     }
 
+    /// Sets the table's visual variant.
     pub fn variant(mut self, variant: TableVariant) -> Self {
         self.variant = variant;
         self
@@ -761,8 +899,8 @@ impl Table {
     ///
     /// v3 wraps the table in `<Virtualizer layout={TableLayout}
     /// layoutOptions={{rowHeight: 40}}>`; the wrapper has no separate identity
-    /// here, so the option that defines the layout carries it. gpui's
-    /// `uniform_list` builds only the rows the viewport shows, and it can do
+    /// here, so the option that defines the layout carries it. a uniform
+    /// [`VirtualList`](crate::VirtualList) builds only the rows the viewport shows, and it can do
     /// that because every row is this tall.
     pub fn row_height(mut self, height: impl Into<Pixels>) -> Self {
         self.row_height = Some(height.into());
@@ -804,7 +942,7 @@ impl Table {
     /// `TableLayout`'s `estimatedRowHeight` — virtualize rows that are not all
     /// one height.
     ///
-    /// `rowHeight` maps to `uniform_list`, which measures one row and multiplies;
+    /// `rowHeight` maps to a uniform `VirtualList`, which measures one row and multiplies;
     /// this maps to gpui's `list`, which measures every row it builds. The
     /// estimate is what it renders beyond the viewport while it learns the real
     /// heights.
@@ -899,6 +1037,7 @@ impl Table {
         self
     }
 
+    /// Appends a row built from the given cells.
     pub fn row(mut self, cells: Vec<AnyElement>) -> Self {
         self.rows.push(TableRow::new(cells));
         self
@@ -1079,6 +1218,7 @@ impl Table {
         self
     }
 
+    /// Called with the row index and click event when a row is clicked.
     pub fn on_row_click(
         mut self,
         f: impl Fn(&usize, &ClickEvent, &mut Window, &mut App) + 'static,
@@ -1092,7 +1232,7 @@ impl Table {
     /// applied to the table's root element after every value the variant and
     /// the active theme chose, so they win.
     pub fn sx(mut self, style: impl FnOnce(gpui::Div) -> gpui::Div) -> Self {
-        self.sx = Some(crate::util::capture_sx(style));
+        crate::util::refine_sx(&mut self.sx, style);
         self
     }
 
@@ -1214,55 +1354,93 @@ fn clear_controlled_resize_proposal(
     }
 }
 
+/// The keyed state one render reads: resize and measurement stores, the
+/// load-more latch, the body's focus and cursor, the selection anchor and
+/// the typeahead buffer. `use_keyed_state` takes `cx` mutably, so all of it
+/// is created before the theme tokens are borrowed.
+struct TableState {
+    /// Column widths a resize handle has moved, and the drag in progress.
+    resized: gpui::Entity<Vec<Option<Pixels>>>,
+    resized_now: Vec<Option<Pixels>>,
+    measured_widths: gpui::Entity<Vec<Option<Pixels>>>,
+    measured_widths_now: Vec<Option<Pixels>>,
+    dragging: gpui::Entity<Option<(usize, f32, f32)>>,
+    drag_now: Option<(usize, f32, f32)>,
+    keyboard_resizing: gpui::Entity<Option<usize>>,
+    keyboard_resize_now: Option<usize>,
+    load_more_state: gpui::Entity<(bool, Option<LoadMoreCollection>)>,
+    /// The body is one tab stop with a cursor inside it, the way a list is.
+    table_focus: gpui::FocusHandle,
+    row_cursor: gpui::Entity<Option<SharedString>>,
+    selection_range: gpui::Entity<TableSelectionRange>,
+    typeahead: gpui::Entity<TableTypeahead>,
+    selection_own: Option<gpui::Entity<Vec<SharedString>>>,
+}
+
+/// The virtual body for one render: the cached projection and the scroll
+/// state of whichever virtual path is active.
+struct VirtualBody {
+    projection: Option<std::sync::Arc<VirtualProjection>>,
+    visible_count: usize,
+    visible_keys: Option<Vec<SharedString>>,
+    row_heights: Option<gpui::Entity<(Vec<SharedString>, Vec<Option<Pixels>>)>>,
+    scroll_now: crate::VirtualListHandle,
+    list_state: Option<gpui::ListState>,
+}
+
+/// The header's focus handles and whether each one wears the ring.
+struct HeaderFocus {
+    header_focus: Vec<gpui::FocusHandle>,
+    header_focused: Vec<bool>,
+    resize_focus: Vec<Option<gpui::FocusHandle>>,
+    resize_focused: Vec<bool>,
+}
+
+/// The one column-track computation the header and every row read.
+struct ColumnTracks {
+    resize_limits: Vec<(f32, f32)>,
+    effective_widths: Vec<Option<Pixels>>,
+    layout_width_bounds: Vec<(Option<Pixels>, Option<Pixels>)>,
+    resize_columns: std::sync::Arc<Vec<TableColumn>>,
+    resize_measurements: std::sync::Arc<Vec<Option<Pixels>>>,
+}
+
+/// The body rows after flattening, and what the keyboard reads off them.
+struct RowCollection {
+    flat: Vec<FlatRow>,
+    tree_rows: Vec<(bool, Option<SharedString>)>,
+    visible_collection_keys: Vec<SharedString>,
+    typeahead_labels: Vec<String>,
+    virtual_typeahead_indices: Option<Vec<usize>>,
+    /// The row the keyboard cursor rings, when the body owns focus.
+    cursor_at: Option<usize>,
+    /// Whether any row in this table is expandable at all: a flat table
+    /// keeps its cells flush, rather than reserving a chevron's width.
+    tree_column_has_children: bool,
+}
+
+/// The per-render row facts [`Table::row_ctx`] folds into a [`RowCtx`].
+struct RowCtxRows {
+    row_keys: Vec<SharedString>,
+    cursor: Option<usize>,
+    tree_column_has_children: bool,
+    expanded: std::rc::Rc<Vec<SharedString>>,
+    is_tree: bool,
+    virtualized: bool,
+    round_top: Option<Pixels>,
+    round_bottom: Option<Pixels>,
+    cell: Option<CellCtx>,
+    frozen: Option<FrozenColumns>,
+}
+
 impl RenderOnce for Table {
     fn render(mut self, window: &mut Window, cx: &mut App) -> impl IntoElement {
         // The caller's id, as the root every part of this table hangs off.
         let base_id: gpui::ElementId = self.id.clone().into();
-        // Column widths a resize handle has moved, and the drag in progress.
-        // `use_keyed_state` takes `cx` mutably, so both precede the tokens.
-        let resized =
-            window.use_keyed_state(element_id::scoped(&base_id, "resized"), cx, |_, _| {
-                Vec::<Option<Pixels>>::new()
-            });
-        let resized_now = resized.read(cx).clone();
-        let measured_widths = window.use_keyed_state(
-            element_id::scoped(&base_id, "measured-widths"),
-            cx,
-            |_, _| Vec::<Option<Pixels>>::new(),
-        );
-        let measured_widths_now = measured_widths.read(cx).clone();
-        let dragging =
-            window.use_keyed_state(element_id::scoped(&base_id, "resizing"), cx, |_, _| {
-                None::<(usize, f32, f32)>
-            });
-        let drag_now = *dragging.read(cx);
-        let keyboard_resizing = window.use_keyed_state(
-            element_id::scoped(&base_id, "keyboard-resizing"),
-            cx,
-            |_, _| None::<usize>,
-        );
-        let keyboard_resize_now = *keyboard_resizing.read(cx);
-        let load_more_state = window.use_keyed_state(
-            element_id::scoped(&base_id, "load-more-state"),
-            cx,
-            |_, _| (false, None::<LoadMoreCollection>),
-        );
-        // The body is one tab stop with a cursor inside it, the way a list is.
-        let table_focus =
-            crate::util::tab_stop_handle(element_id::scoped(&base_id, "focus"), window, cx);
-        let row_cursor =
-            window.use_keyed_state(element_id::scoped(&base_id, "cursor"), cx, |_, _| {
-                None::<SharedString>
-            });
-        let selection_range = window.use_keyed_state(
-            element_id::scoped(&base_id, "selection-range"),
-            cx,
-            |_, _| TableSelectionRange::default(),
-        );
-        let typeahead =
-            window.use_keyed_state(element_id::scoped(&base_id, "typeahead"), cx, |_, _| {
-                TableTypeahead::default()
-            });
+        // HeroGPUI extension: put the columns and cells in display order
+        // first, so everything below works in display positions.
+        let column_order = self.apply_column_order(&base_id, window, cx);
+        let frozen = self.frozen_columns(&base_id, window, cx);
         let (selected_keys, selection_own) = crate::util::controlled(
             window,
             cx,
@@ -1272,34 +1450,384 @@ impl RenderOnce for Table {
             self.default_selected_keys.clone(),
         );
         self.selected_keys = selected_keys;
-        let needs_selectable_keys = self.selection_mode == SelectionMode::Multiple;
-        let virtual_projection = self.virtual_projection(&base_id, window, cx);
-        let virtual_visible_count = virtual_projection
+        let state = self.table_state(&base_id, selection_own, window, cx);
+        let mut virtual_body = self.virtual_body(&base_id, window, cx);
+        let load_more_virtual_scroll = (self.row_height.is_some() && self.virtual_rows.is_some())
+            .then(|| virtual_body.scroll_now.clone());
+        let load_more_variable_scroll = virtual_body
+            .list_state
+            .clone()
+            .zip(self.estimated_row_height)
+            .map(|(list, estimate)| (list, virtual_body.visible_count, estimate));
+        let focus = self.header_focus_state(&base_id, &state, window, cx);
+
+        let resizable = self.columns.iter().any(|c| c.allows_resizing);
+        let tracks = self.column_tracks(&state, frozen.as_ref());
+        let colors = cx.colors().clone();
+        // Copies of the tokens the tail needs: the row builder borrows `cx`
+        // mutably, which ends the borrow `cx.colors()` holds.
+        let muted = colors.muted;
+        let secondary = self.variant == TableVariant::Secondary;
+        let selectable = self.selection_mode != SelectionMode::None;
+        let (selectable_collection_keys, load_more_collection) =
+            self.selection_collections(&virtual_body);
+
+        let mut wrapper = self.wrapper_tray(&state.table_focus, &colors, secondary, cx);
+
+        // `useTable`'s `state.treeColumn != null` means the collection was
+        // built as a tree, not merely that a column index was named:
+        // `Table::tree_column` only picks which column carries the chevron,
+        // and it defaults to `0` on every flat table. A tree here is a
+        // collection with nested rows, virtual or not.
+        let is_tree = self.virtual_tree_metadata.is_some()
+            || self.rows.iter().any(|row| !row.children.is_empty());
+        let mut table = self
+            .grid_element(&base_id, selectable, is_tree, &virtual_body)
+            .when(frozen.is_some(), |grid| grid.w_full());
+
+        // ---- header ------------------------------------------------------
+        let header_parts = HeaderParts {
+            base_id: &base_id,
+            colors: &colors,
+            secondary,
+            selectable,
+            effective_widths: &tracks.effective_widths,
+            layout_width_bounds: &tracks.layout_width_bounds,
+            measured_widths: &state.measured_widths,
+            measured_widths_now: &state.measured_widths_now,
+            header_focus: &focus.header_focus,
+            header_focused: &focus.header_focused,
+            resize_focus: &focus.resize_focus,
+            resize_focused: &focus.resize_focused,
+            resized: &state.resized,
+            dragging: &state.dragging,
+            drag_now: state.drag_now,
+            keyboard_resizing: &state.keyboard_resizing,
+            keyboard_resize_now: state.keyboard_resize_now,
+            resize_limits: &tracks.resize_limits,
+            resize_columns: &tracks.resize_columns,
+            resize_measurements: &tracks.resize_measurements,
+            frozen: frozen.as_ref(),
+        };
+        let header = self.header_row(
+            &header_parts,
+            &column_order,
+            &selectable_collection_keys,
+            &state,
+            window,
+            cx,
+        );
+        table = table.child(header);
+
+        // `.table__body` rounds to `min(32px, --radius-2xl)` and its cells are
+        // `bg-surface`: the white block inside the tray.
+        // `useTableRowGroup.mjs` (through `.../grid/useGridRowGroup.mjs`) is a
+        // single `role: 'rowgroup'` — the `<tbody>` around the data rows.
+        let mut body = gpui::div()
+            .id(element_id::scoped(&base_id, "body"))
+            .a11y(a11y::Role::RowGroup)
+            .flex()
+            .flex_col()
+            .w_full();
+        if !secondary {
+            body = body
+                .bg(colors.surface.background)
+                .rounded(cx.layout().radius_2xl().min(px(32.)))
+                .overflow_hidden();
+        }
+
+        if resizable {
+            table = self.column_resize_drag(
+                table,
+                state.dragging.clone(),
+                state.resized.clone(),
+                tracks.resize_columns.clone(),
+                tracks.resize_measurements.clone(),
+            );
+        }
+        // ---- rows --------------------------------------------------------
+        let rows = self.row_collection(&mut virtual_body, &state, window, cx);
+        let expanded_keys = std::rc::Rc::new(std::mem::take(&mut self.expanded_keys));
+
+        // Everything a row needs, held once. The virtual path builds its rows
+        // inside a `'static` closure, so it cannot borrow `self` -- and having
+        // one row builder for both paths is what keeps a virtual table drawing
+        // the same row as a short one.
+        let table_id = self.id.clone();
+        let cell_selection = self.cell_selection_state(
+            &base_id,
+            &column_order,
+            &state.row_cursor,
+            &state.table_focus,
+            window,
+            cx,
+        );
+        wrapper = self.cell_selection_keys(
+            wrapper,
+            &cell_selection,
+            &rows.visible_collection_keys,
+            frozen.clone(),
+        );
+        let (round_top, round_bottom) = self.row_edge_rounding(
+            secondary,
+            &virtual_body.scroll_now,
+            virtual_body.list_state.as_ref(),
+            virtual_body.visible_count,
+            cx,
+        );
+        let RowCollection {
+            flat,
+            tree_rows,
+            visible_collection_keys,
+            typeahead_labels,
+            virtual_typeahead_indices,
+            cursor_at,
+            tree_column_has_children,
+        } = rows;
+        let ctx = std::rc::Rc::new(self.row_ctx(
+            &base_id,
+            &state,
+            &tracks,
+            RowCtxRows {
+                row_keys: visible_collection_keys,
+                cursor: cursor_at,
+                tree_column_has_children,
+                expanded: expanded_keys.clone(),
+                is_tree,
+                virtualized: virtual_body.projection.is_some(),
+                round_top,
+                round_bottom,
+                cell: cell_selection,
+                frozen,
+            },
+        ));
+
+        wrapper = self.row_keyboard(
+            wrapper,
+            RowKeyboard {
+                ctx: &ctx,
+                expanded_keys,
+                header_focus: focus.header_focus,
+                row_cursor: state.row_cursor,
+                selectable_collection_keys,
+                selection_own: state.selection_own,
+                selection_range: state.selection_range,
+                table_focus: state.table_focus,
+                tree_rows,
+                typeahead_labels,
+                typeahead: state.typeahead,
+                virtual_list_state: &virtual_body.list_state,
+                virtual_row_heights: &virtual_body.row_heights,
+                virtual_scroll_now: &virtual_body.scroll_now,
+                virtual_text_value: self.virtual_text_value.clone(),
+                virtual_typeahead_indices,
+            },
+        );
+
+        let row_count = if self.virtual_rows.is_some()
+            && (self.row_height.is_some() || self.estimated_row_height.is_some())
+        {
+            virtual_body.visible_count
+        } else {
+            flat.len()
+        };
+        let virtual_projection = virtual_body
+            .projection
+            .map(|projection| std::sync::Arc::clone(&projection.visible))
+            .unwrap_or_default();
+
+        body = self.body_rows(
+            body,
+            BodyRows {
+                base_id: &base_id,
+                table_id: &table_id,
+                ctx: &ctx,
+                flat,
+                row_count,
+                virtual_projection,
+                virtual_list_state: virtual_body.list_state,
+                virtual_row_heights: virtual_body.row_heights,
+                virtual_scroll_now: &virtual_body.scroll_now,
+            },
+            window,
+            cx,
+        );
+
+        // ---- empty state -------------------------------------------------
+        if row_count == 0 {
+            if let Some(content) = self.empty_state.take() {
+                body = body.child(Self::empty_state_row(content, muted));
+            }
+        }
+
+        table = table.child(body);
+
+        // ---- load-more sentinel ------------------------------------------
+        if self.is_pending || self.on_load_more.is_some() {
+            table = self.load_more(
+                table,
+                LoadMore {
+                    base_id: &base_id,
+                    state: state.load_more_state,
+                    collection: load_more_collection,
+                    virtual_scroll: load_more_virtual_scroll,
+                    variable_scroll: load_more_variable_scroll,
+                    muted,
+                    loading_text: crate::i18n::ui_string(crate::i18n::UiString::LoadingMore, cx),
+                },
+            );
+        }
+
+        if let Some(footer) = self.footer.take() {
+            table = table.child(Self::footer_row(footer));
+        }
+
+        let el = wrapper.child(Self::scroll_container(&base_id, &table_id, table));
+        crate::util::apply_sx(el, &self.sx)
+    }
+}
+
+// ---- Table::render setup and chrome ----
+impl Table {
+    /// Creates (or reads back) the keyed state one render needs.
+    fn table_state(
+        &self,
+        base_id: &gpui::ElementId,
+        selection_own: Option<gpui::Entity<Vec<SharedString>>>,
+        window: &mut Window,
+        cx: &mut App,
+    ) -> TableState {
+        // Column widths a resize handle has moved, and the drag in progress.
+        // `use_keyed_state` takes `cx` mutably, so both precede the tokens.
+        let resized = window.use_keyed_state(element_id::scoped(base_id, "resized"), cx, |_, _| {
+            Vec::<Option<Pixels>>::new()
+        });
+        let resized_now = resized.read(cx).clone();
+        let measured_widths = window.use_keyed_state(
+            element_id::scoped(base_id, "measured-widths"),
+            cx,
+            |_, _| Vec::<Option<Pixels>>::new(),
+        );
+        let measured_widths_now = measured_widths.read(cx).clone();
+        let dragging =
+            window.use_keyed_state(element_id::scoped(base_id, "resizing"), cx, |_, _| {
+                None::<(usize, f32, f32)>
+            });
+        let drag_now = *dragging.read(cx);
+        let keyboard_resizing = window.use_keyed_state(
+            element_id::scoped(base_id, "keyboard-resizing"),
+            cx,
+            |_, _| None::<usize>,
+        );
+        let keyboard_resize_now = *keyboard_resizing.read(cx);
+        let load_more_state = window.use_keyed_state(
+            element_id::scoped(base_id, "load-more-state"),
+            cx,
+            |_, _| (false, None::<LoadMoreCollection>),
+        );
+        // The body is one tab stop with a cursor inside it, the way a list is.
+        let table_focus =
+            crate::util::tab_stop_handle(element_id::scoped(base_id, "focus"), window, cx);
+        let row_cursor =
+            window.use_keyed_state(element_id::scoped(base_id, "cursor"), cx, |_, _| {
+                None::<SharedString>
+            });
+        let selection_range = window.use_keyed_state(
+            element_id::scoped(base_id, "selection-range"),
+            cx,
+            |_, _| TableSelectionRange::default(),
+        );
+        let typeahead =
+            window.use_keyed_state(element_id::scoped(base_id, "typeahead"), cx, |_, _| {
+                TableTypeahead::default()
+            });
+        TableState {
+            resized,
+            resized_now,
+            measured_widths,
+            measured_widths_now,
+            dragging,
+            drag_now,
+            keyboard_resizing,
+            keyboard_resize_now,
+            load_more_state,
+            table_focus,
+            row_cursor,
+            selection_range,
+            typeahead,
+            selection_own,
+        }
+    }
+
+    /// The frozen leading columns, once the columns are in display order:
+    /// `None` when none (or every one) is frozen.
+    fn frozen_columns(
+        &self,
+        base_id: &gpui::ElementId,
+        window: &mut Window,
+        cx: &mut App,
+    ) -> Option<FrozenColumns> {
+        let count = self.columns.iter().take_while(|c| c.frozen).count();
+        if count == 0 || count >= self.columns.len() {
+            return None;
+        }
+        let scroll = window
+            .use_keyed_state(element_id::scoped(base_id, "frozen-scroll"), cx, |_, _| {
+                gpui::ScrollHandle::new()
+            })
+            .read(cx)
+            .clone();
+        Some(FrozenColumns {
+            count,
+            scroll,
+            view: window.current_view(),
+        })
+    }
+
+    /// The virtual projection and the scroll state of both virtual paths.
+    fn virtual_body(
+        &self,
+        base_id: &gpui::ElementId,
+        window: &mut Window,
+        cx: &mut App,
+    ) -> VirtualBody {
+        let projection = self.virtual_projection(base_id, window, cx);
+        let visible_count = projection
             .as_ref()
             .map_or(0, |projection| projection.visible.len());
-        let virtual_visible_keys = virtual_projection.as_ref().map(|projection| {
+        let visible_keys = projection.as_ref().map(|projection| {
             projection
                 .visible
                 .iter()
                 .map(|(_, key, _)| key.clone())
                 .collect::<Vec<_>>()
         });
-        let virtual_row_heights =
-            self.virtual_row_heights(&base_id, virtual_visible_keys.as_ref(), window, cx);
-        let virtual_scroll = window.use_keyed_state(
-            element_id::scoped(&base_id, "virtual-scroll"),
-            cx,
-            |_, _| gpui::UniformListScrollHandle::new(),
-        );
-        let virtual_scroll_now = virtual_scroll.read(cx).clone();
-        let load_more_virtual_scroll = (self.row_height.is_some() && self.virtual_rows.is_some())
-            .then(|| virtual_scroll_now.clone());
-        let virtual_list_state =
-            self.virtual_list_state(&base_id, virtual_visible_count, window, cx);
-        let load_more_variable_scroll = virtual_list_state
-            .clone()
-            .zip(self.estimated_row_height)
-            .map(|(state, estimate)| (state, virtual_visible_count, estimate));
+        let row_heights = self.virtual_row_heights(base_id, visible_keys.as_ref(), window, cx);
+        let virtual_scroll =
+            window.use_keyed_state(element_id::scoped(base_id, "virtual-scroll"), cx, |_, _| {
+                crate::VirtualListHandle::uniform(0)
+            });
+        let scroll_now = virtual_scroll.read(cx).clone();
+        let list_state = self.virtual_list_state(base_id, visible_count, window, cx);
+        VirtualBody {
+            projection,
+            visible_count,
+            visible_keys,
+            row_heights,
+            scroll_now,
+            list_state,
+        }
+    }
+
+    /// The header's focus handles, and whether each wears the ring. Drops a
+    /// keyboard resize whose column no longer has a handle.
+    fn header_focus_state(
+        &self,
+        base_id: &gpui::ElementId,
+        state: &TableState,
+        window: &mut Window,
+        cx: &mut App,
+    ) -> HeaderFocus {
         // A sortable header had a click listener and no focus, so sorting was
         // mouse-only. v3's grid roves one tab stop across its cells; this port
         // gives each sortable header its own stop, which is the part that
@@ -1312,33 +1840,43 @@ impl RenderOnce for Table {
         // Enter and Space can sort it -- which keeps every table's Tab order
         // exactly as it was while giving the keyboard somewhere to land.
         let header_focus: Vec<gpui::FocusHandle> =
-            self.header_focus_handles(&base_id, sortable, window, cx);
+            self.header_focus_handles(base_id, sortable, window, cx);
         let ring_visible = crate::util::focus_visible(cx);
         let header_focused: Vec<bool> = header_focus
             .iter()
             .map(|h| h.is_focused(window) && ring_visible)
             .collect();
         let resize_focus: Vec<Option<gpui::FocusHandle>> =
-            self.resize_focus_handles(&base_id, window, cx);
+            self.resize_focus_handles(base_id, window, cx);
         let resize_focused: Vec<bool> = resize_focus
             .iter()
             .map(|h| h.as_ref().is_some_and(|h| h.is_focused(window)) && ring_visible)
             .collect();
-        if keyboard_resize_now.is_some_and(|column_index| {
+        if state.keyboard_resize_now.is_some_and(|column_index| {
             resize_focus
                 .get(column_index)
                 .and_then(Option::as_ref)
                 .is_none()
         }) {
-            keyboard_resizing.update(cx, |active, cx| {
+            state.keyboard_resizing.update(cx, |active, cx| {
                 *active = None;
                 cx.notify();
             });
         }
+        HeaderFocus {
+            header_focus,
+            header_focused,
+            resize_focus,
+            resize_focused,
+        }
+    }
 
-        let resizable = self.columns.iter().any(|c| c.allows_resizing);
+    /// The column tracks: resize bounds, the width each column renders at,
+    /// and the shared `(min, max)` layout floor.
+    fn column_tracks(&self, state: &TableState, frozen: Option<&FrozenColumns>) -> ColumnTracks {
         let resize_limits = column_resize_limits(&self.columns);
-        let effective_widths = effective_column_widths(&self.columns, &resized_now, &resize_limits);
+        let mut effective_widths =
+            effective_column_widths(&self.columns, &state.resized_now, &resize_limits);
         // The one column-track computation. Upstream draws a `border-separate`
         // table, so the header's `<th>` cells resolve tracks every row shares;
         // this port stands in for that with one `(width, min, max)` triple per
@@ -1352,24 +1890,49 @@ impl RenderOnce for Table {
         // instead of squeezing each row separately.
         let layout_width_bounds = layout_width_bounds(
             &self.columns,
-            &measured_widths_now,
+            &state.measured_widths_now,
             &effective_widths,
             &resize_limits,
         );
-        let resize_columns = std::sync::Arc::new(self.columns.clone());
-        let resize_measurements = std::sync::Arc::new(measured_widths_now.clone());
-        let colors = cx.colors().clone();
-        // Copies of the tokens the tail needs: the row builder borrows `cx`
-        // mutably, which ends the borrow `cx.colors()` holds.
-        let muted = colors.muted;
-        let secondary = self.variant == TableVariant::Secondary;
-        let selectable = self.selection_mode != SelectionMode::None;
+        // A frozen column does not share out the free space: its part is
+        // sized to its cells, so the header's and every row's frozen parts
+        // only agree when each frozen column has one width. Once the column
+        // is measured that is its shared floor; a resizable column's probe
+        // measures it first.
+        if let Some(frozen) = frozen {
+            for (c, column) in self.columns.iter().enumerate().take(frozen.count) {
+                let measured = state.measured_widths_now.get(c).copied().flatten();
+                if effective_widths[c].is_none() && (!column.allows_resizing || measured.is_some())
+                {
+                    effective_widths[c] = layout_width_bounds[c].0;
+                }
+            }
+        }
+        ColumnTracks {
+            resize_limits,
+            effective_widths,
+            layout_width_bounds,
+            resize_columns: std::sync::Arc::new(self.columns.clone()),
+            resize_measurements: std::sync::Arc::new(state.measured_widths_now.clone()),
+        }
+    }
+
+    /// The enabled-key set multiple selection consumes, and the identity the
+    /// load-more latch compares.
+    fn selection_collections(
+        &self,
+        virtual_body: &VirtualBody,
+    ) -> (
+        Option<std::sync::Arc<Vec<SharedString>>>,
+        LoadMoreCollection,
+    ) {
+        let needs_selectable_keys = self.selection_mode == SelectionMode::Multiple;
         // Only multiple selection consumes the full enabled-key set. The
         // virtual projection shares it between frames; None and Single do not
         // materialize a collection that no consumer reads.
-        let non_virtual_keys = virtual_projection.is_none().then(|| self.row_keys());
+        let non_virtual_keys = virtual_body.projection.is_none().then(|| self.row_keys());
         let selectable_collection_keys: Option<std::sync::Arc<Vec<SharedString>>> =
-            needs_selectable_keys.then(|| match virtual_projection.as_ref() {
+            needs_selectable_keys.then(|| match virtual_body.projection.as_ref() {
                 Some(projection) => projection
                     .selectable_collection_keys
                     .as_ref()
@@ -1390,12 +1953,23 @@ impl RenderOnce for Table {
             },
             None => LoadMoreCollection::Rows(non_virtual_keys.unwrap_or_default()),
         };
+        (selectable_collection_keys, load_more_collection)
+    }
 
+    /// The table's root: the body's focus stop, and on the primary variant
+    /// the `.table-root--primary` tray.
+    fn wrapper_tray(
+        &self,
+        table_focus: &gpui::FocusHandle,
+        colors: &herogpui_theme::ThemeColors,
+        secondary: bool,
+        cx: &App,
+    ) -> gpui::Div {
         let mut wrapper = gpui::div()
             .w_full()
             .flex()
             .flex_col()
-            .track_focus(&table_focus)
+            .track_focus(table_focus)
             .overflow_hidden()
             .rounded(
                 self.radius
@@ -1419,7 +1993,18 @@ impl RenderOnce for Table {
                 .px(px(4.))
                 .pb(px(4.));
         }
+        wrapper
+    }
 
+    /// `.table__content`: the grid itself, the column the header, body,
+    /// load-more row and footer stack in.
+    fn grid_element(
+        &self,
+        base_id: &gpui::ElementId,
+        selectable: bool,
+        is_tree: bool,
+        virtual_body: &VirtualBody,
+    ) -> gpui::Stateful<gpui::Div> {
         // The wrapper is a column, so this content column may shrink
         // vertically with a bounded parent -- that is what lets a virtual
         // body take the laid-out viewport rather than the `max_h` cap.
@@ -1443,14 +2028,10 @@ impl RenderOnce for Table {
         // column is one of them upstream. `aria-rowcount` is only knowable
         // when the port virtualizes, which is exactly when upstream sets it.
         let grid_column_count = self.columns.len() + usize::from(selectable);
-        // `useTable`'s `state.treeColumn != null` means the collection was
-        // built as a tree, not merely that a column index was named:
-        // `Table::tree_column` only picks which column carries the chevron,
-        // and it defaults to `0` on every flat table. A tree here is a
-        // collection with nested rows, virtual or not.
-        let is_tree = self.virtual_tree_metadata.is_some()
-            || self.rows.iter().any(|row| !row.children.is_empty());
-        let virtual_row_total = virtual_projection.as_ref().map(|_| virtual_visible_count);
+        let virtual_row_total = virtual_body
+            .projection
+            .as_ref()
+            .map(|_| virtual_body.visible_count);
         let mut table = gpui::div()
             .flex()
             .flex_col()
@@ -1479,21 +2060,42 @@ impl RenderOnce for Table {
             // which is why the one header row is added to it. The
             // `aria-multiselectable` that `useGrid` sets beside them has no
             // gpui builder (see `crate::a11y`).
-            .id(element_id::scoped(&base_id, "grid"))
+            .id(element_id::scoped(base_id, "grid"))
             .a11y(if is_tree {
                 a11y::Role::TreeGrid
             } else {
                 a11y::Role::Grid
-            })
-            .when_some(virtual_row_total, |el, rows| {
-                el.a11y_grid_size(rows + 1, grid_column_count)
             });
+        if let Some(rows) = virtual_row_total {
+            table = table.a11y_grid_size(rows + 1, grid_column_count);
+        }
+        table
+    }
 
-        // ---- header ------------------------------------------------------
-        // `.table__header`, whose cells are `.table__column`s and whose
-        // sortable ones wrap in `.table__sortable-column-header`.
-        let mut header = gpui::div()
-            .id(element_id::scoped(&base_id, "header"))
+    /// `.table__header`, whose cells are `.table__column`s and whose
+    /// sortable ones wrap in `.table__sortable-column-header`.
+    fn header_row(
+        &self,
+        hx: &HeaderParts<'_>,
+        column_order: &std::rc::Rc<Vec<usize>>,
+        selectable_collection_keys: &Option<std::sync::Arc<Vec<SharedString>>>,
+        state: &TableState,
+        window: &mut Window,
+        cx: &mut App,
+    ) -> gpui::Stateful<gpui::Div> {
+        let base_id = hx.base_id;
+        let frozen = hx.frozen;
+        let colors = hx.colors;
+        let secondary = hx.secondary;
+        // A frozen header measures its two parts instead (see
+        // `frozen_header_parts`).
+        let measured = if frozen.is_some() {
+            gpui::div()
+        } else {
+            self.column_reorder_measure(gpui::div(), base_id, window, cx)
+        };
+        let mut header = measured
+            .id(element_id::scoped(base_id, "header"))
             // `useTableHeaderRow.mjs` is a bare `role: 'row'`. Upstream wraps
             // it in a `<TableHeader>` whose `useTableRowGroup` gives it
             // `role: 'rowgroup'`; this port draws the single header row
@@ -1506,78 +2108,53 @@ impl RenderOnce for Table {
             .border_color(colors.separator.alpha(0.5))
             .when(!secondary, |h| h.bg(colors.surface_secondary));
 
-        if selectable {
-            header = header.child(self.select_all_header_cell(
-                &base_id,
-                &colors,
-                secondary,
-                &selectable_collection_keys,
-                &selection_own,
-                &selection_range,
-                cx,
-            ));
-        }
-
-        let header_parts = HeaderParts {
-            base_id: &base_id,
-            colors: &colors,
-            secondary,
-            selectable,
-            effective_widths: &effective_widths,
-            layout_width_bounds: &layout_width_bounds,
-            measured_widths: &measured_widths,
-            measured_widths_now: &measured_widths_now,
-            header_focus: &header_focus,
-            header_focused: &header_focused,
-            resize_focus: &resize_focus,
-            resize_focused: &resize_focused,
-            resized: &resized,
-            dragging: &dragging,
-            drag_now,
-            keyboard_resizing: &keyboard_resizing,
-            keyboard_resize_now,
-            resize_limits: &resize_limits,
-            resize_columns: &resize_columns,
-            resize_measurements: &resize_measurements,
-        };
-        for (column_index, column) in self.columns.iter().enumerate() {
-            header = header.child(self.column_header_cell(
-                &header_parts,
-                column_index,
-                column,
-                window,
-                cx,
-            ));
-        }
-        table = table.child(header);
-
-        // `.table__body` rounds to `min(32px, --radius-2xl)` and its cells are
-        // `bg-surface`: the white block inside the tray.
-        // `useTableRowGroup.mjs` (through `.../grid/useGridRowGroup.mjs`) is a
-        // single `role: 'rowgroup'` — the `<tbody>` around the data rows.
-        let mut body = gpui::div()
-            .id(element_id::scoped(&base_id, "body"))
-            .a11y(a11y::Role::RowGroup)
-            .flex()
-            .flex_col()
-            .w_full();
-        if !secondary {
-            body = body
-                .bg(colors.surface.background)
-                .rounded(cx.layout().radius_2xl().min(px(32.)))
-                .overflow_hidden();
-        }
-
-        if resizable {
-            table = self.column_resize_drag(
-                table,
-                dragging,
-                resized,
-                resize_columns,
-                resize_measurements,
+        let mut cells: Vec<AnyElement> = Vec::new();
+        if hx.selectable {
+            cells.push(
+                self.select_all_header_cell(
+                    base_id,
+                    colors,
+                    secondary,
+                    selectable_collection_keys,
+                    &state.selection_own,
+                    &state.selection_range,
+                    cx,
+                )
+                .into_any_element(),
             );
         }
-        // ---- rows --------------------------------------------------------
+
+        for (column_index, column) in self.columns.iter().enumerate() {
+            cells.push(self.column_header_cell(hx, column_index, column, window, cx));
+        }
+        header = match frozen {
+            Some(frozen) => {
+                let (lead, rest) = self.frozen_header_parts(base_id, frozen, cells, window, cx);
+                header.child(lead).child(rest)
+            }
+            None => header.children(cells),
+        };
+        self.column_reorder_header(
+            header,
+            base_id,
+            column_order,
+            hx.header_focus,
+            hx.dragging,
+            window,
+            cx,
+        )
+    }
+
+    /// Flattens the plain rows (or reads the virtual projection) into what
+    /// the row builder and the keyboard read, and resolves the cursor.
+    fn row_collection(
+        &mut self,
+        virtual_body: &mut VirtualBody,
+        state: &TableState,
+        window: &mut Window,
+        cx: &mut App,
+    ) -> RowCollection {
+        let virtual_projection = &virtual_body.projection;
         let mut flat: Vec<FlatRow> = Vec::new();
         flatten_rows(
             std::mem::take(&mut self.rows),
@@ -1601,7 +2178,9 @@ impl RenderOnce for Table {
                     .collect()
             },
         );
-        let visible_collection_keys: Vec<SharedString> = virtual_visible_keys
+        let visible_collection_keys: Vec<SharedString> = virtual_body
+            .visible_keys
+            .take()
             .unwrap_or_else(|| flat.iter().map(|(_, _, _, key, _)| key.clone()).collect());
         let typeahead_labels: Vec<String> = virtual_projection.as_ref().map_or_else(
             || {
@@ -1623,7 +2202,8 @@ impl RenderOnce for Table {
                 .map(|(source_index, _, _)| *source_index)
                 .collect::<Vec<_>>()
         });
-        let virtual_text_value = self.virtual_text_value.clone();
+        let row_cursor = &state.row_cursor;
+        let table_focus = &state.table_focus;
         let cursor_key = row_cursor.read(cx).clone();
         let cursor_valid = cursor_key.as_ref().is_none_or(|key| {
             visible_collection_keys.contains(key) && !self.disabled_keys.contains(key)
@@ -1658,23 +2238,29 @@ impl RenderOnce for Table {
                     .any(|(_, _, metadata)| metadata.has_children)
             },
         );
-        let expanded_keys = std::rc::Rc::new(std::mem::take(&mut self.expanded_keys));
+        RowCollection {
+            flat,
+            tree_rows,
+            visible_collection_keys,
+            typeahead_labels,
+            virtual_typeahead_indices,
+            cursor_at,
+            tree_column_has_children,
+        }
+    }
 
-        // Everything a row needs, held once. The virtual path builds its rows
-        // inside a `'static` closure, so it cannot borrow `self` -- and having
-        // one row builder for both paths is what keeps a virtual table drawing
-        // the same row as a short one.
-        let table_id = self.id.clone();
-        let (round_top, round_bottom) = self.row_edge_rounding(
-            secondary,
-            &virtual_scroll_now,
-            virtual_list_state.as_ref(),
-            virtual_visible_count,
-            cx,
-        );
-        let ctx = std::rc::Rc::new(RowCtx {
+    /// Everything one body row reads, held once for both the plain and the
+    /// virtual paths.
+    fn row_ctx(
+        &self,
+        base_id: &gpui::ElementId,
+        state: &TableState,
+        tracks: &ColumnTracks,
+        rows: RowCtxRows,
+    ) -> RowCtx {
+        RowCtx {
             id: base_id.clone(),
-            measured_widths,
+            measured_widths: state.measured_widths.clone(),
             measure_intrinsic: self
                 .columns
                 .iter()
@@ -1692,9 +2278,9 @@ impl RenderOnce for Table {
                 .iter()
                 .enumerate()
                 .map(|(c, _)| {
-                    let (layout_min, layout_max) = layout_width_bounds[c];
+                    let (layout_min, layout_max) = tracks.layout_width_bounds[c];
                     (
-                        effective_widths.get(c).copied().flatten(),
+                        tracks.effective_widths.get(c).copied().flatten(),
                         layout_min,
                         layout_max,
                     )
@@ -1702,127 +2288,64 @@ impl RenderOnce for Table {
                 .collect(),
             row_header_columns: self.columns.iter().map(|c| c.is_row_header).collect(),
             tree_column: self.tree_column,
-            tree_column_has_children,
-            selectable,
+            tree_column_has_children: rows.tree_column_has_children,
+            selectable: self.selection_mode != SelectionMode::None,
             selection_mode: self.selection_mode,
             selection_behavior: self.selection_behavior,
             selected_keys: self.selected_keys.clone(),
-            row_keys: visible_collection_keys,
+            row_keys: rows.row_keys,
             disabled_keys: self.disabled_keys.clone(),
             disallow_empty_selection: self.disallow_empty_selection,
-            expanded: expanded_keys.clone(),
+            expanded: rows.expanded,
             on_expanded_change: self.on_expanded_change.clone(),
             on_selection_change: self.on_selection_change.clone(),
-            selection_own: selection_own.clone(),
-            selection_range: selection_range.clone(),
+            selection_own: state.selection_own.clone(),
+            selection_range: state.selection_range.clone(),
             on_row_click: self.on_row_click.clone(),
-            focus: table_focus.clone(),
-            cursor_own: row_cursor.clone(),
-            cursor: cursor_at,
-            secondary,
+            focus: state.table_focus.clone(),
+            cursor_own: state.row_cursor.clone(),
+            cursor: rows.cursor,
+            secondary: self.variant == TableVariant::Secondary,
             row_hover_bg: self.row_hover_bg,
-            hover_group_prefix: table_id.clone(),
-            virtualized: virtual_projection.is_some(),
-            round_top,
-            round_bottom,
-            is_tree,
-        });
-
-        wrapper = self.row_keyboard(
-            wrapper,
-            RowKeyboard {
-                ctx: &ctx,
-                expanded_keys,
-                header_focus,
-                row_cursor,
-                selectable_collection_keys,
-                selection_own,
-                selection_range,
-                table_focus,
-                tree_rows,
-                typeahead_labels,
-                typeahead,
-                virtual_list_state: &virtual_list_state,
-                virtual_row_heights: &virtual_row_heights,
-                virtual_scroll_now: &virtual_scroll_now,
-                virtual_text_value,
-                virtual_typeahead_indices,
-            },
-        );
-
-        let row_count = if self.virtual_rows.is_some()
-            && (self.row_height.is_some() || self.estimated_row_height.is_some())
-        {
-            virtual_visible_count
-        } else {
-            flat.len()
-        };
-        let virtual_projection = virtual_projection
-            .map(|projection| std::sync::Arc::clone(&projection.visible))
-            .unwrap_or_default();
-
-        body = self.body_rows(
-            body,
-            BodyRows {
-                base_id: &base_id,
-                table_id: &table_id,
-                ctx: &ctx,
-                flat,
-                row_count,
-                virtual_projection,
-                virtual_list_state,
-                virtual_row_heights,
-                virtual_scroll_now: &virtual_scroll_now,
-            },
-            cx,
-        );
-
-        // ---- empty state -------------------------------------------------
-        if row_count == 0 {
-            if let Some(content) = self.empty_state.take() {
-                body = body.child(
-                    gpui::div()
-                        .flex()
-                        .items_center()
-                        .justify_center()
-                        .w_full()
-                        .py(px(28.))
-                        .text_color(muted)
-                        .child(content),
-                );
-            }
+            hover_group_prefix: self.id.clone(),
+            virtualized: rows.virtualized,
+            round_top: rows.round_top,
+            round_bottom: rows.round_bottom,
+            is_tree: rows.is_tree,
+            cell: rows.cell,
+            frozen: rows.frozen,
         }
+    }
 
-        table = table.child(body);
+    /// The caller's empty state, centred in the body when there are no rows.
+    fn empty_state_row(content: AnyElement, muted: gpui::Hsla) -> gpui::Div {
+        gpui::div()
+            .flex()
+            .items_center()
+            .justify_center()
+            .w_full()
+            .py(px(28.))
+            .text_color(muted)
+            .child(content)
+    }
 
-        // ---- load-more sentinel ------------------------------------------
-        if self.is_pending || self.on_load_more.is_some() {
-            table = self.load_more(
-                table,
-                LoadMore {
-                    base_id: &base_id,
-                    state: load_more_state,
-                    collection: load_more_collection,
-                    virtual_scroll: load_more_virtual_scroll,
-                    variable_scroll: load_more_variable_scroll,
-                    muted,
-                },
-            );
-        }
+    /// `.table__footer` is `flex items-center px-4 py-2.5`.
+    fn footer_row(footer: AnyElement) -> gpui::Div {
+        gpui::div()
+            .flex()
+            .items_center()
+            .w_full()
+            .px(px(16.))
+            .py(px(10.))
+            .child(footer)
+    }
 
-        if let Some(footer) = self.footer {
-            // `.table__footer` is `flex items-center px-4 py-2.5`.
-            table = table.child(
-                gpui::div()
-                    .flex()
-                    .items_center()
-                    .w_full()
-                    .px(px(16.))
-                    .py(px(10.))
-                    .child(footer),
-            );
-        }
-
+    /// `.table__scroll-container` is `overflow-x-auto` around the content.
+    fn scroll_container(
+        base_id: &gpui::ElementId,
+        table_id: &SharedString,
+        table: gpui::Stateful<gpui::Div>,
+    ) -> gpui::Stateful<gpui::Div> {
         // `.table__scroll-container` is `overflow-x-auto` around the content: a
         // column whose cross axis leaves the content column at its
         // max-content width, so a table wider than its box is free to exceed
@@ -1837,20 +2360,17 @@ impl RenderOnce for Table {
         // The headless probe name for the scroll viewport's bounds, so a test
         // can read the grid's overflow against it.
         let scroll_selector = format!("{table_id}-scroll-x");
-        let el = wrapper.child(
-            gpui::div()
-                .id(element_id::scoped(&base_id, "scroll-x"))
-                .debug_selector(move || scroll_selector)
-                .flex()
-                .flex_col()
-                .items_start()
-                .w_full()
-                .min_h_0()
-                .overflow_x_scroll()
-                .restrict_scroll_to_axis()
-                .child(table),
-        );
-        crate::util::apply_sx(el, &self.sx)
+        gpui::div()
+            .id(element_id::scoped(base_id, "scroll-x"))
+            .debug_selector(move || scroll_selector)
+            .flex()
+            .flex_col()
+            .items_start()
+            .w_full()
+            .min_h_0()
+            .overflow_x_scroll()
+            .restrict_scroll_to_axis()
+            .child(table)
     }
 }
 
@@ -1957,6 +2477,7 @@ struct HeaderParts<'a> {
     resize_limits: &'a [(f32, f32)],
     resize_columns: &'a std::sync::Arc<Vec<TableColumn>>,
     resize_measurements: &'a std::sync::Arc<Vec<Option<Pixels>>>,
+    frozen: Option<&'a FrozenColumns>,
 }
 
 /// One plain body row after flattening: the row, its depth, whether it has
@@ -2004,7 +2525,7 @@ struct RowKeyboard<'a> {
     typeahead: gpui::Entity<TableTypeahead>,
     virtual_list_state: &'a Option<gpui::ListState>,
     virtual_row_heights: &'a Option<gpui::Entity<(Vec<SharedString>, Vec<Option<Pixels>>)>>,
-    virtual_scroll_now: &'a gpui::UniformListScrollHandle,
+    virtual_scroll_now: &'a crate::VirtualListHandle,
     virtual_text_value: Option<VirtualRowText>,
     virtual_typeahead_indices: Option<Vec<usize>>,
 }
@@ -2019,7 +2540,7 @@ struct BodyRows<'a> {
     virtual_projection: std::sync::Arc<Vec<(usize, SharedString, VirtualTreeMetadata)>>,
     virtual_list_state: Option<gpui::ListState>,
     virtual_row_heights: Option<gpui::Entity<(Vec<SharedString>, Vec<Option<Pixels>>)>>,
-    virtual_scroll_now: &'a gpui::UniformListScrollHandle,
+    virtual_scroll_now: &'a crate::VirtualListHandle,
 }
 
 /// What [`Table::load_more`] reads from the rest of the render.
@@ -2027,9 +2548,739 @@ struct LoadMore<'a> {
     base_id: &'a gpui::ElementId,
     state: gpui::Entity<(bool, Option<LoadMoreCollection>)>,
     collection: LoadMoreCollection,
-    virtual_scroll: Option<gpui::UniformListScrollHandle>,
+    virtual_scroll: Option<crate::VirtualListHandle>,
     variable_scroll: Option<(gpui::ListState, usize, Pixels)>,
     muted: gpui::Hsla,
+    /// The pending row's text, resolved through the i18n catalogue.
+    loading_text: SharedString,
+}
+
+/// Everything the body's bubbling key handler reads, moved out of the render
+/// because the handler outlives the frame. See [`Table::row_keyboard`].
+struct RowKeyNav {
+    /// The enabled rows' positions: the stops the cursor may rest on.
+    stops: Vec<usize>,
+    /// The row cursor.
+    held: gpui::Entity<Option<SharedString>>,
+    keys: Vec<SharedString>,
+    table_focus: gpui::FocusHandle,
+    typeahead: std::rc::Rc<TableTypeaheadNavigation>,
+    on_row_click: Option<OnRowClick>,
+    selection: Option<OnSelectionChange>,
+    selection_own: Option<gpui::Entity<Vec<SharedString>>>,
+    selection_range: gpui::Entity<TableSelectionRange>,
+    selected_now: Vec<SharedString>,
+    selectable_collection_keys: Option<std::sync::Arc<Vec<SharedString>>>,
+    mode: SelectionMode,
+    selection_behavior: SelectionBehavior,
+    disallow_empty_selection: bool,
+    select_on_focus: bool,
+    plain_rows: bool,
+    fixed_virtual: bool,
+    fixed_row_height: Option<Pixels>,
+    fixed_scroll: crate::VirtualListHandle,
+    variable_scroll: Option<gpui::ListState>,
+    variable_heights: Option<gpui::Entity<(Vec<SharedString>, Vec<Option<Pixels>>)>>,
+    variable_estimate: Option<Pixels>,
+    expanded: std::rc::Rc<Vec<SharedString>>,
+    on_expanded: Option<OnExpandedChange>,
+    tree_rows: Vec<(bool, Option<SharedString>)>,
+    page_up_header: Option<gpui::FocusHandle>,
+    headers: Vec<gpui::FocusHandle>,
+}
+
+impl RowKeyNav {
+    /// The body's bubbling key handler.
+    fn key_down(&self, event: &gpui::KeyDownEvent, window: &mut Window, cx: &mut App) {
+        if !self.table_focus.contains_focused(window, cx) {
+            return;
+        }
+        let stops = &self.stops;
+        let keys = &self.keys;
+        let from = self
+            .held
+            .read(cx)
+            .as_ref()
+            .and_then(|key| keys.iter().position(|row| row == key))
+            .filter(|index| stops.contains(index));
+        // Pinned React Aria `useTableRow`: horizontal keys belong
+        // to the focused tree row before the list resolver sees
+        // them. Right opens; Left closes or returns to the parent.
+        let key_name = event.keystroke.key.as_str();
+        let typed = event.keystroke.key_char.as_deref().unwrap_or(key_name);
+        let modifiers = &event.keystroke.modifiers;
+        let now = web_time::Instant::now();
+        let is_space = key_name == "space" || typed == " ";
+        let is_character = {
+            let mut chars = key_name.chars();
+            chars.next().is_some() && chars.next().is_none() && !is_space
+        };
+        let is_typeahead =
+            is_character && !modifiers.control && !modifiers.platform && !modifiers.alt;
+        if is_typeahead {
+            if self.typeahead.push(typed, now, true, cx) {
+                cx.stop_propagation();
+            }
+            return;
+        }
+        // Pinned React Aria 3.51 `useSelectableCollection` binds
+        // `Mod+A` -- the platform Mod, Control here -- to
+        // `selectAll`, and only when the selection mode is
+        // multiple. The shortcut matches its modifiers exactly,
+        // so any extra modifier lets the event fall through.
+        if key_name == "a"
+            && event.keystroke.modifiers.secondary()
+            && !event.keystroke.modifiers.shift
+            && !event.keystroke.modifiers.alt
+            && !event.keystroke.modifiers.function
+            && if cfg!(target_os = "macos") {
+                !event.keystroke.modifiers.control
+            } else {
+                !event.keystroke.modifiers.platform
+            }
+            && self.mode == SelectionMode::Multiple
+        {
+            self.select_all(window, cx);
+            cx.stop_propagation();
+            return;
+        }
+        // Other collection keys belong only to the body's roving
+        // focus stop. A nested cell action must keep its own Enter
+        // and Space handling even though Mod+A bubbles to the root.
+        // Pinned TableKeyboardDelegate crosses header<->body in
+        // both plain and virtual tables: Down/PageDown from a
+        // focused header enters the body.
+        if self.headers.iter().any(|header| header.is_focused(window)) {
+            self.enter_from_header(key_name, window, cx);
+            return;
+        }
+        if !self.table_focus.is_focused(window) {
+            return;
+        }
+        if key_name == "escape"
+            && self.mode != SelectionMode::None
+            && !self.disallow_empty_selection
+            && !self.selected_now.is_empty()
+        {
+            self.commit(&[], window, cx);
+            self.selection_range.update(cx, |range, _| {
+                *range = TableSelectionRange::default();
+            });
+            cx.stop_propagation();
+            return;
+        }
+        if let Some(index) = from {
+            if self.tree_key(index, key_name, window, cx) {
+                return;
+            }
+        }
+        let (fixed_page_move, variable_page_move) = self.page_moves(from, key_name, cx);
+        let is_variable_page = fixed_page_move.is_none() && variable_page_move.is_some();
+        if self.page_up_to_header(
+            from,
+            key_name,
+            fixed_page_move,
+            variable_page_move,
+            window,
+            cx,
+        ) {
+            return;
+        }
+        let plain_page_move = from
+            .filter(|_| self.plain_rows)
+            .and_then(|_| match key_name {
+                "pagedown" => stops.last().copied(),
+                _ => None,
+            });
+        let page_move = fixed_page_move
+            .or(variable_page_move)
+            .or(plain_page_move)
+            .filter(|next| Some(*next) != from);
+        // The pinned registrations install no Home/End handler
+        // for an unregistered chord -- Cmd- or Ctrl-bearing on
+        // macOS, Alt- or platform-bearing elsewhere -- so the
+        // whole event stays inert: no focus move, no selection,
+        // no preventDefault, and no first-press settle either.
+        if matches!(key_name, "home" | "end")
+            && !home_end_registered(*modifiers, cfg!(target_os = "macos"))
+        {
+            return;
+        }
+        let initial_home_end_extends =
+            shift_home_end_extends("home", modifiers.control, cfg!(target_os = "macos"));
+        let initial_shift_settle = from.is_none()
+            && modifiers.shift
+            && (key_name == "up"
+                || (matches!(key_name, "home" | "end") && !initial_home_end_extends)
+                || (key_name == "down" && stops.len() < 2));
+        let navigation = if from.is_none() && modifiers.shift && key_name == "down" {
+            stops
+                .get(1)
+                .or_else(|| stops.first())
+                .copied()
+                .map_or(crate::list_nav::Move::Ignore, crate::list_nav::Move::To)
+        } else if initial_shift_settle {
+            (if key_name == "end" {
+                stops.last()
+            } else {
+                stops.first()
+            })
+            .copied()
+            .map_or(crate::list_nav::Move::Ignore, crate::list_nav::Move::To)
+        } else {
+            page_move.map_or_else(
+                || crate::list_nav::resolve(stops, from, key_name, false),
+                crate::list_nav::Move::To,
+            )
+        };
+        match navigation {
+            crate::list_nav::Move::To(next) => {
+                self.move_cursor(
+                    next,
+                    from,
+                    key_name,
+                    *modifiers,
+                    initial_shift_settle,
+                    is_variable_page,
+                    window,
+                    cx,
+                );
+            }
+            crate::list_nav::Move::Activate => {
+                let Some(index) = from else { return };
+                self.activate(index, event, *modifiers, window, cx);
+            }
+            crate::list_nav::Move::Ignore => {}
+        }
+    }
+
+    /// Writes a new selection to the uncontrolled store and reports it.
+    fn commit(&self, next: &[SharedString], window: &mut Window, cx: &mut App) {
+        if let Some(held) = &self.selection_own {
+            held.update(cx, |value, cx| {
+                *value = next.to_vec();
+                cx.notify();
+            });
+        }
+        if let Some(cb) = &self.selection {
+            cb(next, window, cx);
+        }
+    }
+
+    fn selectable_keys(&self) -> &[SharedString] {
+        self.selectable_collection_keys
+            .as_ref()
+            .expect("multiple Tables have selectable keys")
+            .as_slice()
+    }
+
+    /// `Mod+A` on a multiple selection.
+    fn select_all(&self, window: &mut Window, cx: &mut App) {
+        let selectable_collection_keys = self
+            .selectable_collection_keys
+            .as_ref()
+            .expect("multiple Tables have selectable keys");
+        let selectable_collection_keys = selectable_collection_keys.clone();
+        let selectable_collection_keys = selectable_collection_keys.as_slice();
+        let (all_selected, _) = select_all_flags(selectable_collection_keys, &self.selected_now);
+        let materializes_all = same_selection(selectable_collection_keys, &self.selected_now);
+        let already_all =
+            all_selected || (self.selection_range.read(cx).is_all && materializes_all);
+        // Pinned React Stately's `selectAll` is idempotent once
+        // the whole selectable collection is already selected.
+        if !already_all {
+            let next = selectable_collection_keys.to_vec();
+            self.commit(&next, window, cx);
+            self.selection_range.update(cx, |range, _| {
+                *range = TableSelectionRange {
+                    is_all: true,
+                    ..TableSelectionRange::default()
+                };
+            });
+        }
+    }
+
+    /// Down/PageDown from a focused column header enters the body.
+    fn enter_from_header(&self, key_name: &str, window: &mut Window, cx: &mut App) {
+        let next = match key_name {
+            "down" => self.stops.first(),
+            "pagedown" => self.stops.last(),
+            _ => None,
+        };
+        if let Some(next) = next {
+            self.held.update(cx, |value, cx| {
+                *value = Some(self.keys[*next].clone());
+                cx.notify();
+            });
+            window.focus(&self.table_focus, cx);
+            cx.stop_propagation();
+        }
+    }
+
+    /// A tree row's Right and Left. Returns whether the key was consumed.
+    fn tree_key(&self, index: usize, key_name: &str, window: &mut Window, cx: &mut App) -> bool {
+        let keys = &self.keys;
+        let expanded = &self.expanded;
+        let focused_key = &keys[index];
+        let Some((has_children, parent)) = self.tree_rows.get(index) else {
+            return false;
+        };
+        if key_name == "right" && *has_children && !expanded.contains(focused_key) {
+            if let Some(cb) = &self.on_expanded {
+                let mut next = expanded.as_ref().clone();
+                next.push(focused_key.clone());
+                cb(&next, window, cx);
+            }
+            crate::util::set_focus_visible(true, cx);
+            cx.stop_propagation();
+            return true;
+        } else if key_name == "left" {
+            if *has_children && expanded.contains(focused_key) {
+                if let Some(cb) = &self.on_expanded {
+                    let mut next = expanded.as_ref().clone();
+                    next.retain(|key| key != focused_key);
+                    cb(&next, window, cx);
+                }
+                crate::util::set_focus_visible(true, cx);
+                cx.stop_propagation();
+                return true;
+            } else if let Some(parent) = parent {
+                if let Some(parent_index) = keys.iter().position(|key| key == parent) {
+                    self.held.update(cx, |value, cx| {
+                        *value = Some(parent.clone());
+                        cx.notify();
+                    });
+                    if self.fixed_virtual {
+                        self.fixed_scroll
+                            .scroll_to_item(parent_index, crate::VirtualListScroll::Center);
+                    } else if let Some(state) = &self.variable_scroll {
+                        state.scroll_to(gpui::ListOffset {
+                            item_ix: parent_index,
+                            offset_in_item: px(0.),
+                        });
+                    }
+                    crate::util::set_focus_visible(true, cx);
+                    cx.stop_propagation();
+                    return true;
+                }
+            }
+        }
+        false
+    }
+
+    /// The virtual bodies' PageUp/PageDown targets, by one viewport: the
+    /// uniform body's `(fixed)` and the measured body's `(variable)`.
+    fn page_moves(
+        &self,
+        from: Option<usize>,
+        key_name: &str,
+        cx: &App,
+    ) -> (Option<usize>, Option<usize>) {
+        let stops = &self.stops;
+        let keys = &self.keys;
+        let page_by_step = |from: usize, step: usize| match key_name {
+            "pagedown" => {
+                let boundary = from.saturating_add(step).min(keys.len() - 1);
+                stops
+                    .iter()
+                    .copied()
+                    .find(|stop| *stop >= boundary)
+                    .or_else(|| stops.last().copied())
+            }
+            "pageup" => {
+                let boundary = from.saturating_sub(step);
+                stops
+                    .iter()
+                    .rev()
+                    .copied()
+                    .find(|stop| *stop <= boundary)
+                    .or_else(|| stops.first().copied())
+            }
+            _ => None,
+        };
+        let fixed_page_move = from.and_then(|from| {
+            let row_height = self.fixed_row_height?;
+            let viewport_height = f32::from(self.fixed_scroll.viewport_bounds().size.height);
+            if viewport_height <= 0. {
+                return None;
+            }
+            let step =
+                ((viewport_height / f32::from(row_height)).ceil() as usize).saturating_sub(1);
+            page_by_step(from, step)
+        });
+        let variable_page_move = from.and_then(|from| {
+            let viewport_height = self.variable_scroll.as_ref()?.viewport_bounds().size.height;
+            let heights = self.variable_heights.as_ref()?.read(cx);
+            let estimate = self.variable_estimate?;
+            let height_at =
+                |index: usize| heights.1.get(index).copied().flatten().unwrap_or(estimate);
+            let mut distance = height_at(from);
+            let mut target = from;
+            match key_name {
+                "pagedown" => {
+                    if distance >= viewport_height {
+                        return Some(target);
+                    }
+                    for next in stops.iter().copied().filter(|next| *next > from) {
+                        for index in target + 1..=next {
+                            distance += height_at(index);
+                        }
+                        target = next;
+                        if distance >= viewport_height {
+                            break;
+                        }
+                    }
+                    Some(target)
+                }
+                "pageup" => {
+                    if distance >= viewport_height {
+                        return Some(target);
+                    }
+                    for previous in stops
+                        .iter()
+                        .rev()
+                        .copied()
+                        .filter(|previous| *previous < from)
+                    {
+                        for index in previous..target {
+                            distance += height_at(index);
+                        }
+                        target = previous;
+                        if distance >= viewport_height {
+                            break;
+                        }
+                    }
+                    Some(target)
+                }
+                _ => None,
+            }
+        });
+        (fixed_page_move, variable_page_move)
+    }
+
+    /// PageUp out of the body into the first column header. Returns whether
+    /// the focus left.
+    fn page_up_to_header(
+        &self,
+        from: Option<usize>,
+        key_name: &str,
+        fixed_page_move: Option<usize>,
+        variable_page_move: Option<usize>,
+        window: &mut Window,
+        cx: &mut App,
+    ) -> bool {
+        // Pinned TableKeyboardDelegate sends PageDown to the last
+        // enabled row, and PageUp out of the body entirely, into
+        // the first column header. The header is focusable whether
+        // or not it sorts, so this leaves the body rather than
+        // stopping at its first row. Virtual tables page by
+        // viewport first; only when the upward page move has
+        // nowhere to go (the cursor is already the first enabled
+        // stop, or the computed page target equals it) does
+        // PageUp enter the header. The cursor stays seated so
+        // Down from the header returns to the first enabled row.
+        let plain_rows = self.plain_rows;
+        if plain_rows && key_name == "pageup" {
+            if let Some(header) = &self.page_up_header {
+                window.focus(header, cx);
+                cx.stop_propagation();
+                return true;
+            }
+        } else if !plain_rows && key_name == "pageup" {
+            let at_top = match from {
+                Some(position) => {
+                    self.stops.first().is_some_and(|first| *first == position)
+                        || fixed_page_move.is_some_and(|target| Some(target) == from)
+                        || variable_page_move.is_some_and(|target| Some(target) == from)
+                }
+                None => false,
+            };
+            if at_top {
+                if let Some(header) = &self.page_up_header {
+                    window.focus(header, cx);
+                    cx.stop_propagation();
+                    return true;
+                }
+            }
+        }
+        false
+    }
+
+    /// Moves the cursor to `next`, extending or replacing the selection the
+    /// way the chord asks, and scrolls a virtual body to it.
+    #[allow(clippy::too_many_arguments)]
+    fn move_cursor(
+        &self,
+        next: usize,
+        from: Option<usize>,
+        key_name: &str,
+        modifiers: gpui::Modifiers,
+        initial_shift_settle: bool,
+        is_variable_page: bool,
+        window: &mut Window,
+        cx: &mut App,
+    ) {
+        let keys = &self.keys;
+        // Pinned `useSelectableCollection`: Shift extends a
+        // multiple selection from the anchor with no other
+        // chord, so plain Shift navigation is exact.
+        let exact_shift_navigation = if cfg!(target_os = "macos") {
+            !modifiers.control && !modifiers.platform && !modifiers.function
+        } else {
+            !modifiers.alt && !modifiers.platform && !modifiers.function
+        };
+        let extends_selection = modifiers.shift
+            && self.mode == SelectionMode::Multiple
+            && exact_shift_navigation
+            && !initial_shift_settle
+            && Some(next) != from
+            && shift_home_end_extends(key_name, modifiers.control, cfg!(target_os = "macos"));
+        if extends_selection {
+            if let Some(target) = keys.get(next) {
+                let range = self.selection_range.read(cx).clone();
+                let next_selection = extend_selection_range(
+                    &self.selected_now,
+                    keys,
+                    self.selectable_keys(),
+                    &range,
+                    target,
+                );
+                self.selection_range.update(cx, |range, _| {
+                    if range.anchor.is_none() {
+                        range.anchor = Some(target.clone());
+                    }
+                    range.current = Some(target.clone());
+                    range.is_all = false;
+                });
+                if !same_selection(&next_selection, &self.selected_now) {
+                    self.commit(&next_selection, window, cx);
+                }
+            }
+        } else if self.select_on_focus
+            && !modifiers.shift
+            && !((cfg!(target_os = "macos") && modifiers.alt)
+                || (!cfg!(target_os = "macos") && modifiers.control))
+        {
+            if let Some(target) = keys.get(next) {
+                let next_selection = vec![target.clone()];
+                if !same_selection(&next_selection, &self.selected_now) {
+                    self.commit(&next_selection, window, cx);
+                }
+                self.selection_range.update(cx, |range, _| {
+                    *range = TableSelectionRange {
+                        anchor: Some(target.clone()),
+                        current: Some(target.clone()),
+                        ..TableSelectionRange::default()
+                    };
+                });
+            }
+        }
+        self.held.update(cx, |v, cx| {
+            *v = keys.get(next).cloned();
+            cx.notify();
+        });
+        if self.fixed_virtual {
+            self.fixed_scroll
+                .scroll_to_item(next, crate::VirtualListScroll::Center);
+        } else if let Some(state) = &self.variable_scroll {
+            if is_variable_page {
+                state.scroll_to_reveal_item(next);
+            } else {
+                // Unmeasured rows have no cached height, so
+                // `scroll_to_reveal_item` cannot locate a far
+                // target. Jump by logical index; the next
+                // layout measures that row at the viewport.
+                state.scroll_to(gpui::ListOffset {
+                    item_ix: next,
+                    offset_in_item: px(0.),
+                });
+            }
+        }
+    }
+
+    /// Enter and Space on the cursor row: its action, or a selection change.
+    fn activate(
+        &self,
+        index: usize,
+        event: &gpui::KeyDownEvent,
+        modifiers: gpui::Modifiers,
+        window: &mut Window,
+        cx: &mut App,
+    ) {
+        let activation = if event.keystroke.key == "enter" {
+            RowActivation::Enter
+        } else {
+            RowActivation::Space
+        };
+        match row_intent(
+            activation,
+            self.mode,
+            self.selection_behavior,
+            self.selected_now.is_empty(),
+            self.on_row_click.is_some(),
+        ) {
+            RowIntent::Action => {
+                if let Some(cb) = &self.on_row_click {
+                    cb(&index, &ClickEvent::default(), window, cx);
+                }
+            }
+            RowIntent::Selection => {
+                if let Some(key) = self.keys.get(index) {
+                    self.select_row(key, modifiers, window, cx);
+                }
+            }
+            RowIntent::None => {}
+        }
+    }
+
+    /// The keyboard's row-selection change, anchored the way a press is.
+    fn select_row(
+        &self,
+        key: &SharedString,
+        modifiers: gpui::Modifiers,
+        window: &mut Window,
+        cx: &mut App,
+    ) {
+        let mode = self.mode;
+        let selected_now = &self.selected_now;
+        let was_selected = selected_now.contains(key);
+        let extends_selection = modifiers.shift && mode == SelectionMode::Multiple;
+        let next = if extends_selection {
+            let range = self.selection_range.read(cx).clone();
+            extend_selection_range(
+                selected_now,
+                &self.keys,
+                self.selectable_keys(),
+                &range,
+                key,
+            )
+        } else {
+            let non_contiguous = if cfg!(target_os = "macos") {
+                modifiers.alt
+            } else {
+                modifiers.control
+            };
+            crate::selection::next_selection_with_behavior(
+                selected_now,
+                key,
+                mode,
+                if non_contiguous {
+                    SelectionBehavior::Toggle
+                } else {
+                    self.selection_behavior
+                },
+                self.disallow_empty_selection,
+            )
+        };
+        let changed = !same_selection(&next, selected_now);
+        if changed {
+            self.commit(&next, window, cx);
+        }
+        if extends_selection && changed {
+            self.selection_range.update(cx, |range, _| {
+                if range.anchor.is_none() {
+                    range.anchor = Some(key.clone());
+                }
+                range.current = Some(key.clone());
+                range.is_all = false;
+            });
+        } else if !extends_selection && mode == SelectionMode::Multiple && !was_selected {
+            self.selection_range.update(cx, |range, _| {
+                range.anchor = Some(key.clone());
+                range.current = Some(key.clone());
+                range.is_all = false;
+            });
+        } else if !extends_selection && mode == SelectionMode::Multiple {
+            self.selection_range.update(cx, |range, _| {
+                if range.is_all {
+                    *range = TableSelectionRange::default();
+                }
+            });
+        }
+    }
+}
+
+/// A zero-paint canvas over a flexible resizable column that records the
+/// width the column laid out at, which is where a drag or a keyboard resize
+/// starts from.
+fn resize_width_probe(
+    measured: gpui::Entity<Vec<Option<Pixels>>>,
+    column_index: usize,
+) -> impl IntoElement {
+    gpui::canvas(
+        move |bounds: gpui::Bounds<Pixels>, _, cx| {
+            let width = px(f32::from(bounds.size.width).floor());
+            measured.update(cx, |values, cx| {
+                if values.len() <= column_index {
+                    values.resize(column_index + 1, None);
+                }
+                if values[column_index] != Some(width) {
+                    values[column_index] = Some(width);
+                    cx.notify();
+                }
+            });
+            bounds
+        },
+        |_, _, _, _| {},
+    )
+    .absolute()
+    .inset_0()
+}
+
+/// What a press on a column's resize handle reads: the column, the width
+/// the drag starts from, the width stores and the resize callbacks.
+struct ResizePointerStart {
+    column_index: usize,
+    /// The width a resize starts from: the rendered width, else the
+    /// measured one, else a 160px default.
+    start_width: Pixels,
+    /// The pointer drag in progress, as `(column, from_x, from_width)`.
+    held: gpui::Entity<Option<(usize, f32, f32)>>,
+    /// The column the keyboard is resizing.
+    keyboard: gpui::Entity<Option<usize>>,
+    widths: gpui::Entity<Vec<Option<Pixels>>>,
+    columns: std::sync::Arc<Vec<TableColumn>>,
+    measurements: std::sync::Arc<Vec<Option<Pixels>>>,
+    focus: gpui::FocusHandle,
+    on_resize_start: Option<OnResize>,
+    on_resize_end: Option<OnResize>,
+}
+
+impl ResizePointerStart {
+    /// A press on the handle: ends any keyboard resize, reports the start
+    /// and seats the pointer drag.
+    fn press(&self, ev: &gpui::MouseDownEvent, window: &mut Window, cx: &mut App) {
+        let column_index = self.column_index;
+        window.focus(&self.focus, cx);
+        if let Some(active_column) = *self.keyboard.read(cx) {
+            let current = final_column_widths(
+                &self.columns,
+                self.widths.read(cx),
+                &self.measurements,
+                active_column,
+            );
+            self.keyboard.update(cx, |active, _| *active = None);
+            clear_controlled_resize_proposal(&self.columns, &self.widths, active_column, cx);
+            if let Some(callback) = &self.on_resize_end {
+                callback(&current, window, cx);
+            }
+        }
+        clear_controlled_resize_proposal(&self.columns, &self.widths, column_index, cx);
+        if let Some(callback) = &self.on_resize_start {
+            let current = resolved_column_widths(
+                &self.columns,
+                self.widths.read(cx),
+                &self.measurements,
+                None,
+            );
+            callback(&current, window, cx);
+        }
+        let x = f32::from(ev.position.x);
+        let start_width = self.start_width;
+        self.held.update(cx, |v, _| {
+            *v = Some((column_index, x, f32::from(start_width)));
+        });
+    }
 }
 
 // ---- Table::render part renderers ----
@@ -2423,8 +3674,12 @@ impl Table {
             .relative();
         if !column.allows_resizing && !cfg!(target_arch = "wasm32") {
             let measurements = measured_widths.clone();
+            // The label and the sort indicator; a focused header's ring is an
+            // overlay as wide as the cell (see `RowCtx::data_cell`).
+            let content_children = 1 + usize::from(sorted.is_some() && self.show_indicator);
             cell = cell.on_children_prepainted(move |bounds, _, cx| {
-                let content = intrinsic_children_width(&bounds);
+                let content =
+                    intrinsic_children_width(&bounds[..content_children.min(bounds.len())]);
                 if content <= 0. {
                     return;
                 }
@@ -2551,16 +3806,23 @@ impl Table {
                 // `.table__column` rings *inside* itself: the next column
                 // is flush against this one, and a ring drawn outside bled
                 // through the transparent cell and filled it.
-                header_cell
+                let header_cell = header_cell
                     .relative()
                     .when(header_focused[column_index], |c| {
                         c.child(crate::util::inset_focus_ring(cx))
-                    })
-                    .into_any_element()
+                    });
+                crate::util::record_focus_bounds(
+                    header_cell,
+                    &header_focus[column_index],
+                    window,
+                    cx,
+                )
+                .into_any_element()
             }
             // Not sortable, so nothing to press -- but still focusable, so
             // PageUp has a header to land on, and it rings when it does.
-            _ => cell
+            _ => {
+                let header_cell = cell
                 .id(element_id::indexed(base_id, "header", column_index))
                 // The same `role: 'columnheader'`; a column that does not
                 // sort simply has no `aria-sort` upstream either
@@ -2574,8 +3836,15 @@ impl Table {
                 .relative()
                 .when(header_focused[column_index], |c| {
                     c.child(crate::util::inset_focus_ring(cx))
-                })
-                .into_any_element(),
+                });
+                crate::util::record_focus_bounds(
+                    header_cell,
+                    &header_focus[column_index],
+                    window,
+                    cx,
+                )
+                .into_any_element()
+            }
         };
 
         // `allowsResizing` puts a handle on the column's trailing edge. The
@@ -2621,22 +3890,15 @@ impl Table {
         } = *hx;
         let effective = effective_widths[column_index];
         let (layout_min, layout_max) = layout_width_bounds[column_index];
-        let held = dragging.clone();
         let start_width = effective
             .or_else(|| measured_widths_now.get(column_index).copied().flatten())
             .unwrap_or(px(160.));
         let keyboard = keyboard_resizing.clone();
         let keyboard_out = keyboard.clone();
-        let keyboard_for_pointer = keyboard.clone();
         let widths = resized.clone();
-        let widths_for_pointer = widths.clone();
         let widths_for_outside = widths.clone();
         let (min_width, max_width) = resize_limits[column_index];
         let controlled = column.width.is_some();
-        let focus_for_mouse = resize_focus[column_index]
-            .as_ref()
-            .expect("resizable columns have a focus handle")
-            .clone();
         // As with the sort hover group: a string, but this table's own.
         let resizer_group: SharedString = format!("{}-resizer-{column_index}", self.id).into();
         let accent_color = colors.accent.color;
@@ -2644,18 +3906,29 @@ impl Table {
         let is_resizing = drag_now.is_some_and(|(index, _, _)| index == column_index)
             || keyboard_resize_now == Some(column_index);
         let measured = measured_widths.clone();
-        let columns_for_pointer = resize_columns.clone();
         let columns_for_outside = resize_columns.clone();
         let columns_for_keys = resize_columns.clone();
-        let measurements_for_pointer = resize_measurements.clone();
         let measurements_for_outside = resize_measurements.clone();
         let measurements_for_keys = resize_measurements.clone();
-        let resize_start_for_pointer = self.on_resize_start.clone();
         let resize_start_for_keys = self.on_resize_start.clone();
         let resize_for_keys = self.on_resize.clone();
-        let resize_end_for_pointer = self.on_resize_end.clone();
         let resize_end_for_outside = self.on_resize_end.clone();
         let resize_end_for_keys = self.on_resize_end.clone();
+        let pointer_start = ResizePointerStart {
+            column_index,
+            start_width,
+            held: dragging.clone(),
+            keyboard: keyboard.clone(),
+            widths: widths.clone(),
+            columns: resize_columns.clone(),
+            measurements: resize_measurements.clone(),
+            focus: resize_focus[column_index]
+                .as_ref()
+                .expect("resizable columns have a focus handle")
+                .clone(),
+            on_resize_start: self.on_resize_start.clone(),
+            on_resize_end: self.on_resize_end.clone(),
+        };
         gpui::div()
             .relative()
             .when(effective.is_none(), flex_cell)
@@ -2666,26 +3939,7 @@ impl Table {
             .when_some(layout_min, |wrapper, w| wrapper.min_w(w))
             .when_some(layout_max, |wrapper, w| wrapper.max_w(w))
             .when(effective.is_none(), |wrapper| {
-                wrapper.child(
-                    gpui::canvas(
-                        move |bounds: gpui::Bounds<Pixels>, _, cx| {
-                            let width = px(f32::from(bounds.size.width).floor());
-                            measured.update(cx, |values, cx| {
-                                if values.len() <= column_index {
-                                    values.resize(column_index + 1, None);
-                                }
-                                if values[column_index] != Some(width) {
-                                    values[column_index] = Some(width);
-                                    cx.notify();
-                                }
-                            });
-                            bounds
-                        },
-                        |_, _, _, _| {},
-                    )
-                    .absolute()
-                    .inset_0(),
-                )
+                wrapper.child(resize_width_probe(measured, column_index))
             })
             .child(cell)
             .child(
@@ -2727,44 +3981,7 @@ impl Table {
                     )
                     .cursor(gpui::CursorStyle::ResizeLeftRight)
                     .on_mouse_down(gpui::MouseButton::Left, move |ev, window, cx| {
-                        window.focus(&focus_for_mouse, cx);
-                        if let Some(active_column) = *keyboard_for_pointer.read(cx) {
-                            let current = final_column_widths(
-                                &columns_for_pointer,
-                                widths_for_pointer.read(cx),
-                                &measurements_for_pointer,
-                                active_column,
-                            );
-                            keyboard_for_pointer.update(cx, |active, _| *active = None);
-                            clear_controlled_resize_proposal(
-                                &columns_for_pointer,
-                                &widths_for_pointer,
-                                active_column,
-                                cx,
-                            );
-                            if let Some(callback) = &resize_end_for_pointer {
-                                callback(&current, window, cx);
-                            }
-                        }
-                        clear_controlled_resize_proposal(
-                            &columns_for_pointer,
-                            &widths_for_pointer,
-                            column_index,
-                            cx,
-                        );
-                        if let Some(callback) = &resize_start_for_pointer {
-                            let current = resolved_column_widths(
-                                &columns_for_pointer,
-                                widths_for_pointer.read(cx),
-                                &measurements_for_pointer,
-                                None,
-                            );
-                            callback(&current, window, cx);
-                        }
-                        let x = f32::from(ev.position.x);
-                        held.update(cx, |v, _| {
-                            *v = Some((column_index, x, f32::from(start_width)));
-                        });
+                        pointer_start.press(ev, window, cx);
                     })
                     .on_mouse_down_out(move |_, window, cx| {
                         if *keyboard_out.read(cx) == Some(column_index) {
@@ -3039,646 +4256,121 @@ impl Table {
             .enumerate()
             .filter_map(|(index, key)| (!self.disabled_keys.contains(key)).then_some(index))
             .collect();
-        let held = row_cursor;
-        let typeahead = typeahead;
-        let labels = typeahead_labels;
-        let virtual_indices = virtual_typeahead_indices;
-        let virtual_text = virtual_text_value;
-        let on_row_click = self.on_row_click.clone();
         let keys = ctx.row_keys.clone();
-        let table_focus_for_keys = table_focus;
-        let selection = self.on_selection_change.clone();
-        let selection_own_for_keys = selection_own;
-        let selection_range_for_keys = selection_range;
-        let selected_now = self.selected_keys.clone();
+        if keys.is_empty() {
+            return wrapper;
+        }
         let mode = self.selection_mode;
         let selection_behavior = self.selection_behavior;
-        let disallow_empty_selection = self.disallow_empty_selection;
-        // React Aria's collection hook defaults `selectOnFocus` to true
-        // for `selectionBehavior="replace"`.
-        let select_on_focus =
-            selection_behavior == SelectionBehavior::Replace && mode != SelectionMode::None;
-        let plain_rows = self.virtual_rows.is_none();
         let fixed_virtual = self.row_height.is_some() && self.virtual_rows.is_some();
-        // Pinned `TableKeyboardDelegate` pages by one visible rectangle, so
-        // the step reads the virtual body's own laid-out viewport -- the
-        // pinned handle's `base_handle.bounds()` -- and not the configured
-        // `max_h` cap: a bounded parent (or a resized window) shows fewer
-        // rows than the cap allows. A zero viewport answers nothing, which
-        // the shared resolver turns into no movement.
-        let fixed_row_height = self.row_height.filter(|_| fixed_virtual);
         let fixed_scroll = virtual_scroll_now.clone();
         let variable_scroll = virtual_list_state.clone();
-        let variable_heights = virtual_row_heights.clone();
-        let variable_estimate = self.estimated_row_height;
-        let expanded = expanded_keys;
-        let on_expanded = self.on_expanded_change.clone();
-        if !keys.is_empty() {
-            let typeahead_navigation = std::rc::Rc::new(TableTypeaheadNavigation {
-                state: typeahead,
-                labels,
-                virtual_indices,
-                virtual_text,
-                stops: stops.clone(),
-                keys: keys.clone(),
-                cursor: held.clone(),
-                fixed_virtual,
-                fixed_scroll: fixed_scroll.clone(),
-                variable_scroll: variable_scroll.clone(),
-            });
-            let capture_typeahead = typeahead_navigation.clone();
-            let capture_typeahead_up = typeahead_navigation.clone();
-            let capture_focus = table_focus_for_keys.clone();
-            let capture_focus_up = table_focus_for_keys.clone();
-            wrapper = wrapper.capture_key_down(move |event, window, cx| {
-                if !capture_focus.contains_focused(window, cx) {
-                    return;
-                }
-                let key_name = event.keystroke.key.as_str();
-                let typed = event.keystroke.key_char.as_deref().unwrap_or(key_name);
-                let modifiers = &event.keystroke.modifiers;
-                let now = web_time::Instant::now();
-                let is_space = key_name == "space" || typed == " ";
-                if is_space
-                    && capture_typeahead.state.read(cx).is_active(now)
-                    && !modifiers.control
-                    && !modifiers.platform
-                    && !modifiers.alt
-                {
-                    cx.stop_propagation();
-                    capture_typeahead.push(" ", now, false, cx);
-                }
-            });
-            wrapper = wrapper.capture_key_up(move |event, window, cx| {
-                if !capture_focus_up.contains_focused(window, cx) {
-                    return;
-                }
-                let key_name = event.keystroke.key.as_str();
-                let typed = event.keystroke.key_char.as_deref().unwrap_or(key_name);
-                let modifiers = &event.keystroke.modifiers;
-                let is_space = key_name == "space" || typed == " ";
-                if is_space
-                    && capture_typeahead_up
-                        .state
-                        .read(cx)
-                        .is_active(web_time::Instant::now())
-                    && !modifiers.control
-                    && !modifiers.platform
-                    && !modifiers.alt
-                {
-                    cx.stop_propagation();
-                }
-            });
-            let key_typeahead = typeahead_navigation;
+        let typeahead_navigation = std::rc::Rc::new(TableTypeaheadNavigation {
+            state: typeahead,
+            labels: typeahead_labels,
+            virtual_indices: virtual_typeahead_indices,
+            virtual_text: virtual_text_value,
+            stops: stops.clone(),
+            keys: keys.clone(),
+            cursor: row_cursor.clone(),
+            fixed_virtual,
+            fixed_scroll: fixed_scroll.clone(),
+            variable_scroll: variable_scroll.clone(),
+        });
+        let capture_typeahead = typeahead_navigation.clone();
+        let capture_typeahead_up = typeahead_navigation.clone();
+        let capture_focus = table_focus.clone();
+        let capture_focus_up = table_focus.clone();
+        wrapper = wrapper.capture_key_down(move |event, window, cx| {
+            if !capture_focus.contains_focused(window, cx) {
+                return;
+            }
+            let key_name = event.keystroke.key.as_str();
+            let typed = event.keystroke.key_char.as_deref().unwrap_or(key_name);
+            let modifiers = &event.keystroke.modifiers;
+            let now = web_time::Instant::now();
+            let is_space = key_name == "space" || typed == " ";
+            if is_space
+                && capture_typeahead.state.read(cx).is_active(now)
+                && !modifiers.control
+                && !modifiers.platform
+                && !modifiers.alt
+            {
+                cx.stop_propagation();
+                capture_typeahead.push(" ", now, false, cx);
+            }
+        });
+        wrapper = wrapper.capture_key_up(move |event, window, cx| {
+            if !capture_focus_up.contains_focused(window, cx) {
+                return;
+            }
+            let key_name = event.keystroke.key.as_str();
+            let typed = event.keystroke.key_char.as_deref().unwrap_or(key_name);
+            let modifiers = &event.keystroke.modifiers;
+            let is_space = key_name == "space" || typed == " ";
+            if is_space
+                && capture_typeahead_up
+                    .state
+                    .read(cx)
+                    .is_active(web_time::Instant::now())
+                && !modifiers.control
+                && !modifiers.platform
+                && !modifiers.alt
+            {
+                cx.stop_propagation();
+            }
+        });
+        let nav = RowKeyNav {
+            stops,
+            held: row_cursor,
+            keys,
+            table_focus,
+            typeahead: typeahead_navigation,
+            on_row_click: self.on_row_click.clone(),
+            selection: self.on_selection_change.clone(),
+            selection_own,
+            selection_range,
+            selected_now: self.selected_keys.clone(),
+            selectable_collection_keys,
+            mode,
+            selection_behavior,
+            disallow_empty_selection: self.disallow_empty_selection,
+            // React Aria's collection hook defaults `selectOnFocus` to true
+            // for `selectionBehavior="replace"`.
+            select_on_focus: selection_behavior == SelectionBehavior::Replace
+                && mode != SelectionMode::None,
+            plain_rows: self.virtual_rows.is_none(),
+            fixed_virtual,
+            // Pinned `TableKeyboardDelegate` pages by one visible rectangle, so
+            // the step reads the virtual body's own laid-out viewport -- the
+            // uniform handle's `viewport_bounds()` -- and not the configured
+            // `max_h` cap: a bounded parent (or a resized window) shows fewer
+            // rows than the cap allows. A zero viewport answers nothing, which
+            // the shared resolver turns into no movement.
+            fixed_row_height: self.row_height.filter(|_| fixed_virtual),
+            fixed_scroll,
+            variable_scroll,
+            variable_heights: virtual_row_heights.clone(),
+            variable_estimate: self.estimated_row_height,
+            expanded: expanded_keys,
+            on_expanded: self.on_expanded_change.clone(),
+            tree_rows,
             // The header PageUp hands the focus to. Cloned out because the
             // handler outlives this frame's `header_focus`.
-            let page_up_header = header_focus.first().cloned();
-            let headers_for_keys = header_focus;
-            wrapper = wrapper.on_key_down(move |event, window, cx| {
-                if !table_focus_for_keys.contains_focused(window, cx) {
-                    return;
-                }
-                let from = held
-                    .read(cx)
-                    .as_ref()
-                    .and_then(|key| keys.iter().position(|row| row == key))
-                    .filter(|index| stops.contains(index));
-                // Pinned React Aria `useTableRow`: horizontal keys belong
-                // to the focused tree row before the list resolver sees
-                // them. Right opens; Left closes or returns to the parent.
-                let key_name = event.keystroke.key.as_str();
-                let typed = event.keystroke.key_char.as_deref().unwrap_or(key_name);
-                let modifiers = &event.keystroke.modifiers;
-                let now = web_time::Instant::now();
-                let is_space = key_name == "space" || typed == " ";
-                let is_character = {
-                    let mut chars = key_name.chars();
-                    chars.next().is_some() && chars.next().is_none() && !is_space
-                };
-                let is_typeahead =
-                    is_character && !modifiers.control && !modifiers.platform && !modifiers.alt;
-                if is_typeahead {
-                    if key_typeahead.push(typed, now, true, cx) {
-                        cx.stop_propagation();
-                    }
-                    return;
-                }
-                // Pinned React Aria 3.51 `useSelectableCollection` binds
-                // `Mod+A` -- the platform Mod, Control here -- to
-                // `selectAll`, and only when the selection mode is
-                // multiple. The shortcut matches its modifiers exactly,
-                // so any extra modifier lets the event fall through.
-                if key_name == "a"
-                    && event.keystroke.modifiers.secondary()
-                    && !event.keystroke.modifiers.shift
-                    && !event.keystroke.modifiers.alt
-                    && !event.keystroke.modifiers.function
-                    && if cfg!(target_os = "macos") {
-                        !event.keystroke.modifiers.control
-                    } else {
-                        !event.keystroke.modifiers.platform
-                    }
-                    && mode == SelectionMode::Multiple
-                {
-                    let selectable_collection_keys = selectable_collection_keys
-                        .as_ref()
-                        .expect("multiple Tables have selectable keys");
-                    let selectable_collection_keys = selectable_collection_keys.clone();
-                    let selectable_collection_keys = selectable_collection_keys.as_slice();
-                    let (all_selected, _) =
-                        select_all_flags(selectable_collection_keys, &selected_now);
-                    let materializes_all =
-                        same_selection(selectable_collection_keys, &selected_now);
-                    let already_all = all_selected
-                        || (selection_range_for_keys.read(cx).is_all && materializes_all);
-                    // Pinned React Stately's `selectAll` is idempotent once
-                    // the whole selectable collection is already selected.
-                    if !already_all {
-                        let next = selectable_collection_keys.to_vec();
-                        if let Some(held) = &selection_own_for_keys {
-                            held.update(cx, |value, cx| {
-                                *value = next.clone();
-                                cx.notify();
-                            });
-                        }
-                        if let Some(cb) = &selection {
-                            cb(&next, window, cx);
-                        }
-                        selection_range_for_keys.update(cx, |range, _| {
-                            *range = TableSelectionRange {
-                                is_all: true,
-                                ..TableSelectionRange::default()
-                            };
-                        });
-                    }
-                    cx.stop_propagation();
-                    return;
-                }
-                // Other collection keys belong only to the body's roving
-                // focus stop. A nested cell action must keep its own Enter
-                // and Space handling even though Mod+A bubbles to the root.
-                // Pinned TableKeyboardDelegate crosses header<->body in
-                // both plain and virtual tables: Down/PageDown from a
-                // focused header enters the body.
-                if headers_for_keys
-                    .iter()
-                    .any(|header| header.is_focused(window))
-                {
-                    let next = match key_name {
-                        "down" => stops.first(),
-                        "pagedown" => stops.last(),
-                        _ => None,
-                    };
-                    if let Some(next) = next {
-                        held.update(cx, |value, cx| {
-                            *value = Some(keys[*next].clone());
-                            cx.notify();
-                        });
-                        window.focus(&table_focus_for_keys, cx);
-                        cx.stop_propagation();
-                    }
-                    return;
-                }
-                if !table_focus_for_keys.is_focused(window) {
-                    return;
-                }
-                if key_name == "escape"
-                    && mode != SelectionMode::None
-                    && !disallow_empty_selection
-                    && !selected_now.is_empty()
-                {
-                    let next = Vec::new();
-                    if let Some(held) = &selection_own_for_keys {
-                        held.update(cx, |value, cx| {
-                            *value = next.clone();
-                            cx.notify();
-                        });
-                    }
-                    if let Some(cb) = &selection {
-                        cb(&next, window, cx);
-                    }
-                    selection_range_for_keys.update(cx, |range, _| {
-                        *range = TableSelectionRange::default();
-                    });
-                    cx.stop_propagation();
-                    return;
-                }
-                if let Some(index) = from {
-                    let focused_key = &keys[index];
-                    if let Some((has_children, parent)) = tree_rows.get(index) {
-                        if key_name == "right" && *has_children && !expanded.contains(focused_key) {
-                            if let Some(cb) = &on_expanded {
-                                let mut next = expanded.as_ref().clone();
-                                next.push(focused_key.clone());
-                                cb(&next, window, cx);
-                            }
-                            crate::util::set_focus_visible(true, cx);
-                            cx.stop_propagation();
-                            return;
-                        } else if key_name == "left" {
-                            if *has_children && expanded.contains(focused_key) {
-                                if let Some(cb) = &on_expanded {
-                                    let mut next = expanded.as_ref().clone();
-                                    next.retain(|key| key != focused_key);
-                                    cb(&next, window, cx);
-                                }
-                                crate::util::set_focus_visible(true, cx);
-                                cx.stop_propagation();
-                                return;
-                            } else if let Some(parent) = parent {
-                                if let Some(parent_index) =
-                                    keys.iter().position(|key| key == parent)
-                                {
-                                    held.update(cx, |value, cx| {
-                                        *value = Some(parent.clone());
-                                        cx.notify();
-                                    });
-                                    if fixed_virtual {
-                                        fixed_scroll.scroll_to_item(
-                                            parent_index,
-                                            gpui::ScrollStrategy::Center,
-                                        );
-                                    } else if let Some(state) = &variable_scroll {
-                                        state.scroll_to(gpui::ListOffset {
-                                            item_ix: parent_index,
-                                            offset_in_item: px(0.),
-                                        });
-                                    }
-                                    crate::util::set_focus_visible(true, cx);
-                                    cx.stop_propagation();
-                                    return;
-                                }
-                            }
-                        }
-                    }
-                }
-                let page_by_step = |from: usize, step: usize| match key_name {
-                    "pagedown" => {
-                        let boundary = from.saturating_add(step).min(keys.len() - 1);
-                        stops
-                            .iter()
-                            .copied()
-                            .find(|stop| *stop >= boundary)
-                            .or_else(|| stops.last().copied())
-                    }
-                    "pageup" => {
-                        let boundary = from.saturating_sub(step);
-                        stops
-                            .iter()
-                            .rev()
-                            .copied()
-                            .find(|stop| *stop <= boundary)
-                            .or_else(|| stops.first().copied())
-                    }
-                    _ => None,
-                };
-                let fixed_page_move = from.and_then(|from| {
-                    let row_height = fixed_row_height?;
-                    let viewport_height =
-                        f32::from(fixed_scroll.0.borrow().base_handle.bounds().size.height);
-                    if viewport_height <= 0. {
-                        return None;
-                    }
-                    let step = ((viewport_height / f32::from(row_height)).ceil() as usize)
-                        .saturating_sub(1);
-                    page_by_step(from, step)
-                });
-                let variable_page_move = from.and_then(|from| {
-                    let viewport_height = variable_scroll.as_ref()?.viewport_bounds().size.height;
-                    let heights = variable_heights.as_ref()?.read(cx);
-                    let estimate = variable_estimate?;
-                    let height_at =
-                        |index: usize| heights.1.get(index).copied().flatten().unwrap_or(estimate);
-                    let mut distance = height_at(from);
-                    let mut target = from;
-                    match key_name {
-                        "pagedown" => {
-                            if distance >= viewport_height {
-                                return Some(target);
-                            }
-                            for next in stops.iter().copied().filter(|next| *next > from) {
-                                for index in target + 1..=next {
-                                    distance += height_at(index);
-                                }
-                                target = next;
-                                if distance >= viewport_height {
-                                    break;
-                                }
-                            }
-                            Some(target)
-                        }
-                        "pageup" => {
-                            if distance >= viewport_height {
-                                return Some(target);
-                            }
-                            for previous in stops
-                                .iter()
-                                .rev()
-                                .copied()
-                                .filter(|previous| *previous < from)
-                            {
-                                for index in previous..target {
-                                    distance += height_at(index);
-                                }
-                                target = previous;
-                                if distance >= viewport_height {
-                                    break;
-                                }
-                            }
-                            Some(target)
-                        }
-                        _ => None,
-                    }
-                });
-                let is_variable_page = fixed_page_move.is_none() && variable_page_move.is_some();
-                // Pinned TableKeyboardDelegate sends PageDown to the last
-                // enabled row, and PageUp out of the body entirely, into
-                // the first column header. The header is focusable whether
-                // or not it sorts, so this leaves the body rather than
-                // stopping at its first row. Virtual tables page by
-                // viewport first; only when the upward page move has
-                // nowhere to go (the cursor is already the first enabled
-                // stop, or the computed page target equals it) does
-                // PageUp enter the header. The cursor stays seated so
-                // Down from the header returns to the first enabled row.
-                if plain_rows && key_name == "pageup" {
-                    if let Some(header) = &page_up_header {
-                        window.focus(header, cx);
-                        cx.stop_propagation();
-                        return;
-                    }
-                } else if !plain_rows && key_name == "pageup" {
-                    let at_top = match from {
-                        Some(position) => {
-                            stops.first().is_some_and(|first| *first == position)
-                                || fixed_page_move.is_some_and(|target| Some(target) == from)
-                                || variable_page_move.is_some_and(|target| Some(target) == from)
-                        }
-                        None => false,
-                    };
-                    if at_top {
-                        if let Some(header) = &page_up_header {
-                            window.focus(header, cx);
-                            cx.stop_propagation();
-                            return;
-                        }
-                    }
-                }
-                let plain_page_move = from.filter(|_| plain_rows).and_then(|_| match key_name {
-                    "pagedown" => stops.last().copied(),
-                    _ => None,
-                });
-                let page_move = fixed_page_move
-                    .or(variable_page_move)
-                    .or(plain_page_move)
-                    .filter(|next| Some(*next) != from);
-                // The pinned registrations install no Home/End handler
-                // for an unregistered chord -- Cmd- or Ctrl-bearing on
-                // macOS, Alt- or platform-bearing elsewhere -- so the
-                // whole event stays inert: no focus move, no selection,
-                // no preventDefault, and no first-press settle either.
-                if matches!(key_name, "home" | "end")
-                    && !home_end_registered(*modifiers, cfg!(target_os = "macos"))
-                {
-                    return;
-                }
-                let initial_home_end_extends =
-                    shift_home_end_extends("home", modifiers.control, cfg!(target_os = "macos"));
-                let initial_shift_settle = from.is_none()
-                    && modifiers.shift
-                    && (key_name == "up"
-                        || (matches!(key_name, "home" | "end") && !initial_home_end_extends)
-                        || (key_name == "down" && stops.len() < 2));
-                let navigation = if from.is_none() && modifiers.shift && key_name == "down" {
-                    stops
-                        .get(1)
-                        .or_else(|| stops.first())
-                        .copied()
-                        .map_or(crate::list_nav::Move::Ignore, crate::list_nav::Move::To)
-                } else if initial_shift_settle {
-                    (if key_name == "end" {
-                        stops.last()
-                    } else {
-                        stops.first()
-                    })
-                    .copied()
-                    .map_or(crate::list_nav::Move::Ignore, crate::list_nav::Move::To)
-                } else {
-                    page_move.map_or_else(
-                        || crate::list_nav::resolve(&stops, from, key_name, false),
-                        crate::list_nav::Move::To,
-                    )
-                };
-                match navigation {
-                    crate::list_nav::Move::To(next) => {
-                        // Pinned `useSelectableCollection`: Shift extends a
-                        // multiple selection from the anchor with no other
-                        // chord, so plain Shift navigation is exact.
-                        let exact_shift_navigation = if cfg!(target_os = "macos") {
-                            !modifiers.control && !modifiers.platform && !modifiers.function
-                        } else {
-                            !modifiers.alt && !modifiers.platform && !modifiers.function
-                        };
-                        let extends_selection = modifiers.shift
-                            && mode == SelectionMode::Multiple
-                            && exact_shift_navigation
-                            && !initial_shift_settle
-                            && Some(next) != from
-                            && shift_home_end_extends(
-                                key_name,
-                                modifiers.control,
-                                cfg!(target_os = "macos"),
-                            );
-                        if extends_selection {
-                            if let Some(target) = keys.get(next) {
-                                let range = selection_range_for_keys.read(cx).clone();
-                                let next_selection = extend_selection_range(
-                                    &selected_now,
-                                    &keys,
-                                    selectable_collection_keys
-                                        .as_ref()
-                                        .expect("multiple Tables have selectable keys")
-                                        .as_slice(),
-                                    &range,
-                                    target,
-                                );
-                                selection_range_for_keys.update(cx, |range, _| {
-                                    if range.anchor.is_none() {
-                                        range.anchor = Some(target.clone());
-                                    }
-                                    range.current = Some(target.clone());
-                                    range.is_all = false;
-                                });
-                                if !same_selection(&next_selection, &selected_now) {
-                                    if let Some(held) = &selection_own_for_keys {
-                                        held.update(cx, |value, cx| {
-                                            *value = next_selection.clone();
-                                            cx.notify();
-                                        });
-                                    }
-                                    if let Some(cb) = &selection {
-                                        cb(&next_selection, window, cx);
-                                    }
-                                }
-                            }
-                        } else if select_on_focus
-                            && !modifiers.shift
-                            && !((cfg!(target_os = "macos") && modifiers.alt)
-                                || (!cfg!(target_os = "macos") && modifiers.control))
-                        {
-                            if let Some(target) = keys.get(next) {
-                                let next_selection = vec![target.clone()];
-                                if !same_selection(&next_selection, &selected_now) {
-                                    if let Some(held) = &selection_own_for_keys {
-                                        held.update(cx, |value, cx| {
-                                            *value = next_selection.clone();
-                                            cx.notify();
-                                        });
-                                    }
-                                    if let Some(cb) = &selection {
-                                        cb(&next_selection, window, cx);
-                                    }
-                                }
-                                selection_range_for_keys.update(cx, |range, _| {
-                                    *range = TableSelectionRange {
-                                        anchor: Some(target.clone()),
-                                        current: Some(target.clone()),
-                                        ..TableSelectionRange::default()
-                                    };
-                                });
-                            }
-                        }
-                        held.update(cx, |v, cx| {
-                            *v = keys.get(next).cloned();
-                            cx.notify();
-                        });
-                        if fixed_virtual {
-                            fixed_scroll.scroll_to_item(next, gpui::ScrollStrategy::Center);
-                        } else if let Some(state) = &variable_scroll {
-                            if is_variable_page {
-                                state.scroll_to_reveal_item(next);
-                            } else {
-                                // Unmeasured rows have no cached height, so
-                                // `scroll_to_reveal_item` cannot locate a far
-                                // target. Jump by logical index; the next
-                                // layout measures that row at the viewport.
-                                state.scroll_to(gpui::ListOffset {
-                                    item_ix: next,
-                                    offset_in_item: px(0.),
-                                });
-                            }
-                        }
-                    }
-                    crate::list_nav::Move::Activate => {
-                        let Some(index) = from else { return };
-                        let activation = if event.keystroke.key == "enter" {
-                            RowActivation::Enter
-                        } else {
-                            RowActivation::Space
-                        };
-                        match row_intent(
-                            activation,
-                            mode,
-                            selection_behavior,
-                            selected_now.is_empty(),
-                            on_row_click.is_some(),
-                        ) {
-                            RowIntent::Action => {
-                                if let Some(cb) = &on_row_click {
-                                    cb(&index, &ClickEvent::default(), window, cx);
-                                }
-                            }
-                            RowIntent::Selection => {
-                                if let Some(key) = keys.get(index) {
-                                    let was_selected = selected_now.contains(key);
-                                    let extends_selection =
-                                        modifiers.shift && mode == SelectionMode::Multiple;
-                                    let next = if extends_selection {
-                                        let range = selection_range_for_keys.read(cx).clone();
-                                        extend_selection_range(
-                                            &selected_now,
-                                            &keys,
-                                            selectable_collection_keys
-                                                .as_ref()
-                                                .expect("multiple Tables have selectable keys")
-                                                .as_slice(),
-                                            &range,
-                                            key,
-                                        )
-                                    } else {
-                                        let non_contiguous = if cfg!(target_os = "macos") {
-                                            modifiers.alt
-                                        } else {
-                                            modifiers.control
-                                        };
-                                        crate::selection::next_selection_with_behavior(
-                                            &selected_now,
-                                            key,
-                                            mode,
-                                            if non_contiguous {
-                                                SelectionBehavior::Toggle
-                                            } else {
-                                                selection_behavior
-                                            },
-                                            disallow_empty_selection,
-                                        )
-                                    };
-                                    let changed = !same_selection(&next, &selected_now);
-                                    if changed {
-                                        if let Some(held) = &selection_own_for_keys {
-                                            held.update(cx, |value, cx| {
-                                                *value = next.clone();
-                                                cx.notify();
-                                            });
-                                        }
-                                        if let Some(cb) = &selection {
-                                            cb(&next, window, cx);
-                                        }
-                                    }
-                                    if extends_selection && changed {
-                                        selection_range_for_keys.update(cx, |range, _| {
-                                            if range.anchor.is_none() {
-                                                range.anchor = Some(key.clone());
-                                            }
-                                            range.current = Some(key.clone());
-                                            range.is_all = false;
-                                        });
-                                    } else if !extends_selection
-                                        && mode == SelectionMode::Multiple
-                                        && !was_selected
-                                    {
-                                        selection_range_for_keys.update(cx, |range, _| {
-                                            range.anchor = Some(key.clone());
-                                            range.current = Some(key.clone());
-                                            range.is_all = false;
-                                        });
-                                    } else if !extends_selection && mode == SelectionMode::Multiple
-                                    {
-                                        selection_range_for_keys.update(cx, |range, _| {
-                                            if range.is_all {
-                                                *range = TableSelectionRange::default();
-                                            }
-                                        });
-                                    }
-                                }
-                            }
-                            RowIntent::None => {}
-                        }
-                    }
-                    crate::list_nav::Move::Ignore => {}
-                }
-            });
-        }
-        wrapper
+            page_up_header: header_focus.first().cloned(),
+            headers: header_focus,
+        };
+        wrapper.on_key_down(move |event, window, cx| nav.key_down(event, window, cx))
     }
 
-    /// Fills `.table__body`: a `uniform_list` for fixed-height virtual rows, a
+    /// Fills `.table__body`: a uniform [`VirtualList`](crate::VirtualList) for fixed-height virtual rows, a
     /// measured [`VirtualList`](crate::VirtualList) for `estimatedRowHeight`, or every flattened
     /// plain row.
     fn body_rows(
         &self,
         mut body: gpui::Stateful<gpui::Div>,
         rows_in: BodyRows<'_>,
+        window: &Window,
         cx: &mut App,
     ) -> gpui::Stateful<gpui::Div> {
         let BodyRows {
@@ -3698,7 +4390,7 @@ impl Table {
         if let (Some(row_height), Some((_, _, _, factory))) =
             (self.row_height, self.virtual_rows.clone())
         {
-            // The body scrolls inside `uniform_list`, which asks for the rows the
+            // The body scrolls inside a uniform `VirtualList`, which asks for the rows the
             // viewport shows and no others. A fixed height caps the roomy-window
             // body at the configured value, so an unbounded (natural-height)
             // page parent sizes the whole table to header + cap + padding
@@ -3712,33 +4404,35 @@ impl Table {
             let projection = virtual_projection;
             // The headless probe name for the virtual viewport's bounds.
             let rows_selector = format!("{table_id}-virtual-rows");
+            let handle = virtual_scroll_now;
+            if handle.item_count() != row_count {
+                handle.splice(0..handle.item_count(), row_count);
+            }
             body = body.child(
-                gpui::uniform_list(
+                crate::VirtualList::new(
                     element_id::scoped(base_id, "virtual-rows"),
-                    row_count,
-                    move |range, _window, cx| {
-                        range
-                            .map(|i| {
-                                let (source_index, key, metadata) = &projection[i];
-                                let row_data = factory(*source_index);
-                                rows.row(
-                                    i,
-                                    row_data,
-                                    metadata.depth,
-                                    metadata.has_children,
-                                    key,
-                                    Some(row_height),
-                                    cx,
-                                )
-                            })
-                            .collect::<Vec<_>>()
+                    handle,
+                    move |i, _window, cx| {
+                        let (source_index, key, metadata) = &projection[i];
+                        let row_data = factory(*source_index);
+                        rows.row(
+                            i,
+                            row_data,
+                            metadata.depth,
+                            metadata.has_children,
+                            key,
+                            Some(row_height),
+                            _window,
+                            cx,
+                        )
                     },
                 )
-                .track_scroll(virtual_scroll_now)
-                .h(height)
-                .min_h_0()
-                .w_full()
-                .debug_selector(move || rows_selector),
+                .height(height)
+                .debug_selector(rows_selector)
+                .when(
+                    ctx.frozen.is_some(),
+                    crate::VirtualList::restrict_scroll_to_axis,
+                ),
             );
         } else if let (Some(state), Some((_, _, _, factory))) =
             (virtual_list_state, self.virtual_rows.clone())
@@ -3762,6 +4456,7 @@ impl Table {
                             metadata.has_children,
                             key,
                             None,
+                            _window,
                             cx,
                         );
                         let measured = measured_heights.clone();
@@ -3794,7 +4489,16 @@ impl Table {
             );
         } else {
             for (i, (row_data, depth, has_children, tree_key, _)) in flat.into_iter().enumerate() {
-                body = body.child(ctx.row(i, row_data, depth, has_children, &tree_key, None, cx));
+                body = body.child(ctx.row(
+                    i,
+                    row_data,
+                    depth,
+                    has_children,
+                    &tree_key,
+                    None,
+                    window,
+                    cx,
+                ));
             }
         }
 
@@ -3816,6 +4520,7 @@ impl Table {
             virtual_scroll,
             variable_scroll,
             muted,
+            loading_text,
         } = load_more;
         if let Some(cb) = self.on_load_more.clone() {
             let scroll_offset = self.load_more_offset;
@@ -3832,12 +4537,12 @@ impl Table {
                             && bounds.bottom() >= mask.top()
                             && bounds.top() <= mask.bottom() + mask.size.height * scroll_offset;
                         let virtual_end_is_near = if let Some(handle) = &virtual_scroll {
-                            let scroll = handle.0.borrow();
-                            scroll.last_item_size.is_some_and(|size| {
-                                let remaining = size.contents.height
-                                    + scroll.base_handle.offset().y
-                                    - size.item.height;
-                                remaining <= size.item.height * scroll_offset
+                            // The uniform body knows its tail exactly: the
+                            // row count times the measured row, less the
+                            // scroll offset and the viewport.
+                            let viewport_height = handle.viewport_bounds().size.height;
+                            handle.remaining_below().is_some_and(|remaining| {
+                                remaining <= viewport_height * scroll_offset
                             })
                         } else if let Some((state, count, estimate)) = &variable_scroll {
                             let viewport = state.viewport_bounds();
@@ -3906,7 +4611,7 @@ impl Table {
                     crate::spinner::Spinner::new(element_id::scoped(base_id, "load-spinner"))
                         .size(herogpui_core::Size::Sm),
                 )
-                .child("Loading\u{2026}");
+                .child(loading_text);
             table = table.child(sentinel);
         }
         table
@@ -3919,22 +4624,18 @@ impl Table {
     fn row_edge_rounding(
         &self,
         secondary: bool,
-        virtual_scroll_now: &gpui::UniformListScrollHandle,
+        virtual_scroll_now: &crate::VirtualListHandle,
         virtual_list_state: Option<&gpui::ListState>,
         virtual_visible_count: usize,
         cx: &App,
     ) -> (Option<Pixels>, Option<Pixels>) {
         let (touches_top, touches_bottom) =
             if self.row_height.is_some() && self.virtual_rows.is_some() {
-                let at_top = {
-                    let scroll = virtual_scroll_now.0.borrow();
-                    scroll.base_handle.offset().y >= px(-0.5)
-                };
-                // `is_scrolled_to_end` answers `None` when the list does
-                // not scroll at all, and then every row is on screen.
+                // A list that does not scroll at all answers "at the end":
+                // every row is on screen.
                 (
-                    at_top,
-                    virtual_scroll_now.is_scrolled_to_end().unwrap_or(true),
+                    virtual_scroll_now.is_scrolled_to_top(),
+                    virtual_scroll_now.is_scrolled_to_end(),
                 )
             } else if let Some(state) = virtual_list_state {
                 let top = state.logical_scroll_top();
@@ -4049,6 +4750,29 @@ struct RowCtx {
     /// Whether the collection is a tree, which is what makes
     /// `useTableRow.mjs` add `aria-level` and `aria-expanded` to a row.
     is_tree: bool,
+    /// Cell selection (HeroGPUI extension), when enabled.
+    cell: Option<CellCtx>,
+    /// Frozen leading columns (HeroGPUI extension), when any scroll.
+    frozen: Option<FrozenColumns>,
+}
+
+/// One body row's per-render facts, which every part of the row reads.
+struct RowPaint {
+    i: usize,
+    key: SharedString,
+    depth: usize,
+    has_children: bool,
+    is_selected: bool,
+    is_disabled: bool,
+    is_expanded: bool,
+    selected_bg: Option<gpui::Hsla>,
+    hover_bg: Option<gpui::Hsla>,
+    hover_group: SharedString,
+    /// The row the keyboard is on.
+    row_focused: bool,
+    data_count: usize,
+    round_top: Option<Pixels>,
+    round_bottom: Option<Pixels>,
 }
 
 impl RowCtx {
@@ -4069,15 +4793,13 @@ impl RowCtx {
         has_children: bool,
         tree_key: &SharedString,
         fixed_h: Option<Pixels>,
+        window: &Window,
         cx: &mut App,
     ) -> AnyElement {
         let colors = cx.colors();
-        let tree_column = self.tree_column;
-        let tree_column_has_children = self.tree_column_has_children;
         let key = tree_key.clone();
         let is_selected = self.selected_keys.contains(&key);
         let is_disabled = self.disabled_keys.contains(&key);
-        let row_header_columns = &self.row_header_columns;
         let selected_bg = is_selected.then(|| colors.surface.background.alpha(0.1));
         let hover_bg = (!is_selected && !is_disabled).then(|| {
             self.row_hover_bg.unwrap_or(if self.secondary {
@@ -4088,6 +4810,7 @@ impl RowCtx {
         });
         let hover_group: SharedString = format!("{}-row-hover-{i}", self.hover_group_prefix).into();
         let row_focused = self.cursor == Some(i);
+        let row_anchor = self.cursor_own.read(cx).as_ref() == Some(tree_key);
 
         let mut row = gpui::div()
             .id(element_id::indexed(&self.id, "row", i))
@@ -4132,383 +4855,1287 @@ impl RowCtx {
         let round_bottom = (i + 1 == self.row_keys.len())
             .then_some(self.round_bottom)
             .flatten();
+        let paint = RowPaint {
+            i,
+            key,
+            depth,
+            has_children,
+            is_selected,
+            is_disabled,
+            is_expanded: self.expanded.iter().any(|k| k == tree_key),
+            selected_bg,
+            hover_bg,
+            hover_group,
+            row_focused,
+            data_count,
+            round_top,
+            round_bottom,
+        };
 
-        if self.selectable {
-            let mut cell = gpui::div()
-                .id(element_id::indexed(&self.id, "select-cell", i))
-                // The selection column's body cell. `useTableCell.mjs` gives
-                // every data cell `.../grid/useGridCell.mjs`'s
-                // `role: 'gridcell'` and `'aria-colindex': colIndex + 1`.
-                .a11y(a11y::Role::GridCell)
-                .a11y_column_index(0)
-                .flex()
-                .items_center()
-                .justify_center()
-                .relative()
-                .w(px(44.))
-                .py(px(10.))
-                .when_some(selected_bg, |cell, bg| cell.bg(bg))
-                .when_some(hover_bg, |cell, bg| {
-                    cell.group_hover(hover_group.clone(), move |s| s.bg(bg))
-                })
-                .when_some(round_top, |cell, r| cell.rounded_tl(r))
-                .when_some(round_bottom, |cell, r| cell.rounded_bl(r))
-                .when(data_count == 0, |cell| {
-                    cell.when_some(round_top, |cell, r| cell.rounded_tr(r))
-                        .when_some(round_bottom, |cell, r| cell.rounded_br(r))
-                })
-                .on_mouse_down(gpui::MouseButton::Left, |_, _, cx| {
-                    cx.stop_propagation();
-                });
-            let mut box_el = Checkbox::new(element_id::indexed(&self.id, "select", i))
-                .is_selected(is_selected)
-                .is_disabled(is_disabled);
-            let cb = self.on_selection_change.clone();
-            if !is_disabled && (cb.is_some() || self.selection_own.is_some()) {
-                let current = self.selected_keys.clone();
-                let key2 = key.clone();
-                let mode = self.selection_mode;
-                let disallow_empty_selection = self.disallow_empty_selection;
-                let selection_own = self.selection_own.clone();
-                let selection_range = self.selection_range.clone();
-                box_el = box_el.on_change(move |_next, window, cx| {
-                    cx.stop_propagation();
-                    // A checkbox is the explicit selection affordance. React
-                    // Aria toggles it even when the surrounding row uses
-                    // `selectionBehavior="replace"`.
-                    let next = crate::selection::next_selection(
-                        &current,
-                        &key2,
-                        mode,
-                        disallow_empty_selection,
-                    );
-                    if let Some(held) = &selection_own {
-                        held.update(cx, |value, cx| {
-                            *value = next.clone();
-                            cx.notify();
-                        });
-                    }
-                    if let Some(cb) = &cb {
-                        cb(&next, window, cx);
-                    }
-                    if mode == SelectionMode::Multiple && !is_selected {
-                        selection_range.update(cx, |range, _| {
-                            range.anchor = Some(key2.clone());
-                            range.current = Some(key2.clone());
-                            range.is_all = false;
-                        });
-                    } else if mode == SelectionMode::Multiple {
-                        selection_range.update(cx, |range, _| {
-                            if range.is_all {
-                                *range = TableSelectionRange::default();
-                            }
-                        });
-                    }
-                });
+        if let Some(frozen) = &self.frozen {
+            row = self.frozen_row_parts(row, frozen, &paint, row_data, cx);
+        } else {
+            if self.selectable {
+                row = row.child(self.select_cell(&paint, cx));
             }
-            cell = cell.child(box_el);
-            if row_focused {
-                cell = cell.child(table_cell_focus_ring(cx, true, data_count == 0));
-            }
-            row = row.child(cell);
+
+            // Cells are flex rows so inline children (chips, buttons) size to
+            // their content instead of stretching to the column width.
+            let cx: &App = cx;
+            row = row.children(
+                row_data
+                    .cells
+                    .into_iter()
+                    .enumerate()
+                    .map(|(c, cell)| self.data_cell(&paint, c, cell, cx)),
+            );
         }
+        row = self.row_press(row, &paint, cx);
 
-        // Cells are flex rows so inline children (chips, buttons) size to
-        // their content instead of stretching to the column width.
-        let widths = &self.widths;
-        let is_expanded = self.expanded.iter().any(|k| k == tree_key);
-        let toggle_key = tree_key.clone();
-        let expanded_before = self.expanded.clone();
-        let on_expanded = self.on_expanded_change.clone();
-        row = row.children(row_data.cells.into_iter().enumerate().map(|(c, cell)| {
-            let (width, min_width, max_width) =
-                widths.get(c).copied().unwrap_or((None, None, None));
-            let mut cell_el = gpui::div()
-                .when(width.is_none(), flex_cell)
-                .when_some(width, |e, w| e.w(w))
-                .when_some(min_width, |e, w| e.min_w(w))
-                .when_some(max_width, |e, w| e.max_w(w))
-                .flex()
-                .items_center()
-                .gap(px(6.))
-                .relative()
-                // `.table__cell` is `px-4 py-3`.
-                .px(px(16.))
-                .py(px(12.))
-                .when(self.secondary, |e| {
-                    e.border_b_1()
-                        .border_color(colors.separator_tertiary().alpha(0.5))
-                })
-                .when(row_header_columns.get(c).copied().unwrap_or(false), |e| {
-                    e.font_weight(gpui::FontWeight::MEDIUM)
-                })
-                .when_some(selected_bg, |cell, bg| cell.bg(bg))
-                .when_some(hover_bg, |cell, bg| {
-                    cell.group_hover(hover_group.clone(), move |s| s.bg(bg))
-                })
-                .when(!self.selectable && c == 0, |cell| {
-                    cell.when_some(round_top, |cell, r| cell.rounded_tl(r))
-                        .when_some(round_bottom, |cell, r| cell.rounded_bl(r))
-                })
-                .when(c + 1 == data_count, |cell| {
-                    cell.when_some(round_top, |cell, r| cell.rounded_tr(r))
-                        .when_some(round_bottom, |cell, r| cell.rounded_br(r))
-                });
-            if self.measure_intrinsic.get(c).copied().unwrap_or(false) {
-                let measurements = self.measured_widths.clone();
-                let tree_indent = if c == tree_column {
-                    tree_column_padding(depth).map_or(0., f32::from)
-                } else {
-                    0.
-                };
-                cell_el = cell_el.on_children_prepainted(move |bounds, _, cx| {
-                    let content = intrinsic_children_width(&bounds);
-                    if content <= 0. {
-                        return;
+        // v3 rings the focused row *inside* itself: each cell carries its own
+        // inset strips so the outline stays clipped to the cell geometry.
+        row = row.when(is_disabled, |row| row.opacity(cx.layout().disabled_opacity));
+        if row_anchor && self.focus.is_focused(window) {
+            row = crate::util::record_focus_bounds(row, &self.focus, window, cx);
+        }
+        row.into_any_element()
+    }
+
+    /// A frozen table's row: the selection cell and the frozen cells in a
+    /// part that stays put, the rest in a part that scrolls with the header.
+    /// Both stay children of the row, which keeps the row's hover, press and
+    /// cursor spanning the two.
+    fn frozen_row_parts(
+        &self,
+        row: gpui::Stateful<gpui::Div>,
+        frozen: &FrozenColumns,
+        paint: &RowPaint,
+        row_data: TableRow,
+        cx: &App,
+    ) -> gpui::Stateful<gpui::Div> {
+        let data_count = row_data.cells.len();
+        let mut lead = frozen.frozen_part();
+        if self.selectable {
+            lead = lead.child(self.select_cell(paint, cx));
+        }
+        let mut cells = row_data.cells.into_iter().enumerate();
+        let lead = lead.children(
+            cells
+                .by_ref()
+                .take(frozen.count)
+                .map(|(c, cell)| self.data_cell(paint, c, cell, cx)),
+        );
+        let lead =
+            lead.children((data_count..frozen.count).map(|c| self.empty_frozen_track(paint.i, c)));
+        let rest = frozen
+            .scrolling_part(
+                gpui::div(),
+                element_id::indexed(&self.id, "row-scroll", paint.i),
+            )
+            .children(cells.map(|(c, cell)| self.data_cell(paint, c, cell, cx)))
+            .children(
+                (data_count.max(frozen.count)..self.widths.len())
+                    .map(|c| self.empty_frozen_track(paint.i, c)),
+            );
+        row.child(lead).child(rest)
+    }
+
+    /// Keep every row's shared horizontal scroll extent aligned with the
+    /// header, even when a caller supplies fewer cells than columns. The
+    /// empty track has no accessibility node or interaction target.
+    fn empty_frozen_track(&self, row: usize, column: usize) -> gpui::Stateful<gpui::Div> {
+        let (width, min_width, max_width) = self.widths[column];
+        gpui::div()
+            .when(width.is_none(), flex_cell)
+            .when_some(width, |cell, width| cell.w(width))
+            .when_some(min_width, |cell, width| cell.min_w(width))
+            .when_some(max_width, |cell, width| cell.max_w(width))
+            .id(element_id::indexed(
+                &element_id::indexed(&self.id, "row", row),
+                "empty-cell",
+                column,
+            ))
+    }
+
+    /// The selection column's body cell and its checkbox.
+    fn select_cell(&self, paint: &RowPaint, cx: &App) -> gpui::Stateful<gpui::Div> {
+        let RowPaint {
+            i,
+            is_selected,
+            is_disabled,
+            selected_bg,
+            hover_bg,
+            row_focused,
+            data_count,
+            round_top,
+            round_bottom,
+            ..
+        } = *paint;
+        let hover_group = &paint.hover_group;
+        let mut cell = gpui::div()
+            .id(element_id::indexed(&self.id, "select-cell", i))
+            // The selection column's body cell. `useTableCell.mjs` gives
+            // every data cell `.../grid/useGridCell.mjs`'s
+            // `role: 'gridcell'` and `'aria-colindex': colIndex + 1`.
+            .a11y(a11y::Role::GridCell)
+            .a11y_column_index(0)
+            .flex()
+            .items_center()
+            .justify_center()
+            .relative()
+            .w(px(44.))
+            .py(px(10.))
+            .when_some(selected_bg, |cell, bg| cell.bg(bg))
+            .when_some(hover_bg, |cell, bg| {
+                cell.group_hover(hover_group.clone(), move |s| s.bg(bg))
+            })
+            .when_some(round_top, |cell, r| cell.rounded_tl(r))
+            .when_some(round_bottom, |cell, r| cell.rounded_bl(r))
+            .when(data_count == 0, |cell| {
+                cell.when_some(round_top, |cell, r| cell.rounded_tr(r))
+                    .when_some(round_bottom, |cell, r| cell.rounded_br(r))
+            })
+            .on_mouse_down(gpui::MouseButton::Left, |_, _, cx| {
+                cx.stop_propagation();
+            });
+        let mut box_el = Checkbox::new(element_id::indexed(&self.id, "select", i))
+            .is_selected(is_selected)
+            .is_disabled(is_disabled);
+        let cb = self.on_selection_change.clone();
+        if !is_disabled && (cb.is_some() || self.selection_own.is_some()) {
+            let current = self.selected_keys.clone();
+            let key2 = paint.key.clone();
+            let mode = self.selection_mode;
+            let disallow_empty_selection = self.disallow_empty_selection;
+            let selection_own = self.selection_own.clone();
+            let selection_range = self.selection_range.clone();
+            box_el = box_el.on_change(move |_next, window, cx| {
+                cx.stop_propagation();
+                // A checkbox is the explicit selection affordance. React
+                // Aria toggles it even when the surrounding row uses
+                // `selectionBehavior="replace"`.
+                let next = crate::selection::next_selection(
+                    &current,
+                    &key2,
+                    mode,
+                    disallow_empty_selection,
+                );
+                if let Some(held) = &selection_own {
+                    held.update(cx, |value, cx| {
+                        *value = next.clone();
+                        cx.notify();
+                    });
+                }
+                if let Some(cb) = &cb {
+                    cb(&next, window, cx);
+                }
+                if mode == SelectionMode::Multiple && !is_selected {
+                    selection_range.update(cx, |range, _| {
+                        range.anchor = Some(key2.clone());
+                        range.current = Some(key2.clone());
+                        range.is_all = false;
+                    });
+                } else if mode == SelectionMode::Multiple {
+                    selection_range.update(cx, |range, _| {
+                        if range.is_all {
+                            *range = TableSelectionRange::default();
+                        }
+                    });
+                }
+            });
+        }
+        cell = cell.child(box_el);
+        if row_focused {
+            cell = cell.child(table_cell_focus_ring(cx, true, data_count == 0));
+        }
+        cell
+    }
+
+    /// One `.table__cell`: the column's shared track, the row's fills, the
+    /// tree column's indent and chevron, and the cell-selection decoration.
+    fn data_cell(
+        &self,
+        paint: &RowPaint,
+        c: usize,
+        cell: AnyElement,
+        cx: &App,
+    ) -> gpui::Stateful<gpui::Div> {
+        let colors = cx.colors();
+        let RowPaint {
+            i,
+            depth,
+            has_children,
+            is_disabled,
+            selected_bg,
+            hover_bg,
+            row_focused,
+            data_count,
+            round_top,
+            round_bottom,
+            ..
+        } = *paint;
+        let hover_group = &paint.hover_group;
+        let key = &paint.key;
+        let tree_column = self.tree_column;
+        let row_header_columns = &self.row_header_columns;
+        let (width, min_width, max_width) =
+            self.widths.get(c).copied().unwrap_or((None, None, None));
+        let mut cell_el = gpui::div()
+            .when(width.is_none(), flex_cell)
+            .when_some(width, |e, w| e.w(w))
+            .when_some(min_width, |e, w| e.min_w(w))
+            .when_some(max_width, |e, w| e.max_w(w))
+            .flex()
+            .items_center()
+            .gap(px(6.))
+            .relative()
+            // `.table__cell` is `px-4 py-3`.
+            .px(px(16.))
+            .py(px(12.))
+            .when(self.secondary, |e| {
+                e.border_b_1()
+                    .border_color(colors.separator_tertiary().alpha(0.5))
+            })
+            .when(row_header_columns.get(c).copied().unwrap_or(false), |e| {
+                e.font_weight(gpui::FontWeight::MEDIUM)
+            })
+            .when_some(selected_bg, |cell, bg| cell.bg(bg))
+            .when_some(hover_bg, |cell, bg| {
+                cell.group_hover(hover_group.clone(), move |s| s.bg(bg))
+            })
+            .when(!self.selectable && c == 0, |cell| {
+                cell.when_some(round_top, |cell, r| cell.rounded_tl(r))
+                    .when_some(round_bottom, |cell, r| cell.rounded_bl(r))
+            })
+            .when(c + 1 == data_count, |cell| {
+                cell.when_some(round_top, |cell, r| cell.rounded_tr(r))
+                    .when_some(round_bottom, |cell, r| cell.rounded_br(r))
+            });
+        if self.measure_intrinsic.get(c).copied().unwrap_or(false) {
+            let measurements = self.measured_widths.clone();
+            let tree_indent = if c == tree_column {
+                tree_column_padding(depth).map_or(0., f32::from)
+            } else {
+                0.
+            };
+            // Only the cell's own content: the tree column's chevron or
+            // spacer, then the caller's element. The rings a focused row or a
+            // selected cell add after them are `inset_0` overlays as wide as
+            // the cell, and measuring them grew the floor every frame.
+            let content_children = 1 + usize::from(
+                c == tree_column && (has_children || depth > 0 || self.tree_column_has_children),
+            );
+            cell_el = cell_el.on_children_prepainted(move |bounds, _, cx| {
+                let content =
+                    intrinsic_children_width(&bounds[..content_children.min(bounds.len())]);
+                if content <= 0. {
+                    return;
+                }
+                let next = px(content + 32. + tree_indent);
+                measurements.update(cx, |values, cx| {
+                    if values.len() <= c {
+                        values.resize(c + 1, None);
                     }
-                    let next = px(content + 32. + tree_indent);
-                    measurements.update(cx, |values, cx| {
-                        if values.len() <= c {
-                            values.resize(c + 1, None);
-                        }
-                        if values[c].is_none_or(|current| next > current) {
-                            values[c] = Some(next);
-                            cx.notify();
-                        }
+                    if values[c].is_none_or(|current| next > current) {
+                        values[c] = Some(next);
+                        cx.notify();
+                    }
+                });
+            });
+        }
+        // At the end of the chain, and after `flex_cell` — that helper
+        // takes a `gpui::Div`, which an `.id(..)` would have turned into a
+        // `Stateful<Div>` — and clear of the `.table__cell` padding window
+        // `.shots/design_audit.py` opens on the comment above.
+        //
+        // `useTableCell.mjs` is `.../grid/useGridCell.mjs`'s
+        // `role: 'gridcell'`, swapped for `'rowheader'` when the cell's
+        // column key is in `rowHeaderColumnKeys` — the port's
+        // `TableColumn::is_row_header`. The cell's contents are an
+        // arbitrary `AnyElement` here, so unlike a row (which upstream
+        // names from `node.textValue`) it carries no name of its own;
+        // whatever the caller composed inside reports itself.
+        let mut cell_el = cell_el
+            .debug_selector(move || format!("table-row-track-{i}-{c}"))
+            .id(element_id::indexed(
+                &element_id::indexed(&self.id, "row", i),
+                "cell",
+                c,
+            ))
+            .a11y(if row_header_columns.get(c).copied().unwrap_or(false) {
+                a11y::Role::RowHeader
+            } else {
+                a11y::Role::GridCell
+            })
+            .a11y_column_index(c + usize::from(self.selectable));
+        // The tree column carries the indent and the chevron; a row with
+        // no children still indents, so siblings line up.
+        if c == tree_column {
+            if let Some(padding) = tree_column_padding(depth) {
+                cell_el = cell_el.pl(padding);
+            }
+            if has_children {
+                cell_el = cell_el.child(self.tree_chevron(paint, cx));
+            } else if depth > 0 || self.tree_column_has_children {
+                // A leaf keeps the chevron's width so its text lines up
+                // with its expandable siblings'.
+                cell_el = cell_el.child(gpui::div().size(px(18.)).flex_shrink_0());
+            }
+        }
+        cell_el = cell_el.child(cell);
+        if let Some(cell_ctx) = &self.cell {
+            cell_el = cell_ctx.decorate(cell_el, key, c, is_disabled, cx);
+        }
+        if row_focused && self.cell.is_none() {
+            let cell_index = c + usize::from(self.selectable);
+            let total_cells = data_count + usize::from(self.selectable);
+            cell_el = cell_el.child(table_cell_focus_ring(
+                cx,
+                cell_index == 0,
+                cell_index + 1 == total_cells,
+            ));
+        }
+        cell_el
+    }
+
+    /// The tree column's expand/collapse chevron on a row with children.
+    fn tree_chevron(&self, paint: &RowPaint, cx: &App) -> gpui::Stateful<gpui::Div> {
+        let colors = cx.colors();
+        let is_disabled = paint.is_disabled;
+        let is_expanded = paint.is_expanded;
+        let toggle_key = paint.key.clone();
+        let mut chevron = gpui::div()
+            .id(element_id::scoped(
+                &element_id::scoped(&self.id, "expand"),
+                toggle_key.clone(),
+            ))
+            .flex()
+            .items_center()
+            .justify_center()
+            .size(px(18.))
+            .flex_shrink_0()
+            .when(!is_disabled, |chevron| {
+                chevron
+                    .cursor(crate::util::interactive_cursor(cx))
+                    .on_mouse_down(gpui::MouseButton::Left, |_, _, cx| {
+                        cx.stop_propagation();
+                    })
+            })
+            .child(
+                gpui::svg()
+                    .size(px(12.))
+                    .path(if is_expanded {
+                        icons::CHEVRON_DOWN
+                    } else {
+                        icons::CHEVRON_RIGHT
+                    })
+                    .text_color(colors.muted),
+            );
+        if !is_disabled {
+            if let Some(cb) = self.on_expanded_change.clone() {
+                let key = toggle_key;
+                let before = self.expanded.clone();
+                let focus = self.focus.clone();
+                let cursor = self.cursor_own.clone();
+                chevron = chevron.on_click(move |_, window, cx| {
+                    cx.stop_propagation();
+                    let mut next = before.as_ref().clone();
+                    if let Some(at) = next.iter().position(|k| *k == key) {
+                        next.remove(at);
+                    } else {
+                        next.push(key.clone());
+                    }
+                    cb(&next, window, cx);
+                    window.focus(&focus, cx);
+                    cursor.update(cx, |value, cx| {
+                        *value = Some(key.clone());
+                        cx.notify();
                     });
                 });
             }
-            // At the end of the chain, and after `flex_cell` — that helper
-            // takes a `gpui::Div`, which an `.id(..)` would have turned into a
-            // `Stateful<Div>` — and clear of the `.table__cell` padding window
-            // `.shots/design_audit.py` opens on the comment above.
-            //
-            // `useTableCell.mjs` is `.../grid/useGridCell.mjs`'s
-            // `role: 'gridcell'`, swapped for `'rowheader'` when the cell's
-            // column key is in `rowHeaderColumnKeys` — the port's
-            // `TableColumn::is_row_header`. The cell's contents are an
-            // arbitrary `AnyElement` here, so unlike a row (which upstream
-            // names from `node.textValue`) it carries no name of its own;
-            // whatever the caller composed inside reports itself.
-            let mut cell_el = cell_el
-                .debug_selector(move || format!("table-row-track-{i}-{c}"))
-                .id(element_id::indexed(
-                    &element_id::indexed(&self.id, "row", i),
-                    "cell",
-                    c,
-                ))
-                .a11y(if row_header_columns.get(c).copied().unwrap_or(false) {
-                    a11y::Role::RowHeader
-                } else {
-                    a11y::Role::GridCell
-                })
-                .a11y_column_index(c + usize::from(self.selectable));
-            // The tree column carries the indent and the chevron; a row with
-            // no children still indents, so siblings line up.
-            if c == tree_column {
-                if let Some(padding) = tree_column_padding(depth) {
-                    cell_el = cell_el.pl(padding);
-                }
-                if has_children {
-                    let mut chevron = gpui::div()
-                        .id(element_id::scoped(
-                            &element_id::scoped(&self.id, "expand"),
-                            toggle_key.clone(),
-                        ))
-                        .flex()
-                        .items_center()
-                        .justify_center()
-                        .size(px(18.))
-                        .flex_shrink_0()
-                        .when(!is_disabled, |chevron| {
-                            chevron
-                                .cursor(crate::util::interactive_cursor(cx))
-                                .on_mouse_down(gpui::MouseButton::Left, |_, _, cx| {
-                                    cx.stop_propagation();
-                                })
-                        })
-                        .child(
-                            gpui::svg()
-                                .size(px(12.))
-                                .path(if is_expanded {
-                                    icons::CHEVRON_DOWN
-                                } else {
-                                    icons::CHEVRON_RIGHT
-                                })
-                                .text_color(colors.muted),
-                        );
-                    if !is_disabled {
-                        if let Some(cb) = on_expanded.clone() {
-                            let key = toggle_key.clone();
-                            let before = expanded_before.clone();
-                            let focus = self.focus.clone();
-                            let cursor = self.cursor_own.clone();
-                            chevron = chevron.on_click(move |_, window, cx| {
-                                cx.stop_propagation();
-                                let mut next = before.as_ref().clone();
-                                if let Some(at) = next.iter().position(|k| *k == key) {
-                                    next.remove(at);
-                                } else {
-                                    next.push(key.clone());
-                                }
-                                cb(&next, window, cx);
-                                window.focus(&focus, cx);
-                                cursor.update(cx, |value, cx| {
-                                    *value = Some(key.clone());
-                                    cx.notify();
-                                });
-                            });
-                        }
-                    }
-                    cell_el = cell_el.child(chevron);
-                } else if depth > 0 || tree_column_has_children {
-                    // A leaf keeps the chevron's width so its text lines up
-                    // with its expandable siblings'.
-                    cell_el = cell_el.child(gpui::div().size(px(18.)).flex_shrink_0());
-                }
-            }
-            cell_el = cell_el.child(cell);
-            if row_focused {
-                let cell_index = c + usize::from(self.selectable);
-                let total_cells = data_count + usize::from(self.selectable);
-                cell_el = cell_el.child(table_cell_focus_ring(
-                    cx,
-                    cell_index == 0,
-                    cell_index + 1 == total_cells,
-                ));
-            }
-            cell_el
-        }));
+        }
+        chevron
+    }
 
+    /// The row's press: focus and cursor on mouse down, then the row's
+    /// action or a selection change on click.
+    fn row_press(
+        &self,
+        row: gpui::Stateful<gpui::Div>,
+        paint: &RowPaint,
+        cx: &App,
+    ) -> gpui::Stateful<gpui::Div> {
+        let i = paint.i;
+        let key = paint.key.clone();
         let row_action = self.on_row_click.clone();
         let row_selection = self.on_selection_change.clone();
         let selection_own = self.selection_own.clone();
         let selection_behavior = self.selection_behavior;
         let disallow_empty_selection = self.disallow_empty_selection;
-        if !is_disabled
-            && (row_action.is_some()
+        if paint.is_disabled
+            || !(row_action.is_some()
                 || (self.selectable && (row_selection.is_some() || selection_own.is_some())))
         {
-            let current = self.selected_keys.clone();
-            let mode = self.selection_mode;
-            let selection_range = self.selection_range.clone();
-            let range_collection = self.row_keys.clone();
-            let range_selectable: Vec<SharedString> = self
-                .row_keys
-                .iter()
-                .filter(|key| !self.disabled_keys.contains(key))
-                .cloned()
-                .collect();
-            let moved = self.cursor_own.clone();
-            let focus = self.focus.clone();
-            let focus_for_click = self.focus.clone();
-            let key_for_cursor = key.clone();
-            row = row
-                .cursor(crate::util::interactive_cursor(cx))
-                .on_mouse_down(gpui::MouseButton::Left, move |_, window, cx| {
-                    if window.default_prevented() {
-                        return;
+            return row;
+        }
+        let current = self.selected_keys.clone();
+        let mode = self.selection_mode;
+        let selection_range = self.selection_range.clone();
+        let range_collection = self.row_keys.clone();
+        let range_selectable: Vec<SharedString> = self
+            .row_keys
+            .iter()
+            .filter(|key| !self.disabled_keys.contains(key))
+            .cloned()
+            .collect();
+        let moved = self.cursor_own.clone();
+        let focus = self.focus.clone();
+        let focus_for_click = self.focus.clone();
+        let key_for_cursor = key.clone();
+        row.cursor(crate::util::interactive_cursor(cx))
+            .on_mouse_down(gpui::MouseButton::Left, move |_, window, cx| {
+                if window.default_prevented() {
+                    return;
+                }
+                window.focus(&focus, cx);
+                moved.update(cx, |value, cx| {
+                    *value = Some(key_for_cursor.clone());
+                    cx.notify();
+                });
+            })
+            .on_click(move |ev, w, cx| {
+                if !focus_for_click.is_focused(w) {
+                    return;
+                }
+                match row_intent(
+                    RowActivation::Pointer,
+                    mode,
+                    selection_behavior,
+                    current.is_empty(),
+                    row_action.is_some(),
+                ) {
+                    RowIntent::Action => {
+                        if let Some(cb) = &row_action {
+                            cb(&i, ev, w, cx);
+                        }
                     }
-                    window.focus(&focus, cx);
-                    moved.update(cx, |value, cx| {
-                        *value = Some(key_for_cursor.clone());
+                    RowIntent::Selection => {
+                        let was_selected = current.contains(&key);
+                        let extends_selection =
+                            ev.modifiers().shift && mode == SelectionMode::Multiple;
+                        let next = if extends_selection {
+                            let range = selection_range.read(cx).clone();
+                            extend_selection_range(
+                                &current,
+                                &range_collection,
+                                &range_selectable,
+                                &range,
+                                &key,
+                            )
+                        } else {
+                            let modifiers = ev.modifiers();
+                            let non_contiguous = if cfg!(target_os = "macos") {
+                                modifiers.alt
+                            } else {
+                                modifiers.control
+                            };
+                            crate::selection::next_selection_with_behavior(
+                                &current,
+                                &key,
+                                mode,
+                                if non_contiguous {
+                                    SelectionBehavior::Toggle
+                                } else {
+                                    selection_behavior
+                                },
+                                disallow_empty_selection,
+                            )
+                        };
+                        let changed = !same_selection(&next, &current);
+                        if changed {
+                            if let Some(held) = &selection_own {
+                                held.update(cx, |value, cx| {
+                                    *value = next.clone();
+                                    cx.notify();
+                                });
+                            }
+                            if let Some(cb) = &row_selection {
+                                cb(&next, w, cx);
+                            }
+                        }
+                        if extends_selection && changed {
+                            selection_range.update(cx, |range, _| {
+                                if range.anchor.is_none() {
+                                    range.anchor = Some(key.clone());
+                                }
+                                range.current = Some(key.clone());
+                                range.is_all = false;
+                            });
+                        } else if !extends_selection
+                            && mode == SelectionMode::Multiple
+                            && !was_selected
+                        {
+                            selection_range.update(cx, |range, _| {
+                                range.anchor = Some(key.clone());
+                                range.current = Some(key.clone());
+                                range.is_all = false;
+                            });
+                        } else if !extends_selection && mode == SelectionMode::Multiple {
+                            selection_range.update(cx, |range, _| {
+                                if range.is_all {
+                                    *range = TableSelectionRange::default();
+                                }
+                            });
+                        }
+                    }
+                    RowIntent::None => {}
+                }
+            })
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Column reordering and cell selection (HeroGPUI extension, after gpui-kit's
+// data table: `movable` columns and `cell_selectable`). Neither is a HeroUI
+// v3 prop; they are kept here, after the v3 surface, so the ported code above
+// stays as it was.
+// ---------------------------------------------------------------------------
+
+type OnColumnMove = std::sync::Arc<dyn Fn(&ColumnMove, &mut Window, &mut App) + 'static>;
+type OnCellSelect = std::sync::Arc<dyn Fn(&TableCell, &mut Window, &mut App) + 'static>;
+
+/// A column move, as [`Table::on_column_move`] reports it (HeroGPUI
+/// extension). Positions are display positions *before* the move; `order` is
+/// the new display order as indices into the columns the table was given.
+#[derive(Clone, Debug, PartialEq, Eq)]
+#[non_exhaustive]
+pub struct ColumnMove {
+    /// The display position the column left.
+    pub from: usize,
+    /// The display position it moved to.
+    pub to: usize,
+    /// The whole new order, as indices into the given columns.
+    pub order: Vec<usize>,
+}
+
+/// One table cell (HeroGPUI extension): the row's selection key and the
+/// column's index in the columns the table was given, so it stays the same
+/// cell when the columns are reordered.
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub struct TableCell {
+    /// The row's selection key (see [`TableRow::key`]).
+    pub row: SharedString,
+    /// The column's index in the columns as given.
+    pub column: usize,
+}
+
+impl TableCell {
+    /// The cell of row `row` in column `column` (an index into the columns
+    /// as given).
+    pub fn new(row: impl Into<SharedString>, column: usize) -> Self {
+        Self {
+            row: row.into(),
+            column,
+        }
+    }
+}
+
+/// The column-reordering configuration.
+#[derive(Default)]
+struct ColumnReorder {
+    allowed: bool,
+    order: Option<Vec<usize>>,
+    default_order: Option<Vec<usize>>,
+    on_move: Option<OnColumnMove>,
+}
+
+/// The cell-selection configuration.
+#[derive(Default)]
+struct CellSelection {
+    enabled: bool,
+    /// `Some` when controlled; the inner `None` is "no cell".
+    selected: Option<Option<TableCell>>,
+    default: Option<TableCell>,
+    on_select: Option<OnCellSelect>,
+}
+
+/// `order` made a permutation of `0..n`: out-of-range and repeated indices
+/// dropped, missing ones appended in order.
+fn sanitize_order(order: &[usize], n: usize) -> Vec<usize> {
+    let mut seen = vec![false; n];
+    let mut out = Vec::with_capacity(n);
+    for &ix in order {
+        if ix < n && !seen[ix] {
+            seen[ix] = true;
+            out.push(ix);
+        }
+    }
+    out.extend((0..n).filter(|ix| !seen[*ix]));
+    out
+}
+
+/// The order after moving the column at display position `from` to `to`.
+fn moved_order(order: &[usize], from: usize, to: usize) -> Vec<usize> {
+    let mut next = order.to_vec();
+    if from < next.len() && to < next.len() && from != to {
+        let column = next.remove(from);
+        next.insert(to, column);
+    }
+    next
+}
+
+/// Reorders a row's cells (and its children's) into display order. A row
+/// with fewer cells than columns keeps the ones it has, in display order.
+fn permute_row(row: &mut TableRow, order: &[usize]) {
+    let mut cells: Vec<Option<AnyElement>> = std::mem::take(&mut row.cells)
+        .into_iter()
+        .map(Some)
+        .collect();
+    row.cells = order
+        .iter()
+        .filter_map(|&ix| cells.get_mut(ix).and_then(Option::take))
+        .collect();
+    for child in &mut row.children {
+        permute_row(child, order);
+    }
+}
+
+/// Moves per-position values (resized and measured widths) from the order
+/// they were stored in to the new one.
+fn permute_positions<T: Clone>(
+    values: &[Option<T>],
+    from: &[usize],
+    to: &[usize],
+) -> Vec<Option<T>> {
+    to.iter()
+        .map(|column| {
+            from.iter()
+                .position(|c| c == column)
+                .and_then(|at| values.get(at).cloned().flatten())
+        })
+        .collect()
+}
+
+/// The header row's left edge and each column header's bounds.
+type HeaderBounds = std::rc::Rc<std::cell::RefCell<(Pixels, Vec<gpui::Bounds<Pixels>>)>>;
+
+/// The drag of a column header in progress.
+#[derive(Clone, Copy, Debug, PartialEq)]
+struct ColumnDrag {
+    from: usize,
+    start_x: f32,
+    active: bool,
+    target: usize,
+}
+
+/// The display position whose header contains `x`, or the nearest end.
+fn header_at(bounds: &[gpui::Bounds<Pixels>], x: Pixels) -> Option<usize> {
+    let first = bounds.first()?;
+    if x < first.left() {
+        return Some(0);
+    }
+    bounds
+        .iter()
+        .position(|b| x >= b.left() && x < b.right())
+        .or(Some(bounds.len() - 1))
+}
+
+impl Table {
+    /// Lets the user reorder the columns (HeroGPUI extension): drag a header
+    /// to another column's place, or focus a header and press Alt+Left /
+    /// Alt+Right. Every move is reported through [`Table::on_column_move`].
+    pub fn allows_column_reorder(mut self, allowed: bool) -> Self {
+        self.column_reorder.allowed = allowed;
+        self
+    }
+
+    /// The controlled display order, as indices into the columns given
+    /// (HeroGPUI extension). Out-of-range and repeated indices are dropped and
+    /// missing columns appended.
+    pub fn column_order(mut self, order: impl IntoIterator<Item = usize>) -> Self {
+        self.column_reorder.order = Some(order.into_iter().collect());
+        self
+    }
+
+    /// The initial display order of an uncontrolled table (HeroGPUI
+    /// extension).
+    pub fn default_column_order(mut self, order: impl IntoIterator<Item = usize>) -> Self {
+        self.column_reorder.default_order = Some(order.into_iter().collect());
+        self
+    }
+
+    /// Reports each column move (HeroGPUI extension).
+    pub fn on_column_move(
+        mut self,
+        f: impl Fn(&ColumnMove, &mut Window, &mut App) + 'static,
+    ) -> Self {
+        self.column_reorder.on_move = Some(std::sync::Arc::new(f));
+        self
+    }
+
+    /// Makes single cells selectable (HeroGPUI extension): a press selects the
+    /// cell under the pointer, Left / Right move between the cells of the
+    /// row, Home / End to its first and last cell, and the row keys (Up, Down,
+    /// PageUp, PageDown, Ctrl+Home, Ctrl+End) move to the same column of
+    /// another row. Row selection keeps working alongside; in a tree table the
+    /// chevron, not Left/Right, expands a row.
+    pub fn cell_selectable(mut self, selectable: bool) -> Self {
+        self.cell_selection.enabled = selectable;
+        self
+    }
+
+    /// The controlled selected cell (HeroGPUI extension); `None` for none.
+    pub fn selected_cell(mut self, cell: Option<TableCell>) -> Self {
+        self.cell_selection.selected = Some(cell);
+        self
+    }
+
+    /// The initially selected cell of an uncontrolled table (HeroGPUI
+    /// extension).
+    pub fn default_selected_cell(mut self, cell: TableCell) -> Self {
+        self.cell_selection.default = Some(cell);
+        self
+    }
+
+    /// Reports each cell a press or a key selected (HeroGPUI extension).
+    pub fn on_cell_select(
+        mut self,
+        f: impl Fn(&TableCell, &mut Window, &mut App) + 'static,
+    ) -> Self {
+        self.cell_selection.on_select = Some(std::sync::Arc::new(f));
+        self
+    }
+
+    /// Resolves the display column order and puts the columns, every row's
+    /// cells and the tree column into it, so the rest of the render works in
+    /// display positions. Returns the order (indices into the given columns).
+    fn apply_column_order(
+        &mut self,
+        base_id: &gpui::ElementId,
+        window: &mut Window,
+        cx: &mut App,
+    ) -> std::rc::Rc<Vec<usize>> {
+        let n = self.columns.len();
+        let reorder = &self.column_reorder;
+        let configured =
+            reorder.allowed || reorder.order.is_some() || reorder.default_order.is_some();
+        if !configured && !self.columns.iter().any(|c| c.frozen) {
+            return std::rc::Rc::new((0..n).collect());
+        }
+        let order = if configured {
+            let seed = sanitize_order(reorder.default_order.as_deref().unwrap_or(&[]), n);
+            let (order, _) = crate::util::controlled(
+                window,
+                cx,
+                element_id::scoped(base_id, "column-order"),
+                reorder.order.as_ref().map(|order| sanitize_order(order, n)),
+                seed,
+            );
+            sanitize_order(&order, n)
+        } else {
+            (0..n).collect()
+        };
+        // Frozen columns (HeroGPUI extension) are always displayed first.
+        let order = frozen_first(&order, &self.columns);
+        // The resized and measured widths are stored per display position;
+        // when the order changes they move with their columns.
+        let rendered = window.use_keyed_state(
+            element_id::scoped(base_id, "rendered-column-order"),
+            cx,
+            |_, _| (0..n).collect::<Vec<usize>>(),
+        );
+        let previous = rendered.read(cx).clone();
+        if previous != order {
+            for part in ["resized", "measured-widths"] {
+                let widths =
+                    window.use_keyed_state(element_id::scoped(base_id, part), cx, |_, _| {
+                        Vec::<Option<Pixels>>::new()
+                    });
+                widths.update(cx, |values, _| {
+                    *values = permute_positions(values, &previous, &order);
+                });
+            }
+            rendered.update(cx, |value, _| value.clone_from(&order));
+        }
+        if order.iter().enumerate().all(|(at, ix)| at == *ix) {
+            return std::rc::Rc::new(order);
+        }
+        let mut given: Vec<Option<TableColumn>> = std::mem::take(&mut self.columns)
+            .into_iter()
+            .map(Some)
+            .collect();
+        self.columns = order
+            .iter()
+            .filter_map(|&ix| given.get_mut(ix).and_then(Option::take))
+            .collect();
+        for row in &mut self.rows {
+            permute_row(row, &order);
+        }
+        if let Some((_, _, _, row)) = &mut self.virtual_rows {
+            let inner = row.clone();
+            let order = order.clone();
+            *row = crate::util::shared(move |ix| {
+                let mut built = inner(ix);
+                permute_row(&mut built, &order);
+                built
+            });
+        }
+        if let Some(at) = order.iter().position(|ix| *ix == self.tree_column) {
+            self.tree_column = at;
+        }
+        std::rc::Rc::new(order)
+    }
+
+    /// The header row's left edge and each column header's bounds, stored by
+    /// the header row's prepaint for the column drag.
+    fn header_bounds(base_id: &gpui::ElementId, window: &mut Window, cx: &mut App) -> HeaderBounds {
+        window
+            .use_keyed_state(element_id::scoped(base_id, "header-bounds"), cx, |_, _| {
+                std::rc::Rc::new(std::cell::RefCell::new((
+                    px(0.),
+                    Vec::<gpui::Bounds<Pixels>>::new(),
+                )))
+            })
+            .read(cx)
+            .clone()
+    }
+
+    /// Records the header cells' bounds (before the header row takes its id,
+    /// which `on_children_prepainted` needs) when reordering is allowed.
+    fn column_reorder_measure(
+        &self,
+        header: gpui::Div,
+        base_id: &gpui::ElementId,
+        window: &mut Window,
+        cx: &mut App,
+    ) -> gpui::Div {
+        if !self.column_reorder.allowed || self.columns.len() < 2 {
+            return header;
+        }
+        let bounds = Self::header_bounds(base_id, window, cx);
+        let skip = usize::from(self.selection_mode != SelectionMode::None);
+        let columns = self.columns.len();
+        header.on_children_prepainted(move |children, _, _| {
+            let origin = children.first().map_or(px(0.), |b| b.left());
+            let headers = children.iter().skip(skip).take(columns).copied().collect();
+            *bounds.borrow_mut() = (origin, headers);
+        })
+    }
+
+    /// A frozen header's two parts: the selection cell and the frozen
+    /// column headers, then the scrolling ones. When reordering is allowed
+    /// each part records its headers' bounds into the one list the column
+    /// drag reads, the frozen part first (it prepaints first).
+    fn frozen_header_parts(
+        &self,
+        base_id: &gpui::ElementId,
+        frozen: &FrozenColumns,
+        mut cells: Vec<AnyElement>,
+        window: &mut Window,
+        cx: &mut App,
+    ) -> (gpui::Div, gpui::Stateful<gpui::Div>) {
+        let skip = usize::from(self.selection_mode != SelectionMode::None);
+        let rest = cells.split_off((skip + frozen.count).min(cells.len()));
+        let mut lead = frozen.frozen_part();
+        let mut part = gpui::div();
+        if self.column_reorder.allowed && self.columns.len() >= 2 {
+            let bounds = Self::header_bounds(base_id, window, cx);
+            let scrolled = bounds.clone();
+            let count = frozen.count;
+            lead = lead.on_children_prepainted(move |children, _, _| {
+                let origin = children.first().map_or(px(0.), |b| b.left());
+                let mut measured = bounds.borrow_mut();
+                measured.0 = origin;
+                measured.1.clear();
+                measured.1.extend(children.iter().skip(skip).copied());
+            });
+            part = part.on_children_prepainted(move |children, _, _| {
+                let mut measured = scrolled.borrow_mut();
+                measured.1.truncate(count);
+                measured.1.extend(children.iter().copied());
+            });
+        }
+        (
+            lead.children(cells),
+            frozen
+                .scrolling_part(part, element_id::scoped(base_id, "header-scroll"))
+                .children(rest),
+        )
+    }
+
+    /// The header row's column drag (pointer) and Alt+Left / Alt+Right
+    /// (keyboard) moves, when reordering is allowed.
+    #[allow(clippy::too_many_arguments)]
+    fn column_reorder_header(
+        &self,
+        header: gpui::Stateful<gpui::Div>,
+        base_id: &gpui::ElementId,
+        order: &std::rc::Rc<Vec<usize>>,
+        header_focus: &[gpui::FocusHandle],
+        resizing: &gpui::Entity<Option<(usize, f32, f32)>>,
+        window: &mut Window,
+        cx: &mut App,
+    ) -> gpui::Stateful<gpui::Div> {
+        if !self.column_reorder.allowed || self.columns.len() < 2 {
+            return header;
+        }
+        let bounds = Self::header_bounds(base_id, window, cx);
+        let drag =
+            window.use_keyed_state(element_id::scoped(base_id, "column-drag"), cx, |_, _| {
+                None::<ColumnDrag>
+            });
+        let own_order = if self.column_reorder.order.is_none() {
+            Some(
+                window.use_keyed_state(element_id::scoped(base_id, "column-order"), cx, |_, _| {
+                    order.as_ref().clone()
+                }),
+            )
+        } else {
+            None
+        };
+        let on_move = self.column_reorder.on_move.clone();
+        // A move stays in its region: frozen columns among the frozen ones,
+        // the rest among the rest (see `TableColumn::frozen`).
+        let frozen = self.columns.iter().take_while(|c| c.frozen).count();
+        let frozen = if frozen < self.columns.len() {
+            frozen
+        } else {
+            0
+        };
+        let commit = crate::util::shared({
+            let order = order.clone();
+            move |from: usize, to: usize, window: &mut Window, cx: &mut App| {
+                let to = clamp_to_region(from, to, frozen);
+                if from == to || to >= order.len() {
+                    return;
+                }
+                let next = moved_order(&order, from, to);
+                if let Some(own) = &own_order {
+                    own.update(cx, |value, cx| {
+                        value.clone_from(&next);
                         cx.notify();
                     });
-                })
-                .on_click(move |ev, w, cx| {
-                    if !focus_for_click.is_focused(w) {
-                        return;
-                    }
-                    match row_intent(
-                        RowActivation::Pointer,
-                        mode,
-                        selection_behavior,
-                        current.is_empty(),
-                        row_action.is_some(),
-                    ) {
-                        RowIntent::Action => {
-                            if let Some(cb) = &row_action {
-                                cb(&i, ev, w, cx);
-                            }
-                        }
-                        RowIntent::Selection => {
-                            let was_selected = current.contains(&key);
-                            let extends_selection =
-                                ev.modifiers().shift && mode == SelectionMode::Multiple;
-                            let next = if extends_selection {
-                                let range = selection_range.read(cx).clone();
-                                extend_selection_range(
-                                    &current,
-                                    &range_collection,
-                                    &range_selectable,
-                                    &range,
-                                    &key,
-                                )
-                            } else {
-                                let modifiers = ev.modifiers();
-                                let non_contiguous = if cfg!(target_os = "macos") {
-                                    modifiers.alt
-                                } else {
-                                    modifiers.control
-                                };
-                                crate::selection::next_selection_with_behavior(
-                                    &current,
-                                    &key,
-                                    mode,
-                                    if non_contiguous {
-                                        SelectionBehavior::Toggle
-                                    } else {
-                                        selection_behavior
-                                    },
-                                    disallow_empty_selection,
-                                )
-                            };
-                            let changed = !same_selection(&next, &current);
-                            if changed {
-                                if let Some(held) = &selection_own {
-                                    held.update(cx, |value, cx| {
-                                        *value = next.clone();
-                                        cx.notify();
-                                    });
-                                }
-                                if let Some(cb) = &row_selection {
-                                    cb(&next, w, cx);
-                                }
-                            }
-                            if extends_selection && changed {
-                                selection_range.update(cx, |range, _| {
-                                    if range.anchor.is_none() {
-                                        range.anchor = Some(key.clone());
-                                    }
-                                    range.current = Some(key.clone());
-                                    range.is_all = false;
-                                });
-                            } else if !extends_selection
-                                && mode == SelectionMode::Multiple
-                                && !was_selected
-                            {
-                                selection_range.update(cx, |range, _| {
-                                    range.anchor = Some(key.clone());
-                                    range.current = Some(key.clone());
-                                    range.is_all = false;
-                                });
-                            } else if !extends_selection && mode == SelectionMode::Multiple {
-                                selection_range.update(cx, |range, _| {
-                                    if range.is_all {
-                                        *range = TableSelectionRange::default();
-                                    }
-                                });
-                            }
-                        }
-                        RowIntent::None => {}
+                }
+                if let Some(cb) = &on_move {
+                    cb(
+                        &ColumnMove {
+                            from,
+                            to,
+                            order: next,
+                        },
+                        window,
+                        cx,
+                    );
+                }
+            }
+        });
+
+        let accent = cx.colors().accent.color;
+        let drag_now = *drag.read(cx);
+        let mut header = header.relative();
+        if let Some(active) = drag_now.filter(|d| d.active) {
+            let measured = bounds.borrow();
+            if let Some(target) = measured.1.get(active.target) {
+                // The insertion edge: after the target when moving right,
+                // before it when moving left.
+                let x = if active.target > active.from {
+                    target.right()
+                } else {
+                    target.left()
+                };
+                header = header.cursor(gpui::CursorStyle::ClosedHand).child(
+                    gpui::div()
+                        .absolute()
+                        .top_0()
+                        .bottom_0()
+                        .left(x - measured.0 - px(1.))
+                        .w(px(2.))
+                        .bg(accent)
+                        .debug_selector(|| "table-column-drop-indicator".into()),
+                );
+            }
+        }
+        let down_bounds = bounds.clone();
+        let move_bounds = bounds;
+        let down_drag = drag.clone();
+        let move_drag = drag.clone();
+        let up_drag = drag.clone();
+        let out_drag = drag;
+        let up_commit = commit.clone();
+        let out_commit = commit.clone();
+        let key_commit = commit;
+        let resizing = resizing.clone();
+        let focus = header_focus.to_vec();
+        header
+            .on_mouse_down(gpui::MouseButton::Left, move |event, _, cx| {
+                // A resize handle's press started a resize, not a move.
+                if resizing.read(cx).is_some() {
+                    return;
+                }
+                let Some(from) = header_at(&down_bounds.borrow().1, event.position.x) else {
+                    return;
+                };
+                down_drag.update(cx, |d, _| {
+                    *d = Some(ColumnDrag {
+                        from,
+                        start_x: f32::from(event.position.x),
+                        active: false,
+                        target: from,
+                    });
+                });
+            })
+            .on_mouse_move(move |event, _, cx| {
+                let Some(mut current) = *move_drag.read(cx) else {
+                    return;
+                };
+                if event.pressed_button != Some(gpui::MouseButton::Left) {
+                    move_drag.update(cx, |d, cx| {
+                        *d = None;
+                        cx.notify();
+                    });
+                    return;
+                }
+                let x = f32::from(event.position.x);
+                if !current.active && (x - current.start_x).abs() < 6. {
+                    return;
+                }
+                current.active = true;
+                if let Some(target) = header_at(&move_bounds.borrow().1, event.position.x) {
+                    current.target = clamp_to_region(current.from, target, frozen);
+                }
+                move_drag.update(cx, |d, cx| {
+                    if *d != Some(current) {
+                        *d = Some(current);
+                        cx.notify();
                     }
                 });
-        }
+            })
+            .on_mouse_up(gpui::MouseButton::Left, move |_, window, cx| {
+                let done = up_drag.update(cx, |d, cx| {
+                    cx.notify();
+                    d.take()
+                });
+                if let Some(d) = done.filter(|d| d.active) {
+                    up_commit(d.from, d.target, window, cx);
+                }
+            })
+            .on_mouse_up_out(gpui::MouseButton::Left, move |_, window, cx| {
+                let done = out_drag.update(cx, |d, cx| {
+                    cx.notify();
+                    d.take()
+                });
+                if let Some(d) = done.filter(|d| d.active) {
+                    out_commit(d.from, d.target, window, cx);
+                }
+            })
+            .on_key_down(move |event, window, cx| {
+                let m = &event.keystroke.modifiers;
+                if !m.alt || m.control || m.platform || m.shift || m.function {
+                    return;
+                }
+                let forward = match event.keystroke.key.as_str() {
+                    "right" => true,
+                    "left" => false,
+                    _ => return,
+                };
+                let Some(from) = focus.iter().position(|h| h.is_focused(window)) else {
+                    return;
+                };
+                let to = if forward {
+                    (from + 1).min(focus.len() - 1)
+                } else {
+                    from.saturating_sub(1)
+                };
+                let to = clamp_to_region(from, to, frozen);
+                cx.stop_propagation();
+                crate::util::set_focus_visible(true, cx);
+                if to != from {
+                    key_commit(from, to, window, cx);
+                    // The focus follows the column it moved.
+                    window.focus(&focus[to], cx);
+                }
+            })
+    }
+}
 
-        // v3 rings the focused row *inside* itself: each cell carries its own
-        // inset strips so the outline stays clipped to the cell geometry.
-        row.when(is_disabled, |row| row.opacity(cx.layout().disabled_opacity))
-            .into_any_element()
+/// What the rows need to draw and press the selected cell.
+#[derive(Clone)]
+struct CellCtx {
+    /// The selected cell, as its row key and display position.
+    selected: Option<(SharedString, usize)>,
+    /// The selected cell's display position.
+    column: gpui::Entity<Option<usize>>,
+    /// The table's row cursor, which is the selected cell's row.
+    cursor: gpui::Entity<Option<SharedString>>,
+    focus: gpui::FocusHandle,
+}
+
+impl CellCtx {
+    /// Marks and rings the selected cell, and makes a press select a cell.
+    fn decorate(
+        &self,
+        el: gpui::Stateful<gpui::Div>,
+        row: &SharedString,
+        column: usize,
+        disabled: bool,
+        cx: &App,
+    ) -> gpui::Stateful<gpui::Div> {
+        let is_selected = self
+            .selected
+            .as_ref()
+            .is_some_and(|(r, c)| r == row && *c == column);
+        let mut el = el.a11y_selected(is_selected);
+        if is_selected {
+            el = el.child(
+                crate::util::inset_focus_ring(cx).debug_selector(|| "table-selected-cell".into()),
+            );
+        }
+        if disabled {
+            return el;
+        }
+        let (cursor, column_state, focus, row) = (
+            self.cursor.clone(),
+            self.column.clone(),
+            self.focus.clone(),
+            row.clone(),
+        );
+        el.on_mouse_down(gpui::MouseButton::Left, move |_, window, cx| {
+            window.focus(&focus, cx);
+            crate::util::set_focus_visible(false, cx);
+            column_state.update(cx, |c, cx| {
+                *c = Some(column);
+                cx.notify();
+            });
+            cursor.update(cx, |c, cx| {
+                *c = Some(row.clone());
+                cx.notify();
+            });
+        })
+    }
+}
+
+impl Table {
+    /// Resolves the selected cell: its row is the row cursor, its column is
+    /// kept beside it. Reports a change the user made, and snaps a controlled
+    /// table back to its prop.
+    fn cell_selection_state(
+        &self,
+        base_id: &gpui::ElementId,
+        order: &[usize],
+        row_cursor: &gpui::Entity<Option<SharedString>>,
+        focus: &gpui::FocusHandle,
+        window: &mut Window,
+        cx: &mut App,
+    ) -> Option<CellCtx> {
+        if !self.cell_selection.enabled || order.is_empty() {
+            return None;
+        }
+        let last = order.len() - 1;
+        let position = |column: usize| order.iter().position(|c| *c == column);
+        let column =
+            window.use_keyed_state(element_id::scoped(base_id, "cell-column"), cx, |_, _| {
+                None::<usize>
+            });
+        let reported =
+            window.use_keyed_state(element_id::scoped(base_id, "cell-reported"), cx, |_, _| {
+                None::<TableCell>
+            });
+        let seed = match &self.cell_selection.selected {
+            Some(prop) => prop.clone(),
+            None => self.cell_selection.default.clone(),
+        };
+        crate::util::seed_once(window, cx, element_id::scoped(base_id, "cell-seed"), |cx| {
+            if let Some(seed) = seed {
+                row_cursor.update(cx, |c, _| *c = Some(seed.row.clone()));
+                column.update(cx, |c, _| *c = position(seed.column));
+                reported.update(cx, |r, _| *r = Some(seed));
+            }
+        });
+        let at = column.read(cx).unwrap_or(0).min(last);
+        let requested = row_cursor.read(cx).clone().map(|row| TableCell {
+            row,
+            column: order[at],
+        });
+        if requested.is_some() && requested != *reported.read(cx) {
+            reported.update(cx, |r, _| r.clone_from(&requested));
+            if let (Some(cb), Some(cell)) =
+                (self.cell_selection.on_select.clone(), requested.clone())
+            {
+                window.defer(cx, move |window, cx| cb(&cell, window, cx));
+            }
+        }
+        let shown = match &self.cell_selection.selected {
+            Some(prop) => {
+                if *prop != requested {
+                    let prop = prop.clone();
+                    row_cursor.update(cx, |c, _| *c = prop.as_ref().map(|p| p.row.clone()));
+                    column.update(cx, |c, _| {
+                        *c = prop.as_ref().and_then(|p| position(p.column));
+                    });
+                    reported.update(cx, |r, _| r.clone_from(&prop));
+                }
+                prop.clone()
+            }
+            None => requested,
+        };
+        Some(CellCtx {
+            selected: shown.and_then(|cell| Some((cell.row, position(cell.column)?))),
+            column,
+            cursor: row_cursor.clone(),
+            focus: focus.clone(),
+        })
+    }
+
+    /// Left / Right / Home / End between the cells of a row, ahead of the
+    /// row keyboard, while the body holds the focus.
+    fn cell_selection_keys(
+        &self,
+        wrapper: gpui::Div,
+        cell: &Option<CellCtx>,
+        rows: &[SharedString],
+        frozen: Option<FrozenColumns>,
+    ) -> gpui::Div {
+        let Some(cell) = cell.clone() else {
+            return wrapper;
+        };
+        let last = self.columns.len().saturating_sub(1);
+        let first_row = rows
+            .iter()
+            .find(|key| !self.disabled_keys.contains(key))
+            .cloned();
+        wrapper.capture_key_down(move |event, window, cx| {
+            if !cell.focus.is_focused(window) {
+                return;
+            }
+            let m = &event.keystroke.modifiers;
+            if m.control || m.alt || m.platform || m.shift || m.function {
+                return;
+            }
+            let at = cell.column.read(cx).unwrap_or(0).min(last);
+            let to = match event.keystroke.key.as_str() {
+                "left" => at.saturating_sub(1),
+                "right" => (at + 1).min(last),
+                "home" => 0,
+                "end" => last,
+                _ => return,
+            };
+            cx.stop_propagation();
+            crate::util::set_focus_visible(true, cx);
+            if cell.cursor.read(cx).is_none() {
+                let first = first_row.clone();
+                cell.cursor.update(cx, |c, cx| {
+                    *c = first;
+                    cx.notify();
+                });
+            }
+            cell.column.update(cx, |c, cx| {
+                *c = Some(to);
+                cx.notify();
+            });
+            if let Some(frozen) = &frozen {
+                frozen.reveal(to);
+            }
+        })
     }
 }
 
@@ -4935,7 +6562,8 @@ mod tests {
             "the row's leading and trailing cells must carry the box's corners"
         );
         assert!(
-            source.contains("virtual_scroll_now.is_scrolled_to_end().unwrap_or(true)")
+            source.contains("virtual_scroll_now.is_scrolled_to_top()")
+                && source.contains("virtual_scroll_now.is_scrolled_to_end()")
                 && source.contains("top.item_ix == 0 && top.offset_in_item <= px(0.5)"),
             "a virtual body must only round the edges it is scrolled to"
         );
@@ -4953,3 +6581,5 @@ mod tests {
         );
     }
 }
+
+crate::util::impl_component_styled!(Table);

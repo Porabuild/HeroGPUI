@@ -25,6 +25,7 @@ use herogpui_theme::ActiveTheme;
 /// Mirrors the React API: `isRequired`, `isDisabled`, `isInvalid`. The
 /// `htmlFor` prop has no gpui analogue (there is no DOM id graph), so labels
 /// are associated by composition instead.
+#[must_use = "a component does nothing until it is rendered: add it as a child or return it from `render`"]
 #[derive(IntoElement)]
 pub struct Label {
     text: SharedString,
@@ -36,6 +37,7 @@ pub struct Label {
 }
 
 impl Label {
+    /// Creates a label with the given text.
     pub fn new(text: impl Into<SharedString>) -> Self {
         Self {
             text: text.into(),
@@ -57,16 +59,19 @@ impl Label {
         self
     }
 
+    /// Sets the required state (v3 `isRequired`).
     pub fn is_required(mut self, v: bool) -> Self {
         self.is_required = v;
         self
     }
 
+    /// Sets the disabled state (v3 `isDisabled`).
     pub fn is_disabled(mut self, v: bool) -> Self {
         self.is_disabled = v;
         self
     }
 
+    /// Sets the invalid state (v3 `isInvalid`).
     pub fn is_invalid(mut self, v: bool) -> Self {
         self.is_invalid = v;
         self
@@ -114,12 +119,14 @@ impl RenderOnce for Label {
 
 /// HeroUI Description — `slot="description"`. De-emphasised helper copy shown
 /// beneath a field.
+#[must_use = "a component does nothing until it is rendered: add it as a child or return it from `render`"]
 #[derive(IntoElement)]
 pub struct Description {
     text: SharedString,
 }
 
 impl Description {
+    /// Creates a description with the given text.
     pub fn new(text: impl Into<SharedString>) -> Self {
         Self { text: text.into() }
     }
@@ -136,12 +143,14 @@ impl RenderOnce for Description {
 }
 
 /// HeroUI ErrorMessage — `slot="errorMessage"`. Always rendered when present.
+#[must_use = "a component does nothing until it is rendered: add it as a child or return it from `render`"]
 #[derive(IntoElement)]
 pub struct ErrorMessage {
     text: SharedString,
 }
 
 impl ErrorMessage {
+    /// Creates an error message with the given text.
     pub fn new(text: impl Into<SharedString>) -> Self {
         Self { text: text.into() }
     }
@@ -162,6 +171,7 @@ impl RenderOnce for ErrorMessage {
 /// Unlike [`ErrorMessage`], a `FieldError` manages its own visibility from the
 /// validation state: it renders nothing unless the field is invalid and a
 /// message is present.
+#[must_use = "a component does nothing until it is rendered: add it as a child or return it from `render`"]
 #[derive(IntoElement)]
 pub struct FieldError {
     text: Option<SharedString>,
@@ -173,6 +183,7 @@ pub struct FieldError {
 }
 
 impl FieldError {
+    /// Creates an empty field error.
     pub fn new() -> Self {
         Self {
             text: None,
@@ -231,6 +242,7 @@ impl RenderOnce for FieldError {
 ///
 /// Compose with [`FieldsetLegend`], [`FieldGroup`] and [`FieldsetActions`],
 /// mirroring `Fieldset.Legend` / `.Group` / `.Actions` in React.
+#[must_use = "a component does nothing until it is rendered: add it as a child or return it from `render`"]
 #[derive(IntoElement)]
 pub struct Fieldset {
     gap: Pixels,
@@ -239,6 +251,7 @@ pub struct Fieldset {
 }
 
 impl Fieldset {
+    /// Creates an empty fieldset.
     pub fn new() -> Self {
         Self {
             gap: px(24.),
@@ -254,6 +267,7 @@ impl Fieldset {
         self
     }
 
+    /// Sets the gap between children.
     pub fn gap(mut self, gap: impl Into<Pixels>) -> Self {
         self.gap = gap.into();
         self
@@ -293,12 +307,14 @@ impl RenderOnce for Fieldset {
 }
 
 /// `Fieldset.Legend` — the group's caption.
+#[must_use = "a component does nothing until it is rendered: add it as a child or return it from `render`"]
 #[derive(IntoElement)]
 pub struct FieldsetLegend {
     text: SharedString,
 }
 
 impl FieldsetLegend {
+    /// Creates a legend with the given text.
     pub fn new(text: impl Into<SharedString>) -> Self {
         Self { text: text.into() }
     }
@@ -317,6 +333,7 @@ impl RenderOnce for FieldsetLegend {
 }
 
 /// `Fieldset.Group` — layout wrapper for the grouped controls.
+#[must_use = "a component does nothing until it is rendered: add it as a child or return it from `render`"]
 #[derive(IntoElement)]
 pub struct FieldGroup {
     gap: Pixels,
@@ -324,6 +341,7 @@ pub struct FieldGroup {
 }
 
 impl FieldGroup {
+    /// Creates an empty field group.
     pub fn new() -> Self {
         Self {
             gap: px(16.),
@@ -331,6 +349,7 @@ impl FieldGroup {
         }
     }
 
+    /// Sets the gap between children.
     pub fn gap(mut self, gap: impl Into<Pixels>) -> Self {
         self.gap = gap.into();
         self
@@ -363,6 +382,7 @@ impl RenderOnce for FieldGroup {
 }
 
 /// `Fieldset.Actions` — trailing row for submit/cancel controls.
+#[must_use = "a component does nothing until it is rendered: add it as a child or return it from `render`"]
 #[derive(IntoElement)]
 pub struct FieldsetActions {
     gap: Pixels,
@@ -370,6 +390,7 @@ pub struct FieldsetActions {
 }
 
 impl FieldsetActions {
+    /// Creates an empty actions row.
     pub fn new() -> Self {
         Self {
             gap: px(8.),
@@ -377,6 +398,7 @@ impl FieldsetActions {
         }
     }
 
+    /// Sets the gap between children.
     pub fn gap(mut self, gap: impl Into<Pixels>) -> Self {
         self.gap = gap.into();
         self

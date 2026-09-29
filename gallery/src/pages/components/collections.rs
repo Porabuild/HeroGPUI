@@ -569,7 +569,7 @@ impl Gallery {
                     ]), cx),
                 ),
                 (
-                    "Context Menu", "HeroGPUI extension, not a HeroUI v3 example: `ContextMenu` opens the same menu panel on a secondary (right) press inside its area, with the panel's corner at the pointer, or on Shift+F10 / the ContextMenu key while the focus is inside the area, at the area's corner with the first item focused. Items, disabled keys, keyboard navigation, Escape and outside-press dismissal are the Dropdown menu's own.",
+                    "Context Menu", "HeroGPUI extension, not a HeroUI v3 example: a secondary press opens at the pointer. Focus the Button and press Shift+F10 or the ContextMenu key to open below it; keyboard focus on unrecorded content falls back to the area's corner. The first item receives focus, and dismissal restores the previous focus.",
                     specimen_body("dd-context-menu", col(vec![
                         h::ContextMenu::new(
                             "dd-context",
@@ -577,13 +577,16 @@ impl Gallery {
                                 .w(px(320.))
                                 .h(px(140.))
                                 .flex()
+                                .flex_col()
                                 .items_center()
                                 .justify_center()
+                                .gap(px(12.))
                                 .rounded(px(12.))
                                 .border_1()
                                 .border_color(cx.colors().border)
                                 .text_color(cx.colors().muted)
-                                .child("Right-click anywhere in this area"),
+                                .child("Right-click anywhere in this area")
+                                .child(h::Button::new("dd-context-focus").label("Focus and press Shift+F10")),
                             vec![
                                 h::MenuItem::new("cut", "Cut").shortcut("Ctrl X"),
                                 h::MenuItem::new("copy", "Copy").shortcut("Ctrl C"),
@@ -836,7 +839,7 @@ impl Gallery {
                     ]), cx),
                 ),
                 (
-                    "Virtualization", "`row_height` makes the list geometry computable instead of laid out, so gpui's `uniform_list` builds only the rows in view — one thousand users, fifty pixels each. The fixed-row list caps at `max_h`, shrinks below it in a bounded parent, and PageUp/PageDown move by the visible viewport, including after resize, while skipping disabled stops.",
+                    "Virtualization", "`row_height` makes the list geometry computable instead of laid out, so a uniform `VirtualList` builds only the rows in view — one thousand users, fifty pixels each. The fixed-row list caps at `max_h`, shrinks below it in a bounded parent, and PageUp/PageDown move by the visible viewport, including after resize, while skipping disabled stops.",
                     specimen_body("lb-virtualization", col(vec![
                         gpui::div()
                             .w(px(300.))
@@ -959,6 +962,33 @@ impl Gallery {
                             )
                             .into_any_element(),
                         para(&format!("Selected: {}", self.tree_selected), cx),
+                    ]), cx),
+                ),
+                (
+                    "Large Tree View", "HeroGPUI extension: two thousand open rows under `max_h`. Only the rows in view are built, and the keyboard cursor scrolls into view. With `SelectionMode::Multiple`, a press or Space seats the anchor and Shift+Up/Down or a Shift press selects the visible rows between it and the target. Each row reports its level and its position among its siblings to assistive technology.",
+                    specimen_body("lb-tree-large", col(vec![
+                        gpui::div()
+                            .w(px(280.))
+                            .child(
+                                h::TreeView::new(
+                                    "lb-tree-large",
+                                    (0..50)
+                                        .map(|group| {
+                                            h::TreeItem::new(format!("group-{group}"), format!("Folder {group}"))
+                                                .children((0..40).map(|file| {
+                                                    h::TreeItem::new(
+                                                        format!("file-{group}-{file}"),
+                                                        format!("file-{file}.rs"),
+                                                    )
+                                                }))
+                                        })
+                                        .collect(),
+                                )
+                                .selection_mode(SelectionMode::Multiple)
+                                .default_expanded_keys((0..50).map(|group| SharedString::from(format!("group-{group}"))))
+                                .max_h(px(260.)),
+                            )
+                            .into_any_element(),
                     ]), cx),
                 ),
                 (

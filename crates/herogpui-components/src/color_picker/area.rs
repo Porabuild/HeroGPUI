@@ -9,11 +9,17 @@ use super::*;
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
 #[non_exhaustive]
 pub struct ColorAreaThumbState {
+    /// The color at the thumb.
     pub color: PickerColor,
+    /// Whether the thumb is being dragged.
     pub is_dragging: bool,
+    /// Whether the area is hovered.
     pub is_hovered: bool,
+    /// Whether the area has focus.
     pub is_focused: bool,
+    /// Whether focus is visible (keyboard focus).
     pub is_focus_visible: bool,
+    /// Whether the area is disabled.
     pub is_disabled: bool,
 }
 
@@ -120,6 +126,7 @@ pub(super) fn color_area_thumb_motion(
 }
 
 /// ColorArea — a two-dimensional gradient for picking two channels at once.
+#[must_use = "a component does nothing until it is rendered: add it as a child or return it from `render`"]
 #[derive(IntoElement)]
 pub struct ColorArea {
     /// `defaultValue` — set it to hand this component its own state.
@@ -143,6 +150,7 @@ pub struct ColorArea {
 }
 
 impl ColorArea {
+    /// Creates a color area showing `value`.
     pub fn new(id: impl Into<ElementId>, value: PickerColor) -> Self {
         Self {
             default_value: None,
@@ -183,16 +191,19 @@ impl ColorArea {
         self
     }
 
+    /// Sets the channel edited along the horizontal axis.
     pub fn x_channel(mut self, channel: ColorChannel) -> Self {
         self.x_channel = channel;
         self
     }
 
+    /// Sets the channel edited along the vertical axis.
     pub fn y_channel(mut self, channel: ColorChannel) -> Self {
         self.y_channel = channel;
         self
     }
 
+    /// Sets the width and height of the area.
     pub fn size(mut self, width: impl Into<Pixels>, height: impl Into<Pixels>) -> Self {
         self.width = width.into();
         self.height = height.into();
@@ -204,10 +215,11 @@ impl ColorArea {
     /// applied to the area's root element after every value the channels and
     /// the active theme chose, so they win.
     pub fn sx(mut self, style: impl FnOnce(gpui::Div) -> gpui::Div) -> Self {
-        self.sx = Some(util::capture_sx(style));
+        util::refine_sx(&mut self.sx, style);
         self
     }
 
+    /// Sets whether the area is disabled (`isDisabled`).
     pub fn is_disabled(mut self, v: bool) -> Self {
         self.is_disabled = v;
         self
@@ -230,6 +242,7 @@ impl ColorArea {
         self
     }
 
+    /// Sets the handler called with the new color as the thumb moves (`onChange`).
     pub fn on_change(
         mut self,
         handler: impl Fn(&PickerColor, &mut Window, &mut App) + 'static,
@@ -604,7 +617,7 @@ impl RenderOnce for ColorArea {
         if self.on_change.is_some() || self.on_change_end.is_some() || own.is_some() {
             let down_bounds = bounds_slot.clone();
             let down_dragging = dragging.clone();
-            let down_focus = area_focus;
+            let down_focus = area_focus.clone();
             let down_change = self.on_change.clone();
             let down_own = own.clone();
             let down_value = self.value;
@@ -708,6 +721,9 @@ impl RenderOnce for ColorArea {
         }
 
         area = util::apply_sx(area, &self.sx);
+        if !self.is_disabled {
+            area = util::record_focus_bounds(area, &area_focus, window, cx);
+        }
         // `useColorArea` is `role: 'group'` on the area; the thumb is
         // `role: 'presentation'` and has no node of its own.
         area.a11y(a11y::Role::Group)
@@ -1197,3 +1213,5 @@ pub(super) fn color_field_display_text(
 }
 
 // ---------------------------------------------------------------------------
+
+crate::util::impl_component_styled!(ColorArea);

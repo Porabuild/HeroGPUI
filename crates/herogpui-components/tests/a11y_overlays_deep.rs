@@ -31,7 +31,7 @@
 //! and asserts they answer separately. Keyboard wherever the component has a
 //! tab stop, so no assertion depends on a measured coordinate.
 
-mod harness;
+use crate::harness;
 
 use std::collections::HashSet;
 

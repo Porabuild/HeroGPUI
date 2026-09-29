@@ -13,8 +13,11 @@ use gpui::{point, px, BoxShadow, Pixels};
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum SkeletonAnimation {
     #[default]
+    /// Shimmer sweep (the default).
     Shimmer,
+    /// Opacity pulse.
     Pulse,
+    /// No animation.
     None,
 }
 
@@ -104,6 +107,7 @@ impl Default for LayoutTheme {
 }
 
 impl LayoutTheme {
+    /// The light-mode layout tokens, including the three-layer surface, overlay and field shadows.
     pub fn light() -> Self {
         Self {
             // `0 2px 4px 0 rgba(0,0,0,.04), 0 1px 2px 0 rgba(0,0,0,.06),
@@ -131,6 +135,7 @@ impl LayoutTheme {
         }
     }
 
+    /// The dark-mode layout tokens; v3 drops the surface, overlay and field drop shadows in dark mode.
     pub fn dark() -> Self {
         // Dark mode drops all three shadows in v3.
         Self {

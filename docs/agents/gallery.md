@@ -90,7 +90,11 @@ permission notes, and the mapping to the PowerShell drivers are in
 - `HEROGPUI_OPEN_OVERLAYS=1` starts overlay demos open.
 - `HEROGPUI_UNFOCUSED=1` prevents the app from taking focus.
 - `HEROGPUI_REDUCE_MOTION=1` substitutes for an OS preference GPUI does not
-  expose.
+  expose. The gallery maps it onto `set_reduce_motion`; the library itself
+  reads no environment variable.
+- `HEROGPUI_THEME_DIR=<dir>` loads every theme JSON file in `<dir>`,
+  activates the first, and reloads edits live (`herogpui-theme`'s `watch`
+  feature; native only).
 - The web bootstrap accepts `v=<artifact-hash-prefix>` on a deep link. The
   value is forwarded to both `herogpui_web.js` and `herogpui_web_bg.wasm`, so
   the documentation iframe can invalidate the glue and binary together after a

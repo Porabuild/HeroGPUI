@@ -16,6 +16,7 @@ use crate::icons;
 pub enum MenuItem {
     /// Section caption (`<MenuSection>` title).
     SectionLabel(SharedString),
+    /// A divider row between items.
     Separator,
     /// A menu row.
     ///
@@ -24,10 +25,15 @@ pub enum MenuItem {
     /// additive change rather than a break for literal construction.
     #[non_exhaustive]
     Item {
+        /// Stable key identifying the item.
         key: SharedString,
+        /// Visible text of the item.
         label: SharedString,
+        /// Optional shortcut hint shown on the row.
         shortcut: Option<SharedString>,
+        /// Optional icon asset path.
         icon: Option<&'static str>,
+        /// Whether the item uses danger styling.
         is_danger: bool,
         /// `Description` inside a `Dropdown.Item` — v3's "With Descriptions".
         description: Option<SharedString>,
@@ -41,6 +47,7 @@ pub enum MenuItem {
 }
 
 impl MenuItem {
+    /// Creates a menu item from a key and a label.
     pub fn new(key: impl Into<SharedString>, label: impl Into<SharedString>) -> Self {
         MenuItem::Item {
             key: key.into(),
@@ -101,6 +108,7 @@ impl MenuItem {
         self
     }
 
+    /// Sets the shortcut hint shown on the row.
     pub fn shortcut(mut self, s: impl Into<SharedString>) -> Self {
         if let MenuItem::Item { shortcut, .. } = &mut self {
             *shortcut = Some(s.into());
@@ -108,6 +116,7 @@ impl MenuItem {
         self
     }
 
+    /// Sets the icon asset path.
     pub fn icon(mut self, path: &'static str) -> Self {
         if let MenuItem::Item { icon, .. } = &mut self {
             *icon = Some(path);
@@ -115,6 +124,7 @@ impl MenuItem {
         self
     }
 
+    /// Marks the item as a danger item.
     pub fn danger(mut self) -> Self {
         if let MenuItem::Item { is_danger, .. } = &mut self {
             *is_danger = true;
@@ -129,14 +139,18 @@ type OnSelect = std::sync::Arc<dyn Fn(&SharedString, &mut Window, &mut App) + 's
 /// `type` on `Dropdown.ItemIndicator` — how a selected item is marked.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum IndicatorKind {
+    /// A checkmark indicator.
     #[default]
     Checkmark,
+    /// A dot indicator.
     Dot,
 }
 
 impl IndicatorKind {
+    /// Every indicator kind, in display order.
     pub const ALL: [IndicatorKind; 2] = [IndicatorKind::Checkmark, IndicatorKind::Dot];
 
+    /// The display name of this indicator kind.
     pub fn label(self) -> &'static str {
         match self {
             IndicatorKind::Checkmark => "Checkmark",
@@ -156,6 +170,8 @@ type ItemIndicatorContent =
 type OnDismiss = std::rc::Rc<dyn Fn(&bool, &mut Window, &mut App) + 'static>;
 type PanelBounds = std::rc::Rc<std::cell::RefCell<Vec<Bounds<Pixels>>>>;
 
+/// A menu panel listing `MenuItem` rows.
+#[must_use = "a component does nothing until it is rendered: add it as a child or return it from `render`"]
 #[derive(IntoElement)]
 pub struct Menu {
     /// Set by `Dropdown` while the menu is playing its `[data-exiting]` run.
@@ -226,6 +242,7 @@ pub struct Menu {
 }
 
 impl Menu {
+    /// Creates a menu from an element id and its items.
     pub fn new(id: impl Into<gpui::ElementId>, items: Vec<MenuItem>) -> Self {
         Self {
             exiting: false,
@@ -564,6 +581,7 @@ impl Menu {
         self
     }
 
+    /// Sets the key of the selected item.
     pub fn selected_key(mut self, key: impl Into<SharedString>) -> Self {
         self.selected_key = Some(key.into());
         self
@@ -575,7 +593,7 @@ impl Menu {
     /// and the active theme chose, so they win. The panel inside paints its
     /// own chrome, so this reaches the surface it floats in, not the panel.
     pub fn sx(mut self, style: impl FnOnce(gpui::Div) -> gpui::Div) -> Self {
-        self.sx = Some(crate::util::capture_sx(style));
+        crate::util::refine_sx(&mut self.sx, style);
         self
     }
 }
@@ -1835,6 +1853,7 @@ pub enum DropdownTrigger {
 
 /// Dropdown wrapper: trigger + floating menu panel (`Dropdown/DropdownTrigger/
 /// DropdownMenu` composition).
+#[must_use = "a component does nothing until it is rendered: add it as a child or return it from `render`"]
 #[derive(IntoElement)]
 pub struct Dropdown {
     /// Keys this dropdown's own state; see [`Dropdown::id`].
@@ -1917,6 +1936,7 @@ impl Dropdown {
         self
     }
 
+    /// Creates a dropdown that owns its open state.
     pub fn uncontrolled(
         id: impl Into<gpui::ElementId>,
         trigger: impl IntoElement,
@@ -1927,6 +1947,7 @@ impl Dropdown {
         dd
     }
 
+    /// Creates a dropdown whose open state is supplied by the caller.
     pub fn new(
         id: impl Into<gpui::ElementId>,
         trigger: impl IntoElement,
@@ -2063,6 +2084,7 @@ impl Dropdown {
         self
     }
 
+    /// Sets where the menu opens relative to the trigger.
     pub fn placement(mut self, p: DropdownPlacement) -> Self {
         self.placement = p;
         self
@@ -2075,7 +2097,7 @@ impl Dropdown {
     /// the caller's own element and the panel paints its own chrome, so this
     /// reaches the wrapper they sit in.
     pub fn sx(mut self, style: impl FnOnce(gpui::Div) -> gpui::Div) -> Self {
-        self.sx = Some(crate::util::capture_sx(style));
+        crate::util::refine_sx(&mut self.sx, style);
         self
     }
 }
@@ -2375,3 +2397,5 @@ mod hover_tokens {
         );
     }
 }
+
+crate::util::impl_component_styled!(Menu, Dropdown);

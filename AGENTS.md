@@ -44,8 +44,12 @@ replaced, nor the unrelated crates.io `gpui` 0.2.2 crate.
 cargo check --workspace
 cargo test -p herogpui-components
 cargo fmt --all -- --check
-.shots/lint.ps1
+bash .shots/lint.sh
 ```
+
+`.shots/lint.sh` is the lint gate CI runs: workspace-lint inheritance, clippy
+with warnings denied, and cargo-deny when installed.
+For Windows shells, `.shots/lint.ps1` only forwards to `.shots/lint.sh`.
 
 Use a focused test binary while iterating. After a component or gallery change,
 build with `.shots/rebuild.ps1`; the gallery executable is often locked after a
@@ -91,16 +95,22 @@ same sources the native binary does. Earlier layouts built the artifact from a
 second checkout pinned to an older commit and kept the two trees in step by
 hand; nothing of that survives, and no tool reports a component as behind.
 
-Rebuild the checked-in artifact from the repository root:
+The artifact is **not committed**. CI's `wasm` job builds it on every pull
+request and master push, and `wasm-publish` publishes it as its own GitHub
+prerelease, `gallery-<key16>`, keyed by the hash of every wasm build input
+(assets are attached while it is a draft, so immutable releases are fine);
+the Vercel build (`pnpm run build` in `web/`) downloads the artifact for its
+own checkout and verifies its SHA-256 before `next build`. To build
+it locally instead (the site build then uses the local copy):
 
 ```bash
-rustup target add wasm32-unknown-unknown
-cargo +nightly build --target wasm32-unknown-unknown --profile wasm-release -p herogpui-web
-wasm-bindgen --target web --no-typescript --out-dir web/public/gallery \
-  target/wasm32-unknown-unknown/wasm-release/herogpui_web.wasm
+rustup toolchain install "$(cat .shots/wasm-toolchain.txt)" --profile minimal -t wasm32-unknown-unknown
+cargo install -f wasm-bindgen-cli --version <the wasm-bindgen in Cargo.lock>
+# binaryen version_133's wasm-opt on PATH, or pass --no-opt
+bash .shots/build-wasm.sh          # -> web/public/gallery/ (gitignored)
 ```
 
-The `+nightly` is required and is not a preference — `wasm_thread`, pulled
+The dated nightly is required and is not a preference — `wasm_thread`, pulled
 in by the GPUI web platform's `multithreaded` default feature, opens its
 `lib.rs` with a `#![feature]` attribute, so stable fails with `error[E0554]`
 from a dependency this repository does not own. Two facts about how, because
@@ -118,28 +128,36 @@ both are easy to get wrong:
   its background executors on web workers over shared wasm memory, which a
   browser grants only in a cross-origin-isolated context — and the gallery is
   served by the Vercel-hosted website (`web/DEPLOYMENT.md`), whose
-  `web/next.config.ts` sends no COOP/COEP headers. Verified in
-  a browser at `gpui-pre` 0.3.3: the stable `wasm-release` artifact boots,
-  renders, presses, focuses, takes keyboard input and resolves a
-  `background_executor().timer()`, indistinguishably from the
-  nightly/`multithreaded` artifact, which is 23 KB larger. Turning
-  `multithreaded` back on means going back to a nightly pin, so do it only
-  together with a deployment that can actually use web workers.
+  `web/next.config.ts` sends no COOP/COEP headers. Verified in a browser at
+  `gpui-pre` 0.3.3, when the since-retired fork still built this target on
+  stable: that single-threaded artifact booted, rendered, pressed, focused,
+  took keyboard input and resolved a `background_executor().timer()`,
+  indistinguishably from the nightly/`multithreaded` artifact, which was
+  23 KB larger. So the default costs the nightly requirement and nothing
+  else; actually starting the multi-threaded platform needs a deployment that
+  can use web workers.
 
 Never set `RUSTFLAGS` for this target —
 `.cargo/config.toml` states `rustflags = []` there deliberately, and the
-environment variable replaces that list rather than adding to it. Use the
-`wasm-bindgen` CLI whose version matches the `wasm-bindgen` crate in
-`Cargo.lock`; a mismatch fails on a descriptor schema neither side names. CI's
-`wasm` job does all of this on every pull request.
+environment variable replaces that list rather than adding to it
+(`.shots/build-wasm.sh` refuses to run with it set). Use the `wasm-bindgen`
+CLI whose version matches the `wasm-bindgen` crate in `Cargo.lock`; a
+mismatch fails on a descriptor schema neither side names. The script also
+runs binaryen's `wasm-opt -O1` (version pinned in the script and, with its
+archive digest, in CI); `-O1` is the level that shrinks the compressed
+transfer as well as the raw module (`web/DEPLOYMENT.md` section 6).
+The standalone gallery stays single-threaded; why cross-origin isolation for
+the multi-threaded platform is not worth it is in
+`docs/upstream/gpui-web-multithreaded.md`.
 
-The artifact is a committed ~19 MB binary that no compiler checks against the
-sources, so after rebuilding it regenerate its manifests in the same change
-with `pnpm run wasm:manifest` from `web/`. They pin the artifact and every
-gallery example body by hash, and `pnpm run extract:check` fails when the two
-have parted company. `docs/upstream/gpui-web-scroll-and-ime.md` covers the retired source fork of
+After a Rust change, run `pnpm run wasm:manifest` from `web/`: it records
+the artifact key (`inputsSha256`) and every gallery example body in
+`web/src/data/wasm-parity.json`, and `pnpm run extract:check` fails when
+they have parted company with the tree. No artifact rebuild is needed for
+that; CI builds and publishes the artifact for the new key.
+`docs/upstream/gpui-web-scroll-and-ime.md` covers the retired source fork of
 that crate (+9/-5 lines in `src/events.rs`, kept under
-`docs/upstream/retired-patches/` for the upstream-PR effort) and the known
-web limitations vanilla accepts: shift+wheel reaches horizontal scrollers
-through `util::shift_wheel_scroll_x`, while the IME-mirror resync after paste
-still waits upstream.
+`docs/upstream/retired-patches/` and as a ready-to-submit patch under
+`docs/upstream/prs/`) and the known web limitations vanilla accepts:
+shift+wheel reaches horizontal scrollers through `util::shift_wheel_scroll_x`,
+while the IME-mirror resync after paste still waits upstream.

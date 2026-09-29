@@ -15,20 +15,27 @@ use crate::{
 /// BreadcrumbSeparator style (`separator`).
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum BreadcrumbSeparator {
+    /// A slash separator.
     Slash,
+    /// A chevron separator.
     #[default]
     Chevron,
+    /// A dash separator.
     Dash,
 }
 
 /// One breadcrumb item.
+#[must_use = "builder methods return a new value; pass the crumb to its breadcrumbs"]
 #[derive(Clone)]
 pub struct Crumb {
+    /// Visible text of the item.
     pub label: SharedString,
+    /// Optional link target of the item.
     pub href: Option<String>,
 }
 
 impl Crumb {
+    /// Creates an item with the given label.
     pub fn new(label: impl Into<SharedString>) -> Self {
         Self {
             label: label.into(),
@@ -36,6 +43,7 @@ impl Crumb {
         }
     }
 
+    /// Sets the link target.
     pub fn href(mut self, href: impl Into<String>) -> Self {
         self.href = Some(href.into());
         self
@@ -50,6 +58,7 @@ type OnNavigate =
 type SeparatorRender = std::sync::Arc<dyn Fn(usize) -> gpui::AnyElement + 'static>;
 
 /// HeroUI Breadcrumbs.
+#[must_use = "a component does nothing until it is rendered: add it as a child or return it from `render`"]
 #[derive(IntoElement)]
 pub struct Breadcrumbs {
     /// Instance identity for the keyed focus handles and link ids; without
@@ -70,11 +79,13 @@ pub struct Breadcrumbs {
 }
 
 impl Breadcrumbs {
+    /// Sets the disabled state (v3 `isDisabled`).
     pub fn is_disabled(mut self, v: bool) -> Self {
         self.is_disabled = v;
         self
     }
 
+    /// Creates breadcrumbs from the given items.
     pub fn new(items: Vec<Crumb>) -> Self {
         Self {
             id: None,
@@ -89,11 +100,13 @@ impl Breadcrumbs {
         }
     }
 
+    /// Sets the element id.
     pub fn id(mut self, id: impl Into<gpui::ElementId>) -> Self {
         self.id = Some(id.into());
         self
     }
 
+    /// Sets the separator style (v3 `separator`).
     pub fn separator(mut self, s: BreadcrumbSeparator) -> Self {
         self.separator = s;
         self
@@ -135,7 +148,7 @@ impl Breadcrumbs {
     /// applied to the breadcrumbs' root element after every value the active
     /// theme chose, so they win.
     pub fn sx(mut self, style: impl FnOnce(gpui::Div) -> gpui::Div) -> Self {
-        self.sx = Some(crate::util::capture_sx(style));
+        crate::util::refine_sx(&mut self.sx, style);
         self
     }
 }
@@ -292,6 +305,7 @@ impl RenderOnce for Breadcrumbs {
                         window,
                         cx,
                     );
+                    label_el = crate::util::record_focus_bounds(label_el, focus, window, cx);
                 }
 
                 row.child(label_el)
@@ -371,3 +385,5 @@ impl RenderOnce for Breadcrumbs {
         crate::util::apply_sx(el, &self.sx)
     }
 }
+
+crate::util::impl_component_styled!(Breadcrumbs);

@@ -19,6 +19,7 @@ use crate::{
 
 /// A static, non-interactive segment of an [`InputGroup`] — the `$` before an
 /// amount, or a `.com` suffix.
+#[must_use = "a component does nothing until it is rendered: add it as a child or return it from `render`"]
 #[derive(IntoElement)]
 pub struct InputAddon {
     text: SharedString,
@@ -27,6 +28,7 @@ pub struct InputAddon {
 }
 
 impl InputAddon {
+    /// Creates an addon showing the given text.
     pub fn new(text: impl Into<SharedString>) -> Self {
         Self {
             text: text.into(),
@@ -39,7 +41,7 @@ impl InputAddon {
     /// applied to the addon's root element after every value the active theme
     /// chose, so they win.
     pub fn sx(mut self, style: impl FnOnce(gpui::Div) -> gpui::Div) -> Self {
-        self.sx = Some(util::capture_sx(style));
+        util::refine_sx(&mut self.sx, style);
         self
     }
 }
@@ -60,12 +62,15 @@ impl RenderOnce for InputAddon {
 }
 
 /// HeroUI InputGroup.
+#[must_use = "a component does nothing until it is rendered: add it as a child or return it from `render`"]
 #[derive(IntoElement)]
 pub struct InputGroup {
     variant: FieldVariant,
     full_width: bool,
     /// Optional group geometry/chrome overrides; defaults are the stock box.
     field: util::FieldBox,
+    /// The group box's hover endpoint, in place of the variant's token.
+    group_hover_bg: Option<gpui::Hsla>,
     /// The family the held field is drawn and measured with; unset keeps the
     /// field's own setting.
     font_family: Option<SharedString>,
@@ -98,11 +103,13 @@ pub struct InputGroup {
 }
 
 impl InputGroup {
+    /// Creates an empty input group.
     pub fn new() -> Self {
         Self {
             variant: FieldVariant::Primary,
             full_width: false,
             field: util::FieldBox::default(),
+            group_hover_bg: None,
             font_family: None,
             radius: None,
             is_disabled: false,
@@ -128,11 +135,13 @@ impl InputGroup {
         self
     }
 
+    /// Sets the field variant.
     pub fn variant(mut self, variant: FieldVariant) -> Self {
         self.variant = variant;
         self
     }
 
+    /// Sets whether the group fills the available width.
     pub fn full_width(mut self, v: bool) -> Self {
         self.full_width = v;
         self
@@ -158,6 +167,16 @@ impl InputGroup {
     pub fn is_bare(mut self, v: bool) -> Self {
         self.field.is_bare = v;
         self.field.is_bare_is_set = true;
+        self
+    }
+
+    /// The group box's fill while hovered, in place of `--field-hover`
+    /// (`--default-hover` on the secondary variant). The 150ms ease-smooth
+    /// fade and the border hover are unchanged; a focused, invalid, disabled
+    /// or bare group does not hover, so the override never reaches those
+    /// states. Not a v3 prop: v3 tints the group with a class.
+    pub fn group_hover_bg(mut self, color: impl Into<gpui::Hsla>) -> Self {
+        self.group_hover_bg = Some(color.into());
         self
     }
 
@@ -188,6 +207,7 @@ impl InputGroup {
         self
     }
 
+    /// Sets whether the group is disabled.
     pub fn is_disabled(mut self, v: bool) -> Self {
         self.is_disabled = v;
         self
@@ -200,21 +220,25 @@ impl InputGroup {
         self
     }
 
+    /// Sets whether the group is invalid.
     pub fn is_invalid(mut self, v: bool) -> Self {
         self.is_invalid = v;
         self
     }
 
+    /// Sets the label text.
     pub fn label(mut self, text: impl Into<SharedString>) -> Self {
         self.label = Some(text.into());
         self
     }
 
+    /// Sets the description text.
     pub fn description(mut self, text: impl Into<SharedString>) -> Self {
         self.description = Some(text.into());
         self
     }
 
+    /// Sets the error message text.
     pub fn error_message(mut self, text: impl Into<SharedString>) -> Self {
         self.error_message = Some(text.into());
         self
@@ -258,7 +282,7 @@ impl InputGroup {
     /// active theme chose, so they win. The group box's own chrome stays with
     /// the variant.
     pub fn sx(mut self, style: impl FnOnce(gpui::Div) -> gpui::Div) -> Self {
-        self.sx = Some(util::capture_sx(style));
+        util::refine_sx(&mut self.sx, style);
         self
     }
 }
@@ -387,10 +411,10 @@ impl RenderOnce for InputGroup {
         // paints over the focused chrome. v3's `status-disabled` is
         // `pointer-events: none` first, so a disabled group hovers never.
         if !field_box.is_bare && !focus_within && !is_invalid && !is_disabled {
-            let hover_bg = match self.variant {
+            let hover_bg = self.group_hover_bg.unwrap_or(match self.variant {
                 FieldVariant::Primary => colors.field.hover(),
                 FieldVariant::Secondary => colors.default.hover(),
-            };
+            });
             let hover_border = colors.field.border_hover();
             // Keep the group identity and focus listeners stable while only
             // the hover surface interpolates over HeroUI's 150ms ease-smooth
@@ -673,3 +697,5 @@ mod tests {
         );
     }
 }
+
+crate::util::impl_component_styled!(InputAddon, InputGroup);

@@ -7,11 +7,15 @@ use super::*;
 
 /// State entity for [`DateRangePicker`].
 pub struct DateRangeState {
+    /// Year of the month currently shown.
     pub view_year: i32,
+    /// Month (1-12) currently shown.
     pub view_month: u32,
     /// Anchor day for the week and day views; the month view ignores it.
     pub view_day: u32,
+    /// Start of the selected range, if any.
     pub start: Option<Date>,
+    /// End of the selected range, if any.
     pub end: Option<Date>,
     /// Live cell under the cursor — drives the hover preview range.
     pub hovered: Option<Date>,
@@ -21,6 +25,7 @@ pub struct DateRangeState {
 }
 
 impl DateRangeState {
+    /// Creates a state showing the current month with no range selected.
     pub fn new(_cx: &mut App) -> Self {
         let t = Date::today();
         Self {
@@ -107,6 +112,7 @@ pub struct DateRangePickerRenderState {
 }
 
 /// HeroUI DateRangePicker.
+#[must_use = "a component does nothing until it is rendered: add it as a child or return it from `render`"]
 #[derive(IntoElement)]
 pub struct DateRangePicker {
     /// The locale whose calendar system the popover's grid is drawn in, when
@@ -170,6 +176,7 @@ impl DateRangePicker {
         self
     }
 
+    /// Creates a date range picker bound to `state`.
     pub fn new(state: Entity<DateRangeState>) -> Self {
         let entity_id = state.entity_id().as_u64();
         let start_form_state = date_range_picker_form_state(entity_id, false);
@@ -371,11 +378,13 @@ impl DateRangePicker {
         self
     }
 
+    /// Sets the label shown above the picker.
     pub fn label(mut self, label: impl Into<SharedString>) -> Self {
         self.label = Some(label.into());
         self
     }
 
+    /// Sets whether the picker is disabled (`isDisabled`).
     pub fn is_disabled(mut self, v: bool) -> Self {
         self.is_disabled = v;
         self
@@ -400,6 +409,7 @@ impl DateRangePicker {
         self
     }
 
+    /// Sets whether the picker is required (`isRequired`).
     pub fn is_required(mut self, v: bool) -> Self {
         self.is_required = v;
         self
@@ -429,6 +439,7 @@ impl DateRangePicker {
         self
     }
 
+    /// Sets whether the picker is invalid (`isInvalid`).
     pub fn is_invalid(mut self, v: bool) -> Self {
         self.is_invalid = v;
         self
@@ -490,6 +501,7 @@ impl DateRangePicker {
         self
     }
 
+    /// Sets the controlled open state of the popover (`isOpen`).
     pub fn is_open(mut self, v: bool) -> Self {
         self.is_open = Some(v);
         self
@@ -503,21 +515,25 @@ impl DateRangePicker {
         self
     }
 
+    /// Sets whether the popover closes after a selection completes (`shouldCloseOnSelect`).
     pub fn should_close_on_select(mut self, v: bool) -> Self {
         self.should_close_on_select = v;
         self
     }
 
+    /// Replaces the default trigger indicator.
     pub fn trigger_indicator(mut self, indicator: impl IntoElement) -> Self {
         self.trigger_indicator = Some(indicator.into_any_element());
         self
     }
 
+    /// Replaces the separator drawn between the start and end fields.
     pub fn range_separator(mut self, separator: impl IntoElement) -> Self {
         self.range_separator = Some(separator.into_any_element());
         self
     }
 
+    /// Sets a render function for the popover content, given the picker's render state.
     pub fn content(
         mut self,
         render: impl Fn(DateRangePickerRenderState) -> gpui::AnyElement + 'static,
@@ -539,7 +555,7 @@ impl DateRangePicker {
     /// applied to the picker's root element after every value the component
     /// and the active theme chose, so they win.
     pub fn sx(mut self, style: impl FnOnce(gpui::Div) -> gpui::Div) -> Self {
-        self.sx = Some(crate::util::capture_sx(style));
+        crate::util::refine_sx(&mut self.sx, style);
         self
     }
 }
@@ -1056,8 +1072,15 @@ impl RenderOnce for DateRangePicker {
                 });
         }
         trigger = trigger
-            .a11y_named(a11y::Role::Button, &a11y::Name::labelled("Calendar"))
+            .a11y_named(
+                a11y::Role::Button,
+                &a11y::Name::labelled(crate::i18n::ui_string(crate::i18n::UiString::Calendar, cx)),
+            )
             .a11y_expanded(is_open);
+        let separator_color = colors.field.placeholder;
+        if !self.is_disabled && !self.is_read_only {
+            trigger = crate::util::record_focus_bounds(trigger, &trigger_focus, window, cx);
+        }
 
         field = field
             .a11y_named(a11y::Role::Group, &a11y::Name::maybe(self.label.clone()))
@@ -1065,13 +1088,10 @@ impl RenderOnce for DateRangePicker {
             .child(
                 // `.date-range-picker__range-separator` is `px-1` in
                 // `--field-placeholder`.
-                gpui::div()
-                    .px(px(4.))
-                    .text_color(colors.field.placeholder)
-                    .child(
-                        self.range_separator
-                            .unwrap_or_else(|| gpui::div().child(" - ").into_any_element()),
-                    ),
+                gpui::div().px(px(4.)).text_color(separator_color).child(
+                    self.range_separator
+                        .unwrap_or_else(|| gpui::div().child(" - ").into_any_element()),
+                ),
             )
             .child(end_field)
             .child(trigger);
@@ -1271,3 +1291,5 @@ impl RenderOnce for DateRangePicker {
 }
 
 // ---------------------------------------------------------------------------
+
+crate::util::impl_component_styled!(DateRangePicker);

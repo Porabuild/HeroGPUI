@@ -4,8 +4,9 @@
 //! panel's chain and its entry-animation `ZoomBox` both consume. Under
 //! reduced motion the zoom returns the panel untouched, so the chain is the
 //! only consumer there — the reduced-motion bounds test holds the resting
-//! panel to the resolved pair, and the wiring checks pin the motion path to
-//! the same source binding.
+//! panel to the resolved pair. With motion on, the popover's entry zoom and
+//! the toast's stack-exit zoom are observed on the real clock and must paint
+//! the same pair.
 //!
 //! The popover panel carries no debug selector of its own, so the probe is
 //! caller content inside it. The panel is a `flex_col` whose padding is
@@ -16,7 +17,7 @@
 //! (Bottom placement, no arrow, and no flip — the host window is tall
 //! enough that the panel never turns upward).
 
-mod harness;
+use crate::harness;
 
 use gpui::{prelude::*, px, TestAppContext, VisualTestContext};
 use herogpui_components::Popover;
@@ -123,120 +124,101 @@ fn popover_padding_reaches_the_resting_panel_with_reduced_motion(cx: &mut TestAp
     assert_both_popovers(cx);
 }
 
-/// The popover's motion-path half, by wiring. gpui's `with_animation` derives
-/// its delta from real wall-clock time (`scheduler::Instant`), which the test
-/// executor's `advance_clock` cannot move, so no deterministic frame past the
-/// zoom's start exists in a test — and `entering_zoom` only ever hands back
-/// the untouched element under reduced motion, the path the bounds test above
-/// observes. What the motion path adds is *which* value the zoom interpolates,
-/// and that is pinned here: the bindings the `ZoomBox` feeds must be resolved
-/// exactly once, above the panel's construction, and consumed by the resting
-/// chain, so the frame the zoom lands on is by construction the same padding
-/// the chain paints.
-#[test]
-fn popover_panel_chain_consumes_the_padding_the_zoom_interpolates() {
-    let popover = include_str!("../src/popover.rs");
-    let panel_at = popover
-        .find("let mut panel = gpui::div()")
-        .expect("popover.rs: the panel construction must stay");
-    let chain_end_at = popover[panel_at..]
-        .find(".shadow(layout.overlay_shadow.clone());")
-        .map(|at| panel_at + at)
-        .expect("popover.rs: the panel chain must keep its shadow end");
-    let zoom_at = popover[panel_at..]
-        .find("crate::anim::ZoomBox::panel(panel_padding_y, radius)")
-        .map(|at| panel_at + at)
-        .expect("popover.rs: the panel zoom must interpolate the hoisted pair");
-
-    for binding in [
-        "let panel_padding_y = self.padding.unwrap_or(px(16.));",
-        "let panel_padding_x = self.padding.unwrap_or(px(16.));",
-    ] {
-        assert_eq!(
-            popover.matches(binding).count(),
-            1,
-            "popover.rs: {binding} must be resolved exactly once"
-        );
-        let at = popover
-            .find(binding)
-            .expect("popover.rs: the binding must exist");
-        assert!(
-            at < panel_at,
-            "popover.rs: {binding} must be hoisted above the panel chain so \
-             the resting panel and its zoom consume one pair"
-        );
-    }
-
-    for consumer in [".px(panel_padding_x)", ".py(panel_padding_y)"] {
-        let at = popover[panel_at..chain_end_at].find(consumer).map_or_else(
-            || panic!("popover.rs: the resting panel chain must consume {consumer}"),
-            |at| panel_at + at,
-        );
-        assert!(
-            at < zoom_at,
-            "popover.rs: the panel chain's {consumer} must come from the \
-             hoisted binding, not a second resolution"
-        );
-    }
+/// The motion path, observed on the real clock: gpui's `with_animation`
+/// measures wall-clock time, so the test sleeps past the entry instead of
+/// advancing the executor. The zoom sets the panel's padding itself on every
+/// frame, including the settled one, so a zoom fed a second resolution of the
+/// padding (the stock 16px instead of the instance's 24px) would land the
+/// panel on the wrong inset. Mid-entry the panel is still scaled down, which
+/// shows the zoom, not the resting chain alone, is on this path.
+#[gpui::test]
+fn popover_entry_zoom_lands_on_the_resolved_padding(cx: &mut TestAppContext) {
+    let cx = open_host(cx, || {
+        gpui::div()
+            .flex()
+            .flex_col()
+            .child(popover("plain", false))
+            .child(popover("wide", true))
+            .into_any_element()
+    });
+    cx.run_until_parked();
+    let probe = cx
+        .debug_bounds("probe-wide")
+        .expect("the entering panel's content must paint");
+    let entering = f32::from(probe.size.width);
     assert!(
-        popover[panel_at..].contains(".padding_x(panel_padding_x)"),
-        "popover.rs: the zoom must interpolate the same x binding the panel \
-         paints"
+        entering < PANEL_WIDTH - 2. * 24. - 1.,
+        "mid-entry the zoom must still be scaling the panel and its 24px pair \
+         down, the content measured {entering}px wide"
     );
+    harness::wait_real(cx, 400);
+    assert_both_popovers(cx);
 }
 
-/// The toast card's half: a scoped source check, because the card offers no
-/// caller-owned content slot a bounds probe could ride in. The bindings the
-/// card's `ZoomBox` interpolates must be hoisted above the card's
-/// construction and consumed by the card chain, so the reduced-motion
-/// resting padding is by construction the value the zoom targets.
-#[test]
-fn toast_card_chain_consumes_the_padding_the_zoom_interpolates() {
-    let toast = include_str!("../src/toast.rs");
-    let card_at = toast
-        .find("let mut card = gpui::div()")
-        .expect("toast.rs: the card construction must stay");
-    let chain_end_at = toast[card_at..]
-        .find(".overflow_hidden();")
-        .map(|at| card_at + at)
-        .expect("toast.rs: the card chain must keep its overflow_hidden end");
-    let zoom_at = toast[card_at..]
-        .find("crate::anim::ZoomBox::panel(panel_padding_y, radius)")
-        .map(|at| card_at + at)
-        .expect("toast.rs: the card zoom must interpolate the hoisted pair");
+/// The toast half: a card that leaves from behind the front one exits
+/// through the stack zoom, which re-applies the card's padding pair from its
+/// first frame. A zoom fed the stock `px-4 py-3` instead of the instance's
+/// 24px would make the card's content jump inward the moment it starts to
+/// leave. The probe is the caller-owned indicator, `p-1` inside the card.
+#[gpui::test]
+fn toast_stack_exit_zoom_starts_from_the_resolved_padding(cx: &mut TestAppContext) {
+    use std::time::Duration;
 
-    for binding in [
-        "let panel_padding_y = self.t.padding.unwrap_or(px(12.));",
-        "let panel_padding_x = self.t.padding.unwrap_or(px(16.));",
-    ] {
-        assert_eq!(
-            toast.matches(binding).count(),
-            1,
-            "toast.rs: {binding} must be resolved exactly once"
-        );
-        let at = toast
-            .find(binding)
-            .expect("toast.rs: the binding must exist");
-        assert!(
-            at < card_at,
-            "toast.rs: {binding} must be hoisted above the card chain so the \
-             resting card and its zoom consume one pair"
-        );
-    }
+    use herogpui_components::{toast_store, Toast, ToastStore, ToastViewport};
 
-    for consumer in [".px(panel_padding_x)", ".py(panel_padding_y)"] {
-        let at = toast[card_at..chain_end_at].find(consumer).map_or_else(
-            || panic!("toast.rs: the resting card chain must consume {consumer}"),
-            |at| card_at + at,
-        );
-        assert!(
-            at < zoom_at,
-            "toast.rs: the card chain's {consumer} must come from the hoisted \
-             binding, not a second resolution"
-        );
-    }
+    let older = cx.update(|cx| {
+        let older = Toast::new("Older")
+            .timeout(Duration::ZERO)
+            .padding(px(24.))
+            .indicator_content(|_| harness::probe("older-ind"))
+            .push(None, cx);
+        Toast::new("Newer")
+            .timeout(Duration::ZERO)
+            .padding(px(24.))
+            .push(None, cx);
+        older
+    });
+    let cx = open_host(cx, || {
+        ToastViewport::new().is_expanded(true).into_any_element()
+    });
+    harness::wait_real(cx, 500);
+
+    let inset = |cx: &mut VisualTestContext| {
+        let probe = cx
+            .debug_bounds("older-ind")
+            .expect("the older card's indicator must paint");
+        let scene = harness::painted(cx);
+        let card = scene
+            .around(probe)
+            .into_iter()
+            .filter(|q| q.background.as_solid().is_some_and(|c| c.a > 0.))
+            .min_by(|a, b| {
+                let area = |q: &&gpui::Quad| q.bounds.size.width.0 * q.bounds.size.height.0;
+                area(a).total_cmp(&area(b))
+            })
+            .map(|q| scene.bounds(q))
+            .expect("the older card must paint its surface");
+        (
+            f32::from(probe.origin.x - card.origin.x),
+            f32::from(probe.origin.y - card.origin.y),
+        )
+    };
+    let resting = inset(cx);
     assert!(
-        toast[card_at..].contains(".padding_x(panel_padding_x)"),
-        "toast.rs: the zoom must interpolate the same x binding the card paints"
+        (resting.0 - 28.).abs() < 0.5 && (resting.1 - 28.).abs() < 0.5,
+        "the resting card must inset its content by 24 + 4, got {resting:?}"
+    );
+
+    cx.update(|_, cx| {
+        let store = toast_store(cx);
+        ToastStore::close(&store, older, cx);
+    });
+    cx.update(|window, _| window.refresh());
+    cx.run_until_parked();
+    let leaving = inset(cx);
+    assert!(
+        (leaving.0 - resting.0).abs() < 1.5 && (leaving.1 - resting.1).abs() < 1.5,
+        "the exit zoom must start from the card's own padding pair: resting \
+         {resting:?}, first exit frame {leaving:?}"
     );
 }

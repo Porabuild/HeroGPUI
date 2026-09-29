@@ -109,9 +109,10 @@ reason in the parity audit.
 - A new chrome icon needs a constant in `components/src/icons.rs`, an inline
   SVG in `components/src/assets.rs` (`assets::tests` fails without it) and a
   file registration in `gallery/src/assets.rs`. A new Lucide icon is one
-  `IconName` line plus the verbatim `lucide-static` file under
-  `components/assets/lucide/` (see `src/icon.rs`); the gallery serves those
-  through `HeroGpuiAssets`.
+  name in `.shots/lucide-icons.txt` followed by
+  `python3 .shots/sync-lucide.py`, which copies the verbatim `lucide-static`
+  file into `components/assets/lucide/` and regenerates `IconName` (see
+  `src/icon.rs`); the gallery serves those through `HeroGpuiAssets`.
 - Custom components that hold children need an explicit `ParentElement::extend`
   implementation.
 - Branches returning different element types need `.into_any_element()`.
@@ -160,10 +161,15 @@ reason in the parity audit.
   is not a selected-tab background; a slider track is not its value fill. Name
   a part seam when forwarding would be ambiguous.
 - `tests/sx_ownership.rs` keeps the part-scoped inventory: each entry names the
-  function that owns a painted part and the extractor it must read once wired.
-  Pending entries still check their marker exists, so removing a consumer fails
-  the test; scoping is to the enclosing function, so a sibling's extractor call
-  never satisfies another part's entry.
+  function that owns a painted part and the extractor it is ruled against.
+  A *wired* part paints over (or derives from) the surface the root `sx`
+  refines, so its function must read the extractor; an *independent* part
+  sits under a wrapper root it does not paint over — its own control fill,
+  field chrome, a transparent resting row, a detached panel — so its function
+  must not, and its state colour has a named seam instead. Every entry checks
+  its marker exists, so removing a consumer fails the test; scoping is to the
+  enclosing function, so a sibling's extractor call never satisfies another
+  part's entry.
 
 ## Accessibility
 
@@ -190,8 +196,10 @@ reason in the parity audit.
 
 ## Virtual collections
 
-- `uniform_list` is for fixed-height virtual rows and requires an explicit
-  height. Its callback is `'static`, so move owned data and copied tokens into
+- Fixed-height virtual rows use `VirtualList` over
+  `VirtualListHandle::uniform` (GPUI's `uniform_list` underneath), which
+  measures row 0 and multiplies, so build every row at the declared height.
+  Its row callback is `'static`, so move owned data and copied tokens into
   it; do not borrow `self` or `cx.colors()`.
 - Share one row builder between plain and virtual paths so rendering does not
   drift.
@@ -210,7 +218,7 @@ opens a GPUI test window, rebuilds one `RenderOnce` component per frame, and
 records callbacks.
 
 ```powershell
-cargo test -p herogpui-components --test overlays
+cargo test -p herogpui-components --test suite_overlays overlays::
 cargo test -p herogpui-components <test_name>
 cargo test -p herogpui-components
 ```

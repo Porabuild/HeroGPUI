@@ -18,7 +18,7 @@
 //! the `.chip__label` `px-0.5`. There is no `startContent`-style slot — v3's
 //! with-icon demo composes an icon child and a `Chip.Label` sibling.
 
-mod harness;
+use crate::harness;
 
 use gpui::{div, prelude::*, px, Bounds, Pixels, TestAppContext, VisualTestContext};
 use harness::{click, events, open_host};

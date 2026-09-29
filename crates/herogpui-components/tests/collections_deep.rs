@@ -23,7 +23,7 @@
 //!   chip (px-2 py-1, no remove button, no icon) is 8+40+8 = 56px wide and
 //!   28px tall; chips sit 6px apart, so chip *i* centre x = 28 + 62i, y = 14.
 
-mod harness;
+use crate::harness;
 
 use std::cell::RefCell;
 use std::collections::HashSet;

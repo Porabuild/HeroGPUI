@@ -3,12 +3,14 @@ import { Callout } from "@/components/ui/callout";
 import { PageHeader } from "@/components/ui/page-header";
 import { ComponentCatalog, type CatalogGroup } from "@/components/catalog/component-catalog";
 import { getCatalog } from "@/lib/catalog";
+import { pageMetadata } from "@/lib/seo";
 
-export const metadata: Metadata = {
+export const metadata: Metadata = pageMetadata({
+  path: "/docs/components",
   title: "Components",
   description:
     "Every HeroGPUI component, grouped by category, with a live WebAssembly preview and the Rust API.",
-};
+});
 
 /**
  * The full component index: one card per catalog page, grouped by the

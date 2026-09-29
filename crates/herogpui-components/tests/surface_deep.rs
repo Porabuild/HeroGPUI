@@ -15,7 +15,7 @@
 //! the per-variant `bg-surface*` / `text-*` colours, the corner radius — is
 //! painted only, and belongs to the pinned `surface.css` and the static audits.
 
-mod harness;
+use crate::harness;
 
 use gpui::{div, prelude::*, px, Div, TestAppContext, VisualTestContext};
 use harness::open_host;

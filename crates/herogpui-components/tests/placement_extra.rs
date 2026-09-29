@@ -11,7 +11,7 @@
 //! first frame, because flipping it later rebuilds the animated wrapper and the
 //! click in flight is lost.
 
-mod harness;
+use crate::harness;
 
 use std::time::Duration;
 

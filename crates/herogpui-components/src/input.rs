@@ -66,6 +66,7 @@ pub struct InputState {
 }
 
 impl InputState {
+    /// Creates an empty state with a fresh focus handle.
     pub fn new(cx: &mut App) -> Self {
         Self {
             value: String::new(),
@@ -97,6 +98,7 @@ impl InputState {
         state
     }
 
+    /// The current text value.
     pub fn value(&self) -> &str {
         &self.value
     }
@@ -182,6 +184,7 @@ impl InputState {
         self.routed_errors.clear();
     }
 
+    /// Replaces the value, clears any selection and composition, and moves the cursor to the end.
     pub fn set_value(&mut self, value: impl Into<String>) {
         self.value = value.into();
         self.marked = None;
@@ -189,6 +192,7 @@ impl InputState {
         self.cursor = self.value.chars().count();
     }
 
+    /// Whether the value is empty.
     pub fn is_empty(&self) -> bool {
         self.value.is_empty()
     }
@@ -698,6 +702,7 @@ fn byte_to_char(s: &str, byte: usize) -> usize {
 /// without us owning a validation lifecycle.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum InputValidity {
+    /// The value satisfies every constraint.
     Valid,
     /// Shorter than `minLength`.
     TooShort,
@@ -712,6 +717,7 @@ pub enum InputValidity {
 }
 
 impl InputValidity {
+    /// Whether this outcome is `Valid`.
     pub fn is_valid(self) -> bool {
         matches!(self, InputValidity::Valid)
     }
@@ -721,15 +727,20 @@ impl InputValidity {
 /// handling in gpui are modelled.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum InputType {
+    /// Plain text.
     #[default]
     Text,
     /// Masks the value with bullets.
     Password,
+    /// Email address; reports the email input role.
     Email,
     /// Restricts typing to digits, `-` and `.`.
     Number,
+    /// Telephone number; reports the telephone input role.
     Tel,
+    /// URL; reports the URL input role.
     Url,
+    /// Search text; reports the search input role.
     Search,
 }
 
@@ -752,6 +763,7 @@ impl InputType {
         }
     }
 
+    /// Every input type, in declaration order.
     pub const ALL: [InputType; 7] = [
         InputType::Text,
         InputType::Password,
@@ -762,6 +774,7 @@ impl InputType {
         InputType::Search,
     ];
 
+    /// The type's display name.
     pub fn label(self) -> &'static str {
         match self {
             InputType::Text => "Text",
@@ -1214,6 +1227,7 @@ struct InputFieldRenderState {
 }
 
 /// HeroUI Input.
+#[must_use = "a component does nothing until it is rendered: add it as a child or return it from `render`"]
 #[derive(IntoElement)]
 pub struct Input {
     /// See [`Input::content`]: v3's field children-as-a-function.
@@ -1516,6 +1530,7 @@ impl Input {
         self
     }
 
+    /// Sets the visible label.
     pub fn label(mut self, l: impl Into<SharedString>) -> Self {
         self.label = Some(l.into());
         self
@@ -1534,11 +1549,13 @@ impl Input {
         self
     }
 
+    /// Sets the placeholder shown while the value is empty.
     pub fn placeholder(mut self, p: impl Into<SharedString>) -> Self {
         self.placeholder = Some(p.into());
         self
     }
 
+    /// Sets the description text.
     pub fn description(mut self, d: impl Into<SharedString>) -> Self {
         self.description = Some(d.into());
         self
@@ -1569,6 +1586,7 @@ impl Input {
         self
     }
 
+    /// Sets the error message shown when the field is invalid.
     pub fn error_message(mut self, e: impl Into<SharedString>) -> Self {
         self.error_message = Some(e.into());
         self
@@ -1632,6 +1650,7 @@ impl Input {
         )
     }
 
+    /// Sets the field variant.
     pub fn variant(mut self, v: FieldVariant) -> Self {
         self.variant = v;
         self.variant_is_set = true;
@@ -1686,6 +1705,16 @@ impl Input {
     /// Applies a standalone [`crate::util::FieldBox`] to this field: explicit
     /// height and padding, plus the chrome-less bare mode. Crate-internal for
     /// the components that forward their box seam to a held `Input`.
+    /// Hands a wrapper's captured `sx` refinement to this field, so it lands on
+    /// the same root [`Input::sx`] would (a `ColorField` composing this field
+    /// has no element of its own to refine).
+    pub(crate) fn with_sx_refinement(mut self, sx: Option<Box<gpui::StyleRefinement>>) -> Self {
+        if sx.is_some() {
+            self.sx = sx;
+        }
+        self
+    }
+
     pub(crate) fn with_field_box(mut self, field: crate::util::FieldBox) -> Self {
         if let Some(height) = field.height {
             self = self.height(height);
@@ -1757,11 +1786,13 @@ impl Input {
         self
     }
 
+    /// Sets the content rendered before the text.
     pub fn start_content(mut self, el: impl IntoElement) -> Self {
         self.start_content = Some(el.into_any_element());
         self
     }
 
+    /// Sets the content rendered after the text.
     pub fn end_content(mut self, el: impl IntoElement) -> Self {
         self.end_content = Some(el.into_any_element());
         self
@@ -1773,21 +1804,25 @@ impl Input {
         self
     }
 
+    /// Sets whether the field is disabled.
     pub fn is_disabled(mut self, v: bool) -> Self {
         self.is_disabled = v;
         self
     }
 
+    /// Sets whether the field is read-only.
     pub fn is_read_only(mut self, v: bool) -> Self {
         self.is_read_only = v;
         self
     }
 
+    /// Sets whether the field is required.
     pub fn is_required(mut self, v: bool) -> Self {
         self.is_required = v;
         self
     }
 
+    /// Sets whether the field is invalid.
     pub fn is_invalid(mut self, v: bool) -> Self {
         self.is_invalid = v;
         self
@@ -1825,11 +1860,13 @@ impl Input {
         self
     }
 
+    /// Sets the handler called with the new value whenever it changes.
     pub fn on_change(mut self, f: impl Fn(&str, &mut Window, &mut App) + 'static) -> Self {
         self.on_change = Some(std::sync::Arc::new(f));
         self
     }
 
+    /// Sets the handler called with the current value when Enter is pressed.
     pub fn on_submit(mut self, f: impl Fn(&str, &mut Window, &mut App) + 'static) -> Self {
         self.on_submit = Some(std::sync::Arc::new(f));
         self
@@ -1842,7 +1879,7 @@ impl Input {
     /// column a standalone field returns; inside an `InputGroup` it is the
     /// field row itself, which is all the group leaves the field.
     pub fn sx(mut self, style: impl FnOnce(gpui::Div) -> gpui::Div) -> Self {
-        self.sx = Some(crate::util::capture_sx(style));
+        crate::util::refine_sx(&mut self.sx, style);
         self
     }
 }
@@ -2545,7 +2582,7 @@ impl RenderOnce for Input {
             let clear_radius = crate::util::small_radius(cx);
             let clear_selector = format!("input-clear-{}", self.state.entity_id().as_u64());
             let input_focus_after_clear = focus_handle.clone();
-            let input_focus_handle = focus_handle;
+            let input_focus_handle = focus_handle.clone();
             let mut clear = gpui::div()
                 .id(element_id::scoped(&base_id, "clear"))
                 .debug_selector(move || clear_selector)
@@ -2880,6 +2917,11 @@ impl RenderOnce for Input {
         } else {
             field
         };
+        let field = if self.is_disabled {
+            field
+        } else {
+            crate::util::record_focus_bounds(field, &focus_handle, window, cx)
+        };
 
         // The anchor is the 36px field row itself — not the
         // label-to-error wrapper below — the way RAC's `triggerRef` reads
@@ -2993,6 +3035,7 @@ pub struct TextFieldRenderState {
 /// The composition-friendly field: a label, an [`Input`], and a description or
 /// validation message. `Input` is the bare control; `TextField` is the labelled
 /// wrapper most applications reach for.
+#[must_use = "a component does nothing until it is rendered: add it as a child or return it from `render`"]
 #[derive(IntoElement)]
 pub struct TextField {
     inner: Input,
@@ -3014,6 +3057,7 @@ impl TextField {
         self
     }
 
+    /// Sets the visible label.
     pub fn label(mut self, text: impl Into<SharedString>) -> Self {
         self.inner = self.inner.label(text);
         self
@@ -3039,11 +3083,13 @@ impl TextField {
         self
     }
 
+    /// Sets the placeholder shown while the value is empty.
     pub fn placeholder(mut self, text: impl Into<SharedString>) -> Self {
         self.inner = self.inner.placeholder(text);
         self
     }
 
+    /// Sets the description text.
     pub fn description(mut self, text: impl Into<SharedString>) -> Self {
         self.inner = self.inner.description(text);
         self
@@ -3094,16 +3140,19 @@ impl TextField {
         self
     }
 
+    /// Sets the error message shown when the field is invalid.
     pub fn error_message(mut self, text: impl Into<SharedString>) -> Self {
         self.inner = self.inner.error_message(text);
         self
     }
 
+    /// Sets the field variant.
     pub fn variant(mut self, variant: FieldVariant) -> Self {
         self.inner = self.inner.variant(variant);
         self
     }
 
+    /// Makes the field fill its parent's width.
     pub fn full_width(mut self) -> Self {
         self.inner = self.inner.full_width();
         self
@@ -3164,31 +3213,37 @@ impl TextField {
         self
     }
 
+    /// Sets whether the field is disabled.
     pub fn is_disabled(mut self, v: bool) -> Self {
         self.inner = self.inner.is_disabled(v);
         self
     }
 
+    /// Sets whether the field is read-only.
     pub fn is_read_only(mut self, v: bool) -> Self {
         self.inner = self.inner.is_read_only(v);
         self
     }
 
+    /// Sets whether the field is required.
     pub fn is_required(mut self, v: bool) -> Self {
         self.inner = self.inner.is_required(v);
         self
     }
 
+    /// Sets whether the field is invalid.
     pub fn is_invalid(mut self, v: bool) -> Self {
         self.inner = self.inner.is_invalid(v);
         self
     }
 
+    /// Sets the handler called with the new value whenever it changes.
     pub fn on_change(mut self, handler: impl Fn(&str, &mut Window, &mut App) + 'static) -> Self {
         self.inner = self.inner.on_change(handler);
         self
     }
 
+    /// Sets the handler called with the current value when Enter is pressed.
     pub fn on_submit(mut self, handler: impl Fn(&str, &mut Window, &mut App) + 'static) -> Self {
         self.inner = self.inner.on_submit(handler);
         self
@@ -3240,6 +3295,7 @@ pub struct SearchFieldRenderState {
 /// An [`Input`] specialised for search: a leading magnifier icon and a clear
 /// button that appears once there is a value. `onSubmit` fires on Enter and
 /// `onClear` when the value is cleared.
+#[must_use = "a component does nothing until it is rendered: add it as a child or return it from `render`"]
 #[derive(IntoElement)]
 pub struct SearchField {
     state: Entity<InputState>,
@@ -3263,6 +3319,8 @@ pub struct SearchField {
     variant_is_set: bool,
     recipes: Vec<SharedString>,
     text_size: Option<Pixels>,
+    /// The field text's family, forwarded to the inner `Input`.
+    font_family: Option<SharedString>,
     radius: Option<Pixels>,
     full_width: bool,
     /// Optional box geometry/chrome overrides forwarded to the inner `Input`.
@@ -3320,6 +3378,7 @@ impl SearchField {
             variant_is_set: false,
             recipes: Vec::new(),
             text_size: None,
+            font_family: None,
             radius: None,
             full_width: false,
             field: crate::util::FieldBox::default(),
@@ -3340,22 +3399,26 @@ impl SearchField {
         }
     }
 
+    /// Sets the visible label.
     pub fn label(mut self, text: impl Into<SharedString>) -> Self {
         self.label = Some(text.into());
         self
     }
 
+    /// Sets the placeholder shown while the value is empty.
     pub fn placeholder(mut self, text: impl Into<SharedString>) -> Self {
         self.placeholder = text.into();
         self.placeholder_is_set = true;
         self
     }
 
+    /// Sets the description text.
     pub fn description(mut self, text: impl Into<SharedString>) -> Self {
         self.description = Some(text.into());
         self
     }
 
+    /// Sets the field variant.
     pub fn variant(mut self, variant: FieldVariant) -> Self {
         self.variant = variant;
         self.variant_is_set = true;
@@ -3374,12 +3437,21 @@ impl SearchField {
         self
     }
 
+    /// The field text's font family — forwarded to the inner [`Input`], so
+    /// the query, placeholder and caret measurement all use it (see
+    /// [`Input::font_family`]). Not a v3 prop; v3 sets it with a class.
+    pub fn font_family(mut self, family: impl Into<SharedString>) -> Self {
+        self.font_family = Some(family.into());
+        self
+    }
+
     /// The box's corner radius — forwarded to the inner [`Input`].
     pub fn radius(mut self, r: impl Into<Pixels>) -> Self {
         self.radius = Some(r.into());
         self
     }
 
+    /// Makes the field fill its parent's width.
     pub fn full_width(mut self) -> Self {
         self.full_width = true;
         self
@@ -3412,16 +3484,19 @@ impl SearchField {
         self
     }
 
+    /// Sets whether the field is disabled.
     pub fn is_disabled(mut self, v: bool) -> Self {
         self.is_disabled = v;
         self
     }
 
+    /// Sets the handler called with the new value whenever it changes.
     pub fn on_change(mut self, handler: impl Fn(&str, &mut Window, &mut App) + 'static) -> Self {
         self.on_change = Some(std::sync::Arc::new(handler));
         self
     }
 
+    /// Sets the handler called with the current value when Enter is pressed.
     pub fn on_submit(mut self, handler: impl Fn(&str, &mut Window, &mut App) + 'static) -> Self {
         self.on_submit = Some(std::sync::Arc::new(handler));
         self
@@ -3521,7 +3596,7 @@ impl SearchField {
     /// to the [`Input`] this field builds at render time, whose render
     /// applies it.
     pub fn sx(mut self, style: impl FnOnce(gpui::Div) -> gpui::Div) -> Self {
-        self.sx = Some(crate::util::capture_sx(style));
+        crate::util::refine_sx(&mut self.sx, style);
         self
     }
 }
@@ -3582,6 +3657,9 @@ impl RenderOnce for SearchField {
         }
         if let Some(size) = self.text_size {
             input = input.text_size(size);
+        }
+        if let Some(family) = self.font_family {
+            input = input.font_family(family);
         }
         if let Some(r) = self.radius {
             input = input.radius(r);
@@ -4211,3 +4289,5 @@ mod hover_tokens {
         );
     }
 }
+
+crate::util::impl_component_styled!(Input, SearchField);

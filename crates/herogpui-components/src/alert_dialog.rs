@@ -28,15 +28,21 @@ use crate::{
 /// viewport edge to edge.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum AlertDialogSize {
+    /// Extra small width.
     Xs,
+    /// Small width.
     Sm,
+    /// Medium width.
     #[default]
     Md,
+    /// Large width.
     Lg,
+    /// Nearly fills the viewport, keeping a margin.
     Cover,
 }
 
 impl AlertDialogSize {
+    /// Every size, in display order.
     pub const ALL: [AlertDialogSize; 5] = [
         AlertDialogSize::Xs,
         AlertDialogSize::Sm,
@@ -57,6 +63,7 @@ impl AlertDialogSize {
         }
     }
 
+    /// The display name of this size.
     pub fn label(self) -> &'static str {
         match self {
             AlertDialogSize::Xs => "Xs",
@@ -95,6 +102,7 @@ pub struct AlertDialogCloseTrigger {
 }
 
 impl AlertDialogCloseTrigger {
+    /// Creates a close trigger with no children.
     pub fn new() -> Self {
         Self {
             on_dismiss: None,
@@ -143,6 +151,7 @@ fn icon_presentation(
 }
 
 /// HeroUI AlertDialog (controlled).
+#[must_use = "a component does nothing until it is rendered: add it as a child or return it from `render`"]
 #[derive(IntoElement)]
 pub struct AlertDialog {
     /// Keys this dialog's own state; see [`AlertDialog::id`].
@@ -187,6 +196,7 @@ impl AlertDialog {
         self
     }
 
+    /// Creates a closed alert dialog with the given title.
     pub fn new(title: impl Into<SharedString>) -> Self {
         Self {
             id: gpui::ElementId::Name("alert-dialog".into()),
@@ -214,16 +224,19 @@ impl AlertDialog {
         }
     }
 
+    /// Sets whether the dialog is open (v3 `isOpen`).
     pub fn is_open(mut self, v: bool) -> Self {
         self.is_open = v;
         self
     }
 
+    /// Sets the description text.
     pub fn description(mut self, text: impl Into<SharedString>) -> Self {
         self.description = Some(text.into());
         self
     }
 
+    /// Sets the width preset (v3 `size`).
     pub fn size(mut self, size: AlertDialogSize) -> Self {
         self.size = size;
         self
@@ -263,6 +276,7 @@ impl AlertDialog {
         self
     }
 
+    /// Sets the backdrop style.
     pub fn backdrop(mut self, backdrop: Backdrop) -> Self {
         self.backdrop = backdrop;
         self
@@ -284,15 +298,17 @@ impl AlertDialog {
     /// applied to the dialog's root element after every value the size, the
     /// placement and the active theme chose, so they win.
     pub fn sx(mut self, style: impl FnOnce(gpui::Div) -> gpui::Div) -> Self {
-        self.sx = Some(util::capture_sx(style));
+        util::refine_sx(&mut self.sx, style);
         self
     }
 
+    /// Sets the label of the confirm button.
     pub fn confirm_label(mut self, text: impl Into<SharedString>) -> Self {
         self.confirm_label = text.into();
         self
     }
 
+    /// Sets the label of the cancel button.
     pub fn cancel_label(mut self, text: impl Into<SharedString>) -> Self {
         self.cancel_label = text.into();
         self
@@ -810,3 +826,5 @@ mod tests {
         }
     }
 }
+
+crate::util::impl_component_styled!(AlertDialog);

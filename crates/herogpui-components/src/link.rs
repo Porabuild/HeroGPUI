@@ -59,6 +59,7 @@ fn icon_slot(
 }
 
 /// HeroUI Link.
+#[must_use = "a component does nothing until it is rendered: add it as a child or return it from `render`"]
 #[derive(IntoElement)]
 pub struct Link {
     id: ElementId,
@@ -85,6 +86,7 @@ pub struct Link {
 }
 
 impl Link {
+    /// Creates a link with the given id.
     pub fn new(id: impl Into<ElementId>) -> Self {
         Self {
             id: id.into(),
@@ -117,16 +119,19 @@ impl Link {
         self
     }
 
+    /// Sets the text label.
     pub fn label(mut self, label: impl Into<SharedString>) -> Self {
         self.label = Some(label.into());
         self
     }
 
+    /// Sets the link target.
     pub fn href(mut self, href: impl Into<String>) -> Self {
         self.href = Some(href.into());
         self
     }
 
+    /// Sets whether the link is disabled.
     pub fn is_disabled(mut self, v: bool) -> Self {
         self.is_disabled = v;
         self
@@ -179,7 +184,7 @@ impl Link {
     /// applied to the link's root element after every value the states and the
     /// active theme chose, so they win.
     pub fn sx(mut self, style: impl FnOnce(gpui::Div) -> gpui::Div) -> Self {
-        self.sx = Some(crate::util::capture_sx(style));
+        crate::util::refine_sx(&mut self.sx, style);
         self
     }
 }
@@ -351,6 +356,11 @@ impl RenderOnce for Link {
         }
 
         el = crate::util::apply_sx(el, &self.sx);
+        if interactive {
+            el = crate::util::record_focus_bounds(el, &focus, window, cx);
+        }
         el
     }
 }
+
+crate::util::impl_component_styled!(Link);

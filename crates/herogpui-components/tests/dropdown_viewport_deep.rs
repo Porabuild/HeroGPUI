@@ -27,7 +27,7 @@
 //! inside the window -- for shifts, for flips on every side, for the height
 //! cap with wheel access to the last row, for short menus, and for submenus.
 
-mod harness;
+use crate::harness;
 
 use gpui::{
     point, prelude::*, px, size, Pixels, ScrollDelta, ScrollWheelEvent, TestAppContext,

@@ -7,12 +7,14 @@ import { CodeBlock } from "@/components/ui/code-block";
 import { PageHeader } from "@/components/ui/page-header";
 import { C, H2, H3, Li, Md, P, Td, Th, Ul } from "@/app/docs/ai/_components/docs";
 import { SITE } from "@/lib/nav";
+import { pageMetadata } from "@/lib/seo";
 
-export const metadata: Metadata = {
+export const metadata: Metadata = pageMetadata({
+  path: "/docs/ai/llms-txt",
   title: "llms.txt",
   description:
     "HeroGPUI publishes a plain-text llms.txt with the Rust API, theme model, component patterns, and GPUI conventions for coding agents.",
-};
+});
 
 // Read the file at build time so the size below and the excerpt stay true to
 // the reference agents actually receive.
@@ -59,7 +61,7 @@ const SECTION_DESCRIPTIONS: Record<string, string> = {
   Components:
     "The bulk of the file: per-category API rundowns across sixteen subsections (Buttons, Collections, Colors, Controls, Data Display, Date and Time, Feedback, the calendar view model (`calendar_view`), Forms, Layout, Media, Navigation, Overlays, Pickers, Typography, Utilities), naming every documented builder, part, and its Rust spelling. A few related components share one entry, including ToggleButton/ToggleButtonGroup, Disclosure/DisclosureGroup, and the Label/Description/ErrorMessage/FieldError slots.",
   "HeroGPUI extensions":
-    "The repository extensions that are not HeroUI v3 APIs: the shared `Disableable` / `Sizable` / `Selectable` builder traits, the `i18n` chrome-string catalogue (`set_locale`, `ui_string`), theme files with a JSON Schema and presets (`serde` feature), the `herogpui::test` kit (`test-support` feature), `VirtualList`, `ContextMenu`, `MenuBar`, `ResizablePanelGroup`, `TreeView`, and the Lucide `Icon` / `IconName` set.",
+    "The repository extensions that are not HeroUI v3 APIs: the shared `Disableable` / `Sizable` / `Selectable` builder traits, the `i18n` chrome-string catalogue (`set_locale`, `ui_string`), theme files with a JSON Schema and presets (`serde` feature), the `herogpui::test` kit (`test-support` feature), `VirtualList`, `ContextMenu`, `MenuBar`, `ResizablePanelGroup`, `TreeView`, the Lucide `Icon` / `IconName` set, `HoverCard`, `CommandPalette`, `Sidebar`, `TitleBar` / `WindowBorder`, the `Toolbar` sizing extras, and `Table` column reordering and cell selection.",
   Gallery:
     "How to run and capture the documentation app: `cargo run -p herogpui-gallery`, the `HEROGPUI_PAGE` / `HEROGPUI_THEME` environment controls, and the screenshot scripts used as the visual-regression source.",
   "Code style":

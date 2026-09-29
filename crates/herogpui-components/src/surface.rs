@@ -31,6 +31,7 @@ pub enum SurfaceVariant {
 }
 
 /// HeroUI Surface.
+#[must_use = "a component does nothing until it is rendered: add it as a child or return it from `render`"]
 #[derive(IntoElement)]
 pub struct Surface {
     variant: SurfaceVariant,
@@ -42,6 +43,7 @@ pub struct Surface {
 }
 
 impl Surface {
+    /// Creates a surface.
     pub fn new() -> Self {
         Self {
             variant: SurfaceVariant::default(),
@@ -52,6 +54,7 @@ impl Surface {
         }
     }
 
+    /// Sets the surface variant.
     pub fn variant(mut self, variant: SurfaceVariant) -> Self {
         self.variant = variant;
         self
@@ -62,7 +65,7 @@ impl Surface {
     /// applied to the surface's root element after every value the variant and
     /// the active theme chose, so they win.
     pub fn sx(mut self, style: impl FnOnce(gpui::Div) -> gpui::Div) -> Self {
-        self.sx = Some(crate::util::capture_sx(style));
+        crate::util::refine_sx(&mut self.sx, style);
         self
     }
 
@@ -123,3 +126,5 @@ impl RenderOnce for Surface {
         crate::util::apply_sx(el, &self.sx)
     }
 }
+
+crate::util::impl_component_styled!(Surface);

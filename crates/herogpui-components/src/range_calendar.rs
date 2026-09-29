@@ -27,6 +27,7 @@ type OnRangeChange = Arc<dyn Fn(&Date, &Date, &mut Window, &mut App) + 'static>;
 type RangeDateUnavailable = Arc<dyn Fn(Date, Option<Date>) -> bool + 'static>;
 
 /// HeroUI RangeCalendar.
+#[must_use = "a component does nothing until it is rendered: add it as a child or return it from `render`"]
 #[derive(IntoElement)]
 pub struct RangeCalendar {
     /// `value` — v3's controlled range, stored for the first render only.
@@ -158,6 +159,7 @@ impl RangeCalendar {
         self
     }
 
+    /// Creates a range calendar bound to `state`.
     pub fn new(state: Entity<DateRangeState>) -> Self {
         Self {
             value: None,
@@ -262,11 +264,13 @@ impl RangeCalendar {
         self
     }
 
+    /// Sets the earliest selectable date (`minValue`).
     pub fn min_value(mut self, date: Date) -> Self {
         self.constraints.min_value = Some(date);
         self
     }
 
+    /// Sets the latest selectable date (`maxValue`).
     pub fn max_value(mut self, date: Date) -> Self {
         self.constraints.max_value = Some(date);
         self
@@ -301,6 +305,7 @@ impl RangeCalendar {
         self
     }
 
+    /// Sets the first day of the week (`firstDayOfWeek`).
     pub fn first_day_of_week(mut self, day: Weekday) -> Self {
         self.constraints.first_day_of_week = day;
         self
@@ -312,6 +317,7 @@ impl RangeCalendar {
         self
     }
 
+    /// Sets whether the calendar is invalid (`isInvalid`).
     pub fn is_invalid(mut self, v: bool) -> Self {
         self.is_invalid = v;
         self
@@ -331,6 +337,7 @@ impl RangeCalendar {
         self
     }
 
+    /// Sets whether the calendar is disabled (`isDisabled`).
     pub fn is_disabled(mut self, v: bool) -> Self {
         self.is_disabled = v;
         self
@@ -344,6 +351,7 @@ impl RangeCalendar {
         self
     }
 
+    /// Sets whether the calendar is read-only (`isReadOnly`).
     pub fn is_read_only(mut self, v: bool) -> Self {
         self.is_read_only = v;
         self
@@ -393,7 +401,7 @@ impl RangeCalendar {
     /// applied to the range calendar's root element after every value the
     /// component and the active theme chose, so they win.
     pub fn sx(mut self, style: impl FnOnce(gpui::Div) -> gpui::Div) -> Self {
-        self.sx = Some(util::capture_sx(style));
+        util::refine_sx(&mut self.sx, style);
         self
     }
 }
@@ -900,11 +908,10 @@ impl RangeCalendar {
         cell = cell
             .a11y_named(
                 a11y::Role::Button,
-                &a11y::Name::labelled(format!(
-                    "{} {} {}",
-                    date.day,
-                    month_year_heading(date.year, date.month),
-                    if is_selected { "selected" } else { "" }
+                &a11y::Name::labelled(crate::calendar::day_cell_name(
+                    format!("{} {}", date.day, month_year_heading(date.year, date.month)),
+                    is_selected,
+                    cx,
                 )),
             )
             .a11y_selected(is_selected);
@@ -2137,6 +2144,7 @@ impl RenderOnce for RangeCalendar {
             String::new()
         };
         root = root.a11y_named(a11y::Role::Application, &a11y::Name::labelled(app_name));
+        root = util::record_focus_bounds(root, &grid_focus, window, cx);
 
         if columns > 1 {
             let heading = heading_focuses
@@ -2410,3 +2418,5 @@ mod calendar_system_tests {
         assert_eq!(effective.max_value, None);
     }
 }
+
+crate::util::impl_component_styled!(RangeCalendar);

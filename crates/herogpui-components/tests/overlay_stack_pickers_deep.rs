@@ -6,7 +6,7 @@
 //! inferred from pixels so a duplicate close report cannot hide behind an
 //! unchanged frame.
 
-mod harness;
+use crate::harness;
 
 use gpui::{prelude::*, TestAppContext, VisualTestContext};
 use harness::{click, events, open_host, press};

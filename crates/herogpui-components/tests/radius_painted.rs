@@ -3,7 +3,7 @@
 //! `util::*_radius` helper's value, and with it the instance radius replaces
 //! that value on the painted box.
 
-mod harness;
+use crate::harness;
 
 use gpui::{prelude::*, px, AnyElement, App, Pixels, TestAppContext};
 use harness::{open_host, still};

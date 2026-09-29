@@ -18,7 +18,7 @@
 //! centre is `x = text_width / 2` and `y = 10` — the same measured-advance
 //! approach `render_props.rs` uses, never a guessed width.
 
-mod harness;
+use crate::harness;
 
 use std::cell::RefCell;
 use std::rc::Rc;

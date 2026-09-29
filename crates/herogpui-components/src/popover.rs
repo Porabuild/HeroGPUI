@@ -136,6 +136,7 @@ impl Default for PopoverArrow {
 }
 
 impl PopoverArrow {
+    /// Creates an empty arrow.
     pub fn new() -> Self {
         Self {
             resolved: std::rc::Rc::new(std::cell::Cell::new(None)),
@@ -680,6 +681,37 @@ impl Element for PopoverPositioner {
     }
 }
 
+/// A field popover's placement feedback, held in keyed state under `base`:
+/// the placement last requested and the physical side the positioner
+/// resolved during the last prepaint. A changed request forgets the resolved
+/// side. Returns the handle the positioner writes and the side the next
+/// entry motion starts from, so a viewport flip animates from the side that
+/// was actually painted.
+pub(crate) fn field_placement_feedback(
+    window: &mut Window,
+    cx: &mut App,
+    base: &gpui::ElementId,
+    placement: PopoverPlacement,
+) -> (ResolvedPlacementHandle, PopoverPlacement) {
+    let requested_placement = window.use_keyed_state(
+        element_id::scoped(base, "requested-placement"),
+        cx,
+        |_, _| placement,
+    );
+    let resolved_placement = window.use_keyed_state(
+        element_id::scoped(base, "resolved-placement"),
+        cx,
+        |_, _| std::rc::Rc::new(std::cell::Cell::new(None::<PopoverPlacement>)),
+    );
+    if *requested_placement.read(cx) != placement {
+        requested_placement.update(cx, |requested, _| *requested = placement);
+        resolved_placement.read(cx).set(None);
+    }
+    let resolved_placement = resolved_placement.read(cx).clone();
+    let entry_placement = resolved_placement.get().unwrap_or(placement);
+    (resolved_placement, entry_placement)
+}
+
 /// HeroUI's placement-specific `slide-in-from-*` entry offsets for popovers.
 /// The positioner feeds the resolved physical side back into the composing
 /// component, so a viewport flip animates from the side actually painted.
@@ -823,6 +855,7 @@ pub(crate) fn scrollable_submenu_popover(
 }
 
 /// HeroUI Popover (controlled).
+#[must_use = "a component does nothing until it is rendered: add it as a child or return it from `render`"]
 #[derive(IntoElement)]
 pub struct Popover {
     /// Distinguishes this popover's uncontrolled state from its neighbours'.
@@ -849,6 +882,7 @@ pub struct Popover {
 }
 
 impl Popover {
+    /// Creates a popover around the given trigger.
     pub fn new(trigger: impl IntoElement) -> Self {
         Self {
             id: gpui::ElementId::Name("popover".into()),
@@ -877,6 +911,7 @@ impl Popover {
         self
     }
 
+    /// Sets whether the popover is open, making it controlled.
     pub fn is_open(mut self, v: bool) -> Self {
         self.is_open = Some(v);
         self
@@ -919,6 +954,7 @@ impl Popover {
         self
     }
 
+    /// Sets where the popover sits relative to its trigger.
     pub fn placement(mut self, p: PopoverPlacement) -> Self {
         self.placement = p;
         self
@@ -930,6 +966,7 @@ impl Popover {
         self
     }
 
+    /// Sets whether the popover shows a close button.
     pub fn show_close_button(mut self, v: bool) -> Self {
         self.show_close_button = v;
         self
@@ -947,7 +984,7 @@ impl Popover {
     /// floating panel sit in — after every value the placement and the active
     /// theme chose, so they win.
     pub fn sx(mut self, style: impl FnOnce(gpui::Div) -> gpui::Div) -> Self {
-        self.sx = Some(crate::util::capture_sx(style));
+        crate::util::refine_sx(&mut self.sx, style);
         self
     }
 }
@@ -1285,3 +1322,5 @@ mod tests {
         assert_eq!(placement_entry_offset(PopoverPlacement::Right), (-4.0, 0.0));
     }
 }
+
+crate::util::impl_component_styled!(Popover);

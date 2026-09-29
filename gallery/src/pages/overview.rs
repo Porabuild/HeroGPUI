@@ -1035,6 +1035,7 @@ fn preview_kind(page: Page) -> PreviewKind {
         | Page::DarkMode
         | Page::Customization
         | Page::Styling
+        | Page::Icons
         | Page::DesignPrinciples => unreachable!("non-component page has no preview"),
     }
 }

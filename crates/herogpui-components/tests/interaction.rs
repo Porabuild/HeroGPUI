@@ -6,7 +6,7 @@
 //! keystrokes against it. The window, the recorder type and the input helpers
 //! live in the shared `tests/harness/mod.rs` module.
 
-mod harness;
+use crate::harness;
 
 use std::cell::RefCell;
 use std::rc::Rc;

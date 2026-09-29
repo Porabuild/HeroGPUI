@@ -4,7 +4,7 @@
 //! leave the ring off. Tab, arrows, and Enter/Space turn it on; a later
 //! pointer press turns it off again.
 
-mod harness;
+use crate::harness;
 
 use gpui::{prelude::*, px, TestAppContext};
 use harness::{click, events, open_host, press, still};

@@ -202,6 +202,7 @@ fn compute_matches(
 }
 
 /// HeroUI ComboBox (controlled open state).
+#[must_use = "a component does nothing until it is rendered: add it as a child or return it from `render`"]
 #[derive(IntoElement)]
 pub struct ComboBox {
     state: Entity<InputState>,
@@ -223,6 +224,8 @@ pub struct ComboBox {
     allows_custom_value: bool,
     max_items: usize,
     full_width: bool,
+    /// The root's width floor while not `full_width`; the default is 180px.
+    min_width: Option<Pixels>,
     /// Optional trigger geometry/chrome overrides; defaults are the stock box.
     field: util::FieldBox,
     is_disabled: bool,
@@ -243,6 +246,8 @@ pub struct ComboBox {
     /// inherited family. A detached popover does not inherit the trigger's
     /// font.
     row_font_family: Option<SharedString>,
+    /// The trigger field text's family, forwarded to the inner `Input`.
+    font_family: Option<SharedString>,
     /// The corner radius of the detached panel, in place of the owning
     /// `container_radius` helper.
     radius: Option<Pixels>,
@@ -319,6 +324,7 @@ impl ComboBox {
         self
     }
 
+    /// `defaultSelectedKeys` — the uncontrolled initial selection, as item keys.
     pub fn default_value(
         mut self,
         keys: impl IntoIterator<Item = impl Into<SharedString>>,
@@ -385,13 +391,14 @@ impl ComboBox {
     /// `ListLayout`'s `rowHeight` -- and what virtualizes the popover list.
     ///
     /// v3 wraps the list in `<Virtualizer layout={ListLayout}>` inside the
-    /// popover; gpui's `uniform_list` builds only the rows in view, and it can do
+    /// popover; a uniform [`VirtualList`](crate::VirtualList) builds only the rows in view, and it can do
     /// that because every row is this tall.
     pub fn row_height(mut self, h: impl Into<Pixels>) -> Self {
         self.row_height = Some(h.into());
         self
     }
 
+    /// Focuses the input when the combo box mounts.
     pub fn auto_focus(mut self, v: bool) -> Self {
         self.auto_focus = v;
         self
@@ -483,6 +490,7 @@ impl ComboBox {
         )
     }
 
+    /// Makes the field read-only (v3 `isReadOnly`).
     pub fn is_read_only(mut self, v: bool) -> Self {
         self.is_read_only = v;
         self
@@ -522,6 +530,7 @@ impl ComboBox {
         self.on_selection_change(handler)
     }
 
+    /// Creates a combo box over the given input state and items.
     pub fn new(state: Entity<InputState>, items: Vec<PickerItem>) -> Self {
         let form_state = combo_box_form_state(state.entity_id().as_u64());
         Self {
@@ -540,6 +549,7 @@ impl ComboBox {
             allows_custom_value: false,
             max_items: 8,
             full_width: false,
+            min_width: None,
             is_disabled: false,
             is_invalid: false,
             is_required: false,
@@ -550,6 +560,7 @@ impl ComboBox {
             row_padding_y: None,
             row_hover_bg: None,
             row_font_family: None,
+            font_family: None,
             radius: None,
             field: util::FieldBox::default(),
             validate: None,
@@ -584,6 +595,7 @@ impl ComboBox {
         self
     }
 
+    /// Sets the controlled open state (v3 `isOpen`).
     pub fn is_open(mut self, v: bool) -> Self {
         self.is_open = Some(v);
         self
@@ -597,31 +609,37 @@ impl ComboBox {
         self
     }
 
+    /// Sets the field label.
     pub fn label(mut self, text: impl Into<SharedString>) -> Self {
         self.label = Some(text.into());
         self
     }
 
+    /// Sets the input placeholder text.
     pub fn placeholder(mut self, text: impl Into<SharedString>) -> Self {
         self.placeholder = Some(text.into());
         self
     }
 
+    /// Sets the description shown beneath the field.
     pub fn description(mut self, text: impl Into<SharedString>) -> Self {
         self.description = Some(text.into());
         self
     }
 
+    /// Sets the error message shown when the field is invalid.
     pub fn error_message(mut self, text: impl Into<SharedString>) -> Self {
         self.error_message = Some(text.into());
         self
     }
 
+    /// Sets the field's visual variant.
     pub fn variant(mut self, variant: FieldVariant) -> Self {
         self.variant = variant;
         self
     }
 
+    /// Sets when the list opens (v3 `menuTrigger`); the default is on focus.
     pub fn menu_trigger(mut self, trigger: MenuTrigger) -> Self {
         self.menu_trigger = trigger;
         self
@@ -645,13 +663,24 @@ impl ComboBox {
         self
     }
 
+    /// Caps the number of items shown in the list (minimum 1; default 8).
     pub fn max_items(mut self, n: usize) -> Self {
         self.max_items = n.max(1);
         self
     }
 
+    /// Makes the combo box fill its container's width.
     pub fn full_width(mut self, v: bool) -> Self {
         self.full_width = v;
+        self
+    }
+
+    /// Replaces the 180px width floor the combo box root keeps while it is not
+    /// [`ComboBox::full_width`], so a compact toolbar filter can go narrower
+    /// or a wide one keep a larger floor. A full-width combo box has no floor
+    /// either way, as before. Not a v3 prop; v3 sizes the root with a class.
+    pub fn min_width(mut self, width: impl Into<Pixels>) -> Self {
+        self.min_width = Some(width.into());
         self
     }
 
@@ -701,6 +730,17 @@ impl ComboBox {
         self
     }
 
+    /// The trigger field's font family, forwarded to the inner
+    /// [`crate::Input`] so the query, placeholder and caret measurement all
+    /// use it (see [`crate::Input::font_family`]), and set on the root so the
+    /// `ComboBox.Value` line inherits it; unset keeps the inherited family.
+    /// The detached rows take [`ComboBox::row_font_family`] instead. Not a v3
+    /// prop; v3 sets it with a class.
+    pub fn font_family(mut self, family: impl Into<SharedString>) -> Self {
+        self.font_family = Some(family.into());
+        self
+    }
+
     /// The family the option rows are drawn with; unset keeps the inherited
     /// family. A detached popover does not inherit the trigger's font.
     pub fn row_font_family(mut self, family: impl Into<SharedString>) -> Self {
@@ -727,20 +767,23 @@ impl ComboBox {
     /// and the active theme chose, so they win. The field paints its own
     /// chrome, so this reaches the box that chrome sits in, not the chrome.
     pub fn sx(mut self, style: impl FnOnce(gpui::Div) -> gpui::Div) -> Self {
-        self.sx = Some(util::capture_sx(style));
+        util::refine_sx(&mut self.sx, style);
         self
     }
 
+    /// Disables the combo box (v3 `isDisabled`).
     pub fn is_disabled(mut self, v: bool) -> Self {
         self.is_disabled = v;
         self
     }
 
+    /// Marks the field invalid (v3 `isInvalid`).
     pub fn is_invalid(mut self, v: bool) -> Self {
         self.is_invalid = v;
         self
     }
 
+    /// Marks the field required (v3 `isRequired`).
     pub fn is_required(mut self, v: bool) -> Self {
         self.is_required = v;
         self
@@ -759,6 +802,7 @@ impl ComboBox {
         self
     }
 
+    /// Called with the new open state when the list opens or closes (v3 `onOpenChange`).
     pub fn on_open_change(
         mut self,
         handler: impl Fn(&bool, &mut Window, &mut App) + 'static,
@@ -766,6 +810,66 @@ impl ComboBox {
         self.on_open_change = Some(Arc::new(handler));
         self
     }
+}
+
+type ComboAction = Arc<dyn Fn(&mut Window, &mut App)>;
+type OnSelectionChangeAll = Arc<dyn Fn(&[SharedString], &mut Window, &mut App) + 'static>;
+type OnInputChange = Arc<dyn Fn(&str, &mut Window, &mut App) + 'static>;
+type ComboFilter = Arc<dyn Fn(&str, &str) -> bool + 'static>;
+
+/// The controlled halves `render` resolves first: the frame's base id and
+/// shared collection, the selection and the open flag. `controlled` takes
+/// `cx` mutably, so these precede every other read.
+struct ComboControlled {
+    entity_id: u64,
+    base_id: gpui::ElementId,
+    items: Rc<[PickerItem]>,
+    multiple: bool,
+    default_selection: Vec<SharedString>,
+    selection_own: Option<Entity<Vec<SharedString>>>,
+    open_state: bool,
+    open_own: Option<Entity<bool>>,
+    overlay_phase: util::OverlayPhase,
+    dismissal_token: util::OverlayToken,
+}
+
+/// Everything one ComboBox frame shares between its painted parts: the
+/// controlled state, the resolved matches and cursor, the keyed handles and
+/// the shared close/commit actions. `render` resolves it once in
+/// [`ComboBox::frame`]; the chevron, the input, the field row, the key
+/// handler and the popover list all read this one copy.
+struct ComboFrame {
+    entity_id: u64,
+    base_id: gpui::ElementId,
+    items: Rc<[PickerItem]>,
+    multiple: bool,
+    selection_own: Option<Entity<Vec<SharedString>>>,
+    open_state: bool,
+    open_own: Option<Entity<bool>>,
+    overlay_phase: util::OverlayPhase,
+    dismissal_token: util::OverlayToken,
+    resolved_placement: Rc<Cell<Option<Placement>>>,
+    entry_placement: Placement,
+    anchor_bounds: Rc<Cell<Option<gpui::Bounds<Pixels>>>>,
+    colors: herogpui_theme::ThemeColors,
+    layout: herogpui_theme::LayoutTheme,
+    container_radius: Pixels,
+    close_open: ComboAction,
+    raw_query: String,
+    is_invalid: bool,
+    focus_handle: gpui::FocusHandle,
+    show_all_items: Entity<bool>,
+    display_full_collection: bool,
+    cursor: Entity<Option<ComboCursor>>,
+    matches: Rc<[PickerItem]>,
+    focus_open: Option<Entity<FocusOpen>>,
+    inside_pressed: Rc<Cell<bool>>,
+    cursor_at: Option<usize>,
+    list_scroll_now: crate::VirtualListHandle,
+    panel_scroll_now: gpui::ScrollHandle,
+    commit_value: ComboAction,
+    blur_scope: util::FocusLeave,
+    blur_focus: gpui::FocusHandle,
 }
 
 impl RenderOnce for ComboBox {
@@ -778,7 +882,7 @@ impl RenderOnce for ComboBox {
         let base_id = gpui::ElementId::named_usize("combobox", entity_id as usize);
         // One shared collection for the frame: the `'static` panel and event
         // closures clone the `Rc`, never the rows.
-        let items: Rc<[PickerItem]> = self.items.into();
+        let items: Rc<[PickerItem]> = std::mem::take(&mut self.items).into();
 
         // `value` / `defaultInputValue` seed the text once, before anything
         // reads it. `value` is v3's controlled spelling, so it outranks the
@@ -834,29 +938,127 @@ impl RenderOnce for ComboBox {
             true,
         );
         let overlay_active = overlay_phase != util::OverlayPhase::Closed;
+        let frame = self.frame(
+            ComboControlled {
+                entity_id,
+                base_id,
+                items,
+                multiple,
+                default_selection,
+                selection_own,
+                open_state,
+                open_own,
+                overlay_phase,
+                dismissal_token,
+            },
+            window,
+            cx,
+        );
+        let trigger = self.trigger(&frame, window, cx);
+        let mut input = self.input(&frame, trigger);
+        let ComboFrame {
+            entity_id,
+            ref base_id,
+            ref anchor_bounds,
+            ref inside_pressed,
+            ..
+        } = frame;
+        // `.combo-box__input-group` is the field itself (`relative
+        // inline-flex items-center`). The popup anchors to the Input's 36px
+        // field row — not to the label-to-value wrapper root — the way RAC's
+        // `triggerRef` reads `groupRef.current || inputRef.current` (pinned
+        // 1.20.0 `dist/private/ComboBox.js`). `.combo-box__value` sits below
+        // the field inside the root, so a value row that appears under it
+        // must not push the popover down. `scrollable_field_popover` below
+        // reads these bounds to flip and cap the panel; the measure element
+        // inside `Input` only records them.
+        let inside_pressed_for_group = inside_pressed.clone();
+        let field_selector = format!("combobox-field-{entity_id}");
+        input = input.field_anchor(anchor_bounds.clone(), field_selector);
+        let input_group = div()
+            .id(element_id::scoped(base_id, "field"))
+            // `combo-box/combo-box.js`'s `ComboBox.InputGroup` renders RAC
+            // `Group`, and `react-aria-components/dist/private/Group.mjs` is
+            // `role: props.role ?? 'group'`.
+            //
+            // The `role="combobox"` that `useComboBox` puts on the *input*
+            // does not appear anywhere in this port: the field is a
+            // `crate::input::Input`, whose role is decided inside its own
+            // render from its `InputType` and which has no override prop.
+            // See the picker note in `crate::a11y`.
+            .a11y(a11y::Role::Group)
+            .relative()
+            .capture_any_mouse_down(move |_, _, cx| {
+                inside_pressed_for_group.set(true);
+                let pressed = inside_pressed_for_group.clone();
+                cx.defer(move |_| pressed.set(false));
+            })
+            .child(input.render(window, cx));
+        let mut root = div()
+            .when(!self.full_width, |e| {
+                e.min_w(self.min_width.unwrap_or(TRIGGER_MIN_WIDTH))
+            })
+            .relative()
+            .flex()
+            .flex_col()
+            .gap(px(4.))
+            // The value line and label inherit the family; the field takes it
+            // explicitly above for its caret measurement.
+            .when_some(self.font_family.clone(), |e, family| e.font_family(family));
+        let value_content = self.value_row(&frame);
+
+        // `allowsEmptyCollection` keeps the panel up with no matches. Without
+        // it an empty result closes the list; `allowsCustomValue` only changes
+        // what Enter commits while the list is closed.
+        // Up, down, Home, End and Enter walk the suggestions; the inner input
+        // keeps left and right for the caret.
+        if !self.is_disabled && !self.is_read_only {
+            root = self.root_keys(root, &frame);
+        }
+
+        let show_list = overlay_active
+            && !self.is_disabled
+            && (!frame.matches.is_empty() || self.allows_empty_collection);
+        root = self.root_dismissals(root, &frame, overlay_active && !show_list);
+        // The popup anchors to the Input's field-row bounds — not to the
+        // label-to-value wrapper root — the way RAC's `triggerRef` reads
+        // `groupRef.current || inputRef.current`. The field joins ahead of
+        // the panel below so the positioner reads settled trigger bounds.
+        root = root.child(input_group);
+        let blur_focus = frame.blur_focus.clone();
+        if show_list {
+            root = root.child(self.popover(frame, cx));
+        }
+
+        // The popover hangs off the field it belongs to, so the field — not
+        // the panel — is the root's first child; the deferred panel still
+        // paints over the value row below it.
+        root = util::apply_sx(root, &self.sx);
+        root.when_some(value_content, |root, value| root.child(value))
+            .track_focus(&blur_focus)
+    }
+}
+
+impl ComboBox {
+    /// Resolves the frame's keyed handles, matches, cursor and shared actions
+    /// on top of the controlled state.
+    fn frame(&self, controlled: ComboControlled, window: &mut Window, cx: &mut App) -> ComboFrame {
+        let ComboControlled {
+            ref base_id,
+            ref items,
+            open_state,
+            ref open_own,
+            ..
+        } = controlled;
         // The field positioner discovers flips during prepaint. Keep its
         // resolved physical side keyed to this ComboBox so entry motion starts
         // from the side that is actually painted.
-        let requested_placement = window.use_keyed_state(
-            element_id::scoped(&base_id, "requested-placement"),
-            cx,
-            |_, _| self.placement,
-        );
-        let resolved_placement = window.use_keyed_state(
-            element_id::scoped(&base_id, "resolved-placement"),
-            cx,
-            |_, _| Rc::new(Cell::new(None::<Placement>)),
-        );
-        if *requested_placement.read(cx) != self.placement {
-            requested_placement.update(cx, |placement, _| *placement = self.placement);
-            resolved_placement.read(cx).set(None);
-        }
-        let resolved_placement = resolved_placement.read(cx).clone();
-        let entry_placement = resolved_placement.get().unwrap_or(self.placement);
+        let (resolved_placement, entry_placement) =
+            crate::popover::field_placement_feedback(window, cx, base_id, self.placement);
 
         // Owned copies: `input.render` below needs `cx` mutably.
         let anchor_bounds: Rc<Cell<Option<gpui::Bounds<Pixels>>>> = window
-            .use_keyed_state(element_id::scoped(&base_id, "anchor-bounds"), cx, |_, _| {
+            .use_keyed_state(element_id::scoped(base_id, "anchor-bounds"), cx, |_, _| {
                 Rc::new(Cell::new(None))
             })
             .read(cx)
@@ -890,6 +1092,147 @@ impl RenderOnce for ComboBox {
         let is_invalid = self.is_invalid || self.error_message.is_some();
         let focus_handle = self.state.read(cx).focus_handle.clone();
 
+        self.sync_form(&controlled, &raw_query, &focus_handle, window, cx);
+
+        let show_all_items =
+            window.use_keyed_state(element_id::scoped(base_id, "show-all-items"), cx, |_, _| {
+                false
+            });
+        let last_query =
+            window.use_keyed_state(element_id::scoped(base_id, "last-query"), cx, |_, _| {
+                raw_query.clone()
+            });
+        if *last_query.read(cx) != raw_query {
+            last_query.update(cx, |value, _| value.clone_from(&raw_query));
+            show_all_items.update(cx, |value, _| *value = false);
+        }
+        let display_full_collection =
+            *show_all_items.read(cx) || (self.menu_trigger == MenuTrigger::Manual && !open_state);
+
+        // Which suggestion the keyboard is on. Input edits clear it, matching
+        // React Stately's focused-key reset before the filtered list changes.
+        // Created ahead of the matches: the idle gate below reads it.
+        let cursor = window.use_keyed_state(element_id::scoped(base_id, "cursor"), cx, |_, _| {
+            None::<ComboCursor>
+        });
+
+        let matches = self.matches(
+            &controlled,
+            &raw_query,
+            display_full_collection,
+            &cursor,
+            window,
+            cx,
+        );
+        let focus_open = self.focus_open(&controlled, &show_all_items, window, cx);
+
+        // Whether the pointer went down inside the input-plus-panel subtree.
+        // The panel's outside-press listener reads only the panel bounds, so
+        // the input is geometrically outside it even though both belong to the
+        // same ComboBox. Capture the whole subtree for one dispatch: input
+        // presses keep the list open, and the chevron or a row owns its click.
+        let inside_pressed = Rc::new(Cell::new(false));
+
+        let stale_cursor = cursor.read(cx).as_ref().is_some_and(|focused| {
+            let visible = cursor_position(&matches, focused).is_some();
+            let retained_hidden = focused.hidden_query.as_deref() == Some(raw_query.as_str())
+                && items.iter().any(|item| item.key() == &focused.key);
+            self.disabled_keys.contains(&focused.key) || (!visible && !retained_hidden)
+        });
+        if stale_cursor {
+            cursor.update(cx, |value, _| *value = None);
+        }
+        let cursor_at = cursor
+            .read(cx)
+            .as_ref()
+            .and_then(|focused| cursor_position(&matches, focused));
+        // React Aria keeps the focused row in view; the panel scrolls and the
+        // virtual list scrolls itself. `use_keyed_state` takes `cx` mutably.
+        let list_scroll =
+            window.use_keyed_state(element_id::scoped(base_id, "list-scroll"), cx, |_, _| {
+                crate::VirtualListHandle::uniform(0)
+            });
+        let panel_scroll =
+            window.use_keyed_state(element_id::scoped(base_id, "panel-scroll"), cx, |_, _| {
+                gpui::ScrollHandle::new()
+            });
+        let list_scroll_now = list_scroll.read(cx).clone();
+        let panel_scroll_now = panel_scroll.read(cx).clone();
+
+        let commit_value = self.commit_action(&controlled);
+        let blur_close = close_open.clone();
+        let blur_commit = commit_value.clone();
+        let blur_scope =
+            util::on_focus_leave(window, cx, base_id, !self.is_disabled, move |window, cx| {
+                blur_commit(window, cx);
+                blur_close(window, cx);
+            });
+        let blur_focus = blur_scope.focus_handle();
+
+        let ComboControlled {
+            entity_id,
+            base_id,
+            items,
+            multiple,
+            selection_own,
+            open_state,
+            open_own,
+            overlay_phase,
+            dismissal_token,
+            ..
+        } = controlled;
+        ComboFrame {
+            entity_id,
+            base_id,
+            items,
+            multiple,
+            selection_own,
+            open_state,
+            open_own,
+            overlay_phase,
+            dismissal_token,
+            resolved_placement,
+            entry_placement,
+            anchor_bounds,
+            colors,
+            layout,
+            container_radius,
+            close_open,
+            raw_query,
+            is_invalid,
+            focus_handle,
+            show_all_items,
+            display_full_collection,
+            cursor,
+            matches,
+            focus_open,
+            inside_pressed,
+            cursor_at,
+            list_scroll_now,
+            panel_scroll_now,
+            commit_value,
+            blur_scope,
+            blur_focus,
+        }
+    }
+
+    /// Mirrors the value into the live form state, applies a controlled
+    /// `selected_key`, and installs the reset that restores the default.
+    fn sync_form(
+        &self,
+        controlled: &ComboControlled,
+        raw_query: &str,
+        focus_handle: &gpui::FocusHandle,
+        window: &mut Window,
+        cx: &mut App,
+    ) {
+        let ComboControlled {
+            ref base_id,
+            ref items,
+            ref default_selection,
+            ref selection_own,
+            ..
+        } = *controlled;
         // The live form value follows the pinned `formValue` serialization:
         // the selected key(s) by default, the typed text when
         // `allowsCustomValue` forces text mode. Success and validity are the
@@ -900,7 +1243,7 @@ impl RenderOnce for ComboBox {
         {
             let mut form = self.form_state.borrow_mut();
             form.value = if form_text {
-                crate::form::FormValue::Text(SharedString::from(raw_query.clone()))
+                crate::form::FormValue::Text(SharedString::from(raw_query))
             } else {
                 crate::form::FormValue::Keys(self.selected_keys.clone())
             };
@@ -914,7 +1257,7 @@ impl RenderOnce for ComboBox {
         // clears the input; a key with no item resolves to no label.
         if self.selected_key_sync {
             let applied_key =
-                window.use_keyed_state(element_id::scoped(&base_id, "applied-key"), cx, |_, _| {
+                window.use_keyed_state(element_id::scoped(base_id, "applied-key"), cx, |_, _| {
                     None::<SharedString>
                 });
             let owned_key = self.selected_keys.first().cloned().unwrap_or_default();
@@ -926,9 +1269,7 @@ impl RenderOnce for ComboBox {
                 // `value` seeds the same slot and is owed the same leave-alone;
                 // later key changes still move their labels in.
                 if !(first_apply && (self.default_input_value.is_some() || self.value.is_some())) {
-                    let label = label_of_key(&items, &owned_key)
-                        .cloned()
-                        .unwrap_or_default();
+                    let label = label_of_key(items, &owned_key).cloned().unwrap_or_default();
                     self.state.update(cx, |state, cx| {
                         state.set_value(label.to_string());
                         cx.notify();
@@ -947,7 +1288,7 @@ impl RenderOnce for ComboBox {
         let restore_state = Rc::downgrade(&self.form_state);
         let restore_input = self.state.clone();
         let restore_items = items.clone();
-        let restore_default = default_selection;
+        let restore_default = default_selection.clone();
         let restore_input_change = self.on_input_change.clone();
         let restore_all = self.on_selection_change_all.clone();
         self.form_state.borrow_mut().restore = (restore_own.is_some() || restore_all.is_some())
@@ -984,30 +1325,26 @@ impl RenderOnce for ComboBox {
                     }
                 }) as Arc<dyn Fn(&mut Window, &mut App)>
             });
+    }
 
-        let show_all_items = window.use_keyed_state(
-            element_id::scoped(&base_id, "show-all-items"),
-            cx,
-            |_, _| false,
-        );
-        let last_query =
-            window.use_keyed_state(element_id::scoped(&base_id, "last-query"), cx, |_, _| {
-                raw_query.clone()
-            });
-        if *last_query.read(cx) != raw_query {
-            last_query.update(cx, |value, _| value.clone_from(&raw_query));
-            show_all_items.update(cx, |value, _| *value = false);
-        }
-        let display_full_collection =
-            *show_all_items.read(cx) || (self.menu_trigger == MenuTrigger::Manual && !open_state);
-
-        // Which suggestion the keyboard is on. Input edits clear it, matching
-        // React Stately's focused-key reset before the filtered list changes.
-        // Created ahead of the matches: the idle gate below reads it.
-        let cursor = window.use_keyed_state(element_id::scoped(&base_id, "cursor"), cx, |_, _| {
-            None::<ComboCursor>
-        });
-
+    /// The rows the list draws this frame: cached, retained for the exit
+    /// frame, or skipped entirely while nothing consumes them.
+    fn matches(
+        &self,
+        controlled: &ComboControlled,
+        raw_query: &str,
+        display_full_collection: bool,
+        cursor: &Entity<Option<ComboCursor>>,
+        window: &mut Window,
+        cx: &mut App,
+    ) -> Rc<[PickerItem]> {
+        let ComboControlled {
+            ref base_id,
+            ref items,
+            overlay_phase,
+            ..
+        } = *controlled;
+        let overlay_active = overlay_phase != util::OverlayPhase::Closed;
         // Closed and idle frames draw no rows, so they skip the match work
         // entirely; a consuming filtered frame shares one cached list until
         // the query, collection or cap changes. Full-collection and
@@ -1019,7 +1356,7 @@ impl RenderOnce for ComboBox {
         // results are never cached and it only runs while the matches are
         // consumed.
         let matches_cache =
-            window.use_keyed_state(element_id::scoped(&base_id, "matches"), cx, |_, _| {
+            window.use_keyed_state(element_id::scoped(base_id, "matches"), cx, |_, _| {
                 MatchesCache::default()
             });
         // Keep the last open collection for the retained exit frame. Closing
@@ -1027,7 +1364,7 @@ impl RenderOnce for ComboBox {
         // keeps the old rows under its fade and does not re-run a custom
         // filter for that committed label.
         let retained_matches = window.use_keyed_state(
-            element_id::scoped(&base_id, "retained-matches"),
+            element_id::scoped(base_id, "retained-matches"),
             cx,
             |_, _| empty_matches(),
         );
@@ -1042,29 +1379,29 @@ impl RenderOnce for ComboBox {
             let filter = self.filter.clone();
             match &filter {
                 Some(f) => Rc::from(compute_matches(
-                    &items,
-                    &raw_query,
+                    items,
+                    raw_query,
                     self.max_items,
                     display_full_collection,
                     Some(f),
                 )),
                 None if display_full_collection => Rc::from(compute_matches(
-                    &items,
-                    &raw_query,
+                    items,
+                    raw_query,
                     self.max_items,
                     true,
                     None,
                 )),
                 None if raw_query.is_empty() => Rc::from(compute_matches(
-                    &items,
-                    &raw_query,
+                    items,
+                    raw_query,
                     self.max_items,
                     false,
                     None,
                 )),
                 None => matches_cache.update(cx, |cache, _| {
-                    cache.get(items.clone(), raw_query.as_str(), self.max_items, |items| {
-                        compute_matches(items, &raw_query, self.max_items, false, None)
+                    cache.get(items.clone(), raw_query, self.max_items, |items| {
+                        compute_matches(items, raw_query, self.max_items, false, None)
                     })
                 }),
             }
@@ -1072,7 +1409,24 @@ impl RenderOnce for ComboBox {
         if overlay_phase == util::OverlayPhase::Open {
             retained_matches.update(cx, |value, _| *value = matches.clone());
         }
+        matches
+    }
 
+    /// `MenuTrigger::Focus`'s one-shot open on the field taking focus.
+    fn focus_open(
+        &self,
+        controlled: &ComboControlled,
+        show_all_items: &Entity<bool>,
+        window: &mut Window,
+        cx: &mut App,
+    ) -> Option<Entity<FocusOpen>> {
+        let ComboControlled {
+            ref base_id,
+            ref items,
+            open_state,
+            ref open_own,
+            ..
+        } = *controlled;
         // `MenuTrigger::Focus` opens the list when the field takes focus. The
         // check reads the focus handle every frame; the keyed state is the
         // one-shot that stops the panel from reopening behind a dismissal
@@ -1083,7 +1437,7 @@ impl RenderOnce for ComboBox {
         let focus_open =
             if self.menu_trigger == MenuTrigger::Focus && !self.is_disabled && !self.is_read_only {
                 Some(window.use_keyed_state(
-                    element_id::scoped(&base_id, "focus-open"),
+                    element_id::scoped(base_id, "focus-open"),
                     cx,
                     |_, _| FocusOpen {
                         can_open: true,
@@ -1131,15 +1485,92 @@ impl RenderOnce for ComboBox {
             held.was_open = now_open;
             focus_open.update(cx, |v, _| *v = held);
         }
+        focus_open
+    }
 
+    /// The commit a focus loss or an outside press runs.
+    fn commit_action(&self, controlled: &ComboControlled) -> ComboAction {
+        let ComboControlled {
+            ref items,
+            multiple,
+            ref selection_own,
+            ..
+        } = *controlled;
+        // ComboBox commits its text/selection when focus leaves even while the
+        // list is closed. This is `useComboBoxState.setFocused(false)`, not the
+        // generic popover close used by Select-family controls.
+        util::shared({
+            let state = self.state.clone();
+            let selection_own = selection_own.clone();
+            let selected = self.selected_keys.clone();
+            let items = items.clone();
+            let selection_change = self.on_selection_change_all.clone();
+            let input_change = self.on_input_change.clone();
+            let allows_custom = self.allows_custom_value;
+            move |window: &mut Window, cx: &mut App| {
+                let current = state.read(cx).value().to_owned();
+                let selected_text = selected
+                    .first()
+                    .and_then(|key| label_of_key(&items, key))
+                    .cloned()
+                    .unwrap_or_default();
+
+                if allows_custom {
+                    // Pinned react-stately's commit path: text that no longer
+                    // matches the selected item's label is a custom value,
+                    // which carries a null selected key.
+                    if !multiple && current != selected_text && !selected.is_empty() {
+                        if let Some(held) = &selection_own {
+                            held.update(cx, |value, cx| {
+                                value.clear();
+                                cx.notify();
+                            });
+                        }
+                        if let Some(callback) = &selection_change {
+                            callback(&[], window, cx);
+                        }
+                    }
+                    return;
+                }
+
+                let committed = if multiple {
+                    String::new()
+                } else {
+                    selected_text.to_string()
+                };
+                if current != committed {
+                    state.update(cx, |state, cx| {
+                        state.set_value(committed.clone());
+                        cx.notify();
+                    });
+                    if let Some(callback) = &input_change {
+                        callback(&committed, window, cx);
+                    }
+                }
+            }
+        })
+    }
+
+    /// The `.combo-box__trigger` chevron button.
+    fn trigger(
+        &self,
+        frame: &ComboFrame,
+        window: &mut Window,
+        cx: &mut App,
+    ) -> gpui::Stateful<gpui::Div> {
+        let ComboFrame {
+            ref base_id,
+            open_state,
+            ref open_own,
+            ref colors,
+            ref close_open,
+            ref focus_handle,
+            ref show_all_items,
+            ref focus_open,
+            ..
+        } = *frame;
         let on_open_change = self.on_open_change.clone();
         let is_open = open_state;
-        // Whether the pointer went down inside the input-plus-panel subtree.
-        // The panel's outside-press listener reads only the panel bounds, so
-        // the input is geometrically outside it even though both belong to the
-        // same ComboBox. Capture the whole subtree for one dispatch: input
-        // presses keep the list open, and the chevron or a row owns its click.
-        let inside_pressed = Rc::new(Cell::new(false));
         // `.combo-box__trigger` is `border-none bg-transparent
         // text-field-placeholder`, and its hover recolours the text to
         // `text-field-foreground`, filling nothing. `svg()` paints from its own
@@ -1147,7 +1578,7 @@ impl RenderOnce for ComboBox {
         // goes on the glyph as well as the trigger that wraps it.
         let trigger_hover_fg = colors.field.foreground;
         let trigger_indicator = crate::anim::rotating_indicator_with_duration(
-            &element_id::scoped(&base_id, "trigger-indicator"),
+            &element_id::scoped(base_id, "trigger-indicator"),
             is_open,
             gpui::svg()
                 .size(util::FIELD_ICON)
@@ -1161,7 +1592,7 @@ impl RenderOnce for ComboBox {
             cx,
         );
         let mut trigger = div()
-            .id(element_id::scoped(&base_id, "trigger"))
+            .id(element_id::scoped(base_id, "trigger"))
             // `combo-box/combo-box.js` composes an RAC `Button` here, whose
             // props come from `useComboBox`'s `buttonProps` — i.e.
             // `useMenuTrigger({type: 'listbox'})`, so
@@ -1188,6 +1619,7 @@ impl RenderOnce for ComboBox {
                 let focus_open = focus_open.clone();
                 let show_all_items = show_all_items.clone();
                 let close = close_open.clone();
+                let focus_handle = focus_handle.clone();
                 trigger = trigger
                     // The chevron is a separate React Aria button. Focus the
                     // input on press start, but do not let its down bubble into
@@ -1217,7 +1649,25 @@ impl RenderOnce for ComboBox {
                     });
             }
         }
+        trigger
+    }
 
+    /// The held `Input` with the chevron in its end slot and the edit
+    /// handler that opens, filters and closes the list.
+    fn input(&self, frame: &ComboFrame, trigger: gpui::Stateful<gpui::Div>) -> Input {
+        let ComboFrame {
+            ref items,
+            ref selection_own,
+            open_state,
+            ref open_own,
+            ref close_open,
+            ref raw_query,
+            is_invalid,
+            ref show_all_items,
+            ref cursor,
+            ref focus_open,
+            ..
+        } = *frame;
         let cursor_on_change = cursor.clone();
         let validate = self.validate.clone();
         let mut input = Input::new(self.state.clone())
@@ -1227,6 +1677,7 @@ impl RenderOnce for ComboBox {
             .is_required(self.is_required)
             .is_read_only(self.is_read_only)
             .auto_focus(self.auto_focus)
+            .when_some(self.font_family.clone(), |i, family| i.font_family(family))
             .when_some(self.validation_behavior, |i, b| i.validation_behavior(b))
             .when_some(validate, |i, f| i.validate(move |v| f(v)))
             .end_content(trigger);
@@ -1342,138 +1793,17 @@ impl RenderOnce for ComboBox {
         } else if let Some(description) = self.description.clone() {
             input = input.description(description);
         }
+        input
+    }
 
-        let stale_cursor = cursor.read(cx).as_ref().is_some_and(|focused| {
-            let visible = cursor_position(&matches, focused).is_some();
-            let retained_hidden = focused.hidden_query.as_deref() == Some(raw_query.as_str())
-                && items.iter().any(|item| item.key() == &focused.key);
-            self.disabled_keys.contains(&focused.key) || (!visible && !retained_hidden)
-        });
-        if stale_cursor {
-            cursor.update(cx, |value, _| *value = None);
-        }
-        let cursor_at = cursor
-            .read(cx)
-            .as_ref()
-            .and_then(|focused| cursor_position(&matches, focused));
-        // React Aria keeps the focused row in view; the panel scrolls and the
-        // virtual list scrolls itself. `use_keyed_state` takes `cx` mutably.
-        let list_scroll =
-            window.use_keyed_state(element_id::scoped(&base_id, "list-scroll"), cx, |_, _| {
-                gpui::UniformListScrollHandle::new()
-            });
-        let panel_scroll =
-            window.use_keyed_state(element_id::scoped(&base_id, "panel-scroll"), cx, |_, _| {
-                gpui::ScrollHandle::new()
-            });
-        let list_scroll_now = list_scroll.read(cx).clone();
-        let panel_scroll_now = panel_scroll.read(cx).clone();
-
-        // ComboBox commits its text/selection when focus leaves even while the
-        // list is closed. This is `useComboBoxState.setFocused(false)`, not the
-        // generic popover close used by Select-family controls.
-        let commit_value = util::shared({
-            let state = self.state.clone();
-            let selection_own = selection_own.clone();
-            let selected = self.selected_keys.clone();
-            let items = items.clone();
-            let selection_change = self.on_selection_change_all.clone();
-            let input_change = self.on_input_change.clone();
-            let allows_custom = self.allows_custom_value;
-            move |window: &mut Window, cx: &mut App| {
-                let current = state.read(cx).value().to_owned();
-                let selected_text = selected
-                    .first()
-                    .and_then(|key| label_of_key(&items, key))
-                    .cloned()
-                    .unwrap_or_default();
-
-                if allows_custom {
-                    // Pinned react-stately's commit path: text that no longer
-                    // matches the selected item's label is a custom value,
-                    // which carries a null selected key.
-                    if !multiple && current != selected_text && !selected.is_empty() {
-                        if let Some(held) = &selection_own {
-                            held.update(cx, |value, cx| {
-                                value.clear();
-                                cx.notify();
-                            });
-                        }
-                        if let Some(callback) = &selection_change {
-                            callback(&[], window, cx);
-                        }
-                    }
-                    return;
-                }
-
-                let committed = if multiple {
-                    String::new()
-                } else {
-                    selected_text.to_string()
-                };
-                if current != committed {
-                    state.update(cx, |state, cx| {
-                        state.set_value(committed.clone());
-                        cx.notify();
-                    });
-                    if let Some(callback) = &input_change {
-                        callback(&committed, window, cx);
-                    }
-                }
-            }
-        });
-        let blur_close = close_open.clone();
-        let blur_commit = commit_value.clone();
-        let blur_scope = util::on_focus_leave(
-            window,
-            cx,
-            &base_id,
-            !self.is_disabled,
-            move |window, cx| {
-                blur_commit(window, cx);
-                blur_close(window, cx);
-            },
-        );
-        let blur_focus = blur_scope.focus_handle();
-
-        // `.combo-box__input-group` is the field itself (`relative
-        // inline-flex items-center`). The popup anchors to the Input's 36px
-        // field row — not to the label-to-value wrapper root — the way RAC's
-        // `triggerRef` reads `groupRef.current || inputRef.current` (pinned
-        // 1.20.0 `dist/private/ComboBox.js`). `.combo-box__value` sits below
-        // the field inside the root, so a value row that appears under it
-        // must not push the popover down. `scrollable_field_popover` below
-        // reads these bounds to flip and cap the panel; the measure element
-        // inside `Input` only records them.
-        let inside_pressed_for_group = inside_pressed.clone();
-        let field_selector = format!("combobox-field-{entity_id}");
-        input = input.field_anchor(anchor_bounds.clone(), field_selector);
-        let input_group = div()
-            .id(element_id::scoped(&base_id, "field"))
-            // `combo-box/combo-box.js`'s `ComboBox.InputGroup` renders RAC
-            // `Group`, and `react-aria-components/dist/private/Group.mjs` is
-            // `role: props.role ?? 'group'`.
-            //
-            // The `role="combobox"` that `useComboBox` puts on the *input*
-            // does not appear anywhere in this port: the field is a
-            // `crate::input::Input`, whose role is decided inside its own
-            // render from its `InputType` and which has no override prop.
-            // See the picker note in `crate::a11y`.
-            .a11y(a11y::Role::Group)
-            .relative()
-            .capture_any_mouse_down(move |_, _, cx| {
-                inside_pressed_for_group.set(true);
-                let pressed = inside_pressed_for_group.clone();
-                cx.defer(move |_| pressed.set(false));
-            })
-            .child(input.render(window, cx));
-        let mut root = div()
-            .when(!self.full_width, |e| e.min_w(TRIGGER_MIN_WIDTH))
-            .relative()
-            .flex()
-            .flex_col()
-            .gap(px(4.));
-
+    /// `ComboBox.Value`, drawn below the field once something is chosen.
+    fn value_row(&mut self, frame: &ComboFrame) -> Option<gpui::AnyElement> {
+        let ComboFrame {
+            entity_id,
+            ref items,
+            ref colors,
+            ..
+        } = *frame;
         // `ComboBox.Value` — `.combo-box__value` is `text-sm
         // text-field-foreground empty:hidden`, so it shows only once something
         // is chosen. The selection is read in its own order — pinned
@@ -1517,337 +1847,128 @@ impl RenderOnce for ComboBox {
                 default_children,
             }));
         }
+        value_content
+    }
 
-        // `allowsEmptyCollection` keeps the panel up with no matches. Without
-        // it an empty result closes the list; `allowsCustomValue` only changes
-        // what Enter commits while the list is closed.
-        // Up, down, Home, End and Enter walk the suggestions; the inner input
-        // keeps left and right for the caret.
-        if !self.is_disabled && !self.is_read_only {
-            let key_rows: Rc<[PickerItem]> =
-                if open_state || (self.allows_custom_value && !raw_query.is_empty()) {
-                    Rc::clone(&matches)
-                } else {
-                    items
-                        .iter()
-                        .take(self.max_items)
-                        .cloned()
-                        .collect::<Vec<_>>()
-                        .into()
-                };
-            let stops: Vec<usize> = (0..key_rows.len())
-                .filter(|i| {
-                    key_rows
-                        .get(*i)
-                        .is_some_and(|item| !self.disabled_keys.contains(item.key()))
-                })
-                .collect();
-            let held = cursor.clone();
-            let wrap = self.should_focus_wrap;
-            let virtual_rows = self.row_height.is_some();
-            let key_list_scroll = list_scroll_now.clone();
-            let key_panel_scroll = panel_scroll_now.clone();
-            let rows = key_rows;
-            let state = self.state.clone();
-            let allows_custom_value = self.allows_custom_value;
-            let was_open = open_state;
-            let show_all_items = show_all_items.clone();
-            let on_selection_change = self.on_selection_change.clone();
-            let on_selection_change_all = self.on_selection_change_all.clone();
-            let on_input_change = self.on_input_change.clone();
-            let selected_now = self.selected_keys.clone();
-            let key_query = raw_query.clone();
-            let key_display_full = display_full_collection;
-            let key_items = items.clone();
-            let key_filter = self.filter.clone();
-            let key_max_items = self.max_items;
-            let key_disabled = self.disabled_keys.clone();
-            let key_menu_trigger = self.menu_trigger;
-            let open_own_keys = open_own.clone();
-            let on_open_change = self.on_open_change.clone();
-            let key_selection_own = selection_own.clone();
-            let key_close = close_open.clone();
-            let key_blur = blur_scope.clone();
-            let key_multiple = multiple;
-            root = root.on_key_down(move |event, window, cx| {
-                let key = event.keystroke.key.as_str();
-                let is_open = open_own_keys
-                    .as_ref()
-                    .map_or(was_open, |held| *held.read(cx));
-                let stale_cursor = held.read(cx).as_ref().is_some_and(|focused| {
-                    let current_query = state.read(cx).value().to_owned();
-                    let display_full = (current_query == key_query && *show_all_items.read(cx))
-                        || (key_menu_trigger == MenuTrigger::Manual && !is_open);
-                    let current_rows: Rc<[PickerItem]> =
-                        if !(is_open || (allows_custom_value && !current_query.is_empty())) {
-                            key_items
-                                .iter()
-                                .take(key_max_items)
-                                .cloned()
-                                .collect::<Vec<_>>()
-                                .into()
-                        } else if current_query == key_query
-                            && is_open == was_open
-                            && display_full == key_display_full
-                        {
-                            Rc::clone(&rows)
-                        } else {
-                            compute_matches(
-                                &key_items,
-                                &current_query,
-                                key_max_items,
-                                display_full,
-                                key_filter.as_ref(),
-                            )
-                            .into()
-                        };
-                    let visible = cursor_position(&current_rows, focused).is_some();
-                    let retained_hidden = focused.hidden_query.as_deref()
-                        == Some(current_query.as_str())
-                        && key_items.iter().any(|item| item.key() == &focused.key);
-                    key_disabled.contains(&focused.key) || (!visible && !retained_hidden)
-                });
-                if stale_cursor {
-                    held.update(cx, |value, _| *value = None);
-                }
-                // `allowsCustomValue` is the promise behind the drawn hint
-                // "Press Enter to use this value". A no-match query has no
-                // cursor row at all (an empty stop list makes `resolve` report
-                // Ignore, so the Activate arm never runs). Pinned
-                // react-stately's `commitCustomValue` keeps the typed text and
-                // sets the value to null: the selection clears, and the slice
-                // callback reports it only when a selection actually existed.
-                // Text that still matches the selected item's label is not a
-                // custom value at all — pinned `commitValue` re-runs
-                // `commitSelection` there, so the selection stands and the
-                // callbacks stay silent. The existing single-value commit
-                // remains single-mode only; React Aria keeps multiple-mode
-                // custom input independent from the selected items.
-                if allows_custom_value
-                    && key == "enter"
-                    && !state.read(cx).value().is_empty()
-                    && held.read(cx).as_ref().is_none_or(|focused| {
-                        stale_cursor || cursor_position(&rows, focused).is_none()
-                    })
-                {
-                    let selected_label = selected_now
-                        .first()
-                        .and_then(|item| label_of_key(&key_items, item))
-                        .cloned()
-                        .unwrap_or_default();
-                    if !key_multiple && selected_label != state.read(cx).value() {
-                        let had_selection = !selected_now.is_empty();
-                        if let Some(held) = &key_selection_own {
-                            held.update(cx, |v, cx| {
-                                v.clear();
-                                cx.notify();
-                            });
-                        }
-                        if had_selection {
-                            if let Some(cb) = &on_selection_change_all {
-                                cb(&[], window, cx);
-                            }
-                        }
-                    }
-                    held.update(cx, |v, _| *v = None);
-                    key_close(window, cx);
-                    // Pinned React Aria 3.51.0's `Enter` shortcut prevents
-                    // the default only while the menu is open
-                    // (`shouldPreventDefault = state.isOpen`): a commit on a
-                    // closed field — custom value or not — leaves Enter to
-                    // bubble into an enclosing form's implicit submission.
-                    if is_open {
-                        cx.stop_propagation();
-                    }
-                    return;
-                }
-                if key == "enter" && (stale_cursor || held.read(cx).is_none()) {
-                    let reset_value = if key_multiple {
-                        String::new()
-                    } else {
-                        selected_now
-                            .first()
-                            .and_then(|item| label_of_key(&key_items, item))
-                            .cloned()
-                            .unwrap_or_default()
-                            .to_string()
-                    };
-                    let input_changed = state.read(cx).value() != reset_value;
-                    state.update(cx, |value, cx| {
-                        value.set_value(reset_value.clone());
-                        cx.notify();
-                    });
-                    if input_changed {
-                        if let Some(cb) = &on_input_change {
-                            cb(&reset_value, window, cx);
-                        }
-                    }
-                    key_close(window, cx);
-                    // Only an Enter the list acted on is kept from an
-                    // enclosing form: an open list reverted, or a typed
-                    // query discarded. A closed field with nothing to revert
-                    // answers Enter with nothing here, and the keystroke may
-                    // still bubble into the form's implicit submission.
-                    if is_open || stale_cursor || input_changed {
-                        cx.stop_propagation();
-                    }
-                    return;
-                }
-                let from = held
-                    .read(cx)
-                    .as_ref()
-                    .and_then(|focused| cursor_position(&rows, focused));
-                let nav_key = if key == "tab" && is_open && held.read(cx).is_some() {
-                    "enter"
-                } else {
-                    key
-                };
-                // Pinned React Aria 3.51.0 binds PageUp/PageDown through the
-                // listbox's `useSelectableCollection`, which a closed field
-                // never runs: the suggestion list is not mounted, so the page
-                // keys must not open it and must not move a retained cursor.
-                // Open, those handlers require `manager.focusedKey != null` --
-                // a mouse-opened, selection-less ComboBox has a null cursor
-                // and must answer nothing until an arrow establishes one.
-                // With a cursor the list is non-scrollable -- HeroUI v3.2.4
-                // puts the overflow scrolling on the Popover while the ListBox
-                // element is `overflow-clip` -- so a page takes the enabled
-                // end: `stops` already omits disabled rows, whatever the
-                // list's length or scroll state.
-                let page_move = match nav_key {
-                    "pagedown" if is_open && from.is_some() => stops.last().copied(),
-                    "pageup" if is_open && from.is_some() => stops.first().copied(),
-                    _ => None,
-                }
-                .filter(|next| Some(*next) != from);
-                match page_move.map_or_else(
-                    || crate::list_nav::resolve(&stops, from, nav_key, wrap),
-                    crate::list_nav::Move::To,
-                ) {
-                    crate::list_nav::Move::To(next) => {
-                        let next_cursor = Some(cursor_for(&rows, next, None));
-                        held.update(cx, |v, cx| {
-                            *v = next_cursor;
-                            cx.notify();
-                        });
-                        if virtual_rows {
-                            key_list_scroll.scroll_to_item(next, gpui::ScrollStrategy::Center);
-                        } else {
-                            key_panel_scroll.scroll_to_item(next);
-                        }
-                        // Walking the list opens it, which is what typing does.
-                        if let Some(held) = &open_own_keys {
-                            held.update(cx, |v, cx| {
-                                *v = true;
-                                cx.notify();
-                            });
-                        }
-                        if !was_open {
-                            show_all_items.update(cx, |v, _| *v = true);
-                            if let Some(cb) = &on_open_change {
-                                cb(&true, window, cx);
-                            }
-                        }
-                    }
-                    crate::list_nav::Move::Activate => {
-                        // The activation reads the held cursor's key, not the
-                        // rendered row: a cursor retained across a query reset
-                        // (the multiple-mode pick above) can sit on an item
-                        // the capped or filtered list no longer renders, and
-                        // Enter must still toggle it.
-                        let Some(item_key) =
-                            held.read(cx).as_ref().map(|focused| focused.key.clone())
-                        else {
-                            return;
-                        };
-                        let item_label = label_of_key(&key_items, &item_key)
-                            .cloned()
-                            .unwrap_or_default();
-                        // An Enter that picks a row is the list's, not an
-                        // enclosing form's. A Tab mapped here keeps its
-                        // native motion: only Enter is stopped.
-                        if key == "enter" {
-                            cx.stop_propagation();
-                        }
-                        if key_multiple {
-                            let had_query = !state.read(cx).value().is_empty();
-                            state.update(cx, |st, cx| {
-                                st.set_value(String::new());
-                                cx.notify();
-                            });
-                            held.update(cx, |v, _| {
-                                if let Some(focused) = v {
-                                    focused.hidden_query = Some(String::new());
-                                }
-                            });
-                            let mut next = selected_now.clone();
-                            toggle_key(&mut next, &item_key);
-                            if let Some(held) = &key_selection_own {
-                                let next = next.clone();
-                                held.update(cx, |v, cx| {
-                                    *v = next;
-                                    cx.notify();
-                                });
-                            }
-                            if let Some(cb) = &on_selection_change_all {
-                                cb(&next, window, cx);
-                            }
-                            if had_query {
-                                if let Some(cb) = &on_input_change {
-                                    cb("", window, cx);
-                                }
-                            }
-                            return;
-                        }
-                        // Taking a suggestion fills the field with the row's
-                        // label and closes the list, the way a click does.
-                        // Close first so the retained exit frame does not
-                        // re-run the custom filter for the value we are about
-                        // to copy into the input.
-                        key_close(window, cx);
-                        state.update(cx, |st, cx| {
-                            st.set_value(item_label.to_string());
-                            cx.notify();
-                        });
-                        // Uncontrolled: record the pick in the selection too,
-                        // or `ComboBox.Value` would never see it.
-                        if let Some(held) = &key_selection_own {
-                            let next = vec![item_key.clone()];
-                            held.update(cx, |v, cx| {
-                                *v = next;
-                                cx.notify();
-                            });
-                        }
-                        held.update(cx, |v, _| *v = None);
-                        if key == "tab" {
-                            key_blur.consume(cx);
-                        }
-                        if selected_now.first() != Some(&item_key) {
-                            if let Some(cb) = &on_selection_change_all {
-                                cb(std::slice::from_ref(&item_key), window, cx);
-                            }
-                        }
-                        if let Some(cb) = &on_selection_change {
-                            cb(&item_key, window, cx);
-                        }
-                    }
-                    crate::list_nav::Move::Ignore => {}
-                }
-            });
-        }
+    /// The root's key handler: the list walk, Enter's commit or revert, and
+    /// `allowsCustomValue`'s custom commit.
+    fn root_keys(&self, root: gpui::Div, frame: &ComboFrame) -> gpui::Div {
+        let ComboFrame {
+            ref items,
+            multiple,
+            ref selection_own,
+            open_state,
+            ref open_own,
+            ref close_open,
+            ref raw_query,
+            ref show_all_items,
+            display_full_collection,
+            ref cursor,
+            ref matches,
+            ref list_scroll_now,
+            ref panel_scroll_now,
+            ref blur_scope,
+            ..
+        } = *frame;
+        let key_rows: Rc<[PickerItem]> =
+            if open_state || (self.allows_custom_value && !raw_query.is_empty()) {
+                Rc::clone(matches)
+            } else {
+                items
+                    .iter()
+                    .take(self.max_items)
+                    .cloned()
+                    .collect::<Vec<_>>()
+                    .into()
+            };
+        let stops: Vec<usize> = (0..key_rows.len())
+            .filter(|i| {
+                key_rows
+                    .get(*i)
+                    .is_some_and(|item| !self.disabled_keys.contains(item.key()))
+            })
+            .collect();
+        let held = cursor.clone();
+        let wrap = self.should_focus_wrap;
+        let virtual_rows = self.row_height.is_some();
+        let key_list_scroll = list_scroll_now.clone();
+        let key_panel_scroll = panel_scroll_now.clone();
+        let rows = key_rows;
+        let state = self.state.clone();
+        let allows_custom_value = self.allows_custom_value;
+        let was_open = open_state;
+        let show_all_items = show_all_items.clone();
+        let on_selection_change = self.on_selection_change.clone();
+        let on_selection_change_all = self.on_selection_change_all.clone();
+        let on_input_change = self.on_input_change.clone();
+        let selected_now = self.selected_keys.clone();
+        let key_query = raw_query.clone();
+        let key_display_full = display_full_collection;
+        let key_items = items.clone();
+        let key_filter = self.filter.clone();
+        let key_max_items = self.max_items;
+        let key_disabled = self.disabled_keys.clone();
+        let key_menu_trigger = self.menu_trigger;
+        let open_own_keys = open_own.clone();
+        let on_open_change = self.on_open_change.clone();
+        let key_selection_own = selection_own.clone();
+        let key_close = close_open.clone();
+        let key_blur = blur_scope.clone();
+        let key_multiple = multiple;
+        let handler = ComboKeys {
+            rows,
+            stops,
+            held,
+            wrap,
+            virtual_rows,
+            key_list_scroll,
+            key_panel_scroll,
+            state,
+            allows_custom_value,
+            was_open,
+            show_all_items,
+            on_selection_change,
+            on_selection_change_all,
+            on_input_change,
+            selected_now,
+            key_query,
+            key_display_full,
+            key_items,
+            key_filter,
+            key_max_items,
+            key_disabled,
+            key_menu_trigger,
+            open_own_keys,
+            on_open_change,
+            key_selection_own,
+            key_close,
+            key_blur,
+            key_multiple,
+        };
+        root.on_key_down(move |event, window, cx| handler.on_key_down(event, window, cx))
+    }
 
-        let show_list = overlay_active
-            && !self.is_disabled
-            && (!matches.is_empty() || self.allows_empty_collection);
-
+    /// Escape on the root, and the outside press when no list is drawn.
+    fn root_dismissals(
+        &self,
+        mut root: gpui::Div,
+        frame: &ComboFrame,
+        dismiss_without_list: bool,
+    ) -> gpui::Div {
+        let ComboFrame {
+            ref dismissal_token,
+            ref close_open,
+            ref commit_value,
+            ref blur_scope,
+            ..
+        } = *frame;
         let escape_close = close_open.clone();
-        let mut root = root;
         root =
             util::dismiss_on_escape_with_token(root, dismissal_token.clone(), move |window, cx| {
                 escape_close(window, cx);
                 util::DismissResult::Handled
             });
-        if overlay_active && !show_list {
+        if dismiss_without_list {
             let dismiss_close = close_open.clone();
             let dismiss_commit = commit_value.clone();
             let dismiss_blur = blur_scope.clone();
@@ -1862,15 +1983,25 @@ impl RenderOnce for ComboBox {
                 },
             );
         }
-        // The popup anchors to the Input's field-row bounds — not to the
-        // label-to-value wrapper root — the way RAC's `triggerRef` reads
-        // `groupRef.current || inputRef.current`. The field joins ahead of
-        // the panel below so the positioner reads settled trigger bounds.
-        root = root.child(input_group);
-        if show_list {
-            let panel_selector = format!("combobox-panel-{entity_id}");
-            let panel = div()
-                .id(element_id::scoped(&base_id, "panel"))
+        root
+    }
+
+    /// The popover's scrolling `ListBox` surface: `bg-overlay`, the panel
+    /// radius, the dark-mode hairline and the overlay shadow.
+    fn panel_surface(&self, frame: &ComboFrame) -> gpui::Stateful<gpui::Div> {
+        let ComboFrame {
+            entity_id,
+            ref base_id,
+            overlay_phase,
+            ref colors,
+            ref layout,
+            container_radius,
+            ref panel_scroll_now,
+            ..
+        } = *frame;
+        let panel_selector = format!("combobox-panel-{entity_id}");
+        div()
+                .id(element_id::scoped(base_id, "panel"))
                 // `useComboBox` hands `listBoxProps` to the popover's RAC
                 // `ListBox`, which is `useListBox`'s literal `role: 'listbox'`
                 // with `'aria-orientation'` defaulting to vertical. The rows
@@ -1889,7 +2020,7 @@ impl RenderOnce for ComboBox {
                 // A retained exit panel is visual-only and must not block the
                 // next pointer target behind its old bounds.
                 .when(overlay_phase == util::OverlayPhase::Open, |el| el.occlude())
-                .track_scroll(&panel_scroll_now)
+                .track_scroll(panel_scroll_now)
                 // RAC caps the popover at the available viewport height
                 // (`calculatePosition`'s `getMaxHeight`); the positioner
                 // below re-lays the panel out with that cap, so the panel
@@ -1907,124 +2038,671 @@ impl RenderOnce for ComboBox {
                 .when(
                     !layout.overlay_shadow.is_empty(),
                     |e: gpui::Stateful<gpui::Div>| e.shadow(layout.overlay_shadow.clone()),
-                );
+                )
+    }
 
-            // React Aria dismisses the list on a press outside it; Escape is
-            // read in the field's own key handler above. A press that started
-            // in the input-plus-panel subtree is not outside the ComboBox;
-            // the input keeps the list open, while the chevron and rows own
-            // their respective clicks.
-            let dismiss_close = close_open.clone();
-            let dismiss_commit = commit_value.clone();
-            let dismiss_blur = blur_scope;
-            let mut panel = util::dismiss_on_press_outside_with_token(
-                panel,
-                dismissal_token,
-                move |window, cx| {
-                    if inside_pressed.get() {
-                        return util::DismissResult::Declined;
-                    }
-                    dismiss_blur.consume(cx);
-                    dismiss_commit(window, cx);
-                    dismiss_close(window, cx);
-                    util::DismissResult::Handled
-                },
-            );
-
-            if matches.is_empty() {
-                // `allowsCustomValue` means an unmatched query is still valid,
-                // so the empty state has to say something different.
-                let message = if self.allows_custom_value {
-                    "Press Enter to use this value"
-                } else {
-                    "No matching options"
-                };
-                panel = panel.child(
-                    div()
-                        .px(px(8.))
-                        .py(px(6.))
-                        .text_size(util::FIELD_TEXT)
-                        .line_height(px(20.))
-                        .text_color(colors.muted)
-                        .child(message),
-                );
-            }
-
-            // Everything a row reads, owned: `uniform_list`'s callback is
-            // `'static` and runs again on every scroll, so it cannot borrow
-            // `self` or the theme -- and one row builder for both paths is what
-            // keeps a virtual list drawing the same row as a short one.
-            let matches_len = matches.len();
-            let rows = matches;
-            let sections = self.sections.clone();
-            let row_disabled_keys = self.disabled_keys.clone();
-            let row_read_only = self.is_read_only;
-            let row_selected_keys = self.selected_keys.clone();
-            let indicator: Option<Rc<dyn Fn(bool) -> gpui::AnyElement>> =
-                self.indicator.take().map(Rc::from);
-            let on_change_all = self.on_selection_change_all.clone();
-            let row_input_change = self.on_input_change.clone();
-            let on_change_one = self.on_selection_change.clone();
-            let row_state = self.state.clone();
-            let row_cursor = cursor;
-            let selection_own = selection_own;
-            let row_open_own = open_own.clone();
-            let row_open_state = open_state;
-            let row_close_open = close_open.clone();
-            let row_muted = colors.muted;
-            let row_hover_bg = self.row_hover_bg.unwrap_or(colors.default.color);
-            let row_focus = colors.focus;
-            let row_accent = colors.accent.color;
-            let row_disabled_opacity = layout.disabled_opacity;
-            // The rows' shared parent id, owned by the `'static` row builder:
-            // each row adds its item key as its own segment below it.
-            let row_base = element_id::scoped(&base_id, "item");
-            // `useOption` adds `aria-posinset`/`aria-setsize` only
-            // `if (isVirtualized)`; `row_height` is what windows this list.
-            let row_virtualized = self.row_height.is_some();
-            let panel_interactive = overlay_phase == util::OverlayPhase::Open;
-            let row_count = rows.len();
-            let row_padding_x = self.row_padding_x.unwrap_or(px(8.));
-            let row_font_family = self.row_font_family.clone();
-            let row_padding_y = self.row_padding_y.unwrap_or(px(6.));
-            let row_of = move |index: usize, fixed_h: Option<Pixels>, cx: &mut App| {
-                let item = &rows[index];
-                // A section header rides above the row it introduces, so the two
-                // are one element -- a virtual row is one slot tall.
-                let mut head: Vec<gpui::AnyElement> = Vec::new();
-                let done = |head: Vec<gpui::AnyElement>, row: gpui::AnyElement| {
-                    div()
-                        .flex()
-                        .flex_col()
-                        .when_some(fixed_h, |el, h| el.h(h).w_full())
-                        .children(head)
-                        .child(row)
-                        .into_any_element()
-                };
-                // `ListBox.Section`'s `Header`, above the item it introduces.
-                if let Some((_, label)) = sections.iter().find(|(at, _)| at == item.key()) {
-                    head.push(
-                        div()
-                            .px(px(8.))
-                            .pt(px(6.))
-                            .pb(px(4.))
-                            .text_size(px(12.))
-                            .line_height(px(16.))
-                            .font_weight(gpui::FontWeight::MEDIUM)
-                            .text_color(row_muted)
-                            .child(label.to_string())
-                            .into_any_element(),
-                    );
+    /// The suggestion popover: surface, dismissal, empty state, rows and motion.
+    fn popover(&mut self, frame: ComboFrame, cx: &mut App) -> gpui::Deferred {
+        let panel = self.panel_surface(&frame);
+        let ComboFrame {
+            entity_id,
+            base_id,
+            multiple,
+            selection_own,
+            open_state,
+            open_own,
+            overlay_phase,
+            dismissal_token,
+            resolved_placement,
+            entry_placement,
+            anchor_bounds,
+            colors,
+            layout,
+            container_radius,
+            close_open,
+            cursor,
+            matches,
+            inside_pressed,
+            cursor_at,
+            list_scroll_now,
+            commit_value,
+            blur_scope,
+            ..
+        } = frame;
+        // React Aria dismisses the list on a press outside it; Escape is
+        // read in the field's own key handler above. A press that started
+        // in the input-plus-panel subtree is not outside the ComboBox;
+        // the input keeps the list open, while the chevron and rows own
+        // their respective clicks.
+        let dismiss_close = close_open.clone();
+        let dismiss_commit = commit_value.clone();
+        let dismiss_blur = blur_scope;
+        let mut panel =
+            util::dismiss_on_press_outside_with_token(panel, dismissal_token, move |window, cx| {
+                if inside_pressed.get() {
+                    return util::DismissResult::Declined;
                 }
-                // The row's element id comes from the item's key, so two items
-                // that share a label never share an interactive row.
-                let item_disabled = row_disabled_keys.contains(item.key());
-                let hover_bg = row_hover_bg;
-                let row_selector = format!("combobox-{entity_id}-item-{}", item.key());
-                let row_selected = row_selected_keys.contains(item.key());
-                let has_indicator_slot = indicator.is_some() || (multiple && row_selected);
-                let mut row = div()
-                        .id(element_id::scoped(&row_base, item.key().clone()))
+                dismiss_blur.consume(cx);
+                dismiss_commit(window, cx);
+                dismiss_close(window, cx);
+                util::DismissResult::Handled
+            });
+
+        if matches.is_empty() {
+            // `allowsCustomValue` means an unmatched query is still valid,
+            // so the empty state has to say something different.
+            let message = if self.allows_custom_value {
+                "Press Enter to use this value"
+            } else {
+                "No matching options"
+            };
+            panel = panel.child(
+                div()
+                    .px(px(8.))
+                    .py(px(6.))
+                    .text_size(util::FIELD_TEXT)
+                    .line_height(px(20.))
+                    .text_color(colors.muted)
+                    .child(message),
+            );
+        }
+
+        // Everything a row reads, owned: the virtual list's row callback is
+        // `'static` and runs again on every scroll, so it cannot borrow
+        // `self` or the theme -- and one row builder for both paths is what
+        // keeps a virtual list drawing the same row as a short one.
+        let matches_len = matches.len();
+        let rows = matches;
+        let sections = self.sections.clone();
+        let row_disabled_keys = self.disabled_keys.clone();
+        let row_read_only = self.is_read_only;
+        let row_selected_keys = self.selected_keys.clone();
+        let indicator: Option<Rc<dyn Fn(bool) -> gpui::AnyElement>> =
+            self.indicator.take().map(Rc::from);
+        let on_change_all = self.on_selection_change_all.clone();
+        let row_input_change = self.on_input_change.clone();
+        let on_change_one = self.on_selection_change.clone();
+        let row_state = self.state.clone();
+        let row_cursor = cursor;
+        let selection_own = selection_own;
+        let row_open_own = open_own;
+        let row_open_state = open_state;
+        let row_close_open = close_open.clone();
+        let row_disabled_opacity = layout.disabled_opacity;
+        // The rows' shared parent id, owned by the `'static` row builder:
+        // each row adds its item key as its own segment below it.
+        let row_base = element_id::scoped(&base_id, "item");
+        // `useOption` adds `aria-posinset`/`aria-setsize` only
+        // `if (isVirtualized)`; `row_height` is what windows this list.
+        let row_virtualized = self.row_height.is_some();
+        let panel_interactive = overlay_phase == util::OverlayPhase::Open;
+        let row_count = rows.len();
+        let row_padding_x = self.row_padding_x.unwrap_or(px(8.));
+        let row_font_family = self.row_font_family.clone();
+        let row_padding_y = self.row_padding_y.unwrap_or(px(6.));
+        let rows = ComboRows {
+            entity_id,
+            multiple,
+            cursor_at,
+            colors,
+            row_hover_bg: self.row_hover_bg,
+            rows,
+            sections,
+            row_disabled_keys,
+            row_read_only,
+            row_selected_keys,
+            indicator,
+            on_change_all,
+            row_input_change,
+            on_change_one,
+            row_state,
+            row_cursor,
+            selection_own,
+            row_open_own,
+            row_open_state,
+            row_close_open,
+            row_disabled_opacity,
+            row_base,
+            row_virtualized,
+            panel_interactive,
+            row_count,
+            row_padding_x,
+            row_font_family,
+            row_padding_y,
+        };
+
+        match self.row_height {
+            // Virtual: only the rows in view are built, which is what makes
+            // a thousand options affordable. The list itself is the scroll
+            // container: `Infer` sizes it from its rows — the full
+            // natural height on the positioner's measure pass (so the
+            // flip sees the real extent, like upstream's `overlaySize`),
+            // capped to the available height on the capped pass — while
+            // the ListBox stays `overflow-clip`, as in v3. A fixed inner
+            // height plus an outer scroller would nest two scroll
+            // containers and strand rows between them.
+            Some(row_height) => {
+                // No `height`: a uniform `VirtualList` then sizes to its
+                // rows (`ListSizingBehavior::Infer`).
+                let handle = list_scroll_now;
+                if handle.item_count() != matches_len {
+                    handle.splice(0..handle.item_count(), matches_len);
+                }
+                panel = panel.child(crate::VirtualList::new(
+                    element_id::scoped(&base_id, "rows"),
+                    &handle,
+                    move |i, _window, cx| rows.row(i, Some(row_height), cx),
+                ));
+            }
+            None => {
+                for index in 0..matches_len {
+                    panel = panel.child(rows.row(index, None, cx));
+                }
+            }
+        }
+
+        let (slide_x, slide_y) = crate::popover::placement_entry_offset(entry_placement);
+        let zoom = crate::anim::ZoomBox::panel(px(4.), container_radius).padding_x(px(4.));
+        let zoom = crate::anim::ZoomBox {
+            slide_x: (slide_x != 0.0).then(|| px(slide_x)),
+            slide_y: (slide_y != 0.0).then(|| px(slide_y)),
+            ..zoom
+        };
+        let panel = if overlay_phase == util::OverlayPhase::Exiting {
+            crate::anim::exiting(
+                panel,
+                element_id::scoped(&base_id, "anim-out"),
+                zoom,
+                crate::anim::Motion::LIST_OUT,
+                cx,
+            )
+        } else {
+            crate::anim::entering_zoom(
+                panel,
+                element_id::scoped(&base_id, "anim"),
+                zoom,
+                crate::anim::Motion::LIST_IN,
+                cx,
+            )
+        };
+        // RAC positions the popover against the field with an 8px gap,
+        // flips it when the other side has more room, and caps it at the
+        // available viewport height past a 12px inset.
+        util::floating(
+            crate::popover::scrollable_field_popover_with_resolved_placement(
+                anchor_bounds,
+                self.placement,
+                Some(resolved_placement),
+                panel,
+            ),
+        )
+    }
+}
+
+/// The root's key handler, holding everything it reads. The handler is
+/// `'static`, so it owns copies of the frame's state rather than borrowing
+/// the ComboBox.
+struct ComboKeys {
+    rows: Rc<[PickerItem]>,
+    stops: Vec<usize>,
+    held: Entity<Option<ComboCursor>>,
+    wrap: bool,
+    virtual_rows: bool,
+    key_list_scroll: crate::VirtualListHandle,
+    key_panel_scroll: gpui::ScrollHandle,
+    state: Entity<InputState>,
+    allows_custom_value: bool,
+    was_open: bool,
+    show_all_items: Entity<bool>,
+    on_selection_change: Option<OnSelectionChange>,
+    on_selection_change_all: Option<OnSelectionChangeAll>,
+    on_input_change: Option<OnInputChange>,
+    selected_now: Vec<SharedString>,
+    key_query: String,
+    key_display_full: bool,
+    key_items: Rc<[PickerItem]>,
+    key_filter: Option<ComboFilter>,
+    key_max_items: usize,
+    key_disabled: std::collections::HashSet<SharedString>,
+    key_menu_trigger: MenuTrigger,
+    open_own_keys: Option<Entity<bool>>,
+    on_open_change: Option<OnOpenChange>,
+    key_selection_own: Option<Entity<Vec<SharedString>>>,
+    key_close: ComboAction,
+    key_blur: util::FocusLeave,
+    key_multiple: bool,
+}
+
+impl ComboKeys {
+    fn on_key_down(&self, event: &gpui::KeyDownEvent, window: &mut Window, cx: &mut App) {
+        // An owned handle, so the pinned `cursor_position(&rows, ..)` reads
+        // the collection the way the closure that held it did.
+        let rows = Rc::clone(&self.rows);
+        let Self {
+            ref stops,
+            ref held,
+            wrap,
+            ref state,
+            allows_custom_value,
+            was_open,
+            ref show_all_items,
+            ref on_selection_change_all,
+            ref on_input_change,
+            ref selected_now,
+            ref key_query,
+            key_display_full,
+            ref key_items,
+            ref key_filter,
+            key_max_items,
+            ref key_disabled,
+            key_menu_trigger,
+            ref open_own_keys,
+            ref key_selection_own,
+            ref key_close,
+            key_multiple,
+            ..
+        } = *self;
+        let key = event.keystroke.key.as_str();
+        let is_open = open_own_keys
+            .as_ref()
+            .map_or(was_open, |held| *held.read(cx));
+        let stale_cursor = held.read(cx).as_ref().is_some_and(|focused| {
+            let current_query = state.read(cx).value().to_owned();
+            let display_full = (current_query == *key_query && *show_all_items.read(cx))
+                || (key_menu_trigger == MenuTrigger::Manual && !is_open);
+            let current_rows: Rc<[PickerItem]> =
+                if !(is_open || (allows_custom_value && !current_query.is_empty())) {
+                    key_items
+                        .iter()
+                        .take(key_max_items)
+                        .cloned()
+                        .collect::<Vec<_>>()
+                        .into()
+                } else if current_query == *key_query
+                    && is_open == was_open
+                    && display_full == key_display_full
+                {
+                    Rc::clone(&rows)
+                } else {
+                    compute_matches(
+                        key_items,
+                        &current_query,
+                        key_max_items,
+                        display_full,
+                        key_filter.as_ref(),
+                    )
+                    .into()
+                };
+            let visible = cursor_position(&current_rows, focused).is_some();
+            let retained_hidden = focused.hidden_query.as_deref() == Some(current_query.as_str())
+                && key_items.iter().any(|item| item.key() == &focused.key);
+            key_disabled.contains(&focused.key) || (!visible && !retained_hidden)
+        });
+        if stale_cursor {
+            held.update(cx, |value, _| *value = None);
+        }
+        // `allowsCustomValue` is the promise behind the drawn hint
+        // "Press Enter to use this value". A no-match query has no
+        // cursor row at all (an empty stop list makes `resolve` report
+        // Ignore, so the Activate arm never runs). Pinned
+        // react-stately's `commitCustomValue` keeps the typed text and
+        // sets the value to null: the selection clears, and the slice
+        // callback reports it only when a selection actually existed.
+        // Text that still matches the selected item's label is not a
+        // custom value at all — pinned `commitValue` re-runs
+        // `commitSelection` there, so the selection stands and the
+        // callbacks stay silent. The existing single-value commit
+        // remains single-mode only; React Aria keeps multiple-mode
+        // custom input independent from the selected items.
+        if allows_custom_value
+            && key == "enter"
+            && !state.read(cx).value().is_empty()
+            && held
+                .read(cx)
+                .as_ref()
+                .is_none_or(|focused| stale_cursor || cursor_position(&rows, focused).is_none())
+        {
+            let selected_label = selected_now
+                .first()
+                .and_then(|item| label_of_key(key_items, item))
+                .cloned()
+                .unwrap_or_default();
+            if !key_multiple && selected_label != state.read(cx).value() {
+                let had_selection = !selected_now.is_empty();
+                if let Some(held) = &key_selection_own {
+                    held.update(cx, |v, cx| {
+                        v.clear();
+                        cx.notify();
+                    });
+                }
+                if had_selection {
+                    if let Some(cb) = &on_selection_change_all {
+                        cb(&[], window, cx);
+                    }
+                }
+            }
+            held.update(cx, |v, _| *v = None);
+            key_close(window, cx);
+            // Pinned React Aria 3.51.0's `Enter` shortcut prevents
+            // the default only while the menu is open
+            // (`shouldPreventDefault = state.isOpen`): a commit on a
+            // closed field — custom value or not — leaves Enter to
+            // bubble into an enclosing form's implicit submission.
+            if is_open {
+                cx.stop_propagation();
+            }
+            return;
+        }
+        if key == "enter" && (stale_cursor || held.read(cx).is_none()) {
+            let reset_value = if key_multiple {
+                String::new()
+            } else {
+                selected_now
+                    .first()
+                    .and_then(|item| label_of_key(key_items, item))
+                    .cloned()
+                    .unwrap_or_default()
+                    .to_string()
+            };
+            let input_changed = state.read(cx).value() != reset_value;
+            state.update(cx, |value, cx| {
+                value.set_value(reset_value.clone());
+                cx.notify();
+            });
+            if input_changed {
+                if let Some(cb) = &on_input_change {
+                    cb(&reset_value, window, cx);
+                }
+            }
+            key_close(window, cx);
+            // Only an Enter the list acted on is kept from an
+            // enclosing form: an open list reverted, or a typed
+            // query discarded. A closed field with nothing to revert
+            // answers Enter with nothing here, and the keystroke may
+            // still bubble into the form's implicit submission.
+            if is_open || stale_cursor || input_changed {
+                cx.stop_propagation();
+            }
+            return;
+        }
+        let from = held
+            .read(cx)
+            .as_ref()
+            .and_then(|focused| cursor_position(&rows, focused));
+        let nav_key = if key == "tab" && is_open && held.read(cx).is_some() {
+            "enter"
+        } else {
+            key
+        };
+        // Pinned React Aria 3.51.0 binds PageUp/PageDown through the
+        // listbox's `useSelectableCollection`, which a closed field
+        // never runs: the suggestion list is not mounted, so the page
+        // keys must not open it and must not move a retained cursor.
+        // Open, those handlers require `manager.focusedKey != null` --
+        // a mouse-opened, selection-less ComboBox has a null cursor
+        // and must answer nothing until an arrow establishes one.
+        // With a cursor the list is non-scrollable -- HeroUI v3.2.4
+        // puts the overflow scrolling on the Popover while the ListBox
+        // element is `overflow-clip` -- so a page takes the enabled
+        // end: `stops` already omits disabled rows, whatever the
+        // list's length or scroll state.
+        let page_move = match nav_key {
+            "pagedown" if is_open && from.is_some() => stops.last().copied(),
+            "pageup" if is_open && from.is_some() => stops.first().copied(),
+            _ => None,
+        }
+        .filter(|next| Some(*next) != from);
+        let next_move = page_move.map_or_else(
+            || crate::list_nav::resolve(stops, from, nav_key, wrap),
+            crate::list_nav::Move::To,
+        );
+        self.apply_move(next_move, key, window, cx);
+    }
+
+    /// The open list's answer to a resolved move: walk the cursor (opening
+    /// the list), or take the cursor row.
+    fn apply_move(
+        &self,
+        next_move: crate::list_nav::Move,
+        key: &str,
+        window: &mut Window,
+        cx: &mut App,
+    ) {
+        let Self {
+            ref rows,
+            ref held,
+            virtual_rows,
+            ref key_list_scroll,
+            ref key_panel_scroll,
+            ref state,
+            was_open,
+            ref show_all_items,
+            ref on_selection_change,
+            ref on_selection_change_all,
+            ref on_input_change,
+            ref selected_now,
+            ref key_items,
+            ref open_own_keys,
+            ref on_open_change,
+            ref key_selection_own,
+            ref key_close,
+            ref key_blur,
+            key_multiple,
+            ..
+        } = *self;
+        match next_move {
+            crate::list_nav::Move::To(next) => {
+                let next_cursor = Some(cursor_for(rows, next, None));
+                held.update(cx, |v, cx| {
+                    *v = next_cursor;
+                    cx.notify();
+                });
+                if virtual_rows {
+                    key_list_scroll.scroll_to_item(next, crate::VirtualListScroll::Center);
+                } else {
+                    key_panel_scroll.scroll_to_item(next);
+                }
+                // Walking the list opens it, which is what typing does.
+                if let Some(held) = &open_own_keys {
+                    held.update(cx, |v, cx| {
+                        *v = true;
+                        cx.notify();
+                    });
+                }
+                if !was_open {
+                    show_all_items.update(cx, |v, _| *v = true);
+                    if let Some(cb) = &on_open_change {
+                        cb(&true, window, cx);
+                    }
+                }
+            }
+            crate::list_nav::Move::Activate => {
+                // The activation reads the held cursor's key, not the
+                // rendered row: a cursor retained across a query reset
+                // (the multiple-mode pick above) can sit on an item
+                // the capped or filtered list no longer renders, and
+                // Enter must still toggle it.
+                let Some(item_key) = held.read(cx).as_ref().map(|focused| focused.key.clone())
+                else {
+                    return;
+                };
+                let item_label = label_of_key(key_items, &item_key)
+                    .cloned()
+                    .unwrap_or_default();
+                // An Enter that picks a row is the list's, not an
+                // enclosing form's. A Tab mapped here keeps its
+                // native motion: only Enter is stopped.
+                if key == "enter" {
+                    cx.stop_propagation();
+                }
+                if key_multiple {
+                    let had_query = !state.read(cx).value().is_empty();
+                    state.update(cx, |st, cx| {
+                        st.set_value(String::new());
+                        cx.notify();
+                    });
+                    held.update(cx, |v, _| {
+                        if let Some(focused) = v {
+                            focused.hidden_query = Some(String::new());
+                        }
+                    });
+                    let mut next = selected_now.clone();
+                    toggle_key(&mut next, &item_key);
+                    if let Some(held) = &key_selection_own {
+                        let next = next.clone();
+                        held.update(cx, |v, cx| {
+                            *v = next;
+                            cx.notify();
+                        });
+                    }
+                    if let Some(cb) = &on_selection_change_all {
+                        cb(&next, window, cx);
+                    }
+                    if had_query {
+                        if let Some(cb) = &on_input_change {
+                            cb("", window, cx);
+                        }
+                    }
+                    return;
+                }
+                // Taking a suggestion fills the field with the row's
+                // label and closes the list, the way a click does.
+                // Close first so the retained exit frame does not
+                // re-run the custom filter for the value we are about
+                // to copy into the input.
+                key_close(window, cx);
+                state.update(cx, |st, cx| {
+                    st.set_value(item_label.to_string());
+                    cx.notify();
+                });
+                // Uncontrolled: record the pick in the selection too,
+                // or `ComboBox.Value` would never see it.
+                if let Some(held) = &key_selection_own {
+                    let next = vec![item_key.clone()];
+                    held.update(cx, |v, cx| {
+                        *v = next;
+                        cx.notify();
+                    });
+                }
+                held.update(cx, |v, _| *v = None);
+                if key == "tab" {
+                    key_blur.consume(cx);
+                }
+                if selected_now.first() != Some(&item_key) {
+                    if let Some(cb) = &on_selection_change_all {
+                        cb(std::slice::from_ref(&item_key), window, cx);
+                    }
+                }
+                if let Some(cb) = &on_selection_change {
+                    cb(&item_key, window, cx);
+                }
+            }
+            crate::list_nav::Move::Ignore => {}
+        }
+    }
+}
+
+/// Everything a suggestion row reads, owned: the virtual list's row callback
+/// is `'static` and runs again on every scroll, so it cannot borrow the
+/// ComboBox or the theme -- and one row builder for both paths is what keeps
+/// a virtual list drawing the same row as a short one.
+struct ComboRows {
+    entity_id: u64,
+    multiple: bool,
+    cursor_at: Option<usize>,
+    colors: herogpui_theme::ThemeColors,
+    row_hover_bg: Option<gpui::Hsla>,
+    rows: Rc<[PickerItem]>,
+    sections: Vec<(SharedString, SharedString)>,
+    row_disabled_keys: std::collections::HashSet<SharedString>,
+    row_read_only: bool,
+    row_selected_keys: Vec<SharedString>,
+    indicator: Option<Rc<dyn Fn(bool) -> gpui::AnyElement>>,
+    on_change_all: Option<OnSelectionChangeAll>,
+    row_input_change: Option<OnInputChange>,
+    on_change_one: Option<OnSelectionChange>,
+    row_state: Entity<InputState>,
+    row_cursor: Entity<Option<ComboCursor>>,
+    selection_own: Option<Entity<Vec<SharedString>>>,
+    row_open_own: Option<Entity<bool>>,
+    row_open_state: bool,
+    row_close_open: ComboAction,
+    row_disabled_opacity: f32,
+    /// The rows' shared parent id: each row adds its item key as its own
+    /// segment below it.
+    row_base: gpui::ElementId,
+    row_virtualized: bool,
+    panel_interactive: bool,
+    row_count: usize,
+    row_padding_x: Pixels,
+    row_font_family: Option<SharedString>,
+    row_padding_y: Pixels,
+}
+
+impl ComboRows {
+    /// One suggestion row, with its section header when one precedes it.
+    fn row(&self, index: usize, fixed_h: Option<Pixels>, cx: &mut App) -> gpui::AnyElement {
+        let Self {
+            entity_id,
+            multiple,
+            cursor_at,
+            ref colors,
+            ref rows,
+            ref sections,
+            ref row_disabled_keys,
+            row_read_only,
+            ref row_selected_keys,
+            ref indicator,
+            row_disabled_opacity,
+            ref row_base,
+            row_virtualized,
+            row_count,
+            row_padding_x,
+            ref row_font_family,
+            row_padding_y,
+            ..
+        } = *self;
+        let row_muted = colors.muted;
+        let row_hover_bg = self.row_hover_bg.unwrap_or(colors.default.color);
+        let row_focus = colors.focus;
+        let row_accent = colors.accent.color;
+        let item = &rows[index];
+        // A section header rides above the row it introduces, so the two
+        // are one element -- a virtual row is one slot tall.
+        let mut head: Vec<gpui::AnyElement> = Vec::new();
+        let done = |head: Vec<gpui::AnyElement>, row: gpui::AnyElement| {
+            div()
+                .flex()
+                .flex_col()
+                .when_some(fixed_h, |el, h| el.h(h).w_full())
+                .children(head)
+                .child(row)
+                .into_any_element()
+        };
+        // `ListBox.Section`'s `Header`, above the item it introduces.
+        if let Some((_, label)) = sections.iter().find(|(at, _)| at == item.key()) {
+            head.push(
+                div()
+                    .px(px(8.))
+                    .pt(px(6.))
+                    .pb(px(4.))
+                    .text_size(px(12.))
+                    .line_height(px(16.))
+                    .font_weight(gpui::FontWeight::MEDIUM)
+                    .text_color(row_muted)
+                    .child(label.to_string())
+                    .into_any_element(),
+            );
+        }
+        // The row's element id comes from the item's key, so two items
+        // that share a label never share an interactive row.
+        let item_disabled = row_disabled_keys.contains(item.key());
+        let hover_bg = row_hover_bg;
+        let row_selector = format!("combobox-{entity_id}-item-{}", item.key());
+        let row_selected = row_selected_keys.contains(item.key());
+        let has_indicator_slot = indicator.is_some() || (multiple && row_selected);
+        let mut row = div()
+                        .id(element_id::scoped(row_base, item.key().clone()))
                         // `useOption.mjs`: `role: 'option'` plus
                         // `'aria-selected'` whenever the list selects at all.
                         // The highlighted row is what `useComboBox` points its
@@ -2058,245 +2736,212 @@ impl RenderOnce for ComboBox {
                         // flow prevents long labels from pushing the checkmark.
                         .relative()
                         .when(has_indicator_slot, |row| row.pr(px(28.)));
-                if let Some(family) = row_font_family.clone() {
-                    row = row.font_family(family);
-                }
-
-                if item_disabled {
-                    row = row.opacity(row_disabled_opacity);
-                } else if !row_read_only {
-                    row = row
-                        .cursor(util::interactive_cursor(cx))
-                        .hover(move |s| s.bg(hover_bg));
-                }
-
-                // `status-focused` on the row the keyboard is on.
-                if util::shows_focus_ring(cursor_at == Some(index), cx) {
-                    row = row.border_2().border_color(row_focus);
-                }
-
-                // HeroUI's ListBox.Item does not add an ellipsis rule. Keep
-                // normal text flow in both natural and virtual rows; the
-                // caller owns the fixed row geometry when `row_height` is
-                // supplied, just as the upstream Virtualizer owns its
-                // `rowHeight` layout.
-                let label = div().flex_1().min_w_0().whitespace_normal();
-                row = row.child(label.child(item.label().to_string()));
-
-                // `ListBox.ItemIndicator`: a caller-drawn tick replaces the
-                // check glyph, and is asked for on every row so it can draw the
-                // unselected state too.
-                match &indicator {
-                    Some(render) => {
-                        row = row.child(
-                            div()
-                                .absolute()
-                                .top_0()
-                                .bottom_0()
-                                .right(px(8.))
-                                .w(px(16.))
-                                .flex()
-                                .items_center()
-                                .justify_center()
-                                .child(render(row_selected)),
-                        );
-                    }
-                    None if multiple && row_selected => {
-                        row = row.child(
-                            div()
-                                .absolute()
-                                .top_0()
-                                .bottom_0()
-                                .right(px(8.))
-                                .w(px(16.))
-                                .flex()
-                                .items_center()
-                                .justify_center()
-                                .child(
-                                    gpui::svg()
-                                        .size(px(13.))
-                                        .path(icons::CHECK)
-                                        .text_color(row_accent),
-                                ),
-                        );
-                    }
-                    None => {}
-                }
-
-                if item_disabled || row_read_only {
-                    return done(head, row.into_any_element());
-                }
-
-                // Multiple mode toggles membership and leaves the panel open.
-                if multiple {
-                    if panel_interactive && (on_change_all.is_some() || selection_own.is_some()) {
-                        let cb = on_change_all.clone();
-                        let own = selection_own.clone();
-                        let current = row_selected_keys.clone();
-                        let value = item.key().clone();
-                        let state = row_state.clone();
-                        let cursor = row_cursor.clone();
-                        let next_cursor = cursor_for(&rows, index, Some(String::new()));
-                        let input_change = row_input_change.clone();
-                        row = row.on_click(move |_, window, cx| {
-                            let had_query = !state.read(cx).value().is_empty();
-                            let focus_handle = state.read(cx).focus_handle.clone();
-                            focus_handle.focus(window, cx);
-                            state.update(cx, |st, cx| {
-                                st.set_value(String::new());
-                                cx.notify();
-                            });
-                            cursor.update(cx, |v, _| *v = Some(next_cursor.clone()));
-                            let mut next = current.clone();
-                            toggle_key(&mut next, &value);
-                            // Uncontrolled: keep the new set, or picking an
-                            // item would do nothing.
-                            if let Some(held) = &own {
-                                let set = next.clone();
-                                held.update(cx, |v, cx| {
-                                    *v = set;
-                                    cx.notify();
-                                });
-                            }
-                            if let Some(cb) = &cb {
-                                cb(&next, window, cx);
-                            }
-                            if had_query {
-                                if let Some(cb) = &input_change {
-                                    cb("", window, cx);
-                                }
-                            }
-                        });
-                    }
-                    return done(head, row.into_any_element());
-                }
-
-                // Taking a suggestion fills the field with the row's label and
-                // closes the list, the way a click does; the selection rides
-                // the row's key.
-                let value = item.key().clone();
-                let label = item.label().clone();
-                let state = row_state.clone();
-                let on_selection_change = on_change_one.clone();
-                let on_selection_change_all = on_change_all.clone();
-                let selection_changed = row_selected_keys.first() != Some(&value);
-                let own = selection_own.clone();
-                let open_own = row_open_own.clone();
-                let close_open = row_close_open.clone();
-                if panel_interactive {
-                    row = row.on_click(move |_, window, cx| {
-                        let is_open = open_own
-                            .as_ref()
-                            .map_or(row_open_state, |held| *held.read(cx));
-                        if !is_open {
-                            return;
-                        }
-                        // Close first so the retained exit frame does not
-                        // re-run the custom filter for the selected label.
-                        close_open(window, cx);
-                        state.update(cx, |s, cx| {
-                            s.set_value(label.to_string());
-                            cx.notify();
-                        });
-                        // Uncontrolled: record the pick in the selection too, or
-                        // `ComboBox.Value` would never see it.
-                        if let Some(held) = &own {
-                            let next = vec![value.clone()];
-                            held.update(cx, |v, cx| {
-                                *v = next;
-                                cx.notify();
-                            });
-                        }
-                        if selection_changed {
-                            if let Some(cb) = &on_selection_change_all {
-                                cb(std::slice::from_ref(&value), window, cx);
-                            }
-                        }
-                        if let Some(cb) = &on_selection_change {
-                            cb(&value, window, cx);
-                        }
-                    });
-                }
-
-                done(head, row.into_any_element())
-            };
-
-            match self.row_height {
-                // Virtual: only the rows in view are built, which is what makes
-                // a thousand options affordable. The list itself is the scroll
-                // container: `Infer` sizes it from its rows — the full
-                // natural height on the positioner's measure pass (so the
-                // flip sees the real extent, like upstream's `overlaySize`),
-                // capped to the available height on the capped pass — while
-                // the ListBox stays `overflow-clip`, as in v3. A fixed inner
-                // height plus an outer scroller would nest two scroll
-                // containers and strand rows between them.
-                Some(row_height) => {
-                    panel = panel.child(
-                        gpui::uniform_list(
-                            element_id::scoped(&base_id, "rows"),
-                            matches_len,
-                            move |range, _window, cx| {
-                                range
-                                    .map(|i| row_of(i, Some(row_height), cx))
-                                    .collect::<Vec<_>>()
-                            },
-                        )
-                        .track_scroll(&list_scroll_now)
-                        .with_sizing_behavior(gpui::ListSizingBehavior::Infer)
-                        .w_full(),
-                    );
-                }
-                None => {
-                    for index in 0..matches_len {
-                        panel = panel.child(row_of(index, None, cx));
-                    }
-                }
-            }
-
-            let (slide_x, slide_y) = crate::popover::placement_entry_offset(entry_placement);
-            let zoom = crate::anim::ZoomBox::panel(px(4.), container_radius).padding_x(px(4.));
-            let zoom = crate::anim::ZoomBox {
-                slide_x: (slide_x != 0.0).then(|| px(slide_x)),
-                slide_y: (slide_y != 0.0).then(|| px(slide_y)),
-                ..zoom
-            };
-            let panel = if overlay_phase == util::OverlayPhase::Exiting {
-                crate::anim::exiting(
-                    panel,
-                    element_id::scoped(&base_id, "anim-out"),
-                    zoom,
-                    crate::anim::Motion::LIST_OUT,
-                    cx,
-                )
-            } else {
-                crate::anim::entering_zoom(
-                    panel,
-                    element_id::scoped(&base_id, "anim"),
-                    zoom,
-                    crate::anim::Motion::LIST_IN,
-                    cx,
-                )
-            };
-            // RAC positions the popover against the field with an 8px gap,
-            // flips it when the other side has more room, and caps it at the
-            // available viewport height past a 12px inset.
-            root = root.child(util::floating(
-                crate::popover::scrollable_field_popover_with_resolved_placement(
-                    anchor_bounds,
-                    self.placement,
-                    Some(resolved_placement),
-                    panel,
-                ),
-            ));
+        if let Some(family) = row_font_family.clone() {
+            row = row.font_family(family);
         }
 
-        // The popover hangs off the field it belongs to, so the field — not
-        // the panel — is the root's first child; the deferred panel still
-        // paints over the value row below it.
-        root = util::apply_sx(root, &self.sx);
-        root.when_some(value_content, |root, value| root.child(value))
-            .track_focus(&blur_focus)
+        if item_disabled {
+            row = row.opacity(row_disabled_opacity);
+        } else if !row_read_only {
+            row = row
+                .cursor(util::interactive_cursor(cx))
+                .hover(move |s| s.bg(hover_bg));
+        }
+
+        // `status-focused` on the row the keyboard is on.
+        if util::shows_focus_ring(cursor_at == Some(index), cx) {
+            row = row.border_2().border_color(row_focus);
+        }
+
+        // HeroUI's ListBox.Item does not add an ellipsis rule. Keep
+        // normal text flow in both natural and virtual rows; the
+        // caller owns the fixed row geometry when `row_height` is
+        // supplied, just as the upstream Virtualizer owns its
+        // `rowHeight` layout.
+        let label = div().flex_1().min_w_0().whitespace_normal();
+        row = row.child(label.child(item.label().to_string()));
+
+        // `ListBox.ItemIndicator`: a caller-drawn tick replaces the
+        // check glyph, and is asked for on every row so it can draw the
+        // unselected state too.
+        match &indicator {
+            Some(render) => {
+                row = row.child(
+                    div()
+                        .absolute()
+                        .top_0()
+                        .bottom_0()
+                        .right(px(8.))
+                        .w(px(16.))
+                        .flex()
+                        .items_center()
+                        .justify_center()
+                        .child(render(row_selected)),
+                );
+            }
+            None if multiple && row_selected => {
+                row = row.child(
+                    div()
+                        .absolute()
+                        .top_0()
+                        .bottom_0()
+                        .right(px(8.))
+                        .w(px(16.))
+                        .flex()
+                        .items_center()
+                        .justify_center()
+                        .child(
+                            gpui::svg()
+                                .size(px(13.))
+                                .path(icons::CHECK)
+                                .text_color(row_accent),
+                        ),
+                );
+            }
+            None => {}
+        }
+
+        if item_disabled || row_read_only {
+            return done(head, row.into_any_element());
+        }
+
+        // Multiple mode toggles membership and leaves the panel open.
+        if multiple {
+            row = self.attach_toggle(row, index);
+            return done(head, row.into_any_element());
+        }
+
+        // Taking a suggestion fills the field with the row's label and
+        // closes the list, the way a click does; the selection rides
+        // the row's key.
+        row = self.attach_pick(row, index);
+
+        done(head, row.into_any_element())
+    }
+
+    /// A multiple-mode row's pointer toggle: the panel stays open.
+    fn attach_toggle(
+        &self,
+        mut row: gpui::Stateful<gpui::Div>,
+        index: usize,
+    ) -> gpui::Stateful<gpui::Div> {
+        let rows = Rc::clone(&self.rows);
+        let item = &rows[index];
+        let Self {
+            panel_interactive,
+            ref row_selected_keys,
+            ref on_change_all,
+            ref row_input_change,
+            ref row_state,
+            ref row_cursor,
+            ref selection_own,
+            ..
+        } = *self;
+        if panel_interactive && (on_change_all.is_some() || selection_own.is_some()) {
+            let cb = on_change_all.clone();
+            let own = selection_own.clone();
+            let current = row_selected_keys.clone();
+            let value = item.key().clone();
+            let state = row_state.clone();
+            let cursor = row_cursor.clone();
+            let next_cursor = cursor_for(&rows, index, Some(String::new()));
+            let input_change = row_input_change.clone();
+            row = row.on_click(move |_, window, cx| {
+                let had_query = !state.read(cx).value().is_empty();
+                let focus_handle = state.read(cx).focus_handle.clone();
+                focus_handle.focus(window, cx);
+                state.update(cx, |st, cx| {
+                    st.set_value(String::new());
+                    cx.notify();
+                });
+                cursor.update(cx, |v, _| *v = Some(next_cursor.clone()));
+                let mut next = current.clone();
+                toggle_key(&mut next, &value);
+                // Uncontrolled: keep the new set, or picking an
+                // item would do nothing.
+                if let Some(held) = &own {
+                    let set = next.clone();
+                    held.update(cx, |v, cx| {
+                        *v = set;
+                        cx.notify();
+                    });
+                }
+                if let Some(cb) = &cb {
+                    cb(&next, window, cx);
+                }
+                if had_query {
+                    if let Some(cb) = &input_change {
+                        cb("", window, cx);
+                    }
+                }
+            });
+        }
+        row
+    }
+
+    /// A single-mode row's pointer pick: fills the field and closes the list.
+    fn attach_pick(
+        &self,
+        mut row: gpui::Stateful<gpui::Div>,
+        index: usize,
+    ) -> gpui::Stateful<gpui::Div> {
+        let item = &self.rows[index];
+        let Self {
+            panel_interactive,
+            ref row_selected_keys,
+            ref on_change_all,
+            ref on_change_one,
+            ref row_state,
+            ref selection_own,
+            ref row_open_own,
+            row_open_state,
+            ref row_close_open,
+            ..
+        } = *self;
+        let value = item.key().clone();
+        let label = item.label().clone();
+        let state = row_state.clone();
+        let on_selection_change = on_change_one.clone();
+        let on_selection_change_all = on_change_all.clone();
+        let selection_changed = row_selected_keys.first() != Some(&value);
+        let own = selection_own.clone();
+        let open_own = row_open_own.clone();
+        let close_open = row_close_open.clone();
+        if panel_interactive {
+            row = row.on_click(move |_, window, cx| {
+                let is_open = open_own
+                    .as_ref()
+                    .map_or(row_open_state, |held| *held.read(cx));
+                if !is_open {
+                    return;
+                }
+                // Close first so the retained exit frame does not
+                // re-run the custom filter for the selected label.
+                close_open(window, cx);
+                state.update(cx, |s, cx| {
+                    s.set_value(label.to_string());
+                    cx.notify();
+                });
+                // Uncontrolled: record the pick in the selection too, or
+                // `ComboBox.Value` would never see it.
+                if let Some(held) = &own {
+                    let next = vec![value.clone()];
+                    held.update(cx, |v, cx| {
+                        *v = next;
+                        cx.notify();
+                    });
+                }
+                if selection_changed {
+                    if let Some(cb) = &on_selection_change_all {
+                        cb(std::slice::from_ref(&value), window, cx);
+                    }
+                }
+                if let Some(cb) = &on_selection_change {
+                    cb(&value, window, cx);
+                }
+            });
+        }
+        row
     }
 }
 
@@ -2325,3 +2970,5 @@ mod hover_tokens {
         );
     }
 }
+
+crate::util::impl_component_styled!(ComboBox);

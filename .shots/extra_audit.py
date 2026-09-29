@@ -529,6 +529,14 @@ EXTRA_OK_SCOPED = {
     'Calendar.year_hover_bg': 'no-classname',
     'RangeCalendar.nav_hover_bg': 'no-classname',
     'RangeCalendar.year_hover_bg': 'no-classname',
+    # The field-trigger hover endpoints the roadmap's phase 2 inventory lists:
+    # v3 tints each with a class; the trigger/group chrome and the nested
+    # clear button are separate painted parts, so each is named on its owner.
+    'Select.trigger_hover_bg': 'no-classname',
+    'Autocomplete.trigger_hover_bg': 'no-classname',
+    'Autocomplete.clear_hover_bg': 'no-classname',
+    'NumberField.group_hover_bg': 'no-classname',
+    'InputGroup.group_hover_bg': 'no-classname',
     # The reference capture toolbar builds its icon-only segmented control on
     # Tabs: the icon children v3 composes into `Tabs.Tab` become
     # `TabItem::trigger` (the label stays the accessible name), and the
@@ -562,9 +570,24 @@ EXTRA_OK_SCOPED = {
     'Select.row_font_family': 'no-classname',
     'ComboBox.row_font_family': 'no-classname',
     'Autocomplete.row_font_family': 'no-classname',
+    # Phase 5: the rest of the field family's text seam. Each composed field
+    # forwards the family to the `Input` it holds (caret measurement) or to
+    # the trigger that draws its value; detached rows keep `row_font_family`.
+    'NumberField.font_family': 'no-classname',
+    'SearchField.font_family': 'no-classname',
+    'ColorField.font_family': 'no-classname',
+    'Select.font_family': 'no-classname',
+    'ComboBox.font_family': 'no-classname',
+    'Autocomplete.font_family': 'no-classname',
     'Badge.text_size': 'no-classname',
     'Chip.text_size': 'no-classname',
     'Breadcrumbs.text_size': 'no-classname',
+    # The choice controls' label type (roadmap phase 5): v3 sets it with a
+    # class on the content part; the control box keeps its size step.
+    'Checkbox.text_size': 'no-classname',
+    'RadioGroup.text_size': 'no-classname',
+    'Tabs.text_size': 'no-classname',
+    'Switch.text_size': 'no-classname',
     # Narrow parity exception; see docs/agents/parity.md.
     'Button.radius': 'repository-radius-extension',
     'Card.radius': 'repository-radius-extension',
@@ -646,6 +669,11 @@ EXTRA_OK_SCOPED = {
     'Breadcrumbs.full_width': 'repository-full-width-extension',
     'RadioGroup.full_width': 'repository-full-width-extension',
     'Toolbar.full_width': 'repository-full-width-extension',
+    # Phase 6's two named floors, each on its own owner: ComboBox's 180px
+    # root minimum (still only while not full-width) and the 80px floor on a
+    # vertical list's tabs. v3 sets both with classes.
+    'ComboBox.min_width': 'no-classname',
+    'Tabs.vertical_tab_min_width': 'no-classname',
     # v3's stylesheet declares `.range-calendar__cell-indicator`; only the
     # Calendar's prop table names the part.
     'RangeCalendar.cell_indicator': 'composition',
@@ -654,6 +682,25 @@ EXTRA_OK_SCOPED = {
     'ColorField.suffix': 'composition',
     # v3 composes `<Tabs.Separator />` inside the tab it precedes.
     'TabItem.separator': 'composition',
+    # HeroGPUI data-table extensions after gpui-kit's table (column move,
+    # cell selection), recorded in the roadmap's gpui-kit section; not v3
+    # props, and labelled as extensions in their rustdoc.
+    'Table.allows_column_reorder': 'herogpui-extension',
+    'Table.column_order': 'herogpui-extension',
+    'Table.default_column_order': 'herogpui-extension',
+    'Table.on_column_move': 'herogpui-extension',
+    'Table.cell_selectable': 'herogpui-extension',
+    'Table.selected_cell': 'herogpui-extension',
+    'Table.default_selected_cell': 'herogpui-extension',
+    'Table.on_cell_select': 'herogpui-extension',
+    # `TableColumn::frozen`, after gpui-kit's `fixed_left` columns: leading
+    # columns that stay put while the rest scroll horizontally.
+    'Table.frozen': 'herogpui-extension',
+    # Toolbar sizing after gpui-kit's toolbar: the bar's size reaches the
+    # controls added with `sized_child`.
+    'Toolbar.size': 'herogpui-extension',
+    'Toolbar.sized_child': 'herogpui-extension',
+    'Toolbar.sized_children': 'herogpui-extension',
     # v3 composes `<Table.Footer>` under the body, where a table's pagination
     # goes.
     'Table.footer': 'composition',

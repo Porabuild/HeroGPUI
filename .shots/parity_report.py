@@ -45,6 +45,7 @@ CONTRACTS = {
     'reason_audit.py': ((), ()),
     'reference_audit.py': (('component pages', 'metadata pages'), ('generic fallback',)),
     'state_audit.py': (('states claimed',), ('MISSING', 'UNMAPPED')),
+    'stale_docs_audit.py': (('files scanned', 'phrases guarded'), ('STALE PHRASES',)),
     'theme_serde_audit.py': (('builder methods read', 'document fields read'), ('failures',)),
     'token_audit.py': (('variables declared', 'values compared'), ('MISSING', 'WRONG VALUES')),
     'write_only.py': ((), ()),

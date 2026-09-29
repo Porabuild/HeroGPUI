@@ -1,5 +1,5 @@
 //! HeroUI v3.2.5 Select.ClearButton: real pointer and keyboard dispatch.
-mod harness;
+use crate::harness;
 use gpui::{prelude::*, px, SharedString, TestAppContext};
 use harness::{click, events, open_host, press, still};
 use herogpui_components::{FieldVariant, PickerItem, Select, SelectClearButton, SelectionMode};

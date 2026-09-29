@@ -3,7 +3,8 @@
 //!
 //! Everything static about them is measured by the `.shots/*.py` audits; these
 //! tests drive the controls and assert on recorded callbacks and behavioural
-//! probes only — never on appearance.
+//! probes — plus, for the press and hover contracts, on the fills and boxes
+//! the painted scene shows while a control is hovered or held.
 //!
 //! Geometry is derived from the components' own constants, not guessed:
 //!
@@ -58,7 +59,8 @@
 //! `toggle_button_content_render_prop_sees_state` runs the same cycle on a
 //! second component to prove the fix is not button-specific.
 
-mod harness;
+use crate::harness;
+use crate::source_scan;
 
 use std::cell::RefCell;
 use std::rc::Rc;
@@ -1790,69 +1792,231 @@ fn reduced_motion_press_snaps_without_animating(cx: &mut TestAppContext) {
     );
 }
 
+/// The fills a control paints resting, hovered, and after the pointer has
+/// left again, with motion on and each fade given the real time to settle.
+/// The settled fade layer stays mounted and paints its endpoint, so the
+/// resting endpoint it eases back to is on the scene after the leave.
+fn resting_and_hovered_fills(
+    cx: &mut TestAppContext,
+    build: impl Fn() -> gpui::AnyElement + 'static,
+) -> (Vec<gpui::Hsla>, Vec<gpui::Hsla>, Vec<gpui::Hsla>) {
+    let vcx = open_host(cx, move || {
+        gpui::div()
+            .flex()
+            .items_start()
+            .p(px(24.))
+            .child(build())
+            .into_any_element()
+    });
+    let resting = harness::painted(vcx).solids();
+    vcx.simulate_mouse_move(point(px(30.), px(30.)), None, Modifiers::none());
+    harness::wait_real(vcx, 300);
+    let hovered = harness::painted(vcx).solids();
+    vcx.simulate_mouse_move(point(px(600.), px(600.)), None, Modifiers::none());
+    harness::wait_real(vcx, 300);
+    let left = harness::painted(vcx).solids();
+    (resting, hovered, left)
+}
+
 /// `ToggleButton::hover_bg` follows the Button contract: the fade rests on the
 /// `sx` background (or the variant's resting colour) and eases to the named
 /// hover colour through the shared resolver.
-#[test]
-fn toggle_button_reads_the_hover_override_and_the_sx_background() {
-    let source = include_str!("../src/toggle_button.rs");
+#[gpui::test]
+fn toggle_button_reads_the_hover_override_and_the_sx_background(cx: &mut TestAppContext) {
+    let (rest, over): (gpui::Hsla, gpui::Hsla) =
+        (gpui::rgb(0x224466).into(), gpui::rgb(0x88aa22).into());
+    let (resting, hovered, left) = resting_and_hovered_fills(cx, move || {
+        ToggleButton::new("tb-hover")
+            .label("Bold")
+            .sx(move |s| s.bg(rest))
+            .hover_bg(over)
+            .into_any_element()
+    });
     assert!(
-        source.contains("crate::util::sx_background(&self.sx)"),
-        "the resting endpoint must come from the sx background"
+        harness::has_color(&resting, rest) && !harness::has_color(&resting, over),
+        "the resting endpoint must be the sx background, painted {resting:?}"
     );
     assert!(
-        source.contains("crate::util::fade_endpoints(Some(pair), sx_background, self.hover_bg)"),
-        "the toggle must resolve its fade through the shared resolver"
+        harness::has_color(&hovered, over),
+        "the hover endpoint must be the named override, painted {hovered:?}"
     );
+    let stock_rest = cx.update(|cx| {
+        use herogpui_theme::ActiveTheme;
+        cx.colors().default.color
+    });
     assert!(
-        source.contains("self.hover_bg = Some(color.into());"),
-        "the hover_bg builder must store the override"
+        harness::has_color(&left, rest) && !harness::has_color(&left, stock_rest),
+        "leaving must ease back to the sx background, not the variant's \
+         stock fill, painted {left:?}"
+    );
+
+    let (_, stock_hover, _) = resting_and_hovered_fills(cx, move || {
+        ToggleButton::new("tb-hover-stock")
+            .label("Bold")
+            .sx(move |s| s.bg(rest))
+            .into_any_element()
+    });
+    assert!(
+        !harness::has_color(&stock_hover, over),
+        "without the override the hover must not paint it"
     );
 }
 
+/// The skin's box while the left button is held on it, sampled right after
+/// the press and again once any ramp has settled, next to its resting box,
+/// plus the fills of the frame right after the press.
+fn press_boxes(
+    cx: &mut TestAppContext,
+    build: impl Fn() -> gpui::AnyElement + 'static,
+    pick: impl Fn(&harness::Painted) -> gpui::Bounds<gpui::Pixels>,
+) -> (
+    gpui::Bounds<gpui::Pixels>,
+    gpui::Bounds<gpui::Pixels>,
+    gpui::Bounds<gpui::Pixels>,
+    Vec<gpui::Hsla>,
+) {
+    let vcx = open_host(cx, move || {
+        gpui::div()
+            .flex()
+            .items_start()
+            .p(px(24.))
+            .child(build())
+            .into_any_element()
+    });
+    harness::wait_real(vcx, 50);
+    let resting = pick(&harness::painted(vcx));
+    let at = resting.center();
+    vcx.simulate_mouse_move(at, None, Modifiers::none());
+    vcx.simulate_mouse_down(at, MouseButton::Left, Modifiers::none());
+    vcx.update(|window, _| window.refresh());
+    vcx.run_until_parked();
+    let early_scene = harness::painted(vcx);
+    let early = pick(&early_scene);
+    harness::wait_real(vcx, 400);
+    let settled = pick(&harness::painted(vcx));
+    vcx.simulate_mouse_up(at, MouseButton::Left, Modifiers::none());
+    (resting, early, settled, early_scene.solids())
+}
+
+/// The widest filled quad: a toggle's painted skin.
+fn skin(scene: &harness::Painted) -> gpui::Bounds<gpui::Pixels> {
+    scene
+        .quads
+        .iter()
+        .filter(|q| q.background.as_solid().is_some_and(|c| c.a > 0.))
+        .max_by(|a, b| a.bounds.size.width.0.total_cmp(&b.bounds.size.width.0))
+        .map(|q| scene.bounds(q))
+        .expect("the control must paint its skin")
+}
+
 /// `toggle-button.css` declares the press as a transition with the same
-/// tracks as `button.css`, so a standalone toggle rides the shared ramp;
-/// a grouped member keeps the instant background swap and no scale.
-#[test]
-fn toggle_button_press_rides_the_pinned_ramp() {
-    let source = include_str!("../src/toggle_button.rs");
-    assert!(
-        source.contains("pressed_with_background_ramp("),
-        "a standalone toggle must ride the stylesheet's press ramp"
+/// tracks as `button.css`, so a standalone toggle rides the shared ramp — it
+/// shrinks over time rather than snapping — while a grouped member keeps the
+/// instant background swap and no scale.
+#[gpui::test]
+fn toggle_button_press_rides_the_pinned_ramp(cx: &mut TestAppContext) {
+    let (resting, early, settled, _) = press_boxes(
+        cx,
+        || {
+            ToggleButton::new("tb-ramp")
+                .label("Bold")
+                .into_any_element()
+        },
+        skin,
+    );
+    let (w0, w1, w2) = (
+        f32::from(resting.size.width),
+        f32::from(early.size.width),
+        f32::from(settled.size.width),
     );
     assert!(
-        source.contains("crate::anim::BUTTON_PRESS"),
-        "the ramp must carry the pinned toggle-button.css transition timing"
+        w2 < w0 - 0.5,
+        "a held standalone toggle must scale its skin down ({w0} -> {w2})"
     );
     assert!(
-        source.contains("el.active(move |style| style.bg(hover_bg))"),
+        w1 > w2 + 0.2,
+        "the scale must ramp, not snap: {w1} right after the press, {w2} settled"
+    );
+
+    let (resting, _, settled, _) = press_boxes(
+        cx,
+        move || {
+            ToggleButtonGroup::new("tg-ramp")
+                .child_toggle(ToggleButton::new("tg-a").label("A"))
+                .child_toggle(ToggleButton::new("tg-b").label("B"))
+                .into_any_element()
+        },
+        |scene| {
+            scene
+                .quads
+                .iter()
+                .find(|q| {
+                    let b = scene.bounds(q);
+                    f32::from(b.origin.x) < 40. && q.background.as_solid().is_some_and(|c| c.a > 0.)
+                })
+                .map(|q| scene.bounds(q))
+                .expect("the first member must paint")
+        },
+    );
+    assert_eq!(
+        resting.size, settled.size,
+        "a grouped member must not scale on press"
+    );
+
+    // Remaining source-text check: the grouped member's instant active swap
+    // to its hover fill. The pointer that presses it also hovers it, and the
+    // hover fade's layer paints over the skin, so the active endpoint is not
+    // separable from the fade on the painted scene.
+    assert!(
+        source_scan::component_src("toggle_button.rs")
+            .contains("el.active(move |style| style.bg(hover_bg))"),
         "a grouped member suppresses the scale and keeps the instant endpoint"
     );
 }
 
-#[test]
-fn button_press_uses_the_pinned_background_endpoint() {
-    let source = include_str!("../src/button.rs");
+/// `button.css` presses to the variant's `--button-bg-pressed` token over the
+/// scaled box, never by dimming the whole button. Outline's pressed fill is
+/// `bg-default`, distinct from its hover wash.
+#[gpui::test]
+fn button_press_uses_the_pinned_background_endpoint(cx: &mut TestAppContext) {
+    use herogpui_components::Variant;
+    use herogpui_theme::ActiveTheme;
+    harness::still();
+    let vcx = open_host(cx, || {
+        gpui::div()
+            .flex()
+            .items_start()
+            .p(px(24.))
+            .child(
+                Button::new("b-press")
+                    .label("Save")
+                    .variant(Variant::Outline),
+            )
+            .into_any_element()
+    });
+    let pressed_token = vcx.update(|_, cx| cx.colors().default.color);
+    let resting = harness::painted(vcx);
     assert!(
-        source.contains("button_pressed_background(self.variant, cx)"),
-        "Button presses must resolve the variant's --button-bg-pressed token"
+        !resting.solids().contains(&pressed_token),
+        "the resting outline button must not paint the pressed token"
+    );
+    let at = point(px(40.), px(42.));
+    vcx.simulate_mouse_move(at, None, Modifiers::none());
+    vcx.simulate_mouse_down(at, MouseButton::Left, Modifiers::none());
+    let pressed = harness::painted(vcx);
+    let skins = pressed.filled(pressed_token);
+    assert!(
+        !skins.is_empty(),
+        "the held button must paint the variant's pressed token\n{}",
+        pressed.describe()
     );
     assert!(
-        source.contains("pressed_with_background_ramp("),
-        "the pressed skin must ride the stylesheet's ramp, easing the pressed \
-         endpoint with its scaled box"
+        pressed.quads.iter().all(|q| q
+            .background
+            .as_solid()
+            .is_none_or(|c| { (c.a - 1.).abs() < 1e-3 || c.a < 1e-3 })),
+        "a press recolours; it never dims the button\n{}",
+        pressed.describe()
     );
-    assert!(
-        source.contains("crate::anim::BUTTON_PRESS"),
-        "the ramp must carry the pinned button.css transition timing"
-    );
-    assert!(
-        source
-            .contains("fade.map(|(idle, _)| (idle, button_pressed_background(self.variant, cx)))"),
-        "the colour track must ease from the resting fill the hover fade holds"
-    );
-    assert!(
-        !source.contains(".active(|s| s.opacity(0.85))"),
-        "HeroUI's button active state changes background, not whole-button opacity"
-    );
+    vcx.simulate_mouse_up(at, MouseButton::Left, Modifiers::none());
 }

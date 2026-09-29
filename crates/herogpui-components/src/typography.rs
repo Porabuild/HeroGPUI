@@ -29,16 +29,26 @@ use crate::util::MONO_FONT;
 /// code the plain `text-sm` leading (14/20).
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum TypographyType {
+    /// Level-1 heading (36/40).
     H1,
+    /// Level-2 heading (30/36).
     H2,
+    /// Level-3 heading (24/32).
     H3,
+    /// Level-4 heading (20/28).
     H4,
+    /// Level-5 heading (18/28).
     H5,
+    /// Level-6 heading (16/24).
     H6,
+    /// Body text (16/28); the default.
     #[default]
     Body,
+    /// Small body text (14/24).
     BodySm,
+    /// Extra-small body text (12/20).
     BodyXs,
+    /// Monospace code text (14/20).
     Code,
 }
 
@@ -88,27 +98,37 @@ impl TypographyType {
 /// Text alignment (`align` prop).
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum TextAlign {
+    /// Aligned to the start; renders left-aligned.
     #[default]
     Start,
+    /// Centred.
     Center,
+    /// Aligned to the end; renders right-aligned.
     End,
+    /// Justified; currently renders left-aligned.
     Justify,
 }
 
 /// Text color (`color` prop).
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum TextColor {
+    /// The default foreground colour.
     #[default]
     Default,
+    /// The muted foreground colour.
     Muted,
 }
 
 /// Font weight override (`weight` prop).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum FontWeight {
+    /// Normal weight.
     Normal,
+    /// Medium weight.
     Medium,
+    /// Semibold weight.
     Semibold,
+    /// Bold weight.
     Bold,
 }
 
@@ -126,13 +146,17 @@ impl FontWeight {
 /// Paragraph size for [`Typography::paragraph`].
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum ParagraphSize {
+    /// Body size (`TypographyType::Body`).
     #[default]
     Base,
+    /// Small size (`TypographyType::BodySm`).
     Sm,
+    /// Extra-small size (`TypographyType::BodyXs`).
     Xs,
 }
 
 /// HeroUI Typography.
+#[must_use = "a component does nothing until it is rendered: add it as a child or return it from `render`"]
 #[derive(IntoElement)]
 pub struct Typography {
     kind: TypographyType,
@@ -154,6 +178,7 @@ pub struct Typography {
 }
 
 impl Typography {
+    /// Creates a text element with the given content and default styling.
     pub fn new(text: impl Into<SharedString>) -> Self {
         Self {
             kind: TypographyType::default(),
@@ -194,21 +219,25 @@ impl Typography {
         self
     }
 
+    /// Sets the text alignment.
     pub fn align(mut self, align: TextAlign) -> Self {
         self.align = align;
         self
     }
 
+    /// Sets the text colour.
     pub fn color(mut self, color: TextColor) -> Self {
         self.color = color;
         self
     }
 
+    /// Sets the font weight, overriding the type's default weight.
     pub fn weight(mut self, weight: FontWeight) -> Self {
         self.weight = Some(weight);
         self
     }
 
+    /// Sets whether overflowing text is truncated.
     pub fn truncate(mut self, v: bool) -> Self {
         self.truncate = v;
         self
@@ -235,7 +264,7 @@ impl Typography {
     /// applied to the typography's root element after every value the kind, the
     /// color and the active theme chose, so they win.
     pub fn sx(mut self, style: impl FnOnce(gpui::Div) -> gpui::Div) -> Self {
-        self.sx = Some(crate::util::capture_sx(style));
+        crate::util::refine_sx(&mut self.sx, style);
         self
     }
 }
@@ -301,6 +330,7 @@ impl RenderOnce for Typography {
 /// ported because GPUI has no ancestor context propagation; children must be
 /// already-semantic elements such as [`Typography`], which carry their own
 /// metrics.
+#[must_use = "a component does nothing until it is rendered: add it as a child or return it from `render`"]
 #[derive(IntoElement)]
 pub struct Prose {
     children: Vec<AnyElement>,
@@ -309,6 +339,7 @@ pub struct Prose {
 }
 
 impl Prose {
+    /// Creates an empty prose container.
     pub fn new() -> Self {
         Self {
             children: Vec::new(),
@@ -321,7 +352,7 @@ impl Prose {
     /// applied to the prose block's root element after every value the active
     /// theme chose, so they win.
     pub fn sx(mut self, style: impl FnOnce(gpui::Div) -> gpui::Div) -> Self {
-        self.sx = Some(crate::util::capture_sx(style));
+        crate::util::refine_sx(&mut self.sx, style);
         self
     }
 }
@@ -346,3 +377,5 @@ impl RenderOnce for Prose {
         crate::util::apply_sx(el, &self.sx)
     }
 }
+
+crate::util::impl_component_styled!(Typography, Prose);

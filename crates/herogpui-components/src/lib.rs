@@ -1,6 +1,29 @@
 //! HeroGPUI components — a faithful Rust/GPUI port of the HeroUI v3 component
 //! library. One module per `@heroui/*` package.
+//!
+//! Every component and builder type is `#[must_use]`: a builder that is built
+//! and then dropped renders nothing, so the compiler says so.
+//!
+//! ```compile_fail
+//! #![deny(unused_must_use)]
+//! # use herogpui_components::Button;
+//! # fn render() {
+//! Button::new("save").label("Save"); // dropped: `unused_must_use` fires
+//! # }
+//! ```
+//!
+//! The same statement, used:
+//!
+//! ```
+//! #![deny(unused_must_use)]
+//! # use herogpui_components::Button;
+//! # fn render() -> Button {
+//! Button::new("save").label("Save")
+//! # }
+//! ```
 #![allow(clippy::type_complexity)]
+// Every public item is documented; `clippy -D warnings` keeps it that way.
+#![warn(missing_docs)]
 
 pub mod a11y;
 pub mod accordion;
@@ -26,6 +49,7 @@ pub mod chip;
 pub mod close_button;
 pub mod color_picker;
 pub mod combo_box;
+pub mod command_palette;
 pub mod context_menu;
 pub mod date_constraints;
 pub mod date_picker;
@@ -37,6 +61,7 @@ pub mod filter;
 pub mod form;
 #[cfg(feature = "gallery-source")]
 pub mod gallery_source;
+pub mod hover_card;
 pub mod i18n;
 pub mod icon;
 pub mod icons;
@@ -64,16 +89,19 @@ pub mod scrollbar;
 pub mod select;
 pub mod selection;
 pub mod separator;
+pub mod sidebar;
 pub mod skeleton;
 pub mod slider;
 pub mod spinner;
 pub mod surface;
 pub mod switch;
+mod system_locale;
 pub mod table;
 pub mod tabs;
 pub mod tag_group;
 pub mod textarea;
 pub mod time_field;
+pub mod title_bar;
 pub mod toast;
 pub mod toggle_button;
 pub mod toolbar;
@@ -111,6 +139,7 @@ pub use chip::*;
 pub use close_button::*;
 pub use color_picker::*;
 pub use combo_box::*;
+pub use command_palette::*;
 pub use context_menu::*;
 pub use date_constraints::*;
 pub use date_picker::*;
@@ -120,6 +149,7 @@ pub use dropdown::*;
 pub use field::*;
 pub use filter::*;
 pub use form::*;
+pub use hover_card::*;
 
 /// `formatOptions` for the components that take it, re-exported so a caller
 /// reaches it beside the component it configures.
@@ -148,6 +178,7 @@ pub use scrollbar::*;
 pub use select::*;
 pub use selection::*;
 pub use separator::*;
+pub use sidebar::*;
 pub use skeleton::*;
 pub use slider::*;
 pub use spinner::*;
@@ -158,6 +189,7 @@ pub use tabs::*;
 pub use tag_group::*;
 pub use textarea::*;
 pub use time_field::*;
+pub use title_bar::*;
 pub use toast::*;
 pub use toggle_button::*;
 pub use toolbar::*;
@@ -189,6 +221,9 @@ pub mod extend {
 /// Not public API: no semver guarantee, and it may change in any release.
 #[doc(hidden)]
 pub mod __private {
+    /// The system date/time locale chain the date and time fields read, so
+    /// the behavior tests can expect what the running machine's region says.
+    pub use crate::system_locale::time_locale_tags;
     pub use crate::util::{
         dismiss_on_press_outside_with_token, overlay_phase, overlay_scope, overlay_scope_with_exit,
         DismissResult, OverlayPhase, OverlayToken,

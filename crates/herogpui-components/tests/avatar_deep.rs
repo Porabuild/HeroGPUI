@@ -9,7 +9,7 @@
 //! paints. (`debug_bounds` cannot play this role — gpui's frame clear keeps
 //! stale selector bounds, so a removed element would still "be there".)
 
-mod harness;
+use crate::harness;
 
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;

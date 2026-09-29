@@ -22,8 +22,10 @@ pub enum TabsVariant {
 }
 
 impl TabsVariant {
+    /// Every variant, in display order.
     pub const ALL: [TabsVariant; 2] = [TabsVariant::Primary, TabsVariant::Secondary];
 
+    /// The display name of this variant.
     pub fn label(self) -> &'static str {
         match self {
             TabsVariant::Primary => "Primary",
@@ -36,15 +38,20 @@ impl TabsVariant {
 /// Start and end follow the port's left-to-right layout.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum TabsAlign {
+    /// Aligns tab content to the start.
     Start,
+    /// Centers tab content.
     #[default]
     Center,
+    /// Aligns tab content to the end.
     End,
 }
 
 impl TabsAlign {
+    /// Every alignment, in display order.
     pub const ALL: [Self; 3] = [Self::Start, Self::Center, Self::End];
 
+    /// The display name of this alignment.
     pub fn label(self) -> &'static str {
         match self {
             Self::Start => "Start",
@@ -355,14 +362,18 @@ pub enum KeyboardActivation {
 }
 
 /// One tab: key + label + panel content.
+#[must_use = "builder methods return a new value; pass it on to its component"]
 #[non_exhaustive]
 pub struct TabItem {
+    /// Stable key identifying the tab.
     pub key: SharedString,
+    /// Visible text and accessible name of the tab.
     pub label: SharedString,
     /// Replacement content for the segment trigger itself; the label text is
     /// not rendered when it is set. `label` stays the tab's accessible name —
     /// an svg or icon div child carries no accessible name of its own.
     pub trigger: Option<AnyElement>,
+    /// Content shown in the panel when the tab is selected.
     pub content: Option<AnyElement>,
     /// `Tabs.Tab.isDisabled` — removes this tab from activation and the roving
     /// keyboard stops without disabling its siblings.
@@ -383,6 +394,7 @@ pub struct TabItem {
 }
 
 impl TabItem {
+    /// Creates a tab from a key and a label.
     pub fn new(key: impl Into<SharedString>, label: impl Into<SharedString>) -> Self {
         Self {
             key: key.into(),
@@ -411,11 +423,13 @@ impl TabItem {
         self
     }
 
+    /// Sets the panel content of the tab.
     pub fn content(mut self, el: impl IntoElement) -> Self {
         self.content = Some(el.into_any_element());
         self
     }
 
+    /// Sets whether the tab is disabled (v3 `Tabs.Tab.isDisabled`).
     pub fn is_disabled(mut self, value: bool) -> Self {
         self.is_disabled = value;
         self
@@ -501,12 +515,15 @@ struct TabFocusState {
 /// thickness at both steps. Not a v3 prop.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum TabsSize {
+    /// The small size.
     Sm,
+    /// The medium size.
     #[default]
     Md,
 }
 
 impl TabsSize {
+    /// Every size, in display order.
     pub const ALL: [TabsSize; 2] = [Self::Sm, Self::Md];
 
     /// `(height, horizontal padding, label text)` for this step; the label
@@ -518,6 +535,7 @@ impl TabsSize {
         }
     }
 
+    /// The display name of this size.
     pub fn label(self) -> &'static str {
         match self {
             Self::Sm => "Small",
@@ -527,6 +545,7 @@ impl TabsSize {
 }
 
 /// HeroUI Tabs (controlled).
+#[must_use = "a component does nothing until it is rendered: add it as a child or return it from `render`"]
 #[derive(IntoElement)]
 pub struct Tabs {
     id: gpui::ElementId,
@@ -540,6 +559,8 @@ pub struct Tabs {
     is_disabled: bool,
     /// The compact step; `Md` is the pinned default.
     size: TabsSize,
+    /// The tab labels' font size, in place of the size step's.
+    text_size: Option<gpui::Pixels>,
     full_width: bool,
     orientation: Orientation,
     keyboard_activation: KeyboardActivation,
@@ -556,6 +577,8 @@ pub struct Tabs {
     indicator_shadow: bool,
     /// The primary tray's uniform inset override; the pinned default is 4px.
     list_padding: Option<gpui::Pixels>,
+    /// A vertical list's per-tab width floor; the pinned default is 80px.
+    vertical_tab_min_width: Option<gpui::Pixels>,
     /// Gates the unselected-tab hover wash; the default keeps it.
     hover_fill: bool,
     /// The `sx` slot, refined over the root style at the end of render.
@@ -618,6 +641,7 @@ impl Tabs {
             is_disabled: false,
             full_width: false,
             size: TabsSize::default(),
+            text_size: None,
             orientation: Orientation::Horizontal,
             keyboard_activation: KeyboardActivation::Automatic,
             on_selection_change: None,
@@ -626,16 +650,19 @@ impl Tabs {
             indicator_bg: None,
             indicator_shadow: true,
             list_padding: None,
+            vertical_tab_min_width: None,
             hover_fill: true,
             sx: None,
         }
     }
 
+    /// Sets the visual variant (v3 `variant`).
     pub fn variant(mut self, v: TabsVariant) -> Self {
         self.variant = v;
         self
     }
 
+    /// Sets whether the whole tab list is disabled (v3 `isDisabled`).
     pub fn is_disabled(mut self, v: bool) -> Self {
         self.is_disabled = v;
         self
@@ -646,6 +673,14 @@ impl Tabs {
     /// (16px leading). Not a v3 prop.
     pub fn size(mut self, size: TabsSize) -> Self {
         self.size = size;
+        self
+    }
+
+    /// The tab labels' font size, in place of the size step's. A 12/14/16px size
+    /// takes v3's leading pair (16/20/24); any other keeps the 20px leading.
+    /// Each tab keeps its fixed height and inline padding, so a larger type wants a matching `TabItem::height`. Not a v3 prop: v3 sets it with a class on `Tabs.Tab`.
+    pub fn text_size(mut self, size: impl Into<gpui::Pixels>) -> Self {
+        self.text_size = Some(size.into());
         self
     }
 
@@ -722,6 +757,17 @@ impl Tabs {
         self
     }
 
+    /// Replaces the width floor every tab of a vertical list keeps (v3's
+    /// `min-w-20`, 80px), so a narrow icon rail can go below it or a wide
+    /// one can set a larger floor. Only the vertical orientation reads it —
+    /// a horizontal list has no per-tab floor — and a tab's own
+    /// [`TabItem::width`] still wins over it. Not a v3 prop; it stands in for
+    /// the `className` a caller passes to `Tabs.Tab`.
+    pub fn vertical_tab_min_width(mut self, width: impl Into<gpui::Pixels>) -> Self {
+        self.vertical_tab_min_width = Some(width.into());
+        self
+    }
+
     /// `false` drops the unselected-tab hover wash and replaces it with a
     /// text-colour change: a hovered unselected tab keeps its resting fill
     /// and its label moves to the theme foreground, while the selected
@@ -759,7 +805,7 @@ impl Tabs {
     /// applied to the tabs' root element after every value the variant and the
     /// active theme chose, so they win.
     pub fn sx(mut self, style: impl FnOnce(gpui::Div) -> gpui::Div) -> Self {
-        self.sx = Some(crate::util::capture_sx(style));
+        crate::util::refine_sx(&mut self.sx, style);
         self
     }
 }
@@ -888,6 +934,9 @@ impl RenderOnce for Tabs {
             (false, false)
         });
         let vertical = self.orientation == Orientation::Vertical;
+        let vertical_tab_min_width = self
+            .vertical_tab_min_width
+            .unwrap_or(VERTICAL_TAB_MIN_WIDTH);
         // `full_width` is a horizontal contract: equal shares of the list's
         // width. A vertical list's tabs are already `w_full`.
         let stretch = self.full_width && !vertical;
@@ -901,6 +950,7 @@ impl RenderOnce for Tabs {
         let hover_fill = self.hover_fill;
         let list_padding = self.list_padding;
         let (tab_h, tab_padding_x, tab_text) = self.size.metrics();
+        let tab_text = self.text_size.unwrap_or(tab_text);
         let geometry = window.use_keyed_state(element_id::scoped(&base, "geometry"), cx, |_, _| {
             TabsGeometry::default()
         });
@@ -1151,7 +1201,7 @@ impl RenderOnce for Tabs {
                         // and `full_width`'s equal shares below, whose
                         // `flex_1` basis of zero would ignore the width.
                         .when(vertical && item.width.is_none(), |t| {
-                            t.w_full().min_w(VERTICAL_TAB_MIN_WIDTH)
+                            t.w_full().min_w(vertical_tab_min_width)
                         })
                         .when_some(item.width, |t, w| t.w(w))
                         // Stretched tabs take an equal share: `flex_1` zeroes
@@ -1357,6 +1407,9 @@ impl RenderOnce for Tabs {
                             tab = tab.hover(move |style| style.text_color(hover_fg));
                         }
                     }
+                    if focused && !disabled {
+                        tab = crate::util::record_focus_bounds(tab, &list_focus, window, cx);
+                    }
                     list = list.child(tab);
                 }
             }
@@ -1396,7 +1449,7 @@ impl RenderOnce for Tabs {
                         // and its 80px minimum, and beats the stretch share
                         // whose `flex_1` basis of zero would ignore it.
                         .when(vertical && item.width.is_none(), |t| {
-                            t.w_full().min_w(VERTICAL_TAB_MIN_WIDTH)
+                            t.w_full().min_w(vertical_tab_min_width)
                         })
                         .when_some(item.width, |t, w| t.w(w))
                         // Stretched tabs take an equal share: `flex_1` zeroes
@@ -1567,6 +1620,9 @@ impl RenderOnce for Tabs {
                         } else {
                             tab = tab.hover(move |style| style.text_color(hover_fg));
                         }
+                    }
+                    if focused && !disabled {
+                        tab = crate::util::record_focus_bounds(tab, &list_focus, window, cx);
                     }
                     list = list.child(tab);
                 }
@@ -1901,3 +1957,5 @@ mod tabs_size_tests {
         );
     }
 }
+
+crate::util::impl_component_styled!(Tabs);

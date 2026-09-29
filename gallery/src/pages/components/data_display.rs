@@ -907,6 +907,80 @@ impl Gallery {
                             .into_any_element(),
                     ]),
                 ),
+                (
+                    "Column Reordering", "HeroGPUI extension, not a HeroUI v3 example (after gpui-kit's movable columns): `allows_column_reorder` lets a header be dragged onto another column's place, or moved with Alt+Left and Alt+Right while it has the focus (PageUp reaches the headers from the body). `column_order` is controlled here and fed back from `on_column_move`; cells, widths and the tree column move with their column.",
+                    specimen_body("tbl-column-reorder", stretch_col(vec![
+                        build("tbl-column-reorder")
+                            .allows_column_reorder(true)
+                            .column_order(self.table_column_order.clone())
+                            .on_column_move(cx.listener(|this, m: &h::ColumnMove, _, cx| {
+                                this.table_column_order = m.order.clone();
+                                cx.notify();
+                            }))
+                            .into_any_element(),
+                        para(
+                            &format!(
+                                "Order: {}",
+                                self.table_column_order
+                                    .iter()
+                                    .map(|c| ["Name", "Role", "Status"][*c])
+                                    .collect::<Vec<_>>()
+                                    .join(", ")
+                            ),
+                            cx,
+                        ),
+                    ]), cx),
+                ),
+                (
+                    "Cell Selection", "HeroGPUI extension, not a HeroUI v3 example (after gpui-kit's cell selection): with `cell_selectable`, a press selects the cell under the pointer, Left and Right move between the cells of a row, Home and End to its ends, and Up and Down to the same column of another row. `selected_cell` is controlled here and fed back from `on_cell_select`.",
+                    specimen_body("tbl-cell-selection", stretch_col(vec![
+                        build("tbl-cell-selection")
+                            .cell_selectable(true)
+                            .selected_cell(self.table_selected_cell.clone())
+                            .on_cell_select(cx.listener(|this, cell: &h::TableCell, _, cx| {
+                                this.table_selected_cell = Some(cell.clone());
+                                cx.notify();
+                            }))
+                            .into_any_element(),
+                        para(
+                            &match &self.table_selected_cell {
+                                Some(cell) => format!(
+                                    "Selected: row {}, {}",
+                                    cell.row,
+                                    ["Name", "Role", "Status"][cell.column]
+                                ),
+                                None => "Selected: nothing".to_owned(),
+                            },
+                            cx,
+                        ),
+                    ]), cx),
+                ),
+                (
+                    "Frozen Columns", "HeroGPUI extension, not a HeroUI v3 example: the Name column and the selection column stay visible while the other columns scroll horizontally. Use a horizontal wheel or trackpad gesture over either part; row selection and keyboard cell navigation still span the whole table.",
+                    specimen_body("tbl-frozen-columns", stretch_col(vec![
+                        gpui::div()
+                            .w(px(520.))
+                            .max_w_full()
+                            .child({
+                                let cell = |text: &str| {
+                                    gpui::div().child(text.to_owned()).into_any_element()
+                                };
+                                h::Table::new(vec![])
+                                    .id("tbl-frozen-columns")
+                                    .column(h::TableColumn::new("Name").frozen(true).min_width(px(180.)))
+                                    .column(h::TableColumn::new("Role").min_width(px(180.)))
+                                    .column(h::TableColumn::new("Department").min_width(px(180.)))
+                                    .column(h::TableColumn::new("Location").min_width(px(180.)))
+                                    .column(h::TableColumn::new("Status").min_width(px(180.)))
+                                    .selection_mode(SelectionMode::Multiple)
+                                    .row(vec![cell("Tony Reichert"), cell("CEO"), cell("Leadership"), cell("New York"), cell("Active")])
+                                    .row(vec![cell("Zoey Lang"), cell("Tech Lead"), cell("Engineering"), cell("London"), cell("Active")])
+                                    .row(vec![cell("Jane Fisher"), cell("Designer"), cell("Design"), cell("Berlin"), cell("Away")])
+                                    .into_any_element()
+                            })
+                            .into_any_element(),
+                    ]), cx),
+                ),
             ],
             cx,
         )

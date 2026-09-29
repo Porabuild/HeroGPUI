@@ -1,10 +1,11 @@
 {
   "name": "herogpui-web",
-  "version": "0.12.0",
+  "version": "0.13.0",
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "next build",
+    "build": "node scripts/gallery-artifact.mjs fetch && next build",
+    "gallery:fetch": "node scripts/gallery-artifact.mjs fetch",
     "start": "next start",
     "typegen": "next typegen",
     "pretypecheck": "pnpm run typegen",
@@ -14,7 +15,7 @@
     "format:check": "oxfmt --check .",
     "check": "pnpm run typecheck && pnpm run lint && pnpm run format:check",
     "extract": "node scripts/extract-reference.mjs && node scripts/extract-catalog.mjs && node scripts/extract-rust-examples.mjs && node scripts/extract-releases.mjs",
-    "extract:check": "node --test scripts/extract-rust-examples.test.mjs scripts/gallery-wheel.test.mjs && node scripts/extract-reference.mjs --check && node scripts/extract-catalog.mjs --check && node scripts/extract-rust-examples.mjs --check && node scripts/extract-releases.mjs --check && node scripts/extract-wasm-sections.mjs --check",
+    "extract:check": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --test scripts/extract-rust-examples.test.mjs scripts/gallery-wheel.test.mjs scripts/gallery-artifact.test.mjs scripts/source-links.test.mjs && node scripts/extract-reference.mjs --check && node scripts/extract-catalog.mjs --check && node scripts/extract-rust-examples.mjs --check && node scripts/extract-releases.mjs --check && node scripts/extract-wasm-sections.mjs --check",
     "wasm:manifest": "node scripts/extract-wasm-sections.mjs",
     "brand:sync": "node scripts/sync-porabuild-brand.mjs",
     "brand:check": "node scripts/sync-porabuild-brand.mjs --check"

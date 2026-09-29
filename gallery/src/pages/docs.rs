@@ -76,6 +76,7 @@ fn component_page_count() -> usize {
                     | Page::DarkMode
                     | Page::Customization
                     | Page::Styling
+                    | Page::Icons
                     | Page::DesignPrinciples
             )
         })
@@ -272,7 +273,7 @@ impl Gallery {
 }
 
 const CUSTOM_THEME_SNIPPET: &str = r#"use gpui::{px, CursorStyle};
-use herogpui::core::{oklch, FieldVariant};
+use herogpui::core::{oklch, Color, FieldVariant};
 use herogpui::theme::{
     snow, ButtonStyle, ComponentTheme, ComponentThemes, SelectStyle, SliderStyle,
     Theme,
@@ -280,7 +281,7 @@ use herogpui::theme::{
 
 let violet = Theme::builder("violet", Theme::light())
     .accent(oklch(0.55, 0.23, 295.0))   // hover / soft / focus all derive
-    .role("success", oklch(0.73, 0.19, 150.0), snow())
+    .role(Color::Success, oklch(0.73, 0.19, 150.0), snow())
     .radius(px(6.))                     // field_radius follows at 1.5x
     .cursor_interactive(CursorStyle::Arrow) // hover cursor for every control
     .tabs_hover_opacity(0.85)           // the unselected-tab hover dim

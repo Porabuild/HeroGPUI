@@ -76,13 +76,17 @@ Run what CI runs (`.github/workflows/ci.yml` is authoritative):
 
 ```sh
 cargo fmt --all -- --check
-cargo clippy --workspace --all-targets --locked -- -D warnings
+bash .shots/lint.sh   # lint inheritance, clippy -D warnings, cargo-deny
 bash .shots/run-tests.sh --workspace --locked
 RUSTDOCFLAGS="--cfg docsrs -D warnings" cargo doc --workspace --no-deps --locked
-cargo deny check
 python3 .shots/parity_report.py --output /tmp/parity-report.json
 (cd web && pnpm run extract:check && pnpm run typecheck && pnpm run lint)
 ```
+
+`herogpui`, `herogpui-core`, `herogpui-theme` and `herogpui-components` set
+`#![warn(missing_docs)]`, so Clippy's `-D warnings` fails on an undocumented
+public item: document it in the same change. Build with `--all-features` to
+see the feature-gated items too.
 
 Report in the pull request which checks you ran and which you could not run.
 

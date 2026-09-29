@@ -40,7 +40,7 @@
 //! (`"{:.0}"` of the percentage, or the component's own formatted `valueText`,
 //! which `NumberFormat::percent` writes as `"25%"`).
 
-mod harness;
+use crate::harness;
 
 use std::cell::RefCell;
 use std::rc::Rc;

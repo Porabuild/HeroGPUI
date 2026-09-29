@@ -39,6 +39,15 @@ impl Gallery {
                     ]), cx),
                 ),
                 (
+                    "Label Size",
+                    "`text_size` replaces the label's `text-sm`; a 12/14/16px size takes v3's 16/20/24 leading. The control keeps its size step.",
+                    specimen_body("cb-label-size", h::Checkbox::new("cb-label-size")
+                        .text_size(px(16.))
+                        .label(gpui::div().child("Larger label"))
+                        .description("The 16px control is unchanged")
+                        .into_any_element(), cx),
+                ),
+                (
                     "Sizes",
                     "`size` is additive, not a v3 prop: `Md` is the pinned 16px control; `Sm` is a 14px control with a 10px indicator and 12px label text.",
                     col(vec![
@@ -1049,6 +1058,19 @@ impl Gallery {
                         .into_any_element()]), cx),
                 ),
                 (
+                    "Hover Colour",
+                    "`group_hover_bg` names the fill the hovered group box fades to, in place of `--field-hover`; a focused, invalid or disabled group keeps its own chrome.",
+                    specimen_body("ig-hover-colour", field_col(vec![h::InputGroup::new()
+                        .label("Website")
+                        .group_hover_bg(cx.colors().accent.soft())
+                        .prefix(h::InputAddon::new("https://"))
+                        .input(
+                            h::Input::new(self.demo_text("ig-hover-colour", "", cx))
+                                .placeholder("example.com"),
+                        )
+                        .into_any_element()]), cx),
+                ),
+                (
                     "Variants",
                     field_col(vec![
                         specimen_body(
@@ -1633,6 +1655,17 @@ impl Gallery {
                     .height(px(28.))
                     .padding_x(px(8.))
                     .is_bare(true)
+                    .font_family(crate::app::MONO_FONT)
+                    .into_any_element()]), cx),
+                ),
+                (
+                    "Hover Colour",
+                    "`group_hover_bg` names the fill the hovered group fades to, in place of `--field-hover`; a focused, invalid or disabled group keeps its own chrome.",
+                    specimen_body("nf-hover-colour", field_col(vec![h::NumberField::new(
+                        self.demo_number("nf-hover-colour", 5., 0., 20., 1., cx),
+                    )
+                    .label("Quantity")
+                    .group_hover_bg(cx.colors().accent.soft())
                     .into_any_element()]), cx),
                 ),
                 (
@@ -1874,6 +1907,14 @@ impl Gallery {
                             None,
                         ])
                         .into_any_element()]), cx),
+                ),
+                (
+                    "Label Size",
+                    "`text_size` replaces the option labels' `text-sm`; a 12/14/16px size takes v3's 16/20/24 leading. The circles, gap and descriptions keep their size step.",
+                    specimen_body("rg-label-size", h::RadioGroup::new("rg-label-size", plans())
+                        .text_size(px(16.))
+                        .default_value("Free")
+                        .into_any_element(), cx),
                 ),
                 (
                     "Sizes",
@@ -2122,6 +2163,7 @@ impl Gallery {
                         .height(px(28.))
                         .padding_x(px(8.))
                         .is_bare(true)
+                        .font_family(crate::app::MONO_FONT)
                         .into_any_element()]), cx),
                 ),
                 (

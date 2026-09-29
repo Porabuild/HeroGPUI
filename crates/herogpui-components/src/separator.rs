@@ -23,12 +23,14 @@ pub enum SeparatorVariant {
 }
 
 impl SeparatorVariant {
+    /// Every separator variant, in declaration order.
     pub const ALL: [SeparatorVariant; 3] = [
         SeparatorVariant::Default,
         SeparatorVariant::Secondary,
         SeparatorVariant::Tertiary,
     ];
 
+    /// A human-readable label for this variant.
     pub fn label(self) -> &'static str {
         match self {
             SeparatorVariant::Default => "Default",
@@ -39,6 +41,7 @@ impl SeparatorVariant {
 }
 
 /// HeroUI Separator.
+#[must_use = "a component does nothing until it is rendered: add it as a child or return it from `render`"]
 #[derive(IntoElement)]
 pub struct Separator {
     orientation: Orientation,
@@ -55,6 +58,7 @@ pub struct Separator {
 }
 
 impl Separator {
+    /// Creates a horizontal separator.
     pub fn new() -> Self {
         Self {
             orientation: Orientation::Horizontal,
@@ -93,11 +97,13 @@ impl Separator {
         self
     }
 
+    /// Sets the separator orientation.
     pub fn orientation(mut self, orientation: Orientation) -> Self {
         self.orientation = orientation;
         self
     }
 
+    /// Sets the separator variant.
     pub fn variant(mut self, variant: SeparatorVariant) -> Self {
         self.variant = variant;
         self
@@ -108,7 +114,7 @@ impl Separator {
     /// applied to the separator's root element after every value the variant
     /// and the active theme chose, so they win.
     pub fn sx(mut self, style: impl FnOnce(gpui::Div) -> gpui::Div) -> Self {
-        self.sx = Some(crate::util::capture_sx(style));
+        crate::util::refine_sx(&mut self.sx, style);
         self
     }
 
@@ -208,3 +214,5 @@ fn finish_separator(el: gpui::Div, id: Option<ElementId>) -> AnyElement {
         None => el.into_any_element(),
     }
 }
+
+crate::util::impl_component_styled!(Separator);

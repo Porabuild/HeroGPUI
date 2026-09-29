@@ -16,10 +16,13 @@
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum NumberStyle {
     #[default]
+    /// Plain decimal number.
     Decimal,
     /// Multiplies by 100 and appends `%`.
     Percent,
+    /// Currency amount; uses `NumberFormat::currency`.
     Currency,
+    /// Number with a unit; uses `NumberFormat::unit`.
     Unit,
 }
 
@@ -27,6 +30,7 @@ pub enum NumberStyle {
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum CurrencySign {
     #[default]
+    /// Negative amounts are prefixed with a minus.
     Standard,
     /// Wraps a negative amount in parentheses instead of prefixing a minus.
     Accounting,
@@ -35,24 +39,34 @@ pub enum CurrencySign {
 /// `Intl.NumberFormatOptions["unitDisplay"]`.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum UnitDisplay {
+    /// Narrow unit form.
     Narrow,
     #[default]
+    /// Short unit form.
     Short,
+    /// Long unit form.
     Long,
 }
 
 /// The `formatOptions` subset these components use.
+#[must_use = "builder methods return a new value; the original is unchanged"]
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct NumberFormat {
+    /// How the number is styled.
     pub style: NumberStyle,
     /// ISO 4217 code, e.g. `"USD"`. Rendered as a symbol when one is known.
     pub currency: Option<&'static str>,
+    /// How negative currency amounts are written.
     pub currency_sign: CurrencySign,
     /// A CLDR unit identifier, e.g. `"kilogram"`.
     pub unit: Option<&'static str>,
+    /// How a unit is written.
     pub unit_display: UnitDisplay,
+    /// Minimum number of fraction digits, if set.
     pub minimum_fraction_digits: Option<u8>,
+    /// Maximum number of fraction digits, if set.
     pub maximum_fraction_digits: Option<u8>,
+    /// Whether digit groups are separated.
     pub use_grouping: bool,
 }
 
@@ -72,6 +86,7 @@ impl Default for NumberFormat {
 }
 
 impl NumberFormat {
+    /// `{style: "decimal"}`, the default format.
     pub fn decimal() -> Self {
         Self::default()
     }
@@ -102,26 +117,31 @@ impl NumberFormat {
         }
     }
 
+    /// Sets how negative currency amounts are written.
     pub fn currency_sign(mut self, sign: CurrencySign) -> Self {
         self.currency_sign = sign;
         self
     }
 
+    /// Sets how a unit is written.
     pub fn unit_display(mut self, display: UnitDisplay) -> Self {
         self.unit_display = display;
         self
     }
 
+    /// Sets the minimum number of fraction digits.
     pub fn minimum_fraction_digits(mut self, n: u8) -> Self {
         self.minimum_fraction_digits = Some(n);
         self
     }
 
+    /// Sets the maximum number of fraction digits.
     pub fn maximum_fraction_digits(mut self, n: u8) -> Self {
         self.maximum_fraction_digits = Some(n);
         self
     }
 
+    /// Sets whether digit groups are separated.
     pub fn use_grouping(mut self, v: bool) -> Self {
         self.use_grouping = v;
         self

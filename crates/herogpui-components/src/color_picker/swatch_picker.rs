@@ -35,8 +35,10 @@ mod tests {
 /// Layout of a [`ColorSwatchPicker`].
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum SwatchLayout {
+    /// Swatches wrapped in a grid.
     #[default]
     Grid,
+    /// Swatches stacked in a single column.
     Stack,
 }
 
@@ -44,16 +46,24 @@ pub enum SwatchLayout {
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
 #[non_exhaustive]
 pub struct ColorSwatchPickerItemState {
+    /// The swatch color.
     pub color: PickerColor,
+    /// Whether the swatch is hovered.
     pub is_hovered: bool,
+    /// Whether the swatch is pressed.
     pub is_pressed: bool,
+    /// Whether the swatch is selected.
     pub is_selected: bool,
+    /// Whether the swatch has focus.
     pub is_focused: bool,
+    /// Whether focus is visible (keyboard focus).
     pub is_focus_visible: bool,
+    /// Whether the swatch is disabled.
     pub is_disabled: bool,
 }
 
 /// ColorSwatchPicker — chooses from a predefined palette.
+#[must_use = "a component does nothing until it is rendered: add it as a child or return it from `render`"]
 #[derive(IntoElement)]
 pub struct ColorSwatchPicker {
     /// `defaultValue` — set it to hand this component its own state.
@@ -75,6 +85,7 @@ pub struct ColorSwatchPicker {
 }
 
 impl ColorSwatchPicker {
+    /// Creates a picker over `swatches`, with the first-party default size, shape and layout.
     pub fn new(id: impl Into<ElementId>, swatches: Vec<PickerColor>) -> Self {
         Self {
             default_value: None,
@@ -103,26 +114,31 @@ impl ColorSwatchPicker {
         self
     }
 
+    /// Sets the controlled selected color (`value`).
     pub fn value(mut self, value: PickerColor) -> Self {
         self.value = Some(value);
         self
     }
 
+    /// Sets the swatch size (`size`).
     pub fn size(mut self, size: SizeXl) -> Self {
         self.size = size;
         self
     }
 
+    /// Sets the swatch shape.
     pub fn shape(mut self, shape: SwatchShape) -> Self {
         self.shape = shape;
         self
     }
 
+    /// Sets the swatch layout.
     pub fn layout(mut self, layout: SwatchLayout) -> Self {
         self.layout = layout;
         self
     }
 
+    /// Sets whether the picker is disabled (`isDisabled`).
     pub fn is_disabled(mut self, v: bool) -> Self {
         self.is_disabled = v;
         self
@@ -164,6 +180,7 @@ impl ColorSwatchPicker {
         self
     }
 
+    /// Sets the handler called with the chosen color (`onChange`).
     pub fn on_change(
         mut self,
         handler: impl Fn(&PickerColor, &mut Window, &mut App) + 'static,
@@ -601,12 +618,15 @@ impl RenderOnce for ColorSwatchPicker {
                 });
             }
 
-            let cell = cell
+            let mut cell = cell
                 .a11y_named(
                     a11y::Role::RadioButton,
                     &a11y::Name::labelled(swatch.to_hex()),
                 )
                 .a11y_selected(selected);
+            if cursor_index == Some(index) {
+                cell = util::record_focus_bounds(cell, &swatch_focus, window, cx);
+            }
             let focus_motion =
                 color_focus_ring_motion(&item_id, swatch_ring && item_focused, window, cx);
             row = row.child(focus_motion.render(cell, Vec::new(), true, cx));

@@ -12,6 +12,7 @@ use gpui::{
 use herogpui_theme::{ActiveTheme, SkeletonAnimation};
 
 /// Loading placeholder (`Skeleton`).
+#[must_use = "a component does nothing until it is rendered: add it as a child or return it from `render`"]
 #[derive(IntoElement)]
 pub struct Skeleton {
     id: ElementId,
@@ -27,6 +28,7 @@ pub struct Skeleton {
 }
 
 impl Skeleton {
+    /// Creates a skeleton.
     pub fn new() -> Self {
         Self {
             id: "skeleton".into(),
@@ -50,16 +52,19 @@ impl Skeleton {
         self
     }
 
+    /// Sets the width.
     pub fn w(mut self, v: impl Into<Pixels>) -> Self {
         self.w = Some(v.into());
         self
     }
 
+    /// Sets the height.
     pub fn h(mut self, v: impl Into<Pixels>) -> Self {
         self.h = Some(v.into());
         self
     }
 
+    /// Sets the animation type.
     pub fn animation_type(mut self, animation: SkeletonAnimation) -> Self {
         self.animation_type = Some(animation);
         self
@@ -78,7 +83,7 @@ impl Skeleton {
     /// applied to the skeleton's root element after every value the component
     /// and the active theme chose, so they win.
     pub fn sx(mut self, style: impl FnOnce(gpui::Div) -> gpui::Div) -> Self {
-        self.sx = Some(crate::util::capture_sx(style));
+        crate::util::refine_sx(&mut self.sx, style);
         self
     }
 }
@@ -197,3 +202,5 @@ mod tests {
         );
     }
 }
+
+crate::util::impl_component_styled!(Skeleton);

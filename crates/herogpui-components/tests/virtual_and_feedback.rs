@@ -44,7 +44,7 @@
 //! the keyboard or by probing the smallest clickable surface — the 20px
 //! close button at a placement-derived coordinate.
 
-mod harness;
+use crate::harness;
 
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;

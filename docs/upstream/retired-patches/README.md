@@ -1,5 +1,9 @@
 # Retired GPUI deviations (not wired into any build)
 
+The upstream-ready versions of these changes, re-based onto `zed@d89e9c2`
+(`gpui-pre` 0.3.5) and split into one PR each, are in
+[`../prs/`](../prs/README.md).
+
 These five patches record what HeroGPUI used to carry as `[patch.crates-io]`
 path overrides against `gpui-pre` 0.3.3 (`zed@5b055fa`), before the workspace
 moved back to vanilla registry GPUI so that `cargo add herogpui` just works:

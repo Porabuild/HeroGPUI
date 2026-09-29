@@ -3,12 +3,14 @@ import Link from "next/link";
 import { PageHeader } from "@/components/ui/page-header";
 import { CodeBlock } from "@/components/ui/code-block";
 import { Callout } from "@/components/ui/callout";
+import { pageMetadata } from "@/lib/seo";
 
-export const metadata: Metadata = {
+export const metadata: Metadata = pageMetadata({
+  path: "/docs/getting-started/composition",
   title: "Composition",
   description:
     "Compound components as Rust builders: ordered children, composed parts, and render closures.",
-};
+});
 
 const BUILDER = `Button::new("save")
     .child("Save")              // ordered children: icon first,

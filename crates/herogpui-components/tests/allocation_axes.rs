@@ -1,5 +1,5 @@
 //! Probe the keyed selection axis directly, including a positive allocation control.
-mod harness;
+use crate::harness;
 
 use gpui::{prelude::*, AnyElement, SharedString, TestAppContext};
 use harness::open_host;

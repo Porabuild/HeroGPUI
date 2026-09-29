@@ -40,7 +40,7 @@
 //! probe against its uncontrolled path advances the deterministic clock first;
 //! Select and the bare calendars have no retained exit surface here.
 
-mod harness;
+use crate::harness;
 
 use std::{
     cell::{Cell, RefCell},
