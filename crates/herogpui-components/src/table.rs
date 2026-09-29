@@ -1854,6 +1854,7 @@ impl RenderOnce for Table {
                     virtual_scroll: load_more_virtual_scroll,
                     variable_scroll: load_more_variable_scroll,
                     muted,
+                    loading_text: crate::i18n::ui_string(crate::i18n::UiString::LoadingMore, cx),
                 },
             );
         }
@@ -2078,6 +2079,8 @@ struct LoadMore<'a> {
     virtual_scroll: Option<crate::VirtualListHandle>,
     variable_scroll: Option<(gpui::ListState, usize, Pixels)>,
     muted: gpui::Hsla,
+    /// The pending row's text, resolved through the i18n catalogue.
+    loading_text: SharedString,
 }
 
 // ---- Table::render part renderers ----
@@ -3860,6 +3863,7 @@ impl Table {
             virtual_scroll,
             variable_scroll,
             muted,
+            loading_text,
         } = load_more;
         if let Some(cb) = self.on_load_more.clone() {
             let scroll_offset = self.load_more_offset;
@@ -3950,7 +3954,7 @@ impl Table {
                     crate::spinner::Spinner::new(element_id::scoped(base_id, "load-spinner"))
                         .size(herogpui_core::Size::Sm),
                 )
-                .child("Loading\u{2026}");
+                .child(loading_text);
             table = table.child(sentinel);
         }
         table

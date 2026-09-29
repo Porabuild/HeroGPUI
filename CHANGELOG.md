@@ -323,6 +323,10 @@ for each breaking change with before/after code.
   composed fields forward it to their `Input` (so caret measurement agrees),
   the pickers set it on the trigger; detached rows keep `row_font_family`.
 
+- `UiString::LoadingMore`: `Table`'s pending load-more row ("Loading…") is
+  the last hard-coded chrome string and now resolves through the i18n
+  catalogue in all 13 locales (`UiString::ALL` is 31 keys).
+
 ### Fixed
 
 - `Accordion` (Surface): a solid `sx` background recolours the whole card.

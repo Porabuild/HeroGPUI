@@ -808,7 +808,8 @@ out of `reference_metadata`.
   `Hue`, `Saturation`, `Lightness`, `Brightness`, `Red`, `Green`, `Blue`,
   `Alpha` (colour channels; `ColorChannel::localized_label(cx)`, drawn by
   ColorSlider), `ClearSelection` (Autocomplete clear button), `Pagination`
-  (Pagination's navigation name). Resolution: exact override, then an
+  (Pagination's navigation name), `LoadingMore` (Table's pending load-more
+  row, `Loading…`). Resolution: exact override, then an
   override for the bare language, then the built-in table (exact tag, then
   language), then en-US. Built-in (`LOCALES`): en-US, de-DE, es-ES, fr-FR,
   it-IT, nl-NL, pl-PL, pt-BR, sv-SE, ja-JP, zh-CN, ko-KR, ru-RU, every key
