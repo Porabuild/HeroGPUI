@@ -818,6 +818,62 @@ impl Select {
     }
 }
 
+/// The controlled halves `render` resolves first: the open flag, the overlay
+/// registration and the selection in whichever mode is active. `controlled`
+/// takes `cx` mutably, so these precede every other read.
+struct SelectControlled {
+    is_open: bool,
+    open_own: Option<gpui::Entity<bool>>,
+    overlay_phase: util::OverlayPhase,
+    dismissal_token: util::OverlayToken,
+    multiple: bool,
+    selected: Option<SharedString>,
+    value_own: Option<gpui::Entity<Option<SharedString>>>,
+    selected_keys: Vec<SharedString>,
+    indices_own: Option<gpui::Entity<Vec<SharedString>>>,
+}
+
+/// Everything one Select frame shares between its painted parts: the
+/// controlled state, the keyed handles (focus, cursor, Shift-range anchor,
+/// scroll, typeahead) and the clear affordance's derived flags. `render`
+/// resolves it once in [`Select::frame`]; the trigger, its key handler, the
+/// clear buttons and the popover list all read this one copy.
+struct SelectFrame {
+    is_open: bool,
+    open_own: Option<gpui::Entity<bool>>,
+    overlay_phase: util::OverlayPhase,
+    dismissal_token: util::OverlayToken,
+    resolved_placement: Rc<Cell<Option<Placement>>>,
+    entry_placement: Placement,
+    multiple: bool,
+    selected: Option<SharedString>,
+    value_own: Option<gpui::Entity<Option<SharedString>>>,
+    selected_keys: Vec<SharedString>,
+    indices_own: Option<gpui::Entity<Vec<SharedString>>>,
+    keys: Vec<SharedString>,
+    focus_handle: gpui::FocusHandle,
+    cursor: gpui::Entity<Option<SharedString>>,
+    cursor_at: Option<usize>,
+    keyboard_press_open: gpui::Entity<Option<bool>>,
+    selection_range: gpui::Entity<SelectSelectionRange>,
+    list_scroll_now: gpui::UniformListScrollHandle,
+    panel_scroll_now: gpui::ScrollHandle,
+    typeahead: gpui::Entity<crate::list_nav::Typeahead>,
+    blur_scope: gpui::FocusHandle,
+    clear_empty: bool,
+    clear_enabled: bool,
+    clear_slots: Vec<util::Interaction>,
+    clear_hovered: bool,
+    clear_selection: SelectAction,
+    anchor_bounds: Rc<Cell<Option<gpui::Bounds<Pixels>>>>,
+    trigger_pressed: Rc<Cell<bool>>,
+}
+
+type SelectAction = std::sync::Arc<dyn Fn(&mut Window, &mut App)>;
+type OnOpenChange = std::sync::Arc<dyn Fn(&bool, &mut Window, &mut App) + 'static>;
+type OnSelectionChangeAll =
+    std::sync::Arc<dyn Fn(&[SharedString], &mut Window, &mut App) + 'static>;
+
 impl RenderOnce for Select {
     fn render(mut self, window: &mut Window, cx: &mut App) -> impl IntoElement {
         if !self.placeholder_is_set {
@@ -839,25 +895,6 @@ impl RenderOnce for Select {
             true,
         );
         let overlay_active = overlay_phase != util::OverlayPhase::Closed;
-        // The field popover resolves flips during prepaint. Keep the
-        // requested placement and the physical side in keyed state so the
-        // next entry frame uses the side that was actually painted.
-        let requested_placement = window.use_keyed_state(
-            element_id::scoped(&self.id, "requested-placement"),
-            cx,
-            |_, _| self.placement,
-        );
-        let resolved_placement = window.use_keyed_state(
-            element_id::scoped(&self.id, "resolved-placement"),
-            cx,
-            |_, _| Rc::new(Cell::new(None::<Placement>)),
-        );
-        if *requested_placement.read(cx) != self.placement {
-            requested_placement.update(cx, |placement, _| *placement = self.placement);
-            resolved_placement.read(cx).set(None);
-        }
-        let resolved_placement = resolved_placement.read(cx).clone();
-        let entry_placement = resolved_placement.get().unwrap_or(self.placement);
         let multiple = self.selection_mode == SelectionMode::Multiple;
         let (selected, value_own) = if multiple {
             (None, None)
@@ -883,6 +920,85 @@ impl RenderOnce for Select {
         } else {
             (Vec::new(), None)
         };
+        let frame = self.frame(
+            SelectControlled {
+                is_open,
+                open_own,
+                overlay_phase,
+                dismissal_token,
+                multiple,
+                selected,
+                value_own,
+                selected_keys,
+                indices_own,
+            },
+            window,
+            cx,
+        );
+        let colors = cx.colors().clone();
+        let layout = cx.layout().clone();
+        self.apply_theme(&colors, cx);
+        let mut field = self.trigger_field(&frame, &colors, &layout, window, cx);
+
+        // Down or Enter on a closed Select opens it, and the arrows then walk
+        // the options -- the same keys React Aria binds.
+        if !self.is_disabled {
+            field = self.trigger_keys(field, &frame);
+        }
+
+        let (value_text, value_slot) = self.trigger_value(&frame, &colors);
+        // `react-aria/dist/private/select/useSelect.mjs` derives the trigger
+        // from `useMenuTrigger({type: 'listbox'})`, so
+        // `.../overlays/useOverlayTrigger.mjs` gives it
+        // `'aria-haspopup': 'listbox'`, `'aria-expanded': isOpen` and
+        // `'aria-controls': isOpen ? overlayId : undefined`; HeroUI renders it
+        // as an RAC `Button` (`select/select.js`), i.e. a native `<button>`.
+        // Only `aria-expanded` ports: `aria-haspopup` and `aria-controls` have
+        // no gpui builder and no id graph to point at (see `crate::a11y`).
+        // `useSelect` names the trigger `aria-labelledby: [valueId, label]`,
+        // which resolves to the field's label followed by the drawn value.
+        field = field
+            .a11y_named(
+                a11y::Role::Button,
+                &a11y::Name::maybe(self.label.clone()).described(Some(value_text)),
+            )
+            .a11y_expanded(frame.is_open);
+        field = field.child(value_slot);
+        field = self.clear_buttons(field, &frame, &colors, window, cx);
+        field = self.trigger_indicator_slot(field, &frame, &colors, window, cx);
+        field = self.trigger_toggle(field, &frame);
+
+        // The popup anchors to the trigger bounds — not to the
+        // label-to-description wrapper root — the way RAC's
+        // `useOverlayPosition` positions against the trigger rect.
+        // `scrollable_field_popover` below reads these bounds to flip and
+        // cap the panel; the measure element itself only records them.
+        let field = crate::popover::PopoverTriggerMeasure::new(field, frame.anchor_bounds.clone());
+
+        let mut root = self.field_root(field);
+        root = self.root_dismissals(root, &frame);
+        let blur_scope = frame.blur_scope.clone();
+        if overlay_active && !self.items.is_empty() {
+            root = root.child(self.popover(frame, &colors, &layout, window, cx));
+        }
+
+        root = util::apply_sx(root, &self.sx);
+        root.track_focus(&blur_scope)
+    }
+}
+
+impl Select {
+    /// Mirrors the selection into the live form state and installs the
+    /// reset that restores the default selection.
+    fn sync_form(&self, controlled: &SelectControlled, window: &mut Window, cx: &mut App) {
+        let SelectControlled {
+            multiple,
+            ref selected,
+            ref selected_keys,
+            ref value_own,
+            ref indices_own,
+            ..
+        } = *controlled;
         let form_default_keys = if multiple {
             let reset_keys = if self.is_multiple_controlled {
                 self.selected_keys.clone()
@@ -900,7 +1016,7 @@ impl RenderOnce for Select {
         };
         sync_select_form(
             &self.form_state,
-            select_form_value(&self.items, &selected, &selected_keys),
+            select_form_value(&self.items, selected, selected_keys),
             self.is_invalid,
             !self.is_disabled,
         );
@@ -954,6 +1070,33 @@ impl RenderOnce for Select {
                 }
             }) as std::sync::Arc<dyn Fn(&mut Window, &mut App)>
         });
+    }
+
+    /// Resolves the frame's keyed handles and derived flags on top of the
+    /// controlled state.
+    fn frame(
+        &self,
+        controlled: SelectControlled,
+        window: &mut Window,
+        cx: &mut App,
+    ) -> SelectFrame {
+        self.sync_form(&controlled, window, cx);
+        let SelectControlled {
+            is_open,
+            open_own,
+            overlay_phase,
+            dismissal_token,
+            multiple,
+            selected,
+            value_own,
+            selected_keys,
+            indices_own,
+        } = controlled;
+        // The field popover resolves flips during prepaint. Keep the
+        // requested placement and the physical side in keyed state so the
+        // next entry frame uses the side that was actually painted.
+        let (resolved_placement, entry_placement) =
+            crate::popover::field_placement_feedback(window, cx, &self.id, self.placement);
 
         // The collection's keys in row order — the channel the selection,
         // the cursor and every report address.
@@ -1105,9 +1248,49 @@ impl RenderOnce for Select {
             })
             .read(cx)
             .clone();
-        let sem = *cx.role(Color::Accent);
-        let colors = cx.colors().clone();
-        let layout = cx.layout().clone();
+        // Whether the pointer went down on the trigger. The panel's
+        // outside-press dismissal treats the trigger as outside its own bounds,
+        // so a press on the trigger of an *open* list would dismiss it on the
+        // mouse-down *and* toggle it through the trigger's own click on the
+        // mouse-up -- one press, two contradictory reports, and the list ended
+        // up open. The trigger's capture-phase handler runs before the panel's
+        // `on_mouse_down_out` in the same dispatch, so the dismissal can see it
+        // and leave the close to the trigger's click.
+        let trigger_pressed = Rc::new(Cell::new(false));
+        SelectFrame {
+            is_open,
+            open_own,
+            overlay_phase,
+            dismissal_token,
+            resolved_placement,
+            entry_placement,
+            multiple,
+            selected,
+            value_own,
+            selected_keys,
+            indices_own,
+            keys,
+            focus_handle,
+            cursor,
+            cursor_at,
+            keyboard_press_open,
+            selection_range,
+            list_scroll_now,
+            panel_scroll_now,
+            typeahead,
+            blur_scope,
+            clear_empty,
+            clear_enabled,
+            clear_slots,
+            clear_hovered,
+            clear_selection,
+            anchor_bounds,
+            trigger_pressed,
+        }
+    }
+
+    /// Folds the theme's `select` recipe under the builder values.
+    fn apply_theme(&mut self, colors: &herogpui_theme::ThemeColors, cx: &App) {
         let select_theme = cx.theme().components.select.resolve(&self.recipes);
         if !self.variant_is_set {
             if let Some(variant) = select_theme.variant {
@@ -1130,11 +1313,26 @@ impl RenderOnce for Select {
         self.panel_padding = self.panel_padding.or(select_theme.panel_padding);
         self.radius = self.radius.or(select_theme.radius);
         if self.row_hover_bg.is_none() {
-            self.row_hover_bg = select_theme
-                .row_hover_bg
-                .map(|color| color.resolve(&colors));
+            self.row_hover_bg = select_theme.row_hover_bg.map(|color| color.resolve(colors));
         }
+    }
 
+    /// The trigger box: geometry, field chrome, focus ring and hover fade.
+    fn trigger_field(
+        &self,
+        frame: &SelectFrame,
+        colors: &herogpui_theme::ThemeColors,
+        layout: &herogpui_theme::LayoutTheme,
+        window: &mut Window,
+        cx: &mut App,
+    ) -> gpui::Stateful<gpui::Div> {
+        let SelectFrame {
+            is_open,
+            ref focus_handle,
+            clear_hovered,
+            ..
+        } = *frame;
+        let sem = *cx.role(Color::Accent);
         // `.select__trigger` is `min-h-9 ... text-sm`.
         let field_box = self.field;
         let (h, text) = (
@@ -1144,15 +1342,6 @@ impl RenderOnce for Select {
 
         let trigger_id = element_id::scoped(&self.id, "trigger");
         let trigger_selector = format!("select-trigger-{}", id_debug(&self.id));
-        // Whether the pointer went down on the trigger. The panel's
-        // outside-press dismissal treats the trigger as outside its own bounds,
-        // so a press on the trigger of an *open* list would dismiss it on the
-        // mouse-down *and* toggle it through the trigger's own click on the
-        // mouse-up -- one press, two contradictory reports, and the list ended
-        // up open. The trigger's capture-phase handler runs before the panel's
-        // `on_mouse_down_out` in the same dispatch, so the dismissal can see it
-        // and leave the close to the trigger's click.
-        let trigger_pressed = Rc::new(Cell::new(false));
         let trigger_radius = util::field_radius(cx);
         let trigger_focused = focus_handle.is_focused(window);
         let mut field = gpui::div()
@@ -1190,7 +1379,7 @@ impl RenderOnce for Select {
             // trigger's radius on a band two pixels further out and blur it.
             field = util::ring_overlay_if_focused(
                 field,
-                &focus_handle,
+                focus_handle,
                 true,
                 trigger_radius,
                 Vec::new(),
@@ -1240,386 +1429,127 @@ impl RenderOnce for Select {
         if self.full_width {
             field = field.w_full();
         }
+        field
+    }
 
-        // Down or Enter on a closed Select opens it, and the arrows then walk
-        // the options -- the same keys React Aria binds.
-        if !self.is_disabled {
-            let stops: Vec<usize> = (0..self.items.len())
-                .filter(|i| !self.disabled_keys.contains(&keys[*i]))
-                .collect();
-            // The full key list the range is resolved against -- disabled
-            // keys keep their positions so range spans stay indexable, while
-            // `stops` keeps their insertions out of the range.
-            let collection: Vec<SharedString> = keys.clone();
-            let selectable: Vec<SharedString> = stops.iter().map(|i| keys[*i].clone()).collect();
-            let held = cursor.clone();
-            let wrap = self.should_focus_wrap;
-            // Every option's text, so a typed letter can find one.
-            let labels: Vec<String> = self
-                .items
-                .iter()
-                .map(|item| item.label().to_string())
-                .collect();
-            let typed = typeahead;
-            let open_own_keys = open_own.clone();
-            let value_own_keys = value_own.clone();
-            let indices_own_keys = indices_own.clone();
-            let selected_held = selected.clone();
-            let selected_keys_held = selected_keys.clone();
-            let form_state_keys = self.form_state.clone();
-            let on_open_change = self.on_open_change.clone();
-            let on_select = self.on_selection_change.clone();
-            let on_select_all = self.on_selection_change_all.clone();
-            let range_keys = selection_range.clone();
-            let was_open = is_open;
-            let virtual_rows = self.row_height.is_some();
-            let key_list_scroll = list_scroll_now.clone();
-            let key_panel_scroll = panel_scroll_now.clone();
-            let fh = focus_handle.clone();
-            let press_open = keyboard_press_open.clone();
-            let row_keys = keys.clone();
-            let clear_keys = clear_selection.clone();
-            let key_focus = focus_handle.clone();
-            field = field
-                .track_focus(&focus_handle)
-                .key_context("Select")
-                .on_mouse_down(gpui::MouseButton::Left, move |_, window, cx| {
-                    window.focus(&fh, cx);
-                })
-                .on_key_down(move |event, window, cx| {
-                    if !key_focus.is_focused(window) {
-                        return;
-                    }
-                    let key = event.keystroke.key.as_str();
-                    if !was_open && clear_enabled && matches!(key, "backspace" | "delete") {
-                        cx.stop_propagation();
-                        window.prevent_default();
-                        // This key is consumed before the app root sees it.
-                        util::set_focus_visible(true, cx);
-                        clear_keys(window, cx);
-                        return;
-                    }
-                    if matches!(key, "enter" | "space") {
-                        // The browser's default newline can synthesize another
-                        // Enter through beforeinput, including while held.
-                        cx.stop_propagation();
-                        if event.is_held {
-                            return;
-                        }
-                        press_open.update(cx, |value, _| *value = Some(was_open));
-                    }
-                    if !was_open {
-                        // Closed: Down and Up open the list. Enter and Space are
-                        // *not* handled here -- the trigger has a click listener
-                        // and gpui fires those on Enter and Space for a focused
-                        // element, so handling them again would open and close
-                        // the list in one keystroke.
-                        if matches!(key, "down" | "up") {
-                            if let Some(held) = &open_own_keys {
-                                held.update(cx, |v, cx| {
-                                    *v = true;
-                                    cx.notify();
-                                });
-                            }
-                            if let Some(cb) = &on_open_change {
-                                cb(&true, window, cx);
-                            }
-                            return;
-                        }
-                        // A closed select still answers letters in single
-                        // mode: React Aria picks the matching option where it
-                        // stands rather than opening the list. A multiple
-                        // select answers no typeahead on the closed trigger --
-                        // the closed pick reports through the single-key
-                        // callback, which a set-valued selection has no use
-                        // for. Open, the RAC ListBox keeps its type-select and
-                        // moves the cursor without selecting, exactly as in
-                        // single mode.
-                        if multiple {
-                            return;
-                        }
-                        if !crate::list_nav::is_typeahead_key(key) {
-                            return;
-                        }
-                        let now = web_time::Instant::now();
-                        let (query, repeat) = typed.update(cx, |t, _| {
-                            let query = t.push(key, now);
-                            (query, t.is_repeat())
-                        });
-                        let selected_at = selected_held
-                            .as_ref()
-                            .and_then(|k| row_keys.iter().position(|key| key == k));
-                        let Some(found) = crate::list_nav::typeahead(
-                            &labels,
-                            &stops,
-                            selected_at,
-                            &query,
-                            repeat,
-                        ) else {
-                            return;
-                        };
-                        let found = row_keys[found].clone();
-                        if let Some(held) = &value_own_keys {
-                            form_state_keys.borrow_mut().value =
-                                crate::form::FormValue::Keys(vec![found.clone()]);
-                            held.update(cx, |v, cx| {
-                                *v = Some(found.clone());
-                                cx.notify();
-                            });
-                        }
-                        if let Some(cb) = &on_select {
-                            cb(&Some(found), window, cx);
-                        }
-                        return;
-                    }
-                    let from = held
-                        .read(cx)
-                        .as_ref()
-                        .and_then(|k| row_keys.iter().position(|key| key == k));
-                    let modifiers = event.keystroke.modifiers;
-                    // Pinned React Aria 3.51.0 `useSelectableCollection`
-                    // answers `Mod+A` with `selectAll` -- multiple mode only,
-                    // and only while the list is open. Pinned SelectState
-                    // drops the symbolic `all`: the uncontrolled set becomes
-                    // every enabled key while `on_selection_change_all` stays
-                    // silent, a repeat over a complete selection is not a
-                    // toggle, and a controlled owner's state is not this
-                    // keystroke's to mutate.
-                    if key == "a"
-                        && modifiers.secondary()
-                        && !modifiers.shift
-                        && !modifiers.alt
-                        && if cfg!(target_os = "macos") {
-                            !modifiers.control
-                        } else {
-                            !modifiers.platform
-                        }
-                        && multiple
-                    {
-                        let all: Vec<SharedString> =
-                            stops.iter().map(|i| row_keys[*i].clone()).collect();
-                        let complete = all.iter().all(|key| selected_keys_held.contains(key));
-                        if !complete {
-                            if let Some(held) = &indices_own_keys {
-                                form_state_keys.borrow_mut().value =
-                                    crate::form::FormValue::Keys(all.clone());
-                                held.update(cx, |selected, cx| {
-                                    *selected = all.clone();
-                                    cx.notify();
-                                });
-                                range_keys.update(cx, |range, _| {
-                                    *range = SelectSelectionRange {
-                                        is_all: true,
-                                        ..SelectSelectionRange::default()
-                                    };
-                                });
-                            }
-                        }
-                        cx.stop_propagation();
-                        return;
-                    }
-                    // Pinned React Aria 3.51.0 binds PageUp/PageDown only
-                    // while the collection has a focused key: mouse-opening a
-                    // selection-less Select leaves the cursor null, and the
-                    // page keys must stay inert until keyboard navigation
-                    // establishes one. With a cursor the list is
-                    // non-scrollable -- HeroUI v3.2.4 puts the overflow
-                    // scrolling on the Popover while the ListBox element is
-                    // `overflow-clip` -- so a page takes the enabled end:
-                    // `stops` already omits disabled rows, whatever the
-                    // list's length, row height, or scroll state. A closed
-                    // trigger answers no page key at all, so the closed
-                    // branch above never sees them.
-                    let page_move = match key {
-                        "pagedown" if from.is_some() => stops.last().copied(),
-                        "pageup" if from.is_some() => stops.first().copied(),
-                        _ => None,
-                    }
-                    .filter(|next| Some(*next) != from);
-                    match page_move.map_or_else(
-                        || crate::list_nav::resolve(&stops, from, key, wrap),
-                        crate::list_nav::Move::To,
-                    ) {
-                        crate::list_nav::Move::To(at) => {
-                            // The pinned registrations install no Home/End
-                            // handler for an unregistered chord -- Cmd- or
-                            // Ctrl-bearing on macOS, Alt- or platform-bearing
-                            // elsewhere -- so in either mode the whole event
-                            // stays inert: no cursor move, no selection, no
-                            // preventDefault.
-                            if matches!(key, "home" | "end")
-                                && !home_end_registered(modifiers, cfg!(target_os = "macos"))
-                            {
-                                return;
-                            }
-                            // A Shift extension reaches from the cursor, and a
-                            // null cursor is nothing to reach from: pinned
-                            // `useSelectableCollection` extends only from a
-                            // focused key, so the registered Shift+Home/End is
-                            // wholly inert rather than seating a fresh cursor.
-                            if matches!(key, "home" | "end") && modifiers.shift && from.is_none() {
-                                return;
-                            }
-                            let next = row_keys[at].clone();
-                            held.update(cx, |v, cx| {
-                                *v = Some(next.clone());
-                                cx.notify();
-                            });
-                            // React Aria keeps the focused option in view; the
-                            // highlight walking off the bottom of the list looks
-                            // like the arrows have stopped working.
-                            if virtual_rows {
-                                key_list_scroll.scroll_to_item(at, gpui::ScrollStrategy::Center);
-                            } else {
-                                key_panel_scroll.scroll_to_item(at);
-                            }
-                            // Pinned `useSelectableCollection`: Shift extends a
-                            // multiple selection over exactly the chords the
-                            // platform's registration admits, so the extension
-                            // gate reuses the Home/End registration map -- the
-                            // pinned matcher reads the browser's canonical
-                            // modifier flags only, and GPUI's `function` flag
-                            // never reaches it. The pinned arrow delegates
-                            // return null at an enabled boundary, so a
-                            // Shift+Arrow that held ran no extension at all
-                            // and must not report; Home and End resolve their
-                            // end key again, so their repeated registered
-                            // extension does report; and the page keys only
-                            // reach here off the unchanged filter above.
-                            let exact_shift_navigation =
-                                home_end_registered(modifiers, cfg!(target_os = "macos"));
-                            let extends_selection = multiple
-                                && modifiers.shift
-                                && exact_shift_navigation
-                                && shift_home_end_extends(
-                                    key,
-                                    modifiers.control,
-                                    cfg!(target_os = "macos"),
-                                )
-                                && (matches!(key, "home" | "end") || Some(at) != from);
-                            if extends_selection {
-                                let range = range_keys.read(cx).clone();
-                                let next_selection = extend_selection_range(
-                                    &selected_keys_held,
-                                    &collection,
-                                    &selectable,
-                                    &range,
-                                    &next,
-                                );
-                                range_keys.update(cx, |range, _| {
-                                    if range.anchor.is_none() {
-                                        range.anchor = Some(next.clone());
-                                    }
-                                    range.current = Some(next);
-                                    range.is_all = false;
-                                });
-                                // The uncontrolled set and the form only move
-                                // when the extension actually changed something,
-                                // but pinned `useMultipleSelectionState` with
-                                // Select's `allowDuplicateSelectionEvents`
-                                // reports every extension it is handed -- so a
-                                // repeated registered Shift+Home/End that
-                                // resolved the end already held still reports.
-                                if next_selection != selected_keys_held {
-                                    if let Some(held) = &indices_own_keys {
-                                        form_state_keys.borrow_mut().value =
-                                            crate::form::FormValue::Keys(next_selection.clone());
-                                        held.update(cx, |selected, cx| {
-                                            *selected = next_selection.clone();
-                                            cx.notify();
-                                        });
-                                    }
-                                }
-                                if let Some(cb) = &on_select_all {
-                                    cb(&next_selection, window, cx);
-                                }
-                            }
-                        }
-                        crate::list_nav::Move::Activate => {
-                            // Select on key-down; the trigger click owns closing
-                            // on key-up.
-                            let Some(at) = from else { return };
-                            let key = &row_keys[at];
-                            if multiple {
-                                let added = !selected_keys_held.contains(key);
-                                let mut next = selected_keys_held.clone();
-                                toggle_key(&mut next, key);
-                                let next = in_collection_order(&next, &row_keys);
-                                // Pinned `toggleSelection` re-anchors on the
-                                // add, and a deselect only ends a raw `all`
-                                // so the next Shift move extends instead of
-                                // collapsing to its target.
-                                if added {
-                                    range_keys.update(cx, |range, _| {
-                                        range.anchor = Some(key.clone());
-                                        range.current = Some(key.clone());
-                                        range.is_all = false;
-                                    });
-                                } else {
-                                    range_keys.update(cx, |range, _| {
-                                        if range.is_all {
-                                            *range = SelectSelectionRange::default();
-                                        }
-                                    });
-                                }
-                                if let Some(held) = &indices_own_keys {
-                                    form_state_keys.borrow_mut().value =
-                                        crate::form::FormValue::Keys(next.clone());
-                                    held.update(cx, |selected, cx| {
-                                        *selected = next.clone();
-                                        cx.notify();
-                                    });
-                                }
-                                if let Some(cb) = &on_select_all {
-                                    cb(&next, window, cx);
-                                }
-                                return;
-                            }
-                            if let Some(held) = &value_own_keys {
-                                form_state_keys.borrow_mut().value =
-                                    crate::form::FormValue::Keys(vec![key.clone()]);
-                                held.update(cx, |v, cx| {
-                                    *v = Some(key.clone());
-                                    cx.notify();
-                                });
-                            }
-                            if let Some(cb) = &on_select {
-                                cb(&Some(key.clone()), window, cx);
-                            }
-                        }
-                        crate::list_nav::Move::Ignore => {
-                            // Typeahead moves the cursor over the open list in
-                            // either mode -- the open RAC ListBox keeps its
-                            // type-select in multiple mode too -- and the move
-                            // selects nothing.
-                            if !crate::list_nav::is_typeahead_key(key) {
-                                return;
-                            }
-                            let now = web_time::Instant::now();
-                            let (query, repeat) = typed.update(cx, |t, _| {
-                                let query = t.push(key, now);
-                                (query, t.is_repeat())
-                            });
-                            if let Some(found) =
-                                crate::list_nav::typeahead(&labels, &stops, from, &query, repeat)
-                            {
-                                let found = row_keys[found].clone();
-                                held.update(cx, |v, cx| {
-                                    *v = Some(found);
-                                    cx.notify();
-                                });
-                            }
-                        }
-                    }
-                });
-        }
-
-        let value_text = if multiple {
-            self.value_text_multiple(&selected_keys)
-        } else {
-            self.value_text_single(&selected)
+    /// Focus tracking and the trigger's key handler.
+    fn trigger_keys(
+        &self,
+        field: gpui::Stateful<gpui::Div>,
+        frame: &SelectFrame,
+    ) -> gpui::Stateful<gpui::Div> {
+        let SelectFrame {
+            is_open,
+            ref open_own,
+            multiple,
+            ref selected,
+            ref value_own,
+            ref selected_keys,
+            ref indices_own,
+            ref keys,
+            ref focus_handle,
+            ref cursor,
+            ref keyboard_press_open,
+            ref selection_range,
+            ref list_scroll_now,
+            ref panel_scroll_now,
+            ref typeahead,
+            clear_enabled,
+            ref clear_selection,
+            ..
+        } = *frame;
+        let stops: Vec<usize> = (0..self.items.len())
+            .filter(|i| !self.disabled_keys.contains(&keys[*i]))
+            .collect();
+        // The full key list the range is resolved against -- disabled
+        // keys keep their positions so range spans stay indexable, while
+        // `stops` keeps their insertions out of the range.
+        let collection: Vec<SharedString> = keys.clone();
+        let selectable: Vec<SharedString> = stops.iter().map(|i| keys[*i].clone()).collect();
+        let held = cursor.clone();
+        let wrap = self.should_focus_wrap;
+        // Every option's text, so a typed letter can find one.
+        let labels: Vec<String> = self
+            .items
+            .iter()
+            .map(|item| item.label().to_string())
+            .collect();
+        let typed = typeahead.clone();
+        let open_own_keys = open_own.clone();
+        let value_own_keys = value_own.clone();
+        let indices_own_keys = indices_own.clone();
+        let selected_held = selected.clone();
+        let selected_keys_held = selected_keys.clone();
+        let form_state_keys = self.form_state.clone();
+        let on_open_change = self.on_open_change.clone();
+        let on_select = self.on_selection_change.clone();
+        let on_select_all = self.on_selection_change_all.clone();
+        let range_keys = selection_range.clone();
+        let was_open = is_open;
+        let virtual_rows = self.row_height.is_some();
+        let key_list_scroll = list_scroll_now.clone();
+        let key_panel_scroll = panel_scroll_now.clone();
+        let fh = focus_handle.clone();
+        let press_open = keyboard_press_open.clone();
+        let row_keys = keys.clone();
+        let clear_keys = clear_selection.clone();
+        let key_focus = focus_handle.clone();
+        let handler = SelectTriggerKeys {
+            stops,
+            collection,
+            selectable,
+            held,
+            wrap,
+            labels,
+            typed,
+            open_own_keys,
+            value_own_keys,
+            indices_own_keys,
+            selected_held,
+            selected_keys_held,
+            form_state_keys,
+            on_open_change,
+            on_select,
+            on_select_all,
+            range_keys,
+            was_open,
+            virtual_rows,
+            key_list_scroll,
+            key_panel_scroll,
+            press_open,
+            row_keys,
+            clear_keys,
+            key_focus,
+            clear_enabled,
+            multiple,
         };
-        let chosen = resolved_keys(&self.items, &selected, &selected_keys);
+        field
+            .track_focus(focus_handle)
+            .key_context("Select")
+            .on_mouse_down(gpui::MouseButton::Left, move |_, window, cx| {
+                window.focus(&fh, cx);
+            })
+            .on_key_down(move |event, window, cx| handler.on_key_down(event, window, cx))
+    }
+
+    /// The trigger's value text and the slot that draws it.
+    fn trigger_value(
+        &self,
+        frame: &SelectFrame,
+        colors: &herogpui_theme::ThemeColors,
+    ) -> (SharedString, gpui::AnyElement) {
+        let SelectFrame {
+            multiple,
+            ref selected,
+            ref selected_keys,
+            ..
+        } = *frame;
+        let value_text = if multiple {
+            self.value_text_multiple(selected_keys)
+        } else {
+            self.value_text_single(selected)
+        };
+        let chosen = resolved_keys(&self.items, selected, selected_keys);
         let has_value = !chosen.is_empty();
         // The chosen rows' labels and positions, walked in collection order so
         // the value slot's `selectedItems` and `selectedIndices` agree.
@@ -1674,24 +1604,32 @@ impl RenderOnce for Select {
             }
             None => default_children,
         };
-        // `react-aria/dist/private/select/useSelect.mjs` derives the trigger
-        // from `useMenuTrigger({type: 'listbox'})`, so
-        // `.../overlays/useOverlayTrigger.mjs` gives it
-        // `'aria-haspopup': 'listbox'`, `'aria-expanded': isOpen` and
-        // `'aria-controls': isOpen ? overlayId : undefined`; HeroUI renders it
-        // as an RAC `Button` (`select/select.js`), i.e. a native `<button>`.
-        // Only `aria-expanded` ports: `aria-haspopup` and `aria-controls` have
-        // no gpui builder and no id graph to point at (see `crate::a11y`).
-        // `useSelect` names the trigger `aria-labelledby: [valueId, label]`,
-        // which resolves to the field's label followed by the drawn value.
-        field = field
-            .a11y_named(
-                a11y::Role::Button,
-                &a11y::Name::maybe(self.label.clone()).described(Some(value_text)),
-            )
-            .a11y_expanded(is_open);
-        field = field.child(value_slot);
-        for (index, (button, slot)) in self.clear_buttons.into_iter().zip(clear_slots).enumerate() {
+        (value_text, value_slot)
+    }
+
+    /// The composed `Select.ClearButton`s, each a stable pointer target over
+    /// an animated visual.
+    fn clear_buttons(
+        &mut self,
+        mut field: gpui::Stateful<gpui::Div>,
+        frame: &SelectFrame,
+        colors: &herogpui_theme::ThemeColors,
+        window: &mut Window,
+        cx: &mut App,
+    ) -> gpui::Stateful<gpui::Div> {
+        let SelectFrame {
+            ref focus_handle,
+            clear_empty,
+            clear_enabled,
+            ref clear_slots,
+            ref clear_selection,
+            ..
+        } = *frame;
+        for (index, (button, slot)) in std::mem::take(&mut self.clear_buttons)
+            .into_iter()
+            .zip(clear_slots)
+            .enumerate()
+        {
             let id = element_id::scoped(&self.id, format!("clear-button-{index}"));
             let pressed = clear_enabled && slot.read(cx).1;
             let hovered = clear_enabled && slot.read(cx).0;
@@ -1768,7 +1706,7 @@ impl RenderOnce for Select {
             if clear_enabled {
                 let focus = focus_handle.clone();
                 let clear = clear_selection.clone();
-                target = util::track_interaction_on_mouse_down(target, &slot, move |window, cx| {
+                target = util::track_interaction_on_mouse_down(target, slot, move |window, cx| {
                     window.focus(&focus, cx);
                     cx.stop_propagation();
                 })
@@ -1792,6 +1730,19 @@ impl RenderOnce for Select {
                     .child(target),
             );
         }
+        field
+    }
+
+    /// The absolute `.select__indicator` end slot.
+    fn trigger_indicator_slot(
+        &mut self,
+        mut field: gpui::Stateful<gpui::Div>,
+        frame: &SelectFrame,
+        colors: &herogpui_theme::ThemeColors,
+        window: &mut Window,
+        cx: &mut App,
+    ) -> gpui::Stateful<gpui::Div> {
+        let is_open = frame.is_open;
         // `.select__indicator`: clear compositions reserve its absolute end
         // slot. HeroUI keeps one down-chevron in the tree and rotates it over
         // 150ms; do the same for the built-in SVG. A caller-provided trigger
@@ -1823,12 +1774,29 @@ impl RenderOnce for Select {
                 .justify_center()
                 .child(indicator),
         );
+        field
+    }
 
+    /// The trigger's press: toggles the popover and reports the change.
+    fn trigger_toggle(
+        &self,
+        mut field: gpui::Stateful<gpui::Div>,
+        frame: &SelectFrame,
+    ) -> gpui::Stateful<gpui::Div> {
+        let SelectFrame {
+            is_open,
+            ref open_own,
+            multiple,
+            ref keyboard_press_open,
+            ref trigger_pressed,
+            ..
+        } = *frame;
         if !self.is_disabled && (self.on_open_change.is_some() || open_own.is_some()) {
             let on_open_change = self.on_open_change.clone();
             let own = open_own.clone();
             let open = is_open;
             let pressed = trigger_pressed.clone();
+            let keyboard_press_open = keyboard_press_open.clone();
             field = field
                 .capture_any_mouse_down(move |_, _, cx| {
                     pressed.set(true);
@@ -1883,14 +1851,11 @@ impl RenderOnce for Select {
                     }
                 });
         }
+        field
+    }
 
-        // The popup anchors to the trigger bounds — not to the
-        // label-to-description wrapper root — the way RAC's
-        // `useOverlayPosition` positions against the trigger rect.
-        // `scrollable_field_popover` below reads these bounds to flip and
-        // cap the panel; the measure element itself only records them.
-        let field = crate::popover::PopoverTriggerMeasure::new(field, anchor_bounds.clone());
-
+    /// The root: the trigger alone, or wrapped with its label and description.
+    fn field_root(&self, field: impl IntoElement) -> gpui::Div {
         // listbox panel
         let mut root = gpui::div().relative();
         root = if self.full_width {
@@ -1920,7 +1885,17 @@ impl RenderOnce for Select {
         } else {
             root = root.child(field);
         }
+        root
+    }
 
+    /// Escape, and — for an empty list — the outside press.
+    fn root_dismissals(&self, mut root: gpui::Div, frame: &SelectFrame) -> gpui::Div {
+        let SelectFrame {
+            ref open_own,
+            ref dismissal_token,
+            ..
+        } = *frame;
+        let overlay_active = frame.overlay_phase != util::OverlayPhase::Closed;
         let escape_own = open_own.clone();
         let escape_cb = self.on_open_change.clone();
         root =
@@ -1957,21 +1932,24 @@ impl RenderOnce for Select {
                 },
             );
         }
+        root
+    }
 
-        if overlay_active && !self.items.is_empty() {
-            // The `debug_selector` spellings `pickers_deep.rs` queries on --
-            // labels, not ids; the ids beside them derive from `self.id`.
-            let base = format!("select-list-{}", id_debug(&self.id));
-            let base_id = element_id::scoped(&self.id, "list");
-            // `useListBox` is named through `useField`, i.e. by the same
-            // `<Label>` the trigger points at.
-            let list_name = self.label.clone();
-            let options_len = self.items.len();
-            let panel_interactive = overlay_phase == util::OverlayPhase::Open;
-            // The entry zoom interpolates the panel's own radius, so one
-            // binding feeds both the painted shape and the animation.
-            let radius = self.radius.unwrap_or_else(|| util::container_radius(cx));
-            let panel = gpui::div()
+    /// The popover's scrolling `ListBox` surface: `bg-overlay`, the panel
+    /// radius, the dark-mode hairline and the overlay shadow.
+    fn panel_surface(
+        &self,
+        base: &str,
+        base_id: &gpui::ElementId,
+        radius: Pixels,
+        panel_scroll_now: &gpui::ScrollHandle,
+        colors: &herogpui_theme::ThemeColors,
+        layout: &herogpui_theme::LayoutTheme,
+    ) -> gpui::Stateful<gpui::Div> {
+        // `useListBox` is named through `useField`, i.e. by the same
+        // `<Label>` the trigger points at.
+        let list_name = self.label.clone();
+        gpui::div()
                 .w_full()
                 .flex()
                 .flex_col()
@@ -1987,7 +1965,7 @@ impl RenderOnce for Select {
                 .shadow(layout.overlay_shadow.clone())
                 // `.select__popover` is `overflow-y-auto`: a long list scrolls
                 // rather than being clipped. gpui needs an id for that.
-                .id(element_id::scoped(&base_id, "scroll"))
+                .id(element_id::scoped(base_id, "scroll"))
                 // RAC's `Select` puts a `ListBox` inside the popover, and
                 // `react-aria/dist/private/listbox/useListBox.mjs` is one
                 // literal `role: 'listbox'` with `'aria-orientation'`
@@ -1997,127 +1975,768 @@ impl RenderOnce for Select {
                 .a11y_named(a11y::Role::ListBox, &a11y::Name::maybe(list_name))
                 .a11y_orientation(herogpui_core::Orientation::Vertical)
                 .debug_selector({
-                    let base = base.clone();
+                    let base = base.to_owned();
                     move || format!("{base}-panel")
                 })
                 .overflow_y_scroll()
                 // `overscroll-contain` upstream: a wheel over the popup must
                 // not scroll the page behind it (ColorPicker pattern).
                 .occlude()
-                .track_scroll(&panel_scroll_now)
+                .track_scroll(panel_scroll_now)
                 // RAC caps the popover at the available viewport height
                 // (`calculatePosition`'s `getMaxHeight`); the positioner
                 // below re-lays the panel out with that cap, so the panel
                 // carries a viewport-relative bound rather than a fixed one.
-                .max_h_full();
+                .max_h_full()
+    }
 
-            // React Aria dismisses the list on a press outside it. Escape is
-            // already read by the trigger's key handler, so only the press half
-            // is added here. A press that started on the trigger is not an
-            // outside press: the trigger's own click owns the close (and the
-            // click only fires because the down was not stolen as a dismissal).
-            let dismiss_own = open_own.clone();
-            let dismiss_cb = self.on_open_change.clone();
-            let mut panel = util::dismiss_on_press_outside_with_token(
+    /// The listbox popover: panel surface, dismissal, rows and motion.
+    fn popover(
+        &mut self,
+        frame: SelectFrame,
+        colors: &herogpui_theme::ThemeColors,
+        layout: &herogpui_theme::LayoutTheme,
+        window: &mut Window,
+        cx: &mut App,
+    ) -> gpui::Deferred {
+        let SelectFrame {
+            open_own,
+            overlay_phase,
+            dismissal_token,
+            resolved_placement,
+            entry_placement,
+            multiple,
+            selected,
+            value_own,
+            selected_keys,
+            indices_own,
+            keys,
+            focus_handle,
+            cursor,
+            cursor_at,
+            selection_range,
+            list_scroll_now,
+            panel_scroll_now,
+            anchor_bounds,
+            trigger_pressed,
+            ..
+        } = frame;
+        // The `debug_selector` spellings `pickers_deep.rs` queries on --
+        // labels, not ids; the ids beside them derive from `self.id`.
+        let base = format!("select-list-{}", id_debug(&self.id));
+        let base_id = element_id::scoped(&self.id, "list");
+        let options_len = self.items.len();
+        let panel_interactive = overlay_phase == util::OverlayPhase::Open;
+        // The entry zoom interpolates the panel's own radius, so one
+        // binding feeds both the painted shape and the animation.
+        let radius = self.radius.unwrap_or_else(|| util::container_radius(cx));
+        let panel = self.panel_surface(&base, &base_id, radius, &panel_scroll_now, colors, layout);
+
+        // React Aria dismisses the list on a press outside it. Escape is
+        // already read by the trigger's key handler, so only the press half
+        // is added here. A press that started on the trigger is not an
+        // outside press: the trigger's own click owns the close (and the
+        // click only fires because the down was not stolen as a dismissal).
+        let dismiss_own = open_own.clone();
+        let dismiss_cb = self.on_open_change.clone();
+        let mut panel =
+            util::dismiss_on_press_outside_with_token(panel, dismissal_token, move |window, cx| {
+                if trigger_pressed.get() {
+                    return util::DismissResult::Declined;
+                }
+                if let Some(held) = &dismiss_own {
+                    held.update(cx, |v, cx| {
+                        *v = false;
+                        cx.notify();
+                    });
+                }
+                if let Some(cb) = &dismiss_cb {
+                    cb(&false, window, cx);
+                }
+                util::DismissResult::Handled
+            });
+
+        // `useOption` adds the set position only under virtualization;
+        // `row_height` is what turns this list into a windowed one.
+        let row_virtualized = self.row_height.is_some();
+        let row_disabled_opacity = layout.disabled_opacity;
+        // Everything a row reads, owned: `uniform_list`'s callback is
+        // `'static` and is called again on every scroll, so it cannot
+        // borrow `self` -- and one row builder for both paths is what keeps
+        // a virtual list drawing the same row as a short one.
+        let items = self.items.clone();
+        let sections = self.sections.clone();
+        let opt_disabled_keys = self.disabled_keys.clone();
+        // The key list the range is resolved against and the enabled
+        // keys that may join it, for the Shift-click extension.
+        let collection_rows: Vec<SharedString> = keys.clone();
+        let selectable_rows: Vec<SharedString> = (0..options_len)
+            .filter(|i| !self.disabled_keys.contains(&keys[*i]))
+            .map(|i| keys[i].clone())
+            .collect();
+        let range_rows = selection_range;
+        let cursor_rows = cursor;
+        let focus_rows = focus_handle;
+        let indicator: Option<Rc<dyn Fn(bool) -> gpui::AnyElement>> =
+            self.indicator.take().map(Rc::from);
+        #[allow(clippy::type_complexity)]
+        let item_leading: Option<
+            Rc<dyn Fn(&SharedString, bool) -> Option<gpui::AnyElement>>,
+        > = self.item_leading.take().map(Rc::from);
+        let on_change_all = self.on_selection_change_all.clone();
+        let on_change_one = self.on_selection_change.clone();
+        let value_own = value_own;
+        let open_own = open_own;
+        let form_state_rows = self.form_state.clone();
+        let on_close = self.on_open_change.clone();
+        let base_row = base;
+        let base_row_id = base_id.clone();
+        let row_text_size = self.row_text_size.unwrap_or(util::FIELD_TEXT);
+        let row_padding_x = self.row_padding_x.unwrap_or(px(10.));
+        let row_font_family = self.row_font_family.clone();
+        let row_padding_y = self.row_padding_y.unwrap_or(px(6.));
+        let rows = SelectRows {
+            colors: colors.clone(),
+            row_hover_bg: self.row_hover_bg,
+            multiple,
+            selected,
+            selected_keys,
+            cursor_at,
+            panel_interactive,
+            options_len,
+            row_virtualized,
+            row_disabled_opacity,
+            items,
+            sections,
+            opt_disabled_keys,
+            collection_rows,
+            selectable_rows,
+            range_rows,
+            cursor_rows,
+            focus_rows,
+            indicator,
+            item_leading,
+            on_change_all,
+            on_change_one,
+            indices_own,
+            value_own,
+            open_own,
+            form_state_rows,
+            on_close,
+            base_row,
+            base_row_id,
+            row_text_size,
+            row_padding_x,
+            row_font_family,
+            row_padding_y,
+        };
+
+        match self.row_height {
+            // Virtual: only the rows in view are built, which is what makes
+            // a thousand options affordable. The list itself is the scroll
+            // container: `Infer` sizes it from its rows — the full
+            // natural height on the positioner's measure pass (so the
+            // flip sees the real extent, like upstream's `overlaySize`),
+            // capped to the available height on the capped pass — while
+            // the ListBox stays `overflow-clip`, as in v3. A fixed inner
+            // height plus an outer scroller would nest two scroll
+            // containers and strand rows between them.
+            Some(row_height) => {
+                panel = panel.child(
+                    gpui::uniform_list(
+                        element_id::scoped(&base_id, "rows"),
+                        options_len,
+                        move |range, _window, cx| {
+                            range
+                                .map(|i| rows.row(i, Some(row_height), _window, cx))
+                                .collect::<Vec<_>>()
+                        },
+                    )
+                    .track_scroll(&list_scroll_now)
+                    .with_sizing_behavior(gpui::ListSizingBehavior::Infer)
+                    .w_full(),
+                );
+            }
+            None => {
+                for i in 0..options_len {
+                    panel = panel.child(rows.row(i, None, window, cx));
+                }
+            }
+        }
+
+        let (slide_x, slide_y) = crate::popover::placement_entry_offset(entry_placement);
+        let zoom = crate::anim::ZoomBox::panel(self.panel_padding.unwrap_or(px(6.)), radius);
+        let zoom = crate::anim::ZoomBox {
+            slide_x: (slide_x != 0.0).then(|| px(slide_x)),
+            slide_y: (slide_y != 0.0).then(|| px(slide_y)),
+            ..zoom
+        };
+        let panel = if overlay_phase == util::OverlayPhase::Exiting {
+            crate::anim::exiting(
                 panel,
-                dismissal_token,
-                move |window, cx| {
-                    if trigger_pressed.get() {
-                        return util::DismissResult::Declined;
+                element_id::scoped(&base_id, "panel-out"),
+                zoom,
+                crate::anim::Motion::LIST_OUT,
+                cx,
+            )
+        } else {
+            crate::anim::entering_zoom(
+                panel,
+                element_id::scoped(&base_id, "panel"),
+                zoom,
+                crate::anim::Motion::LIST_IN,
+                cx,
+            )
+        };
+        // RAC positions the popover against the trigger with an 8px gap,
+        // flips it when the other side has more room, and caps it at the
+        // available viewport height past a 12px inset — which `Select`
+        // inherits unchanged from `useOverlayPosition`/`Popover`.
+        util::floating(
+            crate::popover::scrollable_field_popover_with_resolved_placement(
+                anchor_bounds,
+                self.placement,
+                Some(resolved_placement),
+                panel,
+            ),
+        )
+    }
+}
+
+/// The trigger's key handler, holding everything it reads. The handler is
+/// `'static`, so it owns copies of the frame's state rather than borrowing
+/// the Select; each branch of the pinned keyboard contract is one method.
+struct SelectTriggerKeys {
+    stops: Vec<usize>,
+    collection: Vec<SharedString>,
+    selectable: Vec<SharedString>,
+    held: gpui::Entity<Option<SharedString>>,
+    wrap: bool,
+    labels: Vec<String>,
+    typed: gpui::Entity<crate::list_nav::Typeahead>,
+    open_own_keys: Option<gpui::Entity<bool>>,
+    value_own_keys: Option<gpui::Entity<Option<SharedString>>>,
+    indices_own_keys: Option<gpui::Entity<Vec<SharedString>>>,
+    selected_held: Option<SharedString>,
+    selected_keys_held: Vec<SharedString>,
+    form_state_keys: Rc<RefCell<crate::form::LiveFormFieldState>>,
+    on_open_change: Option<OnOpenChange>,
+    on_select: Option<OnSelectionChange>,
+    on_select_all: Option<OnSelectionChangeAll>,
+    range_keys: gpui::Entity<SelectSelectionRange>,
+    was_open: bool,
+    virtual_rows: bool,
+    key_list_scroll: gpui::UniformListScrollHandle,
+    key_panel_scroll: gpui::ScrollHandle,
+    press_open: gpui::Entity<Option<bool>>,
+    row_keys: Vec<SharedString>,
+    clear_keys: SelectAction,
+    key_focus: gpui::FocusHandle,
+    clear_enabled: bool,
+    multiple: bool,
+}
+
+impl SelectTriggerKeys {
+    fn on_key_down(&self, event: &gpui::KeyDownEvent, window: &mut Window, cx: &mut App) {
+        let Self {
+            ref stops,
+            ref held,
+            wrap,
+            ref indices_own_keys,
+            ref selected_keys_held,
+            ref form_state_keys,
+            ref range_keys,
+            was_open,
+            ref press_open,
+            ref row_keys,
+            ref clear_keys,
+            ref key_focus,
+            clear_enabled,
+            multiple,
+            ..
+        } = *self;
+        if !key_focus.is_focused(window) {
+            return;
+        }
+        let key = event.keystroke.key.as_str();
+        if !was_open && clear_enabled && matches!(key, "backspace" | "delete") {
+            cx.stop_propagation();
+            window.prevent_default();
+            // This key is consumed before the app root sees it.
+            util::set_focus_visible(true, cx);
+            clear_keys(window, cx);
+            return;
+        }
+        if matches!(key, "enter" | "space") {
+            // The browser's default newline can synthesize another
+            // Enter through beforeinput, including while held.
+            cx.stop_propagation();
+            if event.is_held {
+                return;
+            }
+            press_open.update(cx, |value, _| *value = Some(was_open));
+        }
+        if !was_open {
+            self.on_closed_key(key, window, cx);
+            return;
+        }
+        let from = held
+            .read(cx)
+            .as_ref()
+            .and_then(|k| row_keys.iter().position(|key| key == k));
+        let modifiers = event.keystroke.modifiers;
+        // Pinned React Aria 3.51.0 `useSelectableCollection`
+        // answers `Mod+A` with `selectAll` -- multiple mode only,
+        // and only while the list is open. Pinned SelectState
+        // drops the symbolic `all`: the uncontrolled set becomes
+        // every enabled key while `on_selection_change_all` stays
+        // silent, a repeat over a complete selection is not a
+        // toggle, and a controlled owner's state is not this
+        // keystroke's to mutate.
+        if key == "a"
+            && modifiers.secondary()
+            && !modifiers.shift
+            && !modifiers.alt
+            && if cfg!(target_os = "macos") {
+                !modifiers.control
+            } else {
+                !modifiers.platform
+            }
+            && multiple
+        {
+            let all: Vec<SharedString> = stops.iter().map(|i| row_keys[*i].clone()).collect();
+            let complete = all.iter().all(|key| selected_keys_held.contains(key));
+            if !complete {
+                if let Some(held) = &indices_own_keys {
+                    form_state_keys.borrow_mut().value = crate::form::FormValue::Keys(all.clone());
+                    held.update(cx, |selected, cx| {
+                        *selected = all.clone();
+                        cx.notify();
+                    });
+                    range_keys.update(cx, |range, _| {
+                        *range = SelectSelectionRange {
+                            is_all: true,
+                            ..SelectSelectionRange::default()
+                        };
+                    });
+                }
+            }
+            cx.stop_propagation();
+            return;
+        }
+        // Pinned React Aria 3.51.0 binds PageUp/PageDown only
+        // while the collection has a focused key: mouse-opening a
+        // selection-less Select leaves the cursor null, and the
+        // page keys must stay inert until keyboard navigation
+        // establishes one. With a cursor the list is
+        // non-scrollable -- HeroUI v3.2.4 puts the overflow
+        // scrolling on the Popover while the ListBox element is
+        // `overflow-clip` -- so a page takes the enabled end:
+        // `stops` already omits disabled rows, whatever the
+        // list's length, row height, or scroll state. A closed
+        // trigger answers no page key at all, so the closed
+        // branch above never sees them.
+        let page_move = match key {
+            "pagedown" if from.is_some() => stops.last().copied(),
+            "pageup" if from.is_some() => stops.first().copied(),
+            _ => None,
+        }
+        .filter(|next| Some(*next) != from);
+        let next_move = page_move.map_or_else(
+            || crate::list_nav::resolve(stops, from, key, wrap),
+            crate::list_nav::Move::To,
+        );
+        self.apply_move(next_move, from, key, modifiers, window, cx);
+    }
+
+    /// A closed trigger: Down and Up open the list; a single select answers
+    /// letters where it stands.
+    fn on_closed_key(&self, key: &str, window: &mut Window, cx: &mut App) {
+        let Self {
+            ref labels,
+            ref stops,
+            ref typed,
+            ref open_own_keys,
+            ref value_own_keys,
+            ref selected_held,
+            ref form_state_keys,
+            ref on_open_change,
+            ref on_select,
+            ref row_keys,
+            multiple,
+            ..
+        } = *self;
+        // Closed: Down and Up open the list. Enter and Space are
+        // *not* handled here -- the trigger has a click listener
+        // and gpui fires those on Enter and Space for a focused
+        // element, so handling them again would open and close
+        // the list in one keystroke.
+        if matches!(key, "down" | "up") {
+            if let Some(held) = &open_own_keys {
+                held.update(cx, |v, cx| {
+                    *v = true;
+                    cx.notify();
+                });
+            }
+            if let Some(cb) = &on_open_change {
+                cb(&true, window, cx);
+            }
+            return;
+        }
+        // A closed select still answers letters in single
+        // mode: React Aria picks the matching option where it
+        // stands rather than opening the list. A multiple
+        // select answers no typeahead on the closed trigger --
+        // the closed pick reports through the single-key
+        // callback, which a set-valued selection has no use
+        // for. Open, the RAC ListBox keeps its type-select and
+        // moves the cursor without selecting, exactly as in
+        // single mode.
+        if multiple {
+            return;
+        }
+        if !crate::list_nav::is_typeahead_key(key) {
+            return;
+        }
+        let now = web_time::Instant::now();
+        let (query, repeat) = typed.update(cx, |t, _| {
+            let query = t.push(key, now);
+            (query, t.is_repeat())
+        });
+        let selected_at = selected_held
+            .as_ref()
+            .and_then(|k| row_keys.iter().position(|key| key == k));
+        let Some(found) = crate::list_nav::typeahead(labels, stops, selected_at, &query, repeat)
+        else {
+            return;
+        };
+        let found = row_keys[found].clone();
+        if let Some(held) = &value_own_keys {
+            form_state_keys.borrow_mut().value = crate::form::FormValue::Keys(vec![found.clone()]);
+            held.update(cx, |v, cx| {
+                *v = Some(found.clone());
+                cx.notify();
+            });
+        }
+        if let Some(cb) = &on_select {
+            cb(&Some(found), window, cx);
+        }
+    }
+
+    /// The open list's answer to a resolved move: an arrow, Home/End or page
+    /// move of the cursor (with the multiple mode's Shift extension), Enter or
+    /// Space on the cursor row, or typeahead, which moves the cursor and
+    /// selects nothing.
+    fn apply_move(
+        &self,
+        next_move: crate::list_nav::Move,
+        from: Option<usize>,
+        key: &str,
+        modifiers: gpui::Modifiers,
+        window: &mut Window,
+        cx: &mut App,
+    ) {
+        let Self {
+            ref collection,
+            ref selectable,
+            ref held,
+            ref labels,
+            ref stops,
+            ref typed,
+            ref value_own_keys,
+            ref indices_own_keys,
+            ref selected_keys_held,
+            ref form_state_keys,
+            ref on_select,
+            ref on_select_all,
+            ref range_keys,
+            virtual_rows,
+            ref key_list_scroll,
+            ref key_panel_scroll,
+            ref row_keys,
+            multiple,
+            ..
+        } = *self;
+        match next_move {
+            crate::list_nav::Move::To(at) => {
+                // The pinned registrations install no Home/End
+                // handler for an unregistered chord -- Cmd- or
+                // Ctrl-bearing on macOS, Alt- or platform-bearing
+                // elsewhere -- so in either mode the whole event
+                // stays inert: no cursor move, no selection, no
+                // preventDefault.
+                if matches!(key, "home" | "end")
+                    && !home_end_registered(modifiers, cfg!(target_os = "macos"))
+                {
+                    return;
+                }
+                // A Shift extension reaches from the cursor, and a
+                // null cursor is nothing to reach from: pinned
+                // `useSelectableCollection` extends only from a
+                // focused key, so the registered Shift+Home/End is
+                // wholly inert rather than seating a fresh cursor.
+                if matches!(key, "home" | "end") && modifiers.shift && from.is_none() {
+                    return;
+                }
+                let next = row_keys[at].clone();
+                held.update(cx, |v, cx| {
+                    *v = Some(next.clone());
+                    cx.notify();
+                });
+                // React Aria keeps the focused option in view; the
+                // highlight walking off the bottom of the list looks
+                // like the arrows have stopped working.
+                if virtual_rows {
+                    key_list_scroll.scroll_to_item(at, gpui::ScrollStrategy::Center);
+                } else {
+                    key_panel_scroll.scroll_to_item(at);
+                }
+                // Pinned `useSelectableCollection`: Shift extends a
+                // multiple selection over exactly the chords the
+                // platform's registration admits, so the extension
+                // gate reuses the Home/End registration map -- the
+                // pinned matcher reads the browser's canonical
+                // modifier flags only, and GPUI's `function` flag
+                // never reaches it. The pinned arrow delegates
+                // return null at an enabled boundary, so a
+                // Shift+Arrow that held ran no extension at all
+                // and must not report; Home and End resolve their
+                // end key again, so their repeated registered
+                // extension does report; and the page keys only
+                // reach here off the unchanged filter above.
+                let exact_shift_navigation =
+                    home_end_registered(modifiers, cfg!(target_os = "macos"));
+                let extends_selection = multiple
+                    && modifiers.shift
+                    && exact_shift_navigation
+                    && shift_home_end_extends(key, modifiers.control, cfg!(target_os = "macos"))
+                    && (matches!(key, "home" | "end") || Some(at) != from);
+                if extends_selection {
+                    let range = range_keys.read(cx).clone();
+                    let next_selection = extend_selection_range(
+                        selected_keys_held,
+                        collection,
+                        selectable,
+                        &range,
+                        &next,
+                    );
+                    range_keys.update(cx, |range, _| {
+                        if range.anchor.is_none() {
+                            range.anchor = Some(next.clone());
+                        }
+                        range.current = Some(next);
+                        range.is_all = false;
+                    });
+                    // The uncontrolled set and the form only move
+                    // when the extension actually changed something,
+                    // but pinned `useMultipleSelectionState` with
+                    // Select's `allowDuplicateSelectionEvents`
+                    // reports every extension it is handed -- so a
+                    // repeated registered Shift+Home/End that
+                    // resolved the end already held still reports.
+                    if next_selection != *selected_keys_held {
+                        if let Some(held) = &indices_own_keys {
+                            form_state_keys.borrow_mut().value =
+                                crate::form::FormValue::Keys(next_selection.clone());
+                            held.update(cx, |selected, cx| {
+                                *selected = next_selection.clone();
+                                cx.notify();
+                            });
+                        }
                     }
-                    if let Some(held) = &dismiss_own {
-                        held.update(cx, |v, cx| {
-                            *v = false;
+                    if let Some(cb) = &on_select_all {
+                        cb(&next_selection, window, cx);
+                    }
+                }
+            }
+            crate::list_nav::Move::Activate => {
+                // Select on key-down; the trigger click owns closing
+                // on key-up.
+                let Some(at) = from else { return };
+                let key = &row_keys[at];
+                if multiple {
+                    let added = !selected_keys_held.contains(key);
+                    let mut next = selected_keys_held.clone();
+                    toggle_key(&mut next, key);
+                    let next = in_collection_order(&next, row_keys);
+                    // Pinned `toggleSelection` re-anchors on the
+                    // add, and a deselect only ends a raw `all`
+                    // so the next Shift move extends instead of
+                    // collapsing to its target.
+                    if added {
+                        range_keys.update(cx, |range, _| {
+                            range.anchor = Some(key.clone());
+                            range.current = Some(key.clone());
+                            range.is_all = false;
+                        });
+                    } else {
+                        range_keys.update(cx, |range, _| {
+                            if range.is_all {
+                                *range = SelectSelectionRange::default();
+                            }
+                        });
+                    }
+                    if let Some(held) = &indices_own_keys {
+                        form_state_keys.borrow_mut().value =
+                            crate::form::FormValue::Keys(next.clone());
+                        held.update(cx, |selected, cx| {
+                            *selected = next.clone();
                             cx.notify();
                         });
                     }
-                    if let Some(cb) = &dismiss_cb {
-                        cb(&false, window, cx);
+                    if let Some(cb) = &on_select_all {
+                        cb(&next, window, cx);
                     }
-                    util::DismissResult::Handled
-                },
-            );
-
-            // The theme tokens the row draws with, copied out: `cx.colors()`
-            // hands back a borrow of the app, which a `'static` closure cannot
-            // hold.
-            let row_muted = colors.muted;
-            // `useOption` adds the set position only under virtualization;
-            // `row_height` is what turns this list into a windowed one.
-            let row_virtualized = self.row_height.is_some();
-            let row_fg = colors.foreground;
-            let row_hover_bg = self.row_hover_bg.unwrap_or(colors.default.color);
-            let row_disabled_opacity = layout.disabled_opacity;
-            // Everything a row reads, owned: `uniform_list`'s callback is
-            // `'static` and is called again on every scroll, so it cannot
-            // borrow `self` -- and one row builder for both paths is what keeps
-            // a virtual list drawing the same row as a short one.
-            let items = self.items.clone();
-            let sections = self.sections.clone();
-            let opt_disabled_keys = self.disabled_keys.clone();
-            // The key list the range is resolved against and the enabled
-            // keys that may join it, for the Shift-click extension.
-            let collection_rows: Vec<SharedString> = keys.clone();
-            let selectable_rows: Vec<SharedString> = (0..options_len)
-                .filter(|i| !self.disabled_keys.contains(&keys[*i]))
-                .map(|i| keys[i].clone())
-                .collect();
-            let range_rows = selection_range;
-            let cursor_rows = cursor;
-            let focus_rows = focus_handle;
-            let indicator: Option<Rc<dyn Fn(bool) -> gpui::AnyElement>> =
-                self.indicator.take().map(Rc::from);
-            #[allow(clippy::type_complexity)]
-            let item_leading: Option<
-                Rc<dyn Fn(&SharedString, bool) -> Option<gpui::AnyElement>>,
-            > = self.item_leading.take().map(Rc::from);
-            let on_change_all = self.on_selection_change_all.clone();
-            let on_change_one = self.on_selection_change.clone();
-            let value_own = value_own;
-            let open_own = open_own;
-            let form_state_rows = self.form_state.clone();
-            let on_close = self.on_open_change.clone();
-            let base_row = base;
-            let base_row_id = base_id.clone();
-            let row_text_size = self.row_text_size.unwrap_or(util::FIELD_TEXT);
-            let row_padding_x = self.row_padding_x.unwrap_or(px(10.));
-            let row_font_family = self.row_font_family.clone();
-            let row_padding_y = self.row_padding_y.unwrap_or(px(6.));
-            let row = move |i: usize,
-                            fixed_h: Option<Pixels>,
-                            window: &mut Window,
-                            cx: &mut App| {
-                let base = &base_row;
-                let base_id = &base_row_id;
-                let opt = &items[i];
-                let row_key = opt.key().clone();
-                let focus_click = focus_rows.clone();
-                let mut rows = Vec::new();
-                // `ListBox.Section`'s `Header`: `text-xs` in the muted colour,
-                // above the option it introduces.
-                if let Some((_, label)) = sections.iter().find(|(at, _)| at == &row_key) {
-                    rows.push(
-                        gpui::div()
-                            .px(px(8.))
-                            .pt(px(6.))
-                            .pb(px(4.))
-                            .text_size(px(12.))
-                            .line_height(px(16.))
-                            .font_weight(gpui::FontWeight::MEDIUM)
-                            .text_color(row_muted)
-                            .child(label.to_string())
-                            .into_any_element(),
-                    );
+                    return;
                 }
-                let is_sel = if multiple {
-                    selected_keys.contains(&row_key)
-                } else {
-                    selected.as_ref() == Some(&row_key)
-                };
-                let has_indicator_slot = indicator.is_some() || is_sel;
-                let opt_disabled = opt_disabled_keys.contains(&row_key);
-                let row_selector = format!("{base}-opt-{i}");
-                let mut item = gpui::div()
+                if let Some(held) = &value_own_keys {
+                    form_state_keys.borrow_mut().value =
+                        crate::form::FormValue::Keys(vec![key.clone()]);
+                    held.update(cx, |v, cx| {
+                        *v = Some(key.clone());
+                        cx.notify();
+                    });
+                }
+                if let Some(cb) = &on_select {
+                    cb(&Some(key.clone()), window, cx);
+                }
+            }
+            crate::list_nav::Move::Ignore => {
+                // Typeahead moves the cursor over the open list in
+                // either mode -- the open RAC ListBox keeps its
+                // type-select in multiple mode too -- and the move
+                // selects nothing.
+                if !crate::list_nav::is_typeahead_key(key) {
+                    return;
+                }
+                let now = web_time::Instant::now();
+                let (query, repeat) = typed.update(cx, |t, _| {
+                    let query = t.push(key, now);
+                    (query, t.is_repeat())
+                });
+                if let Some(found) = crate::list_nav::typeahead(labels, stops, from, &query, repeat)
+                {
+                    let found = row_keys[found].clone();
+                    held.update(cx, |v, cx| {
+                        *v = Some(found);
+                        cx.notify();
+                    });
+                }
+            }
+        }
+    }
+}
+
+/// Everything an option row reads, owned: `uniform_list`'s callback is
+/// `'static` and is called again on every scroll, so it cannot borrow the
+/// Select -- and one row builder for both paths is what keeps a virtual list
+/// drawing the same row as a short one.
+struct SelectRows {
+    /// The theme tokens the row draws with, copied out: `cx.colors()` hands
+    /// back a borrow of the app, which a `'static` closure cannot hold.
+    colors: herogpui_theme::ThemeColors,
+    row_hover_bg: Option<gpui::Hsla>,
+    multiple: bool,
+    selected: Option<SharedString>,
+    selected_keys: Vec<SharedString>,
+    cursor_at: Option<usize>,
+    panel_interactive: bool,
+    options_len: usize,
+    row_virtualized: bool,
+    row_disabled_opacity: f32,
+    items: Vec<PickerItem>,
+    sections: Vec<(SharedString, SharedString)>,
+    opt_disabled_keys: HashSet<SharedString>,
+    collection_rows: Vec<SharedString>,
+    selectable_rows: Vec<SharedString>,
+    range_rows: gpui::Entity<SelectSelectionRange>,
+    cursor_rows: gpui::Entity<Option<SharedString>>,
+    focus_rows: gpui::FocusHandle,
+    indicator: Option<Rc<dyn Fn(bool) -> gpui::AnyElement>>,
+    #[allow(clippy::type_complexity)]
+    item_leading: Option<Rc<dyn Fn(&SharedString, bool) -> Option<gpui::AnyElement>>>,
+    on_change_all: Option<OnSelectionChangeAll>,
+    on_change_one: Option<OnSelectionChange>,
+    indices_own: Option<gpui::Entity<Vec<SharedString>>>,
+    value_own: Option<gpui::Entity<Option<SharedString>>>,
+    open_own: Option<gpui::Entity<bool>>,
+    form_state_rows: Rc<RefCell<crate::form::LiveFormFieldState>>,
+    on_close: Option<OnOpenChange>,
+    base_row: String,
+    base_row_id: gpui::ElementId,
+    row_text_size: Pixels,
+    row_padding_x: Pixels,
+    row_font_family: Option<SharedString>,
+    row_padding_y: Pixels,
+}
+
+impl SelectRows {
+    /// One option row, with its section header when one precedes it.
+    fn row(
+        &self,
+        i: usize,
+        fixed_h: Option<Pixels>,
+        window: &mut Window,
+        cx: &mut App,
+    ) -> gpui::AnyElement {
+        let Self {
+            ref colors,
+            multiple,
+            ref selected,
+            ref selected_keys,
+            cursor_at,
+            panel_interactive,
+            options_len,
+            row_virtualized,
+            row_disabled_opacity,
+            ref items,
+            ref sections,
+            ref opt_disabled_keys,
+            ref focus_rows,
+            ref indicator,
+            ref item_leading,
+            ref base_row,
+            ref base_row_id,
+            row_text_size,
+            row_padding_x,
+            ref row_font_family,
+            row_padding_y,
+            ..
+        } = *self;
+        let row_muted = colors.muted;
+        let row_fg = colors.foreground;
+        let row_hover_bg = self.row_hover_bg.unwrap_or(colors.default.color);
+        let base = &base_row;
+        let base_id = &base_row_id;
+        let opt = &items[i];
+        let row_key = opt.key().clone();
+        let focus_click = focus_rows.clone();
+        let mut rows = Vec::new();
+        // `ListBox.Section`'s `Header`: `text-xs` in the muted colour,
+        // above the option it introduces.
+        if let Some((_, label)) = sections.iter().find(|(at, _)| at == &row_key) {
+            rows.push(
+                gpui::div()
+                    .px(px(8.))
+                    .pt(px(6.))
+                    .pb(px(4.))
+                    .text_size(px(12.))
+                    .line_height(px(16.))
+                    .font_weight(gpui::FontWeight::MEDIUM)
+                    .text_color(row_muted)
+                    .child(label.to_string())
+                    .into_any_element(),
+            );
+        }
+        let is_sel = if multiple {
+            selected_keys.contains(&row_key)
+        } else {
+            selected.as_ref() == Some(&row_key)
+        };
+        let has_indicator_slot = indicator.is_some() || is_sel;
+        let opt_disabled = opt_disabled_keys.contains(&row_key);
+        let row_selector = format!("{base}-opt-{i}");
+        let mut item = gpui::div()
                         .id(element_id::indexed(base_id, "opt", i))
                         // `useOption.mjs`: `role: 'option'` with
                         // `'aria-selected': selectionMode !== 'none' ?
@@ -2164,270 +2783,128 @@ impl RenderOnce for Select {
                         // flow prevents long labels from pushing the checkmark.
                         .relative()
                         .when(has_indicator_slot, |row| row.pr(px(28.)));
-                if let Some(family) = row_font_family.clone() {
-                    item = item.font_family(family);
-                }
+        if let Some(family) = row_font_family.clone() {
+            item = item.font_family(family);
+        }
 
-                if opt_disabled {
-                    item = item.opacity(row_disabled_opacity);
-                } else if panel_interactive {
-                    item = item
-                        .cursor(util::interactive_cursor(cx))
-                        .hover(move |s| s.bg(row_hover_bg));
-                }
+        if opt_disabled {
+            item = item.opacity(row_disabled_opacity);
+        } else if panel_interactive {
+            item = item
+                .cursor(util::interactive_cursor(cx))
+                .hover(move |s| s.bg(row_hover_bg));
+        }
 
-                // `.list-box-item[data-selected]` is indicator-only in v3:
-                // selection does not recolour or bold the option label.
-                item = item.text_color(row_fg);
+        // `.list-box-item[data-selected]` is indicator-only in v3:
+        // selection does not recolour or bold the option label.
+        item = item.text_color(row_fg);
 
-                // `status-focused` is an overlay shadow in v3. A border
-                // changes the row's content geometry when the cursor moves.
-                // The ring goes on `item` rather than on anything the press
-                // ramp below produces: `anim::pressed_with_background_ramp`
-                // refines this same element, and `item` is the one that both
-                // carries `soft_radius` and holds the cursor the ring reports.
-                item = util::with_focus_ring_overlay(
-                    item,
-                    util::shows_focus_ring(cursor_at == Some(i), cx),
-                    true,
-                    util::soft_radius(cx),
-                    Vec::new(),
-                    cx,
+        // `status-focused` is an overlay shadow in v3. A border
+        // changes the row's content geometry when the cursor moves.
+        // The ring goes on `item` rather than on anything the press
+        // ramp below produces: `anim::pressed_with_background_ramp`
+        // refines this same element, and `item` is the one that both
+        // carries `soft_radius` and holds the cursor the ring reports.
+        item = util::with_focus_ring_overlay(
+            item,
+            util::shows_focus_ring(cursor_at == Some(i), cx),
+            true,
+            util::soft_radius(cx),
+            Vec::new(),
+            cx,
+        );
+
+        // HeroUI's ListBox.Item does not add an ellipsis rule. Keep
+        // normal text flow in both natural and virtual rows; the
+        // caller owns the fixed row geometry when `row_height` is
+        // supplied, just as the upstream Virtualizer owns its
+        // `rowHeight` layout.
+        // `ListBox.Item`'s render function draws whatever precedes the
+        // text. It goes in before the label so the row's `gap-3` sets
+        // it off, and it is `flex_none` so a long label cannot squeeze
+        // a swatch or avatar out of its own size.
+        if let Some(render) = &item_leading {
+            if let Some(content) = render(&row_key, is_sel) {
+                item = item.child(gpui::div().flex_none().flex().items_center().child(content));
+            }
+        }
+        let label = gpui::div().flex_1().min_w_0().whitespace_normal();
+        item = item.child(label.child(opt.label().to_string()));
+
+        match &indicator {
+            Some(render) => {
+                item = item.child(
+                    gpui::div()
+                        .absolute()
+                        .top_0()
+                        .bottom_0()
+                        .right(px(8.))
+                        .w(px(16.))
+                        .flex()
+                        .items_center()
+                        .justify_center()
+                        .child(render(is_sel)),
                 );
-
-                // HeroUI's ListBox.Item does not add an ellipsis rule. Keep
-                // normal text flow in both natural and virtual rows; the
-                // caller owns the fixed row geometry when `row_height` is
-                // supplied, just as the upstream Virtualizer owns its
-                // `rowHeight` layout.
-                // `ListBox.Item`'s render function draws whatever precedes the
-                // text. It goes in before the label so the row's `gap-3` sets
-                // it off, and it is `flex_none` so a long label cannot squeeze
-                // a swatch or avatar out of its own size.
-                if let Some(render) = &item_leading {
-                    if let Some(content) = render(&row_key, is_sel) {
-                        item = item
-                            .child(gpui::div().flex_none().flex().items_center().child(content));
-                    }
-                }
-                let label = gpui::div().flex_1().min_w_0().whitespace_normal();
-                item = item.child(label.child(opt.label().to_string()));
-
-                match &indicator {
-                    Some(render) => {
-                        item = item.child(
-                            gpui::div()
-                                .absolute()
-                                .top_0()
-                                .bottom_0()
-                                .right(px(8.))
-                                .w(px(16.))
-                                .flex()
-                                .items_center()
-                                .justify_center()
-                                .child(render(is_sel)),
-                        );
-                    }
-                    None if is_sel => {
-                        item = item.child(
-                            gpui::div()
-                                .absolute()
-                                .top_0()
-                                .bottom_0()
-                                .right(px(8.))
-                                .w(px(16.))
-                                .flex()
-                                .items_center()
-                                .justify_center()
-                                .child(
-                                    gpui::svg()
+            }
+            None if is_sel => {
+                item = item.child(
+                    gpui::div()
+                        .absolute()
+                        .top_0()
+                        .bottom_0()
+                        .right(px(8.))
+                        .w(px(16.))
+                        .flex()
+                        .items_center()
+                        .justify_center()
+                        .child(
+                            gpui::svg()
                                         .size(px(13.))
                                         .path(icons::CHECK)
                                         // HeroUI's default list-item indicator is
                                         // `text-default-foreground`, independent of
                                         // the accent selection role.
                                         .text_color(row_fg),
-                                ),
-                        );
-                    }
-                    None => {}
-                }
+                        ),
+                );
+            }
+            None => {}
+        }
 
-                // `.list-box-item:active` scales an option to 98% over the
-                // pinned 250ms ease-out-quart transition. Wrap before the
-                // selection listener is attached so the stable slot owns the
-                // row's hit target and the click remains reachable after the
-                // visual skin moves inside it.
-                if panel_interactive && !opt_disabled {
-                    item = crate::anim::pressed_with_background_ramp(
-                        item,
-                        crate::anim::PressBox {
-                            height: fixed_h.unwrap_or(util::FIELD_HEIGHT),
-                            padding_x: Some(row_padding_x),
-                            width: None,
-                            min_width: None,
-                            text_size: row_text_size,
-                            line_height: px(20.),
-                            gap: px(12.),
-                            radius: util::soft_radius(cx),
-                            shrink_x: false,
-                            scale: crate::anim::PRESSED_SCALE_SUBTLE,
-                        },
-                        None,
-                        crate::anim::LIST_ITEM_PRESS,
-                        None,
-                        window,
-                        cx,
-                    );
-                }
+        // `.list-box-item:active` scales an option to 98% over the
+        // pinned 250ms ease-out-quart transition. Wrap before the
+        // selection listener is attached so the stable slot owns the
+        // row's hit target and the click remains reachable after the
+        // visual skin moves inside it.
+        if panel_interactive && !opt_disabled {
+            item = crate::anim::pressed_with_background_ramp(
+                item,
+                crate::anim::PressBox {
+                    height: fixed_h.unwrap_or(util::FIELD_HEIGHT),
+                    padding_x: Some(row_padding_x),
+                    width: None,
+                    min_width: None,
+                    text_size: row_text_size,
+                    line_height: px(20.),
+                    gap: px(12.),
+                    radius: util::soft_radius(cx),
+                    shrink_x: false,
+                    scale: crate::anim::PRESSED_SCALE_SUBTLE,
+                },
+                None,
+                crate::anim::LIST_ITEM_PRESS,
+                None,
+                window,
+                cx,
+            );
+        }
 
-                if panel_interactive && !opt_disabled {
-                    if multiple {
-                        if indices_own.is_some() || on_change_all.is_some() {
-                            let current = selected_keys.clone();
-                            let own = indices_own.clone();
-                            let cb = on_change_all.clone();
-                            let form_state_pick = form_state_rows.clone();
-                            let range_click = range_rows.clone();
-                            let collection_click = collection_rows.clone();
-                            let selectable_click = selectable_rows.clone();
-                            let cursor_click = cursor_rows.clone();
-                            let picked_key = row_key;
-                            item = item.on_click(move |ev, window, cx| {
-                                // A pointer pick must not also activate whatever
-                                // encloses the select: gpui bubbles a click to
-                                // every ancestor listener, so a select hosted in
-                                // a clickable row -- an `is_interactive` menu
-                                // row, a pressable card -- fired the enclosing
-                                // handler from the same press that picked an
-                                // option. Only the pointer is stopped, matching
-                                // the trigger: a keyboard activation is
-                                // synthesized on the focused element, so there
-                                // is no ancestor press to suppress, and stopping
-                                // it would take the key away from a parent's own
-                                // bindings.
-                                if !matches!(ev, gpui::ClickEvent::Keyboard(_)) {
-                                    cx.stop_propagation();
-                                }
-                                // Pinned `useSelectableItem` seats the cursor
-                                // on pointer press, so a Shift+Arrow, page, or
-                                // Enter that follows starts from the clicked
-                                // row rather than from a null or stale cursor.
-                                cursor_click.update(cx, |v, cx| {
-                                    *v = Some(picked_key.clone());
-                                    cx.notify();
-                                });
-                                // gpui's own focus-on-press would park focus
-                                // on the row and deafen the trigger's key
-                                // handler; the trigger is what holds focus so
-                                // the open list stays keyboard-walkable.
-                                window.focus(&focus_click, cx);
-                                let mut next = current.clone();
-                                // A Shift click extends from the anchor
-                                // through `extendSelection`; an ordinary or
-                                // platform-Mod click toggles and re-anchors on
-                                // the add, the way pinned `toggleSelection`
-                                // does -- a deselect only ends a raw `all`.
-                                if ev.modifiers().shift {
-                                    let range = range_click.read(cx).clone();
-                                    next = extend_selection_range(
-                                        &current,
-                                        &collection_click,
-                                        &selectable_click,
-                                        &range,
-                                        &picked_key,
-                                    );
-                                    range_click.update(cx, |range, _| {
-                                        if range.anchor.is_none() {
-                                            range.anchor = Some(picked_key.clone());
-                                        }
-                                        range.current = Some(picked_key.clone());
-                                        range.is_all = false;
-                                    });
-                                } else {
-                                    let added = !next.contains(&picked_key);
-                                    toggle_key(&mut next, &picked_key);
-                                    next = in_collection_order(&next, &collection_click);
-                                    if added {
-                                        range_click.update(cx, |range, _| {
-                                            range.anchor = Some(picked_key.clone());
-                                            range.current = Some(picked_key.clone());
-                                            range.is_all = false;
-                                        });
-                                    } else {
-                                        range_click.update(cx, |range, _| {
-                                            if range.is_all {
-                                                *range = SelectSelectionRange::default();
-                                            }
-                                        });
-                                    }
-                                }
-                                if let Some(held) = &own {
-                                    form_state_pick.borrow_mut().value =
-                                        crate::form::FormValue::Keys(next.clone());
-                                    held.update(cx, |selected, cx| {
-                                        *selected = next.clone();
-                                        cx.notify();
-                                    });
-                                }
-                                if let Some(cb) = &cb {
-                                    cb(&next, window, cx);
-                                }
-                            });
-                        }
-                    } else if on_change_one.is_some() || value_own.is_some() || open_own.is_some() {
-                        let on_select = on_change_one.clone();
-                        let on_close = on_close.clone();
-                        let value_own = value_own.clone();
-                        let open_own = open_own.clone();
-                        let form_state_pick = form_state_rows.clone();
-                        let picked_key = row_key;
-                        item = item.on_click(move |ev, window, cx| {
-                            // The same stop as the multi pick above: the pick
-                            // that closes the list must not fire the clickable
-                            // ancestor a hosted select sits in. Keyboard stays
-                            // live for the reason recorded there.
-                            if !matches!(ev, gpui::ClickEvent::Keyboard(_)) {
-                                cx.stop_propagation();
-                            }
-                            // Uncontrolled: take the selection and close, or
-                            // choosing an option would do nothing.
-                            if let Some(held) = &value_own {
-                                form_state_pick.borrow_mut().value =
-                                    crate::form::FormValue::Keys(vec![picked_key.clone()]);
-                                held.update(cx, |v, cx| {
-                                    *v = Some(picked_key.clone());
-                                    cx.notify();
-                                });
-                            }
-                            if let Some(held) = &open_own {
-                                held.update(cx, |v, cx| {
-                                    *v = false;
-                                    cx.notify();
-                                });
-                            }
-                            // A single-mode pick closes the popover, and a
-                            // caller who drives `isOpen` has to hear about it:
-                            // without this the keyed flag flipped while the
-                            // callback stayed silent, so a controlled caller
-                            // still saw the panel open and reopened it on the
-                            // next render. Reported exactly here by a pointer
-                            // pick; the Enter path's close is the trigger's
-                            // own click listener (gpui fires a focused
-                            // element's click on Enter), so it never reaches
-                            // this closure.
-                            if let Some(cb) = &on_close {
-                                cb(&false, window, cx);
-                            }
-                            if let Some(f) = &on_select {
-                                f(&Some(picked_key.clone()), window, cx);
-                            }
-                        });
-                    }
-                }
+        if panel_interactive && !opt_disabled {
+            item = self.attach_pick(item, row_key, focus_click);
+        }
 
-                rows.push(item.into_any_element());
-                gpui::div()
+        rows.push(item.into_any_element());
+        gpui::div()
                     .flex()
                     .flex_col()
                     // Keep the row wrapper at the panel's inline extent in
@@ -2439,81 +2916,175 @@ impl RenderOnce for Select {
                     .when_some(fixed_h, |el, h| el.h(h))
                     .children(rows)
                     .into_any_element()
-            };
+    }
 
-            match self.row_height {
-                // Virtual: only the rows in view are built, which is what makes
-                // a thousand options affordable. The list itself is the scroll
-                // container: `Infer` sizes it from its rows — the full
-                // natural height on the positioner's measure pass (so the
-                // flip sees the real extent, like upstream's `overlaySize`),
-                // capped to the available height on the capped pass — while
-                // the ListBox stays `overflow-clip`, as in v3. A fixed inner
-                // height plus an outer scroller would nest two scroll
-                // containers and strand rows between them.
-                Some(row_height) => {
-                    panel = panel.child(
-                        gpui::uniform_list(
-                            element_id::scoped(&base_id, "rows"),
-                            options_len,
-                            move |range, _window, cx| {
-                                range
-                                    .map(|i| row(i, Some(row_height), _window, cx))
-                                    .collect::<Vec<_>>()
-                            },
-                        )
-                        .track_scroll(&list_scroll_now)
-                        .with_sizing_behavior(gpui::ListSizingBehavior::Infer)
-                        .w_full(),
-                    );
-                }
-                None => {
-                    for i in 0..options_len {
-                        panel = panel.child(row(i, None, window, cx));
+    /// The row's pointer pick: a toggle or Shift extension in multiple mode,
+    /// a select-and-close in single mode.
+    fn attach_pick(
+        &self,
+        mut item: gpui::Stateful<gpui::Div>,
+        row_key: SharedString,
+        focus_click: gpui::FocusHandle,
+    ) -> gpui::Stateful<gpui::Div> {
+        let Self {
+            multiple,
+            ref selected_keys,
+            ref collection_rows,
+            ref selectable_rows,
+            ref range_rows,
+            ref cursor_rows,
+            ref on_change_all,
+            ref on_change_one,
+            ref indices_own,
+            ref value_own,
+            ref open_own,
+            ref form_state_rows,
+            ref on_close,
+            ..
+        } = *self;
+        if multiple {
+            if indices_own.is_some() || on_change_all.is_some() {
+                let current = selected_keys.clone();
+                let own = indices_own.clone();
+                let cb = on_change_all.clone();
+                let form_state_pick = form_state_rows.clone();
+                let range_click = range_rows.clone();
+                let collection_click = collection_rows.clone();
+                let selectable_click = selectable_rows.clone();
+                let cursor_click = cursor_rows.clone();
+                let picked_key = row_key;
+                item = item.on_click(move |ev, window, cx| {
+                    // A pointer pick must not also activate whatever
+                    // encloses the select: gpui bubbles a click to
+                    // every ancestor listener, so a select hosted in
+                    // a clickable row -- an `is_interactive` menu
+                    // row, a pressable card -- fired the enclosing
+                    // handler from the same press that picked an
+                    // option. Only the pointer is stopped, matching
+                    // the trigger: a keyboard activation is
+                    // synthesized on the focused element, so there
+                    // is no ancestor press to suppress, and stopping
+                    // it would take the key away from a parent's own
+                    // bindings.
+                    if !matches!(ev, gpui::ClickEvent::Keyboard(_)) {
+                        cx.stop_propagation();
                     }
-                }
+                    // Pinned `useSelectableItem` seats the cursor
+                    // on pointer press, so a Shift+Arrow, page, or
+                    // Enter that follows starts from the clicked
+                    // row rather than from a null or stale cursor.
+                    cursor_click.update(cx, |v, cx| {
+                        *v = Some(picked_key.clone());
+                        cx.notify();
+                    });
+                    // gpui's own focus-on-press would park focus
+                    // on the row and deafen the trigger's key
+                    // handler; the trigger is what holds focus so
+                    // the open list stays keyboard-walkable.
+                    window.focus(&focus_click, cx);
+                    let mut next = current.clone();
+                    // A Shift click extends from the anchor
+                    // through `extendSelection`; an ordinary or
+                    // platform-Mod click toggles and re-anchors on
+                    // the add, the way pinned `toggleSelection`
+                    // does -- a deselect only ends a raw `all`.
+                    if ev.modifiers().shift {
+                        let range = range_click.read(cx).clone();
+                        next = extend_selection_range(
+                            &current,
+                            &collection_click,
+                            &selectable_click,
+                            &range,
+                            &picked_key,
+                        );
+                        range_click.update(cx, |range, _| {
+                            if range.anchor.is_none() {
+                                range.anchor = Some(picked_key.clone());
+                            }
+                            range.current = Some(picked_key.clone());
+                            range.is_all = false;
+                        });
+                    } else {
+                        let added = !next.contains(&picked_key);
+                        toggle_key(&mut next, &picked_key);
+                        next = in_collection_order(&next, &collection_click);
+                        if added {
+                            range_click.update(cx, |range, _| {
+                                range.anchor = Some(picked_key.clone());
+                                range.current = Some(picked_key.clone());
+                                range.is_all = false;
+                            });
+                        } else {
+                            range_click.update(cx, |range, _| {
+                                if range.is_all {
+                                    *range = SelectSelectionRange::default();
+                                }
+                            });
+                        }
+                    }
+                    if let Some(held) = &own {
+                        form_state_pick.borrow_mut().value =
+                            crate::form::FormValue::Keys(next.clone());
+                        held.update(cx, |selected, cx| {
+                            *selected = next.clone();
+                            cx.notify();
+                        });
+                    }
+                    if let Some(cb) = &cb {
+                        cb(&next, window, cx);
+                    }
+                });
             }
-
-            let (slide_x, slide_y) = crate::popover::placement_entry_offset(entry_placement);
-            let zoom = crate::anim::ZoomBox::panel(self.panel_padding.unwrap_or(px(6.)), radius);
-            let zoom = crate::anim::ZoomBox {
-                slide_x: (slide_x != 0.0).then(|| px(slide_x)),
-                slide_y: (slide_y != 0.0).then(|| px(slide_y)),
-                ..zoom
-            };
-            let panel = if overlay_phase == util::OverlayPhase::Exiting {
-                crate::anim::exiting(
-                    panel,
-                    element_id::scoped(&base_id, "panel-out"),
-                    zoom,
-                    crate::anim::Motion::LIST_OUT,
-                    cx,
-                )
-            } else {
-                crate::anim::entering_zoom(
-                    panel,
-                    element_id::scoped(&base_id, "panel"),
-                    zoom,
-                    crate::anim::Motion::LIST_IN,
-                    cx,
-                )
-            };
-            // RAC positions the popover against the trigger with an 8px gap,
-            // flips it when the other side has more room, and caps it at the
-            // available viewport height past a 12px inset — which `Select`
-            // inherits unchanged from `useOverlayPosition`/`Popover`.
-            root = root.child(util::floating(
-                crate::popover::scrollable_field_popover_with_resolved_placement(
-                    anchor_bounds,
-                    self.placement,
-                    Some(resolved_placement),
-                    panel,
-                ),
-            ));
+        } else if on_change_one.is_some() || value_own.is_some() || open_own.is_some() {
+            let on_select = on_change_one.clone();
+            let on_close = on_close.clone();
+            let value_own = value_own.clone();
+            let open_own = open_own.clone();
+            let form_state_pick = form_state_rows.clone();
+            let picked_key = row_key;
+            item = item.on_click(move |ev, window, cx| {
+                // The same stop as the multi pick above: the pick
+                // that closes the list must not fire the clickable
+                // ancestor a hosted select sits in. Keyboard stays
+                // live for the reason recorded there.
+                if !matches!(ev, gpui::ClickEvent::Keyboard(_)) {
+                    cx.stop_propagation();
+                }
+                // Uncontrolled: take the selection and close, or
+                // choosing an option would do nothing.
+                if let Some(held) = &value_own {
+                    form_state_pick.borrow_mut().value =
+                        crate::form::FormValue::Keys(vec![picked_key.clone()]);
+                    held.update(cx, |v, cx| {
+                        *v = Some(picked_key.clone());
+                        cx.notify();
+                    });
+                }
+                if let Some(held) = &open_own {
+                    held.update(cx, |v, cx| {
+                        *v = false;
+                        cx.notify();
+                    });
+                }
+                // A single-mode pick closes the popover, and a
+                // caller who drives `isOpen` has to hear about it:
+                // without this the keyed flag flipped while the
+                // callback stayed silent, so a controlled caller
+                // still saw the panel open and reopened it on the
+                // next render. Reported exactly here by a pointer
+                // pick; the Enter path's close is the trigger's
+                // own click listener (gpui fires a focused
+                // element's click on Enter), so it never reaches
+                // this closure.
+                if let Some(cb) = &on_close {
+                    cb(&false, window, cx);
+                }
+                if let Some(f) = &on_select {
+                    f(&Some(picked_key.clone()), window, cx);
+                }
+            });
         }
-
-        root = util::apply_sx(root, &self.sx);
-        root.track_focus(&blur_scope)
+        item
     }
 }
 
