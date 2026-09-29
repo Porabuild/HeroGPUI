@@ -102,6 +102,10 @@ pub struct Gallery {
     pub sidebar_collapsed: bool,
     /// Last window action the TitleBar extension demo reported.
     pub title_bar_last: SharedString,
+    /// Column order of the Table column-reordering extension demo.
+    pub table_column_order: Vec<usize>,
+    /// Selected cell of the Table cell-selection extension demo.
+    pub table_selected_cell: Option<h::TableCell>,
     /// Scroll state of the VirtualList extension demo.
     pub virtual_list: h::VirtualListHandle,
     pub dropdown_last_basic: SharedString,
@@ -476,6 +480,8 @@ Enter inserts a newline here, and a long paragraph wraps inside the field instea
             sidebar_active: SharedString::from("home"),
             sidebar_collapsed: false,
             title_bar_last: SharedString::from("none yet"),
+            table_column_order: vec![0, 1, 2],
+            table_selected_cell: None,
             virtual_list: h::VirtualListHandle::new(1000),
             dropdown_last_basic: SharedString::from("none yet"),
             dropdown_doc_marks: vec![SharedString::from("bold")],

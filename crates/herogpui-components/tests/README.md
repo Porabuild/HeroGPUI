@@ -156,6 +156,7 @@ under `src/` instead, and are not listed here.
 | `sidebar` | Sidebar extension: item press and keyboard activation, roving cursor over items and collapsible headings, group expansion, typeahead, collapse to icons. | 6 |
 | `title_bar` | TitleBar/WindowBorder extension: drawn controls report actions, press-and-move is one window move, double-click, child presses, platform `Auto` controls, border pass-through. | 6 |
 | `toolbar_extras` | Toolbar `size` / `sized_child` extension: builder-order-independent size propagation, plain children keep their own size. | 2 |
+| `table_extras` | Table extension: column reordering by header drag and Alt+arrows (controlled, uncontrolled, virtual rows), cell selection by press and keys, reported by given column index. | 9 |
 
 ## Animation & motion
 

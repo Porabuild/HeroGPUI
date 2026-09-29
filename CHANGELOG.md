@@ -10,6 +10,20 @@ version covers `herogpui`, `herogpui-core`, `herogpui-theme`,
 
 ### Added
 
+- Table column reordering and cell selection (HeroGPUI extension, after
+  gpui-kit's data table). `allows_column_reorder` lets a header be dragged
+  onto another column's place (with a drop indicator) or moved with
+  Alt+Left / Alt+Right while focused; `on_column_move` reports a
+  `ColumnMove` and the order is controlled (`column_order`) or uncontrolled
+  (`default_column_order`). Cells, resized and measured widths and the tree
+  column follow their column. `cell_selectable` selects single cells: a
+  press, Left/Right/Home/End within a row, and the row keys to the same
+  column of another row; `on_cell_select` reports a `TableCell` by row key
+  and given column index, and the cell is controlled (`selected_cell`) or
+  uncontrolled (`default_selected_cell`). Tables that use neither are
+  unchanged. Frozen columns are not included: GPUI 0.3.5 has no sticky
+  positioning, and the roadmap records why the alternatives are not correct
+  yet. Two gallery sections on the Table page show them.
 - `Toolbar::size`, `Toolbar::sized_child` and `Toolbar::sized_children`
   (HeroGPUI extension, after gpui-kit's toolbar): the toolbar's size reaches
   every control added with `sized_child` when the toolbar renders, whatever

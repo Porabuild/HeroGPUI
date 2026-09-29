@@ -629,6 +629,7 @@ ColorSlider labels/output, ColorPicker triggers, and ColorField display text use
   - virtualization: with `row_height` + `virtual_rows`, the fixed-row body caps at `max_h`, shrinks below it in a bounded parent, and PageUp/PageDown move by the visible viewport, including after resize, while skipping disabled stops.
   - resizing: `TableColumn::allows_resizing(true).default_width(px(..)).min_width(px(..)).max_width(px(..))`; use `width(px(..))` plus `Table::on_resize` for controlled widths. `on_resize_start` / `on_resize` / `on_resize_end` receive the known `(column label, pixel width)` map for pointer and keyboard resizing.
   - `empty_state(el)` for `renderEmptyState`; `is_pending(bool)` + `on_load_more(fn)` for the scroll-intersection load-more sentinel.
+  - HeroGPUI extensions (not v3 props): column reordering and cell selection, see **Table data extras** under HeroGPUI extensions.
 
 ### Date and Time
 - **DateConstraints** — shared by all five: `min_value`, `max_value`, `is_date_unavailable(fn)`, `first_day_of_week(Weekday)`, `weeks_in_month`. Each component takes them individually, or a whole set via `.constraints(..)`. The default first weekday comes from the operating system's regional date preferences and ICU4X's compiled CLDR week data; invalid or unavailable preferences fall back to Sunday, and `first_day_of_week` remains an explicit override. The month grid's own text follows the same preference: the month and weekday names, and the order of the year-and-month heading, come from ICU4X's compiled CLDR (a Japanese reader gets a year-first heading, not a translated template), falling back to English when CLDR does not know the reported locale. On `wasm32-unknown-unknown` there is no operating system to ask -- the browser exposes no locale to `locale_config` -- so a calendar compiled for the web always draws that English fallback, whatever the visitor's browser language.
@@ -878,6 +879,22 @@ out of `reference_metadata`.
   `HeroGpuiAssets` serves them with no setup. Decorative: no accessibility
   node (lucide-react marks its svg `aria-hidden`). Lucide is ISC (some
   icons MIT via Feather); the license ships in `assets/lucide/LICENSE`.
+- **Table data extras** — column reordering: `Table::allows_column_reorder(
+  true).on_column_move(|m: &ColumnMove, w, cx| ..)` with `column_order([..])`
+  (controlled) or `default_column_order([..])`; orders are indices into the
+  columns as given. Drag a header onto another column's place, or Alt+Left
+  / Alt+Right on a focused header (the focus follows the column); cells,
+  resized and measured widths and the tree column move with it. `ColumnMove
+  { from, to, order }` uses display positions for `from`/`to`. Cell
+  selection: `cell_selectable(true).on_cell_select(|cell: &TableCell, w, cx|
+  ..)` with `selected_cell(Some(TableCell::new(row_key, column)))`
+  (controlled) or `default_selected_cell(..)`; `column` is the given index,
+  so a cell keeps its identity across moves. A press selects a cell,
+  Left/Right/Home/End move within the row, and the row keys (Up/Down,
+  PageUp/PageDown, Ctrl+Home/End) keep the column. The selected cell carries
+  an inset ring and `aria-selected`. Frozen columns are not available: the
+  pinned GPUI has no sticky positioning, and see the roadmap for why an
+  overlay is not correct yet.
 - **Toolbar extras** — `Toolbar::new().size(Size::Sm).sized_child(Button::new(
   id).label(..)).sized_children([..]).label("Formatting")`: `size` reaches
   every `sized_child` (any `Sizable<Size = Size>` control) at render time,
