@@ -314,6 +314,10 @@ for each breaking change with before/after code.
   phase 6 floors: the first replaces the 180px root minimum (still applied
   only while not full-width), the second the 80px floor on a vertical list's
   tabs. Gallery "Minimum Width" and "Vertical Tab Width" sections.
+- `text_size` on `Checkbox`, `RadioGroup`, `Tabs` and `Switch` (phase 5
+  typography): the label's font size, with v3's 16/20/24 leading for a
+  12/14/16px size and 20px otherwise. Control boxes, marks, tracks, gaps and
+  descriptions keep their size step. Gallery "Label Size" sections.
 
 ### Fixed
 

@@ -573,6 +573,12 @@ EXTRA_OK_SCOPED = {
     'Badge.text_size': 'no-classname',
     'Chip.text_size': 'no-classname',
     'Breadcrumbs.text_size': 'no-classname',
+    # The choice controls' label type (roadmap phase 5): v3 sets it with a
+    # class on the content part; the control box keeps its size step.
+    'Checkbox.text_size': 'no-classname',
+    'RadioGroup.text_size': 'no-classname',
+    'Tabs.text_size': 'no-classname',
+    'Switch.text_size': 'no-classname',
     # Narrow parity exception; see docs/agents/parity.md.
     'Button.radius': 'repository-radius-extension',
     'Card.radius': 'repository-radius-extension',

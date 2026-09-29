@@ -280,6 +280,8 @@ pub struct Switch {
     checked: Option<bool>,
     default_checked: bool,
     size: Size,
+    /// The label's and content's font size, in place of `text-sm`.
+    text_size: Option<gpui::Pixels>,
     is_disabled: bool,
     is_invalid: bool,
     /// `validate` — run by the component, not the caller.
@@ -366,6 +368,7 @@ impl Switch {
             checked: None,
             default_checked: false,
             size: Size::Md,
+            text_size: None,
             is_disabled: false,
             is_invalid: false,
             validate: None,
@@ -487,6 +490,17 @@ impl Switch {
     /// Sets the size (v3 `size`).
     pub fn size(mut self, s: Size) -> Self {
         self.size = s;
+        self
+    }
+
+    /// The label's (and `content` row's) font size, in place of the shared
+    /// label's `text-sm`. A 12/14/16px size takes v3's leading pair
+    /// (16/20/24); any other keeps the 20px leading. The track, thumb, gap and
+    /// description keep their metrics, so the override changes the text and
+    /// its line box only. Not a v3 prop: v3 sets it with a class on
+    /// `Switch.Content`.
+    pub fn text_size(mut self, size: impl Into<gpui::Pixels>) -> Self {
+        self.text_size = Some(size.into());
         self
     }
 
@@ -828,6 +842,10 @@ impl RenderOnce for Switch {
             .gap(px(12.))
             .text_size(px(14.))
             .line_height(px(20.))
+            .when_some(self.text_size, |el, size| {
+                el.text_size(size)
+                    .line_height(crate::util::leading_for(size).unwrap_or(px(20.)))
+            })
             .font_weight(gpui::FontWeight::MEDIUM)
             .when(!self.is_disabled, |root| {
                 root.cursor(crate::util::interactive_cursor(cx))
@@ -847,6 +865,7 @@ impl RenderOnce for Switch {
                 is_required: self.is_required,
             })
         });
+        let label_text_size = self.text_size;
         let label_row = self.label.map(|label| {
             gpui::div()
                 .flex()
@@ -857,6 +876,10 @@ impl RenderOnce for Switch {
                 .text_size(px(14.))
                 // Tailwind pairs `text-sm` with a 20px leading.
                 .line_height(px(20.))
+                .when_some(label_text_size, |el, size| {
+                    el.text_size(size)
+                        .line_height(crate::util::leading_for(size).unwrap_or(px(20.)))
+                })
                 .font_weight(gpui::FontWeight::MEDIUM)
                 .gap(px(4.))
                 .child(label)

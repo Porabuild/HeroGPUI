@@ -386,6 +386,19 @@ impl Gallery {
                     ]), cx),
                 ),
                 (
+                    "Label Size",
+                    "`text_size` replaces the label's `text-sm`; a 12/14/16px size takes v3's 16/20/24 leading. The track and thumb keep their size.",
+                    specimen_body(
+                        "sw-label-size",
+                        h::Switch::new("sw-label-size")
+                            .default_selected(true)
+                            .text_size(px(16.))
+                            .label("Larger label")
+                            .into_any_element(),
+                        cx,
+                    ),
+                ),
+                (
                     "Sizes",
                     row(Size::ALL
                         .iter()

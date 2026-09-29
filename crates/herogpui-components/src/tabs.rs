@@ -559,6 +559,8 @@ pub struct Tabs {
     is_disabled: bool,
     /// The compact step; `Md` is the pinned default.
     size: TabsSize,
+    /// The tab labels' font size, in place of the size step's.
+    text_size: Option<gpui::Pixels>,
     full_width: bool,
     orientation: Orientation,
     keyboard_activation: KeyboardActivation,
@@ -639,6 +641,7 @@ impl Tabs {
             is_disabled: false,
             full_width: false,
             size: TabsSize::default(),
+            text_size: None,
             orientation: Orientation::Horizontal,
             keyboard_activation: KeyboardActivation::Automatic,
             on_selection_change: None,
@@ -670,6 +673,14 @@ impl Tabs {
     /// (16px leading). Not a v3 prop.
     pub fn size(mut self, size: TabsSize) -> Self {
         self.size = size;
+        self
+    }
+
+    /// The tab labels' font size, in place of the size step's. A 12/14/16px size
+    /// takes v3's leading pair (16/20/24); any other keeps the 20px leading.
+    /// Each tab keeps its fixed height and inline padding, so a larger type wants a matching `TabItem::height`. Not a v3 prop: v3 sets it with a class on `Tabs.Tab`.
+    pub fn text_size(mut self, size: impl Into<gpui::Pixels>) -> Self {
+        self.text_size = Some(size.into());
         self
     }
 
@@ -939,6 +950,7 @@ impl RenderOnce for Tabs {
         let hover_fill = self.hover_fill;
         let list_padding = self.list_padding;
         let (tab_h, tab_padding_x, tab_text) = self.size.metrics();
+        let tab_text = self.text_size.unwrap_or(tab_text);
         let geometry = window.use_keyed_state(element_id::scoped(&base, "geometry"), cx, |_, _| {
             TabsGeometry::default()
         });

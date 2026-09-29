@@ -39,6 +39,15 @@ impl Gallery {
                     ]), cx),
                 ),
                 (
+                    "Label Size",
+                    "`text_size` replaces the label's `text-sm`; a 12/14/16px size takes v3's 16/20/24 leading. The control keeps its size step.",
+                    specimen_body("cb-label-size", h::Checkbox::new("cb-label-size")
+                        .text_size(px(16.))
+                        .label(gpui::div().child("Larger label"))
+                        .description("The 16px control is unchanged")
+                        .into_any_element(), cx),
+                ),
+                (
                     "Sizes",
                     "`size` is additive, not a v3 prop: `Md` is the pinned 16px control; `Sm` is a 14px control with a 10px indicator and 12px label text.",
                     col(vec![
@@ -1897,6 +1906,14 @@ impl Gallery {
                             None,
                         ])
                         .into_any_element()]), cx),
+                ),
+                (
+                    "Label Size",
+                    "`text_size` replaces the option labels' `text-sm`; a 12/14/16px size takes v3's 16/20/24 leading. The circles, gap and descriptions keep their size step.",
+                    specimen_body("rg-label-size", h::RadioGroup::new("rg-label-size", plans())
+                        .text_size(px(16.))
+                        .default_value("Free")
+                        .into_any_element(), cx),
                 ),
                 (
                     "Sizes",

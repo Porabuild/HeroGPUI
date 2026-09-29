@@ -437,6 +437,8 @@ pub struct Checkbox {
     radius: Option<Pixels>,
     /// The compact step; `Md` is the pinned default.
     size: CheckboxSize,
+    /// The label's font size, in place of the size step's.
+    text_size: Option<Pixels>,
     description: Option<gpui::SharedString>,
     /// The plain text of the label, when the caller had one.
     ///
@@ -532,6 +534,14 @@ impl Checkbox {
         self
     }
 
+    /// The label font size, in place of the size step's. A 12/14/16px size
+    /// takes v3's leading pair (16/20/24); any other keeps the 20px leading.
+    /// The control box, its mark and the description keep the size step, so the override changes the text and its line box only. Not a v3 prop: v3 sets it with a class on `Checkbox.Content`.
+    pub fn text_size(mut self, size: impl Into<Pixels>) -> Self {
+        self.text_size = Some(size.into());
+        self
+    }
+
     /// `variant` — `Secondary` drops the shadow for use on a surface.
     pub fn variant(mut self, variant: herogpui_core::FieldVariant) -> Self {
         self.variant = variant;
@@ -576,6 +586,7 @@ impl Checkbox {
             hover_bg: None,
             radius: None,
             size: CheckboxSize::default(),
+            text_size: None,
             description: None,
             label_text: None,
             error_message: None,
@@ -836,6 +847,7 @@ impl RenderOnce for Checkbox {
         // around a `size-2.5` checkmark, and `.checkbox__content` `text-sm`.
         // The `Sm` step scales all three together; `Md` is pinned.
         let (box_px, icon_px, text) = self.size.metrics();
+        let text = self.text_size.unwrap_or(text);
         let control_radius = if self.is_round {
             // `rounded-full` on the control: the fill matches it, the way the
             // control's `overflow-hidden` clips the pseudo-element upstream.

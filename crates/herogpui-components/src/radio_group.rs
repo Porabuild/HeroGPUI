@@ -181,6 +181,8 @@ pub struct RadioGroup {
     on_change: Option<std::sync::Arc<dyn Fn(&SharedString, &mut Window, &mut App) + 'static>>,
     /// The compact step; `Md` is the pinned default.
     size: RadioSize,
+    /// The option labels' font size, in place of the size step's.
+    text_size: Option<Pixels>,
     /// The control circle's corner radius, in place of the owning `key_radius`
     /// helper. The control's pressed box follows it; the selected dot inside
     /// keeps its own.
@@ -276,6 +278,7 @@ impl RadioGroup {
             is_read_only: false,
             on_change: None,
             size: RadioSize::default(),
+            text_size: None,
             radius: None,
             full_width: false,
             sx: None,
@@ -417,6 +420,14 @@ impl RadioGroup {
     /// (16px leading) and a 10px row gap. Not a v3 prop.
     pub fn size(mut self, size: RadioSize) -> Self {
         self.size = size;
+        self
+    }
+
+    /// The option labels' font size, in place of the size step's. A 12/14/16px size
+    /// takes v3's leading pair (16/20/24); any other keeps the 20px leading.
+    /// The control circle, its dot, the gap and the descriptions keep the size step, so the override changes the text and its line box only. Not a v3 prop: v3 sets it with a class on `Radio.Content`.
+    pub fn text_size(mut self, size: impl Into<Pixels>) -> Self {
+        self.text_size = Some(size.into());
         self
     }
 
@@ -576,6 +587,9 @@ impl RenderOnce for RadioGroup {
         // control, which v3's own comment rounds to 6px. (8px is its *pressed*
         // size, `scale: 0.5714`.)
         let (circle, dot, text, gap) = self.size.metrics();
+        // The override reaches the option labels only; the control circle's
+        // press box keeps the size step's metrics below.
+        let label_text = self.text_size.unwrap_or(text);
 
         // `.radio-group` spaces its options with `mt-4` when vertical and
         // `gap-4` when horizontal — 16px either way.
@@ -769,8 +783,8 @@ impl RenderOnce for RadioGroup {
                 .flex()
                 .items_center()
                 .gap(gap)
-                .text_size(text)
-                .line_height(crate::util::leading_for(text).unwrap_or(px(20.)))
+                .text_size(label_text)
+                .line_height(crate::util::leading_for(label_text).unwrap_or(px(20.)))
                 .font_weight(gpui::FontWeight::MEDIUM)
                 .text_color(colors.foreground)
                 .when(!row_disabled && !self.is_read_only, |r| {

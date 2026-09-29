@@ -744,6 +744,22 @@ impl Gallery {
                     .into_any_element()]), cx),
                 ),
                 (
+                    "Label Size",
+                    "`text_size` replaces the tab labels' size step; a 12/14/16px size takes v3's 16/20/24 leading. Each tab keeps its fixed height and padding.",
+                    specimen_body("tabs-label-size", col(vec![h::Tabs::new(
+                        "tabs-label-size",
+                        vec![
+                            h::TabItem::new("a", "Account")
+                                .content(gpui::div().child("12px labels.")),
+                            h::TabItem::new("b", "Billing")
+                                .content(gpui::div().child("12px labels.")),
+                        ],
+                        "a",
+                    )
+                    .text_size(px(12.))
+                    .into_any_element()]), cx),
+                ),
+                (
                     "Sizes",
                     "`size` is additive, not a v3 prop: `Md` is the pinned 32px box with 16px padding and a 14px label; `Sm` is 28/12/12 with 16px leading. The secondary underline keeps its thickness.",
                     specimen_body("tabs-sizes", col(vec![
