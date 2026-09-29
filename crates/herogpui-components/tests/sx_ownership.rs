@@ -4,26 +4,44 @@
 //! for a whole component: a tab-list background is not a selected-tab
 //! background, and a slider track color is not its value fill. Each entry
 //! below names the source function that owns one painted part or derived
-//! metric and the extractor it must read once wired — `util::sx_background`,
+//! metric and the extractor that part is ruled against — `util::sx_background`,
 //! `util::sx_padding` or `util::sx_radius`.
 //!
-//! Entries marked pending are the known unconverted consumers; the marker
-//! must still exist, so deleting or renaming a consumer fails the test rather
-//! than silently shrinking the inventory. Wiring an entry means flipping it to
-//! `Part::wired` in the same change. Scoping is to the enclosing function, so
-//! a sibling's extractor call never satisfies an entry (see the fixtures at
-//! the bottom).
+//! Every entry is decided; there are no pending conversions left:
+//!
+//! - **wired** — the part paints over the surface the root `sx` refines (or
+//!   derives from it), so it must read the extractor or it would cover the
+//!   override. The function owning the marker has to call the reader.
+//! - **independent** — the root `sx` refines a wrapper the part does not
+//!   paint over: the part is a control fill or field chrome of its own, or it
+//!   rests transparent over the root so the override already shows through.
+//!   Forwarding the wrapper's background into it is what principle 2 of
+//!   `docs/customisation-roadmap.md` forbids, and each part's state colour
+//!   has its own named seam instead. The function owning the marker must
+//!   *not* call the reader, so a later forward is a deliberate decision that
+//!   flips the entry rather than an accident.
+//!
+//! Either way the marker must still exist, so deleting or renaming a consumer
+//! fails the test rather than silently shrinking the inventory. Scoping is to
+//! the enclosing function, so a sibling's extractor call never satisfies an
+//! entry (see the fixtures at the bottom).
 
 mod source_scan;
 
 use source_scan::{component_src, scope_contains};
+
+enum Ruling {
+    Wired,
+    /// Why the root `sx` does not reach this part, and the seam that does.
+    Independent(&'static str),
+}
 
 struct Part {
     file: &'static str,
     part: &'static str,
     marker: &'static str,
     reader: &'static str,
-    wired: bool,
+    ruling: Ruling,
 }
 
 impl Part {
@@ -38,25 +56,41 @@ impl Part {
             part,
             marker,
             reader,
-            wired: true,
+            ruling: Ruling::Wired,
         }
     }
 
-    const fn pending(
+    const fn independent(
         file: &'static str,
         part: &'static str,
         marker: &'static str,
         reader: &'static str,
+        reason: &'static str,
     ) -> Self {
         Self {
             file,
             part,
             marker,
             reader,
-            wired: false,
+            ruling: Ruling::Independent(reason),
         }
     }
 }
+
+/// The root is a wrapper (the control row or field column); the part is the
+/// control's own state fill, painted over nothing the root owns.
+const OWN_CONTROL: &str = "the root sx refines the wrapper column/row; this part is the \
+     control's own state fill, recoloured through its named hover seam";
+/// The root is the field column; the part is the field chrome the `sx` docs
+/// say the override does not reach.
+const FIELD_CHROME: &str = "the root sx refines the column the field chrome sits in, not the \
+     chrome (see the component's `sx` docs); the chrome's hover endpoint has its own seam";
+/// The part rests transparent over the root surface.
+const RESTS_TRANSPARENT: &str = "the part rests transparent over the root surface, so a root \
+     sx background already shows through; the hover wash is a state endpoint with its own seam";
+/// The part lives in a detached popover panel, not on the root.
+const DETACHED_PANEL: &str = "the rows paint in the detached popover panel, which the root sx \
+     never refines; the row hover has its own seam";
 
 const INVENTORY: &[Part] = &[
     // Wired: Button freezes both hover-fade endpoints on the resolved resting
@@ -111,20 +145,33 @@ const INVENTORY: &[Part] = &[
         "let tab_overlay = tray.alpha(",
         "util::sx_background",
     ),
-    // Pending conversions. Resolve each part's state precedence when wiring.
-    Part::pending(
+    // Wired: a Surface accordion's root is the card, and a closed trigger's
+    // fade paints its resting endpoint on the trigger itself; that endpoint
+    // is the resolved card fill, so an `sx` card colour is not covered by the
+    // stock surface under every header. The hover endpoint stays the state
+    // wash (`Accordion::hover_bg` or `bg-default`).
+    Part::wired(
+        "accordion.rs",
+        "surface trigger resting fade endpoint",
+        "crate::anim::hover_fade_with_duration(",
+        "util::sx_background",
+    ),
+    // Independent: each decided against forwarding; see the reason.
+    Part::independent(
         "switch.rs",
         "track hover fill",
         "track_motion_frame.render(",
         "util::sx_background",
+        OWN_CONTROL,
     ),
-    Part::pending(
+    Part::independent(
         "checkbox.rs",
         "control fill fade",
         "\"fill-fade\"",
         "util::sx_background",
+        OWN_CONTROL,
     ),
-    Part::pending(
+    Part::independent(
         "select.rs",
         "trigger hover fill",
         // The trigger's hover endpoint moved into the fade's `hover_border`
@@ -132,132 +179,169 @@ const INVENTORY: &[Part] = &[
         // style; the call is the consumer now.
         "crate::anim::hover_fade_with_duration_and_easing_suppressed(",
         "util::sx_background",
+        FIELD_CHROME,
     ),
-    Part::pending(
+    Part::independent(
         "list_box.rs",
         "row hover fill",
         ".hover(move |s| s.bg(hover_bg))",
         "util::sx_background",
+        RESTS_TRANSPARENT,
     ),
-    Part::pending(
+    Part::independent(
         "pagination.rs",
         "control hover fill",
         "crate::anim::hover_fade(",
         "util::sx_background",
+        RESTS_TRANSPARENT,
     ),
-    Part::pending(
-        "accordion.rs",
-        "header hover fill",
-        "crate::anim::hover_fade_with_duration(",
-        "util::sx_background",
-    ),
-    Part::pending(
+    Part::independent(
         "calendar.rs",
         "day hover fill",
         ".hover(move |s| s.bg(hover_bg))",
         "util::sx_background",
+        RESTS_TRANSPARENT,
     ),
-    Part::pending(
+    Part::independent(
         "range_calendar.rs",
         "day hover fill",
         ".hover(move |s| s.bg(hover_bg))",
         "util::sx_background",
+        RESTS_TRANSPARENT,
     ),
-    Part::pending(
+    Part::independent(
         "combo_box.rs",
         "row hover fill",
         ".hover(move |s| s.bg(hover_bg))",
         "util::sx_background",
+        DETACHED_PANEL,
     ),
-    Part::pending(
+    Part::independent(
         "autocomplete.rs",
         "clear-button hover fill",
         ".hover(move |st| st.bg(hover_bg))",
         "util::sx_background",
+        FIELD_CHROME,
     ),
-    Part::pending(
+    Part::independent(
         "dropdown.rs",
         "row hover fill",
         "row = row.hover(move |s| s.bg(row_hover_bg));",
         "util::sx_background",
+        DETACHED_PANEL,
     ),
-    Part::pending(
+    Part::independent(
         "tag_group.rs",
         "tag hover fill",
         "hover_fade_with_duration_and_easing(",
         "util::sx_background",
+        OWN_CONTROL,
     ),
-    Part::pending(
+    Part::independent(
         "time_field.rs",
         "stepper hover fill",
         ".hover(move |s| s.bg(hover_bg))",
         "util::sx_background",
+        FIELD_CHROME,
     ),
-    Part::pending(
+    Part::independent(
         "input_otp.rs",
         "slot hover fill",
         "let hover_bg = self.slot_hover_bg.unwrap_or(match self.variant {",
         "util::sx_background",
+        OWN_CONTROL,
     ),
-    Part::pending(
+    Part::independent(
         "input_group.rs",
         "group hover fill",
         // Same move as select.rs: the border endpoint is now the fade's
         // `hover_border` argument rather than a `.hover(..)` on the group.
         "crate::anim::hover_fade_with_duration_and_easing(",
         "util::sx_background",
+        FIELD_CHROME,
     ),
-    Part::pending(
+    Part::independent(
         "number_field.rs",
         "group hover fill",
         "crate::anim::field_chrome_ramp(",
         "util::sx_background",
+        FIELD_CHROME,
     ),
-    Part::pending(
+    Part::independent(
         "input.rs",
         "clear-button hover fill",
         ".hover(move |s| s.bg(clear_hover_bg))",
         "util::sx_background",
+        RESTS_TRANSPARENT,
     ),
-    Part::pending(
+    Part::independent(
         "date_picker/range.rs",
         "trigger hover fill",
         ".hover(move |s| s.bg(hover_bg))",
         "util::sx_background",
+        FIELD_CHROME,
     ),
 ];
 
-#[test]
-fn every_inventoried_part_owns_its_extractor_once_wired() {
-    let mut failures = Vec::new();
-    let mut pending = Vec::new();
-    for part in INVENTORY {
-        let source = component_src(part.file);
-        if !source.contains(part.marker) {
-            failures.push(format!(
-                "{} [{}]: marker {:?} is gone — the consumer was removed or renamed; \
-                 update or delete this inventory entry",
-                part.file, part.part, part.marker
-            ));
-            continue;
-        }
-        if part.wired {
-            if let Err(err) = scope_contains(&source, part.marker, part.reader) {
-                failures.push(format!("{} [{}]: {err}", part.file, part.part));
-            }
-        } else {
-            pending.push(format!("{} [{}] -> {}", part.file, part.part, part.reader));
-        }
+/// The failure for one entry against `source`, or `None` when it holds.
+fn check(part: &Part, source: &str) -> Option<String> {
+    if !source.contains(part.marker) {
+        return Some(format!(
+            "{} [{}]: marker {:?} is gone — the consumer was removed or renamed; \
+             update or delete this inventory entry",
+            part.file, part.part, part.marker
+        ));
     }
+    match (
+        &part.ruling,
+        scope_contains(source, part.marker, part.reader),
+    ) {
+        (Ruling::Wired, Err(err)) => Some(format!("{} [{}]: {err}", part.file, part.part)),
+        (Ruling::Independent(reason), Ok(())) => Some(format!(
+            "{} [{}]: ruled independent ({reason}) but its function now reads {}; \
+             flip the entry to `Part::wired` with the new contract, or drop the forward",
+            part.file, part.part, part.reader
+        )),
+        _ => None,
+    }
+}
+
+#[test]
+fn every_inventoried_part_owns_its_extractor_or_is_ruled_independent() {
+    let failures: Vec<String> = INVENTORY
+        .iter()
+        .filter_map(|part| check(part, &component_src(part.file)))
+        .collect();
     assert!(
         failures.is_empty(),
         "sx ownership wiring failed:\n{}",
         failures.join("\n")
     );
-    eprintln!(
-        "pending sx ownership entries ({}):\n{}",
-        pending.len(),
-        pending.join("\n")
+}
+
+/// Both rulings can fail: a wired part whose function dropped the reader, and
+/// an independent part whose function started forwarding the root override.
+#[test]
+fn each_ruling_fails_on_the_wrong_scope() {
+    let forwards = "fn owner() {\n    let bg = util::sx_background(&sx);\n    paint(bg);\n}\n";
+    let plain = "fn owner() {\n    paint(stock);\n}\n";
+    let wired = Part::wired("fixture.rs", "part", "paint(", "util::sx_background");
+    let independent = Part::independent(
+        "fixture.rs",
+        "part",
+        "paint(",
+        "util::sx_background",
+        "reason",
+    );
+    assert!(check(&wired, forwards).is_none());
+    assert!(
+        check(&wired, plain).is_some(),
+        "a wired part must read the extractor"
+    );
+    assert!(check(&independent, plain).is_none());
+    assert!(
+        check(&independent, forwards).is_some(),
+        "an independent part must not start forwarding the root override"
     );
 }
 

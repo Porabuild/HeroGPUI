@@ -298,6 +298,22 @@ for each breaking change with before/after code.
   reaches the trigger box despite documenting a panel-only override; that
   case is an ignored test naming the defect.
 
+### Fixed
+
+- `Accordion` (Surface): a solid `sx` background recolours the whole card.
+  Each closed trigger's hover fade rested on the stock surface colour, so
+  the headers painted that surface over the override; the resting endpoint
+  is now the resolved card fill, and hover still fades to `hover_bg` or
+  `bg-default`.
+
+### Changed
+
+- `tests/sx_ownership.rs` has no pending entries: every inventoried part is
+  either wired to its `sx` extractor or ruled independent with its reason
+  (the root `sx` refines a wrapper the part does not paint over), and an
+  independent part whose function starts reading the extractor now fails
+  the test until the entry is flipped deliberately.
+
 ## [0.12.0] - 2026-09-28
 
 ### Added

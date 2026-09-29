@@ -161,10 +161,15 @@ reason in the parity audit.
   is not a selected-tab background; a slider track is not its value fill. Name
   a part seam when forwarding would be ambiguous.
 - `tests/sx_ownership.rs` keeps the part-scoped inventory: each entry names the
-  function that owns a painted part and the extractor it must read once wired.
-  Pending entries still check their marker exists, so removing a consumer fails
-  the test; scoping is to the enclosing function, so a sibling's extractor call
-  never satisfies another part's entry.
+  function that owns a painted part and the extractor it is ruled against.
+  A *wired* part paints over (or derives from) the surface the root `sx`
+  refines, so its function must read the extractor; an *independent* part
+  sits under a wrapper root it does not paint over — its own control fill,
+  field chrome, a transparent resting row, a detached panel — so its function
+  must not, and its state colour has a named seam instead. Every entry checks
+  its marker exists, so removing a consumer fails the test; scoping is to the
+  enclosing function, so a sibling's extractor call never satisfies another
+  part's entry.
 
 ## Accessibility
 
