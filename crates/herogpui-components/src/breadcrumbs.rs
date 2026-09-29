@@ -305,6 +305,7 @@ impl RenderOnce for Breadcrumbs {
                         window,
                         cx,
                     );
+                    label_el = crate::util::record_focus_bounds(label_el, focus, window, cx);
                 }
 
                 row.child(label_el)

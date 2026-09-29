@@ -1722,6 +1722,9 @@ impl RenderOnce for TimeField {
                     .child(suffix),
             );
         }
+        if navigable {
+            group = util::record_focus_bounds(group, &focus_handle, window, cx);
+        }
 
         // `.date-field` is `flex flex-col gap-1`.
         let mut root = div()

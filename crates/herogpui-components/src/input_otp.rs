@@ -1121,6 +1121,9 @@ impl RenderOnce for InputOTP {
                 _ => {}
             }
         });
+        if !self.is_disabled {
+            row = crate::util::record_focus_bounds(row, &focused_handle, window, cx);
+        }
 
         // A field that can be invalid has to be able to say why — every
         // message, space-joined in upstream order (React Aria's `FieldError`

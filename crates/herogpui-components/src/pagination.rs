@@ -396,7 +396,7 @@ impl RenderOnce for Pagination {
                         }
                     }
                     // `.pagination__item:focus-visible` is `status-focused`.
-                    let btn = crate::util::with_focus_ring_overlay(
+                    let mut btn = crate::util::with_focus_ring_overlay(
                         btn,
                         ring_visible
                             && page_focus
@@ -407,6 +407,11 @@ impl RenderOnce for Pagination {
                         Vec::new(),
                         cx,
                     );
+                    if !link_disabled {
+                        if let Some((_, handle)) = page_focus.iter().find(|(p, _)| *p == n) {
+                            btn = crate::util::record_focus_bounds(btn, handle, window, cx);
+                        }
+                    }
                     row = row.child(btn);
                 }
                 PageRef::Ellipsis => {
@@ -620,7 +625,11 @@ fn nav_button(
     // and not on the skin inside it, which shrinks under a press. A disabled
     // arrow is no tab stop, so `ring` is never set for one and the branch
     // resolves to the bare button.
-    crate::util::with_focus_ring_overlay(btn, ring, true, radius, Vec::new(), cx)
+    let mut btn = crate::util::with_focus_ring_overlay(btn, ring, true, radius, Vec::new(), cx);
+    if enabled {
+        btn = crate::util::record_focus_bounds(btn, focus, window, cx);
+    }
+    btn
 }
 
 enum PageRef {

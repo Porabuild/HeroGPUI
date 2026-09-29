@@ -1268,7 +1268,7 @@ impl RenderOnce for Slider {
             };
             let on_change_down = self.on_change.clone();
             let all_down = self.on_change_all.clone();
-            let focus_for_press = focus_handle;
+            let focus_for_press = focus_handle.clone();
             let active_for_press = active_thumb;
             let own_down = own.clone();
             let range_own_down = range_own.clone();
@@ -1426,6 +1426,9 @@ impl RenderOnce for Slider {
             );
         }
 
+        if any_enabled {
+            track = crate::util::record_focus_bounds(track, &focus_handle, window, cx);
+        }
         el = el.child(track);
         el = crate::util::apply_sx(el, &self.sx);
         el

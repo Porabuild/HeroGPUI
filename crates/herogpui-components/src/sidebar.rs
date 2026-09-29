@@ -758,6 +758,9 @@ impl RenderOnce for Sidebar {
                                 press.set_expanded(&key, !group_open, window, cx);
                             });
                     }
+                    if is_cursor {
+                        trigger = util::record_focus_bounds(trigger, &focus, window, cx);
+                    }
                     block = block.child(trigger);
                 } else {
                     heading = heading.debug_selector({
@@ -859,6 +862,9 @@ impl RenderOnce for Sidebar {
                             press.select(&key, window, cx);
                         });
                 }
+                if is_cursor {
+                    row = util::record_focus_bounds(row, &focus, window, cx);
+                }
                 let row = if collapsed {
                     Tooltip::new(item.label.clone())
                         .id(element_id::scoped(
@@ -891,6 +897,9 @@ impl RenderOnce for Sidebar {
                 block = block.child(items);
             }
             menu = menu.child(block);
+        }
+        if cursor_stop.is_none() {
+            menu = util::record_focus_bounds(menu, &focus, window, cx);
         }
 
         let mut footer = div()

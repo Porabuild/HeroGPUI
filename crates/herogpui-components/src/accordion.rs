@@ -563,7 +563,7 @@ impl RenderOnce for Accordion {
                 }
             }
 
-            let header = crate::util::with_focus_ring(
+            let mut header = crate::util::with_focus_ring(
                 header,
                 !item_disabled
                     && ring_visible
@@ -572,6 +572,9 @@ impl RenderOnce for Accordion {
                 Vec::new(),
                 cx,
             );
+            if let Some(focus) = header_focus.filter(|_| !item_disabled) {
+                header = crate::util::record_focus_bounds(header, focus, window, cx);
+            }
             // `.accordion__heading` wraps the trigger and `.accordion__panel`
             // the body. The panel owns the measured height transition while
             // its body carries the pinned inset and text metrics.

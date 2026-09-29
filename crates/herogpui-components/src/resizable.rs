@@ -897,6 +897,9 @@ impl RenderOnce for ResizablePanelGroup {
                     cx.stop_propagation();
                 });
             }
+            if !self.is_disabled {
+                handle_el = crate::util::record_focus_bounds(handle_el, &handle, window, cx);
+            }
             root = root.child(handle_el);
         }
 

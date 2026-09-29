@@ -828,6 +828,7 @@ impl RenderOnce for TagGroup {
                         window,
                         cx,
                     );
+                    close = crate::util::record_focus_bounds(close, remove_focus, window, cx);
                 }
                 chip = chip.child(
                     div()
@@ -1128,7 +1129,7 @@ impl RenderOnce for TagGroup {
             }
 
             // `.tag:focus-visible` is `status-focused`.
-            let chip = crate::util::with_focus_ring_overlay(
+            let mut chip = crate::util::with_focus_ring_overlay(
                 chip,
                 !disabled && ring_visible && cursor_index == Some(index) && owns_focus,
                 true,
@@ -1136,6 +1137,9 @@ impl RenderOnce for TagGroup {
                 Vec::new(),
                 cx,
             );
+            if !disabled && cursor_index == Some(index) {
+                chip = crate::util::record_focus_bounds(chip, &group_focus, window, cx);
+            }
             list = list.child(chip);
         }
 

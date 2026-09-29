@@ -10,7 +10,8 @@ use gpui::{
 };
 use harness::{events, open_host, press, still, Events};
 use herogpui_components::{
-    Button, ContextMenu, ListBox, ListBoxItem, MenuItem, Table, TreeItem, TreeView,
+    Breadcrumbs, Button, ContextMenu, Crumb, ListBox, ListBoxItem, MenuItem, Table, TreeItem,
+    TreeView,
 };
 
 const PANEL: &str = "context-menu";
@@ -232,6 +233,38 @@ fn shift_f10_opens_below_a_focused_herogpui_button(cx: &mut TestAppContext) {
     let menu = panel(cx).expect("keyboard menu opened");
     assert_eq!(menu.left(), area.left() + px(40.));
     assert_eq!(menu.top(), area.top() + px(76.));
+}
+
+#[gpui::test]
+fn shift_f10_opens_below_a_focused_breadcrumb(cx: &mut TestAppContext) {
+    still();
+    let cx = open_host(cx, move || {
+        gpui::div()
+            .p(px(40.))
+            .child(ContextMenu::new(
+                "crumb-context-menu",
+                gpui::div()
+                    .w(px(400.))
+                    .h(px(300.))
+                    .p(px(40.))
+                    .debug_selector(|| "crumb-context-area".into())
+                    .child(Breadcrumbs::new(vec![
+                        Crumb::new("Build"),
+                        Crumb::new("Live"),
+                    ])),
+                vec![MenuItem::new("copy", "Copy")],
+            ))
+            .into_any_element()
+    });
+    frame(cx);
+    press(cx, "tab");
+    frame(cx);
+    press(cx, "shift-f10");
+    frame(cx);
+    let area = cx.debug_bounds("crumb-context-area").unwrap();
+    let menu = panel(cx).expect("keyboard menu opened");
+    assert_eq!(menu.left(), area.left() + px(40.));
+    assert_eq!(menu.top(), area.top() + px(60.));
 }
 
 #[gpui::test]
