@@ -151,6 +151,12 @@ under `src/` instead, and are not listed here.
 | `sx_radius_parts` | Per-corner `sx` reconciliation for painted parts. | 1 |
 | `sx_slot` | The `sx` slot: the one caller-owned styling slot every component exposes. | 4 |
 | `icon` | Lucide `IconName`/`Icon`: names, paths and files agree, every icon loads through `HeroGpuiAssets` and rasterizes, and `Icon` lays out at its size. | 5 |
+| `hover_card` | HoverCard extension: open and close delays, the card keeping itself open under the pointer, Escape and outside-press dismissal, keyboard focus, controlled open. | 7 |
+| `command_palette` | CommandPalette extension: search focus, filtering and re-highlight, wrapping arrows, Enter and press, empty state, Escape/outside dismissal with focus return. | 8 |
+| `sidebar` | Sidebar extension: item press and keyboard activation, roving cursor over items and collapsible headings, group expansion, typeahead, collapse to icons. | 6 |
+| `title_bar` | TitleBar/WindowBorder extension: drawn controls report actions, press-and-move is one window move, double-click, child presses, platform `Auto` controls, border pass-through. | 6 |
+| `toolbar_extras` | Toolbar `size` / `sized_child` extension: builder-order-independent size propagation, plain children keep their own size. | 2 |
+| `table_extras` | Table extension: column reordering by header drag and Alt+arrows (controlled, uncontrolled, virtual rows), cell selection by press and keys, reported by given column index. | 9 |
 
 ## Animation & motion
 

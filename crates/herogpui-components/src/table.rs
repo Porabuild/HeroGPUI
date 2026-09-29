@@ -686,6 +686,10 @@ pub struct Table {
     radius: Option<Pixels>,
     /// The `sx` slot, refined over the root style at the end of render.
     sx: Option<Box<gpui::StyleRefinement>>,
+    /// Column reordering (HeroGPUI extension; see [`Table::allows_column_reorder`]).
+    column_reorder: ColumnReorder,
+    /// Cell selection (HeroGPUI extension; see [`Table::cell_selectable`]).
+    cell_selection: CellSelection,
 }
 
 impl Table {
@@ -732,6 +736,8 @@ impl Table {
             row_hover_bg: None,
             radius: None,
             sx: None,
+            column_reorder: ColumnReorder::default(),
+            cell_selection: CellSelection::default(),
         }
     }
 
@@ -1237,6 +1243,9 @@ impl RenderOnce for Table {
     fn render(mut self, window: &mut Window, cx: &mut App) -> impl IntoElement {
         // The caller's id, as the root every part of this table hangs off.
         let base_id: gpui::ElementId = self.id.clone().into();
+        // HeroGPUI extension: put the columns and cells in display order
+        // first, so everything below works in display positions.
+        let column_order = self.apply_column_order(&base_id, window, cx);
         // Column widths a resize handle has moved, and the drag in progress.
         // `use_keyed_state` takes `cx` mutably, so both precede the tokens.
         let resized =
@@ -1511,7 +1520,8 @@ impl RenderOnce for Table {
         // ---- header ------------------------------------------------------
         // `.table__header`, whose cells are `.table__column`s and whose
         // sortable ones wrap in `.table__sortable-column-header`.
-        let mut header = gpui::div()
+        let mut header = self
+            .column_reorder_measure(gpui::div(), &base_id, window, cx)
             .id(element_id::scoped(&base_id, "header"))
             // `useTableHeaderRow.mjs` is a bare `role: 'row'`. Upstream wraps
             // it in a `<TableHeader>` whose `useTableRowGroup` gives it
@@ -1568,6 +1578,15 @@ impl RenderOnce for Table {
                 cx,
             ));
         }
+        let header = self.column_reorder_header(
+            header,
+            &base_id,
+            &column_order,
+            &header_focus,
+            &dragging,
+            window,
+            cx,
+        );
         table = table.child(header);
 
         // `.table__body` rounds to `min(32px, --radius-2xl)` and its cells are
@@ -1684,6 +1703,15 @@ impl RenderOnce for Table {
         // one row builder for both paths is what keeps a virtual table drawing
         // the same row as a short one.
         let table_id = self.id.clone();
+        let cell_selection = self.cell_selection_state(
+            &base_id,
+            &column_order,
+            &row_cursor,
+            &table_focus,
+            window,
+            cx,
+        );
+        wrapper = self.cell_selection_keys(wrapper, &cell_selection, &visible_collection_keys);
         let (round_top, round_bottom) = self.row_edge_rounding(
             secondary,
             &virtual_scroll_now,
@@ -1745,6 +1773,7 @@ impl RenderOnce for Table {
             round_top,
             round_bottom,
             is_tree,
+            cell: cell_selection,
         });
 
         wrapper = self.row_keyboard(
@@ -4060,6 +4089,8 @@ struct RowCtx {
     /// Whether the collection is a tree, which is what makes
     /// `useTableRow.mjs` add `aria-level` and `aria-expanded` to a row.
     is_tree: bool,
+    /// Cell selection (HeroGPUI extension), when enabled.
+    cell: Option<CellCtx>,
 }
 
 impl RowCtx {
@@ -4379,7 +4410,10 @@ impl RowCtx {
                 }
             }
             cell_el = cell_el.child(cell);
-            if row_focused {
+            if let Some(cell_ctx) = &self.cell {
+                cell_el = cell_ctx.decorate(cell_el, &key, c, is_disabled, cx);
+            }
+            if row_focused && self.cell.is_none() {
                 let cell_index = c + usize::from(self.selectable);
                 let total_cells = data_count + usize::from(self.selectable);
                 cell_el = cell_el.child(table_cell_focus_ring(
@@ -4520,6 +4554,688 @@ impl RowCtx {
         // inset strips so the outline stays clipped to the cell geometry.
         row.when(is_disabled, |row| row.opacity(cx.layout().disabled_opacity))
             .into_any_element()
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Column reordering and cell selection (HeroGPUI extension, after gpui-kit's
+// data table: `movable` columns and `cell_selectable`). Neither is a HeroUI
+// v3 prop; they are kept here, after the v3 surface, so the ported code above
+// stays as it was.
+// ---------------------------------------------------------------------------
+
+type OnColumnMove = std::sync::Arc<dyn Fn(&ColumnMove, &mut Window, &mut App) + 'static>;
+type OnCellSelect = std::sync::Arc<dyn Fn(&TableCell, &mut Window, &mut App) + 'static>;
+
+/// A column move, as [`Table::on_column_move`] reports it (HeroGPUI
+/// extension). Positions are display positions *before* the move; `order` is
+/// the new display order as indices into the columns the table was given.
+#[derive(Clone, Debug, PartialEq, Eq)]
+#[non_exhaustive]
+pub struct ColumnMove {
+    /// The display position the column left.
+    pub from: usize,
+    /// The display position it moved to.
+    pub to: usize,
+    /// The whole new order, as indices into the given columns.
+    pub order: Vec<usize>,
+}
+
+/// One table cell (HeroGPUI extension): the row's selection key and the
+/// column's index in the columns the table was given, so it stays the same
+/// cell when the columns are reordered.
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub struct TableCell {
+    /// The row's selection key (see [`TableRow::key`]).
+    pub row: SharedString,
+    /// The column's index in the columns as given.
+    pub column: usize,
+}
+
+impl TableCell {
+    /// The cell of row `row` in column `column` (an index into the columns
+    /// as given).
+    pub fn new(row: impl Into<SharedString>, column: usize) -> Self {
+        Self {
+            row: row.into(),
+            column,
+        }
+    }
+}
+
+/// The column-reordering configuration.
+#[derive(Default)]
+struct ColumnReorder {
+    allowed: bool,
+    order: Option<Vec<usize>>,
+    default_order: Option<Vec<usize>>,
+    on_move: Option<OnColumnMove>,
+}
+
+/// The cell-selection configuration.
+#[derive(Default)]
+struct CellSelection {
+    enabled: bool,
+    /// `Some` when controlled; the inner `None` is "no cell".
+    selected: Option<Option<TableCell>>,
+    default: Option<TableCell>,
+    on_select: Option<OnCellSelect>,
+}
+
+/// `order` made a permutation of `0..n`: out-of-range and repeated indices
+/// dropped, missing ones appended in order.
+fn sanitize_order(order: &[usize], n: usize) -> Vec<usize> {
+    let mut seen = vec![false; n];
+    let mut out = Vec::with_capacity(n);
+    for &ix in order {
+        if ix < n && !seen[ix] {
+            seen[ix] = true;
+            out.push(ix);
+        }
+    }
+    out.extend((0..n).filter(|ix| !seen[*ix]));
+    out
+}
+
+/// The order after moving the column at display position `from` to `to`.
+fn moved_order(order: &[usize], from: usize, to: usize) -> Vec<usize> {
+    let mut next = order.to_vec();
+    if from < next.len() && to < next.len() && from != to {
+        let column = next.remove(from);
+        next.insert(to, column);
+    }
+    next
+}
+
+/// Reorders a row's cells (and its children's) into display order. A row
+/// with fewer cells than columns keeps the ones it has, in display order.
+fn permute_row(row: &mut TableRow, order: &[usize]) {
+    let mut cells: Vec<Option<AnyElement>> = std::mem::take(&mut row.cells)
+        .into_iter()
+        .map(Some)
+        .collect();
+    row.cells = order
+        .iter()
+        .filter_map(|&ix| cells.get_mut(ix).and_then(Option::take))
+        .collect();
+    for child in &mut row.children {
+        permute_row(child, order);
+    }
+}
+
+/// Moves per-position values (resized and measured widths) from the order
+/// they were stored in to the new one.
+fn permute_positions<T: Clone>(
+    values: &[Option<T>],
+    from: &[usize],
+    to: &[usize],
+) -> Vec<Option<T>> {
+    to.iter()
+        .map(|column| {
+            from.iter()
+                .position(|c| c == column)
+                .and_then(|at| values.get(at).cloned().flatten())
+        })
+        .collect()
+}
+
+/// The header row's left edge and each column header's bounds.
+type HeaderBounds = std::rc::Rc<std::cell::RefCell<(Pixels, Vec<gpui::Bounds<Pixels>>)>>;
+
+/// The drag of a column header in progress.
+#[derive(Clone, Copy, Debug, PartialEq)]
+struct ColumnDrag {
+    from: usize,
+    start_x: f32,
+    active: bool,
+    target: usize,
+}
+
+/// The display position whose header contains `x`, or the nearest end.
+fn header_at(bounds: &[gpui::Bounds<Pixels>], x: Pixels) -> Option<usize> {
+    let first = bounds.first()?;
+    if x < first.left() {
+        return Some(0);
+    }
+    bounds
+        .iter()
+        .position(|b| x >= b.left() && x < b.right())
+        .or(Some(bounds.len() - 1))
+}
+
+impl Table {
+    /// Lets the user reorder the columns (HeroGPUI extension): drag a header
+    /// to another column's place, or focus a header and press Alt+Left /
+    /// Alt+Right. Every move is reported through [`Table::on_column_move`].
+    pub fn allows_column_reorder(mut self, allowed: bool) -> Self {
+        self.column_reorder.allowed = allowed;
+        self
+    }
+
+    /// The controlled display order, as indices into the columns given
+    /// (HeroGPUI extension). Out-of-range and repeated indices are dropped and
+    /// missing columns appended.
+    pub fn column_order(mut self, order: impl IntoIterator<Item = usize>) -> Self {
+        self.column_reorder.order = Some(order.into_iter().collect());
+        self
+    }
+
+    /// The initial display order of an uncontrolled table (HeroGPUI
+    /// extension).
+    pub fn default_column_order(mut self, order: impl IntoIterator<Item = usize>) -> Self {
+        self.column_reorder.default_order = Some(order.into_iter().collect());
+        self
+    }
+
+    /// Reports each column move (HeroGPUI extension).
+    pub fn on_column_move(
+        mut self,
+        f: impl Fn(&ColumnMove, &mut Window, &mut App) + 'static,
+    ) -> Self {
+        self.column_reorder.on_move = Some(std::sync::Arc::new(f));
+        self
+    }
+
+    /// Makes single cells selectable (HeroGPUI extension): a press selects the
+    /// cell under the pointer, Left / Right move between the cells of the
+    /// row, Home / End to its first and last cell, and the row keys (Up, Down,
+    /// PageUp, PageDown, Ctrl+Home, Ctrl+End) move to the same column of
+    /// another row. Row selection keeps working alongside; in a tree table the
+    /// chevron, not Left/Right, expands a row.
+    pub fn cell_selectable(mut self, selectable: bool) -> Self {
+        self.cell_selection.enabled = selectable;
+        self
+    }
+
+    /// The controlled selected cell (HeroGPUI extension); `None` for none.
+    pub fn selected_cell(mut self, cell: Option<TableCell>) -> Self {
+        self.cell_selection.selected = Some(cell);
+        self
+    }
+
+    /// The initially selected cell of an uncontrolled table (HeroGPUI
+    /// extension).
+    pub fn default_selected_cell(mut self, cell: TableCell) -> Self {
+        self.cell_selection.default = Some(cell);
+        self
+    }
+
+    /// Reports each cell a press or a key selected (HeroGPUI extension).
+    pub fn on_cell_select(
+        mut self,
+        f: impl Fn(&TableCell, &mut Window, &mut App) + 'static,
+    ) -> Self {
+        self.cell_selection.on_select = Some(std::sync::Arc::new(f));
+        self
+    }
+
+    /// Resolves the display column order and puts the columns, every row's
+    /// cells and the tree column into it, so the rest of the render works in
+    /// display positions. Returns the order (indices into the given columns).
+    fn apply_column_order(
+        &mut self,
+        base_id: &gpui::ElementId,
+        window: &mut Window,
+        cx: &mut App,
+    ) -> std::rc::Rc<Vec<usize>> {
+        let n = self.columns.len();
+        let reorder = &self.column_reorder;
+        if !reorder.allowed && reorder.order.is_none() && reorder.default_order.is_none() {
+            return std::rc::Rc::new((0..n).collect());
+        }
+        let seed = sanitize_order(reorder.default_order.as_deref().unwrap_or(&[]), n);
+        let (order, _) = crate::util::controlled(
+            window,
+            cx,
+            element_id::scoped(base_id, "column-order"),
+            reorder.order.as_ref().map(|order| sanitize_order(order, n)),
+            seed,
+        );
+        let order = sanitize_order(&order, n);
+        // The resized and measured widths are stored per display position;
+        // when the order changes they move with their columns.
+        let rendered = window.use_keyed_state(
+            element_id::scoped(base_id, "rendered-column-order"),
+            cx,
+            |_, _| (0..n).collect::<Vec<usize>>(),
+        );
+        let previous = rendered.read(cx).clone();
+        if previous != order {
+            for part in ["resized", "measured-widths"] {
+                let widths =
+                    window.use_keyed_state(element_id::scoped(base_id, part), cx, |_, _| {
+                        Vec::<Option<Pixels>>::new()
+                    });
+                widths.update(cx, |values, _| {
+                    *values = permute_positions(values, &previous, &order);
+                });
+            }
+            rendered.update(cx, |value, _| value.clone_from(&order));
+        }
+        if order.iter().enumerate().all(|(at, ix)| at == *ix) {
+            return std::rc::Rc::new(order);
+        }
+        let mut given: Vec<Option<TableColumn>> = std::mem::take(&mut self.columns)
+            .into_iter()
+            .map(Some)
+            .collect();
+        self.columns = order
+            .iter()
+            .filter_map(|&ix| given.get_mut(ix).and_then(Option::take))
+            .collect();
+        for row in &mut self.rows {
+            permute_row(row, &order);
+        }
+        if let Some((_, _, _, row)) = &mut self.virtual_rows {
+            let inner = row.clone();
+            let order = order.clone();
+            *row = crate::util::shared(move |ix| {
+                let mut built = inner(ix);
+                permute_row(&mut built, &order);
+                built
+            });
+        }
+        if let Some(at) = order.iter().position(|ix| *ix == self.tree_column) {
+            self.tree_column = at;
+        }
+        std::rc::Rc::new(order)
+    }
+
+    /// The header row's left edge and each column header's bounds, stored by
+    /// the header row's prepaint for the column drag.
+    fn header_bounds(base_id: &gpui::ElementId, window: &mut Window, cx: &mut App) -> HeaderBounds {
+        window
+            .use_keyed_state(element_id::scoped(base_id, "header-bounds"), cx, |_, _| {
+                std::rc::Rc::new(std::cell::RefCell::new((
+                    px(0.),
+                    Vec::<gpui::Bounds<Pixels>>::new(),
+                )))
+            })
+            .read(cx)
+            .clone()
+    }
+
+    /// Records the header cells' bounds (before the header row takes its id,
+    /// which `on_children_prepainted` needs) when reordering is allowed.
+    fn column_reorder_measure(
+        &self,
+        header: gpui::Div,
+        base_id: &gpui::ElementId,
+        window: &mut Window,
+        cx: &mut App,
+    ) -> gpui::Div {
+        if !self.column_reorder.allowed || self.columns.len() < 2 {
+            return header;
+        }
+        let bounds = Self::header_bounds(base_id, window, cx);
+        let skip = usize::from(self.selection_mode != SelectionMode::None);
+        let columns = self.columns.len();
+        header.on_children_prepainted(move |children, _, _| {
+            let origin = children.first().map_or(px(0.), |b| b.left());
+            let headers = children.iter().skip(skip).take(columns).copied().collect();
+            *bounds.borrow_mut() = (origin, headers);
+        })
+    }
+
+    /// The header row's column drag (pointer) and Alt+Left / Alt+Right
+    /// (keyboard) moves, when reordering is allowed.
+    #[allow(clippy::too_many_arguments)]
+    fn column_reorder_header(
+        &self,
+        header: gpui::Stateful<gpui::Div>,
+        base_id: &gpui::ElementId,
+        order: &std::rc::Rc<Vec<usize>>,
+        header_focus: &[gpui::FocusHandle],
+        resizing: &gpui::Entity<Option<(usize, f32, f32)>>,
+        window: &mut Window,
+        cx: &mut App,
+    ) -> gpui::Stateful<gpui::Div> {
+        if !self.column_reorder.allowed || self.columns.len() < 2 {
+            return header;
+        }
+        let bounds = Self::header_bounds(base_id, window, cx);
+        let drag =
+            window.use_keyed_state(element_id::scoped(base_id, "column-drag"), cx, |_, _| {
+                None::<ColumnDrag>
+            });
+        let own_order = if self.column_reorder.order.is_none() {
+            Some(
+                window.use_keyed_state(element_id::scoped(base_id, "column-order"), cx, |_, _| {
+                    order.as_ref().clone()
+                }),
+            )
+        } else {
+            None
+        };
+        let on_move = self.column_reorder.on_move.clone();
+        let commit = crate::util::shared({
+            let order = order.clone();
+            move |from: usize, to: usize, window: &mut Window, cx: &mut App| {
+                if from == to || to >= order.len() {
+                    return;
+                }
+                let next = moved_order(&order, from, to);
+                if let Some(own) = &own_order {
+                    own.update(cx, |value, cx| {
+                        value.clone_from(&next);
+                        cx.notify();
+                    });
+                }
+                if let Some(cb) = &on_move {
+                    cb(
+                        &ColumnMove {
+                            from,
+                            to,
+                            order: next,
+                        },
+                        window,
+                        cx,
+                    );
+                }
+            }
+        });
+
+        let accent = cx.colors().accent.color;
+        let drag_now = *drag.read(cx);
+        let mut header = header.relative();
+        if let Some(active) = drag_now.filter(|d| d.active) {
+            let measured = bounds.borrow();
+            if let Some(target) = measured.1.get(active.target) {
+                // The insertion edge: after the target when moving right,
+                // before it when moving left.
+                let x = if active.target > active.from {
+                    target.right()
+                } else {
+                    target.left()
+                };
+                header = header.cursor(gpui::CursorStyle::ClosedHand).child(
+                    gpui::div()
+                        .absolute()
+                        .top_0()
+                        .bottom_0()
+                        .left(x - measured.0 - px(1.))
+                        .w(px(2.))
+                        .bg(accent)
+                        .debug_selector(|| "table-column-drop-indicator".into()),
+                );
+            }
+        }
+        let down_bounds = bounds.clone();
+        let move_bounds = bounds;
+        let down_drag = drag.clone();
+        let move_drag = drag.clone();
+        let up_drag = drag.clone();
+        let out_drag = drag;
+        let up_commit = commit.clone();
+        let out_commit = commit.clone();
+        let key_commit = commit;
+        let resizing = resizing.clone();
+        let focus = header_focus.to_vec();
+        header
+            .on_mouse_down(gpui::MouseButton::Left, move |event, _, cx| {
+                // A resize handle's press started a resize, not a move.
+                if resizing.read(cx).is_some() {
+                    return;
+                }
+                let Some(from) = header_at(&down_bounds.borrow().1, event.position.x) else {
+                    return;
+                };
+                down_drag.update(cx, |d, _| {
+                    *d = Some(ColumnDrag {
+                        from,
+                        start_x: f32::from(event.position.x),
+                        active: false,
+                        target: from,
+                    });
+                });
+            })
+            .on_mouse_move(move |event, _, cx| {
+                let Some(mut current) = *move_drag.read(cx) else {
+                    return;
+                };
+                if event.pressed_button != Some(gpui::MouseButton::Left) {
+                    move_drag.update(cx, |d, cx| {
+                        *d = None;
+                        cx.notify();
+                    });
+                    return;
+                }
+                let x = f32::from(event.position.x);
+                if !current.active && (x - current.start_x).abs() < 6. {
+                    return;
+                }
+                current.active = true;
+                if let Some(target) = header_at(&move_bounds.borrow().1, event.position.x) {
+                    current.target = target;
+                }
+                move_drag.update(cx, |d, cx| {
+                    if *d != Some(current) {
+                        *d = Some(current);
+                        cx.notify();
+                    }
+                });
+            })
+            .on_mouse_up(gpui::MouseButton::Left, move |_, window, cx| {
+                let done = up_drag.update(cx, |d, cx| {
+                    cx.notify();
+                    d.take()
+                });
+                if let Some(d) = done.filter(|d| d.active) {
+                    up_commit(d.from, d.target, window, cx);
+                }
+            })
+            .on_mouse_up_out(gpui::MouseButton::Left, move |_, window, cx| {
+                let done = out_drag.update(cx, |d, cx| {
+                    cx.notify();
+                    d.take()
+                });
+                if let Some(d) = done.filter(|d| d.active) {
+                    out_commit(d.from, d.target, window, cx);
+                }
+            })
+            .on_key_down(move |event, window, cx| {
+                let m = &event.keystroke.modifiers;
+                if !m.alt || m.control || m.platform || m.shift || m.function {
+                    return;
+                }
+                let forward = match event.keystroke.key.as_str() {
+                    "right" => true,
+                    "left" => false,
+                    _ => return,
+                };
+                let Some(from) = focus.iter().position(|h| h.is_focused(window)) else {
+                    return;
+                };
+                let to = if forward {
+                    (from + 1).min(focus.len() - 1)
+                } else {
+                    from.saturating_sub(1)
+                };
+                cx.stop_propagation();
+                crate::util::set_focus_visible(true, cx);
+                if to != from {
+                    key_commit(from, to, window, cx);
+                    // The focus follows the column it moved.
+                    window.focus(&focus[to], cx);
+                }
+            })
+    }
+}
+
+/// What the rows need to draw and press the selected cell.
+#[derive(Clone)]
+struct CellCtx {
+    /// The selected cell, as its row key and display position.
+    selected: Option<(SharedString, usize)>,
+    /// The selected cell's display position.
+    column: gpui::Entity<Option<usize>>,
+    /// The table's row cursor, which is the selected cell's row.
+    cursor: gpui::Entity<Option<SharedString>>,
+    focus: gpui::FocusHandle,
+}
+
+impl CellCtx {
+    /// Marks and rings the selected cell, and makes a press select a cell.
+    fn decorate(
+        &self,
+        el: gpui::Stateful<gpui::Div>,
+        row: &SharedString,
+        column: usize,
+        disabled: bool,
+        cx: &App,
+    ) -> gpui::Stateful<gpui::Div> {
+        let is_selected = self
+            .selected
+            .as_ref()
+            .is_some_and(|(r, c)| r == row && *c == column);
+        let mut el = el.a11y_selected(is_selected);
+        if is_selected {
+            el = el.child(
+                crate::util::inset_focus_ring(cx).debug_selector(|| "table-selected-cell".into()),
+            );
+        }
+        if disabled {
+            return el;
+        }
+        let (cursor, column_state, focus, row) = (
+            self.cursor.clone(),
+            self.column.clone(),
+            self.focus.clone(),
+            row.clone(),
+        );
+        el.on_mouse_down(gpui::MouseButton::Left, move |_, window, cx| {
+            window.focus(&focus, cx);
+            crate::util::set_focus_visible(false, cx);
+            column_state.update(cx, |c, cx| {
+                *c = Some(column);
+                cx.notify();
+            });
+            cursor.update(cx, |c, cx| {
+                *c = Some(row.clone());
+                cx.notify();
+            });
+        })
+    }
+}
+
+impl Table {
+    /// Resolves the selected cell: its row is the row cursor, its column is
+    /// kept beside it. Reports a change the user made, and snaps a controlled
+    /// table back to its prop.
+    fn cell_selection_state(
+        &self,
+        base_id: &gpui::ElementId,
+        order: &[usize],
+        row_cursor: &gpui::Entity<Option<SharedString>>,
+        focus: &gpui::FocusHandle,
+        window: &mut Window,
+        cx: &mut App,
+    ) -> Option<CellCtx> {
+        if !self.cell_selection.enabled || order.is_empty() {
+            return None;
+        }
+        let last = order.len() - 1;
+        let position = |column: usize| order.iter().position(|c| *c == column);
+        let column =
+            window.use_keyed_state(element_id::scoped(base_id, "cell-column"), cx, |_, _| {
+                None::<usize>
+            });
+        let reported =
+            window.use_keyed_state(element_id::scoped(base_id, "cell-reported"), cx, |_, _| {
+                None::<TableCell>
+            });
+        let seed = match &self.cell_selection.selected {
+            Some(prop) => prop.clone(),
+            None => self.cell_selection.default.clone(),
+        };
+        crate::util::seed_once(window, cx, element_id::scoped(base_id, "cell-seed"), |cx| {
+            if let Some(seed) = seed {
+                row_cursor.update(cx, |c, _| *c = Some(seed.row.clone()));
+                column.update(cx, |c, _| *c = position(seed.column));
+                reported.update(cx, |r, _| *r = Some(seed));
+            }
+        });
+        let at = column.read(cx).unwrap_or(0).min(last);
+        let requested = row_cursor.read(cx).clone().map(|row| TableCell {
+            row,
+            column: order[at],
+        });
+        if requested.is_some() && requested != *reported.read(cx) {
+            reported.update(cx, |r, _| r.clone_from(&requested));
+            if let (Some(cb), Some(cell)) =
+                (self.cell_selection.on_select.clone(), requested.clone())
+            {
+                window.defer(cx, move |window, cx| cb(&cell, window, cx));
+            }
+        }
+        let shown = match &self.cell_selection.selected {
+            Some(prop) => {
+                if *prop != requested {
+                    let prop = prop.clone();
+                    row_cursor.update(cx, |c, _| *c = prop.as_ref().map(|p| p.row.clone()));
+                    column.update(cx, |c, _| {
+                        *c = prop.as_ref().and_then(|p| position(p.column));
+                    });
+                    reported.update(cx, |r, _| r.clone_from(&prop));
+                }
+                prop.clone()
+            }
+            None => requested,
+        };
+        Some(CellCtx {
+            selected: shown.and_then(|cell| Some((cell.row, position(cell.column)?))),
+            column,
+            cursor: row_cursor.clone(),
+            focus: focus.clone(),
+        })
+    }
+
+    /// Left / Right / Home / End between the cells of a row, ahead of the
+    /// row keyboard, while the body holds the focus.
+    fn cell_selection_keys(
+        &self,
+        wrapper: gpui::Div,
+        cell: &Option<CellCtx>,
+        rows: &[SharedString],
+    ) -> gpui::Div {
+        let Some(cell) = cell.clone() else {
+            return wrapper;
+        };
+        let last = self.columns.len().saturating_sub(1);
+        let first_row = rows
+            .iter()
+            .find(|key| !self.disabled_keys.contains(key))
+            .cloned();
+        wrapper.capture_key_down(move |event, window, cx| {
+            if !cell.focus.is_focused(window) {
+                return;
+            }
+            let m = &event.keystroke.modifiers;
+            if m.control || m.alt || m.platform || m.shift || m.function {
+                return;
+            }
+            let at = cell.column.read(cx).unwrap_or(0).min(last);
+            let to = match event.keystroke.key.as_str() {
+                "left" => at.saturating_sub(1),
+                "right" => (at + 1).min(last),
+                "home" => 0,
+                "end" => last,
+                _ => return,
+            };
+            cx.stop_propagation();
+            crate::util::set_focus_visible(true, cx);
+            if cell.cursor.read(cx).is_none() {
+                let first = first_row.clone();
+                cell.cursor.update(cx, |c, cx| {
+                    *c = first;
+                    cx.notify();
+                });
+            }
+            cell.column.update(cx, |c, cx| {
+                *c = Some(to);
+                cx.notify();
+            });
+        })
     }
 }
 

@@ -654,6 +654,22 @@ EXTRA_OK_SCOPED = {
     'ColorField.suffix': 'composition',
     # v3 composes `<Tabs.Separator />` inside the tab it precedes.
     'TabItem.separator': 'composition',
+    # HeroGPUI data-table extensions after gpui-kit's table (column move,
+    # cell selection), recorded in the roadmap's gpui-kit section; not v3
+    # props, and labelled as extensions in their rustdoc.
+    'Table.allows_column_reorder': 'herogpui-extension',
+    'Table.column_order': 'herogpui-extension',
+    'Table.default_column_order': 'herogpui-extension',
+    'Table.on_column_move': 'herogpui-extension',
+    'Table.cell_selectable': 'herogpui-extension',
+    'Table.selected_cell': 'herogpui-extension',
+    'Table.default_selected_cell': 'herogpui-extension',
+    'Table.on_cell_select': 'herogpui-extension',
+    # Toolbar sizing after gpui-kit's toolbar: the bar's size reaches the
+    # controls added with `sized_child`.
+    'Toolbar.size': 'herogpui-extension',
+    'Toolbar.sized_child': 'herogpui-extension',
+    'Toolbar.sized_children': 'herogpui-extension',
     # v3 composes `<Table.Footer>` under the body, where a table's pagination
     # goes.
     'Table.footer': 'composition',

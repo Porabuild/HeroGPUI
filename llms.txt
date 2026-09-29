@@ -635,6 +635,7 @@ ColorSlider labels/output, ColorPicker triggers, and ColorField display text use
   - virtualization: with `row_height` + `virtual_rows`, the fixed-row body caps at `max_h`, shrinks below it in a bounded parent, and PageUp/PageDown move by the visible viewport, including after resize, while skipping disabled stops.
   - resizing: `TableColumn::allows_resizing(true).default_width(px(..)).min_width(px(..)).max_width(px(..))`; use `width(px(..))` plus `Table::on_resize` for controlled widths. `on_resize_start` / `on_resize` / `on_resize_end` receive the known `(column label, pixel width)` map for pointer and keyboard resizing.
   - `empty_state(el)` for `renderEmptyState`; `is_pending(bool)` + `on_load_more(fn)` for the scroll-intersection load-more sentinel.
+  - HeroGPUI extensions (not v3 props): column reordering and cell selection, see **Table data extras** under HeroGPUI extensions.
 
 ### Date and Time
 - **DateConstraints** — shared by all five: `min_value`, `max_value`, `is_date_unavailable(fn)`, `first_day_of_week(Weekday)`, `weeks_in_month`. Each component takes them individually, or a whole set via `.constraints(..)`. The default first weekday comes from the operating system's regional date preferences and ICU4X's compiled CLDR week data; invalid or unavailable preferences fall back to Sunday, and `first_day_of_week` remains an explicit override. The month grid's own text follows the same preference: the month and weekday names, and the order of the year-and-month heading, come from ICU4X's compiled CLDR (a Japanese reader gets a year-first heading, not a translated template), falling back to English when CLDR does not know the reported locale. On `wasm32-unknown-unknown` there is no operating system to ask -- the browser exposes no locale to `locale_config` -- so a calendar compiled for the web always draws that English fallback, whatever the visitor's browser language.
@@ -949,6 +950,90 @@ out of `reference_metadata`.
   name. Decorative: no accessibility node (lucide-react marks its svg
   `aria-hidden`). Lucide is ISC (some
   icons MIT via Feather); the license ships in `assets/lucide/LICENSE`.
+- **Table data extras** — column reordering: `Table::allows_column_reorder(
+  true).on_column_move(|m: &ColumnMove, w, cx| ..)` with `column_order([..])`
+  (controlled) or `default_column_order([..])`; orders are indices into the
+  columns as given. Drag a header onto another column's place, or Alt+Left
+  / Alt+Right on a focused header (the focus follows the column); cells,
+  resized and measured widths and the tree column move with it. `ColumnMove
+  { from, to, order }` uses display positions for `from`/`to`. Cell
+  selection: `cell_selectable(true).on_cell_select(|cell: &TableCell, w, cx|
+  ..)` with `selected_cell(Some(TableCell::new(row_key, column)))`
+  (controlled) or `default_selected_cell(..)`; `column` is the given index,
+  so a cell keeps its identity across moves. A press selects a cell,
+  Left/Right/Home/End move within the row, and the row keys (Up/Down,
+  PageUp/PageDown, Ctrl+Home/End) keep the column. The selected cell carries
+  an inset ring and `aria-selected`. Frozen columns are not available: the
+  pinned GPUI has no sticky positioning, and see the roadmap for why an
+  overlay is not correct yet.
+- **Toolbar extras** — `Toolbar::new().size(Size::Sm).sized_child(Button::new(
+  id).label(..)).sized_children([..]).label("Formatting")`: `size` reaches
+  every `sized_child` (any `Sizable<Size = Size>` control) at render time,
+  in any builder order; `child` elements keep their own size. `label` is
+  the toolbar's (or nested group's) accessible name, reported with an
+  `.id(..)`.
+- **TitleBar / WindowBorder** — open the window with
+  `TitleBar::window_options()` (or `TitleBar::titlebar_options()` plus
+  `app_owns_titlebar_drag: true`), then render
+  `WindowBorder::new().child(TitleBar::new(id).title(text).child(el)
+  .height(px).controls(TitleBarControls::{Auto, Custom, Hidden})
+  .on_window_action(|action: &WindowAction, window, cx| ..))` at the top of
+  the root view. The empty bar drags the window and a double-click zooms;
+  children keep their presses. `Auto`: macOS keeps the native traffic
+  lights (80px `TRAFFIC_LIGHTS_WIDTH` reserved); Windows draws buttons the
+  OS performs (`WindowControlArea::{Min, Max, Close}`, not reported to the
+  hook); Linux draws buttons only when client-decorated; the web draws
+  none. `Custom` draws minimize, maximize/restore and close everywhere.
+  `WindowAction::{Minimize, Zoom, Close, Move, DoubleClick,
+  ShowWindowMenu(point)}`; the hook replaces `action.perform(window)`.
+  `WindowBorder` draws a Linux client-decorated frame (shadow
+  `WINDOW_SHADOW_SIZE`, border, resize edges) and is a pass-through
+  elsewhere. Roles: `TitleBar` named by the title, `Button` per control.
+- **Sidebar** — `Sidebar::new(id, vec![SidebarGroup::new(key).label(text)
+  .is_collapsible(bool).default_expanded(bool).items(vec![SidebarItem::new(
+  key, label).icon(IconName::Inbox).badge("12").is_disabled(bool), ..]),
+  ..]).header(el).footer(el).label(name).width(px(256.))
+  .collapsed_width(px(56.)).show_collapse_toggle(bool).is_disabled(bool)
+  .on_select(|key, w, cx| ..)`; `.active_key(Some(key))` (controlled) or
+  `.default_active_key(key)`; `.is_collapsed(bool)` +
+  `.on_collapsed_change(|c: &bool, w, cx| ..)` or `.default_collapsed(bool)`;
+  `.expanded_keys([..])` + `.on_expanded_change(|&HashSet<SharedString>, w,
+  cx| ..)`. A labelled collapsible group's heading toggles its items
+  (Disclosure motion). One tab stop: Up/Down/Home/End over items and
+  collapsible headings, Right/Left expand/collapse from a heading,
+  Enter/Space activate, typeahead. Collapsed: icons only, group headings
+  hidden, each item named by a right-hand `Tooltip` (hover and keyboard
+  focus). Fixed pixel widths; for a draggable width put it in a
+  `ResizablePanelGroup` panel. Roles: `Navigation`, `Group`, `Button` +
+  expanded, `Link`.
+- **CommandPalette** — `CommandPalette::new(id, vec![CommandItem::new(key,
+  label).group(name).description(text).icon(IconName::File).shortcut(["⌘",
+  "N"]).keywords([..]).is_disabled(bool), ..]).on_select(|key, w, cx| ..)
+  .placeholder(text).empty_text(text).label(name).width(px)
+  .max_list_height(px).close_on_select(bool).filter(|item, query| bool)`;
+  `.is_open(bool)` + `.on_open_change(|open: &bool, w, cx| ..)` or
+  `.default_open(bool)`. A modal dialog on the overlay stack: the search
+  field takes the focus, Tab stays inside, Escape or an outside press closes
+  and the focus returns. Default search: every query word must occur
+  (case/accent-insensitive) in the label, a keyword or the group. Commands
+  keep their order under group headings; Up/Down wrap over enabled
+  commands, a new query highlights the first match, Enter or a press runs
+  one. Shortcuts are display-only `Kbd`s. Bind Cmd-K/Ctrl-K yourself:
+  `is_command_palette_shortcut(&event.keystroke)` in a root `on_key_down`,
+  or a GPUI action on `"secondary-k"`. Roles: `Dialog`, `ListBox`,
+  `ListBoxOption` (highlight selected, active descendant).
+- **HoverCard** — `HoverCard::new(id).content(|w, cx| el.into_any_element())
+  .label(name).child(trigger).placement(Placement::Bottom).offset(px)
+  .open_delay(ms).close_delay(ms).width(px).radius(px).is_disabled(bool)
+  .on_open_change(|open: &bool, w, cx| ..)`; `.is_open(bool)` makes it
+  controlled, `.default_open(bool)` seeds it. Hovering the trigger opens
+  the card after `open_delay` (`HOVER_CARD_OPEN_DELAY_MS`, 700); keyboard
+  focus inside the trigger opens it at once. Leaving the trigger starts
+  `close_delay` (`HOVER_CARD_CLOSE_DELAY_MS`, 300), which the pointer
+  reaching the card cancels; leaving the card starts it again. Escape (from
+  anywhere while it is the topmost overlay), a press outside, or the focus
+  leaving the trigger close it. Role: `Group` named by `label` (not a
+  tooltip).
 
 ## Gallery
 

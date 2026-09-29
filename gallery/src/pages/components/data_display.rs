@@ -907,6 +907,54 @@ impl Gallery {
                             .into_any_element(),
                     ]),
                 ),
+                (
+                    "Column Reordering", "HeroGPUI extension, not a HeroUI v3 example (after gpui-kit's movable columns): `allows_column_reorder` lets a header be dragged onto another column's place, or moved with Alt+Left and Alt+Right while it has the focus (PageUp reaches the headers from the body). `column_order` is controlled here and fed back from `on_column_move`; cells, widths and the tree column move with their column.",
+                    specimen_body("tbl-column-reorder", stretch_col(vec![
+                        build("tbl-column-reorder")
+                            .allows_column_reorder(true)
+                            .column_order(self.table_column_order.clone())
+                            .on_column_move(cx.listener(|this, m: &h::ColumnMove, _, cx| {
+                                this.table_column_order = m.order.clone();
+                                cx.notify();
+                            }))
+                            .into_any_element(),
+                        para(
+                            &format!(
+                                "Order: {}",
+                                self.table_column_order
+                                    .iter()
+                                    .map(|c| ["Name", "Role", "Status"][*c])
+                                    .collect::<Vec<_>>()
+                                    .join(", ")
+                            ),
+                            cx,
+                        ),
+                    ]), cx),
+                ),
+                (
+                    "Cell Selection", "HeroGPUI extension, not a HeroUI v3 example (after gpui-kit's cell selection): with `cell_selectable`, a press selects the cell under the pointer, Left and Right move between the cells of a row, Home and End to its ends, and Up and Down to the same column of another row. `selected_cell` is controlled here and fed back from `on_cell_select`.",
+                    specimen_body("tbl-cell-selection", stretch_col(vec![
+                        build("tbl-cell-selection")
+                            .cell_selectable(true)
+                            .selected_cell(self.table_selected_cell.clone())
+                            .on_cell_select(cx.listener(|this, cell: &h::TableCell, _, cx| {
+                                this.table_selected_cell = Some(cell.clone());
+                                cx.notify();
+                            }))
+                            .into_any_element(),
+                        para(
+                            &match &self.table_selected_cell {
+                                Some(cell) => format!(
+                                    "Selected: row {}, {}",
+                                    cell.row,
+                                    ["Name", "Role", "Status"][cell.column]
+                                ),
+                                None => "Selected: nothing".to_owned(),
+                            },
+                            cx,
+                        ),
+                    ]), cx),
+                ),
             ],
             cx,
         )

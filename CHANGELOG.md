@@ -197,6 +197,88 @@ for each breaking change with before/after code.
   GPUI's executors keeps it dependency-free. The native gallery enables it
   for `HEROGPUI_THEME_DIR=<dir>`.
 
+### Added
+
+- Table column reordering and cell selection (HeroGPUI extension, after
+  gpui-kit's data table). `allows_column_reorder` lets a header be dragged
+  onto another column's place (with a drop indicator) or moved with
+  Alt+Left / Alt+Right while focused; `on_column_move` reports a
+  `ColumnMove` and the order is controlled (`column_order`) or uncontrolled
+  (`default_column_order`). Cells, resized and measured widths and the tree
+  column follow their column. `cell_selectable` selects single cells: a
+  press, Left/Right/Home/End within a row, and the row keys to the same
+  column of another row; `on_cell_select` reports a `TableCell` by row key
+  and given column index, and the cell is controlled (`selected_cell`) or
+  uncontrolled (`default_selected_cell`). Tables that use neither are
+  unchanged. Frozen columns are not included: GPUI 0.3.5 has no sticky
+  positioning, and the roadmap records why the alternatives are not correct
+  yet. Two gallery sections on the Table page show them.
+- `Toolbar::size`, `Toolbar::sized_child` and `Toolbar::sized_children`
+  (HeroGPUI extension, after gpui-kit's toolbar): the toolbar's size reaches
+  every control added with `sized_child` when the toolbar renders, whatever
+  the order of the builder calls; `child` elements keep their own size.
+  `Toolbar::label` names the toolbar, or the group a nested toolbar becomes
+  (`aria-label` on RAC's `Toolbar`). `Toolbar` implements `Sizable`. A
+  gallery section on the Toolbar page shows them.
+- `TitleBar`, `WindowBorder`, `TitleBarControls` and `WindowAction`
+  (HeroGPUI extension): custom window chrome for frameless windows, on the
+  pinned `gpui-pre` 0.3.5 window APIs. `TitleBar::window_options()` hides the
+  system title bar, places the macOS traffic lights and marks the title bar
+  app-owned. The bar's empty area drags the window (`start_window_move` on
+  macOS and Linux, the `Drag` caption area on Windows), a double-click zooms
+  it (the macOS user setting via `titlebar_double_click`, `zoom_window` on
+  Linux, the OS caption on Windows), and presses on the bar's children stay
+  theirs. `TitleBarControls::Auto` follows the platform (native traffic
+  lights on macOS; OS-performed `Min`/`Max`/`Close` control areas on Windows;
+  drawn buttons on client-decorated Linux; none on the web), `Custom` draws
+  minimize, maximize/restore and close everywhere, `Hidden` none;
+  `on_window_action` replaces the default `WindowAction::perform`.
+  `WindowBorder` draws the shadow, border and resize edges of a Linux
+  client-decorated window and passes its children through everywhere else.
+  The browser has no window to move or zoom. A gallery section on the
+  Toolbar page shows it.
+- `Sidebar`, `SidebarGroup` and `SidebarItem` (HeroGPUI extension): a
+  collapsible application sidebar with a header, groups of menu items (icon,
+  label, badge) under optional labels, and a footer. One item is active
+  (`active_key` or `default_active_key`, reported by `on_select`). A
+  collapsible group's heading is a disclosure trigger with `Disclosure`'s
+  measured-height motion and rotating chevron (`expanded_keys` or each
+  group's `default_expanded`). The menu is one tab stop: Up/Down/Home/End
+  move over items and collapsible headings (skipping disabled items and
+  closed groups), Right/Left expand and collapse a group, Enter/Space
+  activate, typeahead finds a label. The footer toggle (or `is_collapsed` /
+  `default_collapsed`) narrows it to `collapsed_width` and shows each item
+  as its icon named by a right-hand `Tooltip`, which opens on hover and on
+  keyboard focus because the focus handle moves with the cursor row. Roles:
+  `Navigation`, `Group`, `Button` + expanded on collapsible headings, `Link`
+  on items. A gallery section on the Tabs page shows it.
+- `CommandPalette` and `CommandItem` (HeroGPUI extension): a modal command
+  search on the `Modal` overlay stack. It takes the focus into its search
+  field as it opens, keeps Tab inside, closes on Escape or an outside press
+  and returns the focus. Every word of the query must occur in a command's
+  label, `keywords` or group (case- and accent-insensitive), through the
+  shared matches cache; commands keep their order under their group
+  headings. Up/Down move the highlight (wrapping, skipping disabled
+  commands), a new query highlights the first match, Enter or a press runs a
+  command (`on_select`) and closes it unless `close_on_select(false)`; each
+  command may show an icon, a description and `Kbd` shortcut keys; no match
+  shows `empty_text`. Open state is controlled or uncontrolled.
+  `is_command_palette_shortcut` recognises Cmd-K (Ctrl-K off macOS) for a
+  root key handler. The gallery shell opens one from any page with that
+  shortcut, and a section on the Modal page documents it.
+- `HoverCard` (HeroGPUI extension): a card that previews rich content while
+  its trigger is hovered or focused, after Radix's `HoverCard`. Hovering the
+  trigger opens it after `open_delay` (700ms by default) and keyboard focus
+  inside the trigger opens it at once; leaving starts `close_delay` (300ms),
+  which the pointer reaching the card cancels, so the card's content can be
+  read and pressed. Escape (from anywhere while it is the topmost overlay), a
+  press outside and the focus leaving the trigger close it. The timers use the
+  Tooltip's generation scheme, so a quick pass over a row of triggers opens
+  nothing. Open state is controlled (`is_open`) or uncontrolled
+  (`default_open`) and reported through `on_open_change`. The card reports
+  `Role::Group` named by `label`, not a tooltip. A gallery section on the
+  Tooltip page shows it.
+
 ## [0.12.0] - 2026-09-28
 
 ### Added

@@ -496,6 +496,49 @@ Deliberately not done, and next in this order:
    SVGs, and a pixel limit cannot hold on the very first frame, before the
    group has been measured.
 
+### Extensions from the gpui-kit gap list (0.13, unreleased)
+
+Landed on the 0.13 line, each a labelled HeroGPUI extension outside
+`reference_metadata`, with a focused behaviour binary, a gallery section on a
+related component page, an `llms.txt` entry and an `a11y_audit.py` row:
+`Sidebar` (groups, collapsible headings on `Disclosure`'s panel motion, one
+roving tab stop, collapse to icons with tooltips), `TitleBar` and
+`WindowBorder` (drag, double-click zoom and the per-platform control split
+on the pinned window APIs), `CommandPalette` (a modal search on the overlay
+stack and `matches.rs`), `HoverCard` (the Tooltip's generation-timer scheme
+with Radix's 700/300ms delays), and on `Table` column reordering and cell
+selection. The comparison's "Toolbar extras" row names no single feature;
+the concrete gaps against gpui-kit's `toolbar.rs` were its size propagation
+to the controls and a named group, which landed as `Toolbar::size` /
+`sized_child` and `Toolbar::label`. gpui-kit's toolbar has no overflow menu,
+so there is none to port.
+
+Not done, with the reason:
+
+- **Frozen (sticky) table columns.** GPUI 0.3.5 has no sticky positioning:
+  `style.rs`'s `Position` is `Relative` or `Absolute` only. The two
+  emulations were checked against the pinned sources and neither is a
+  localized, correct change yet. (a) An overlay: paint the leading cells with
+  `Window::defer_draw(.., Some(window.content_mask()))` shifted back by the
+  horizontal scroll offset. Paint order and clipping come out right, but hit
+  testing does not: `Window::hit_test` collects every non-blocking hitbox
+  under the pointer (`hitbox.bounds ∩ content_mask`), so a press on a frozen
+  cell also reaches the cell (and any caller control) scrolled underneath,
+  and making the frozen cell `HitboxBehavior::BlockMouse` also blocks the
+  row element beneath it, which owns the row's press, selection and hover.
+  Fixing that means moving the row interactions onto the cells. (b) Split
+  rows: each row and the header as a frozen part plus a clipped scrolling
+  part moved by a manual offset. That is correct, but it replaces the
+  table's native `overflow_x_scroll` with manual wheel and scroll-bar
+  handling and splits every row builder path; it belongs with the planned
+  `table.rs` render split (0.14), after the fixed-row VirtualList move.
+- **Sidebar width drag.** `ResizablePanelGroup` sizes panels in percent
+  (see item 4 above), so a sidebar in a panel resizes but has no pixel
+  minimum; the sidebar's own widths are fixed pixels.
+- **TitleBar resize edges on Windows and macOS** are the OS's; `WindowBorder`
+  draws edges only for Linux client-side decorations. The browser has no
+  window to move, zoom or close.
+
 ## Remaining work after 0.12.0
 
 Status: reviewed on 2026-09-29, after the 0.12.0 release, against this
@@ -528,7 +571,8 @@ to five days, L over a week.
 | P3 | Split the largest `render` functions (`table.rs` and others), merge the 110+ test binaries into a few suites | Review cost and link time | L | 0.14 |
 | P3 | Customisation Phases 0.2–6 (theme tokens, field geometry, state colours, sizing, shape, typography) | The largest documented backlog; opt-in and unscheduled | L | 0.14+ |
 | P3 | ~~Opt-in -O1/-O3 (`Cargo.toml` profile) test job on pull requests, by label or path filter~~ **Done (0.13):** `ci:opt-levels` label, or a PR touching build configuration | It is push-only by design, so an optimisation-level regression first shows on master or at tag time | S | 0.13 |
-| P3 | Extensions from the gpui-kit gap list: Sidebar, TitleBar, CommandPalette, HoverCard, Toolbar extras, data-table extras | Desktop-app demand outside HeroUI parity | L | later |
+| P3 | Extensions from the gpui-kit gap list: Sidebar, TitleBar, CommandPalette, HoverCard, Toolbar extras, data-table extras | Done on the 0.13 line except frozen table columns (see "Extensions from the gpui-kit gap list" above) | L | 0.13 |
+| P3 | Frozen table columns | GPUI has no sticky positioning; the overlay emulation mis-routes presses and the split-row one needs the `table.rs` render split | M | 0.13 (with the `table.rs` render split) |
 | P3 | Keyboard ContextMenu anchored at the focused element | Needs GPUI to report focused-element bounds | S once upstream lands | later |
 | P3 | Upstream GPUI work: IME-mirror resync after paste, the retired patches, the `block` 0.1.6 future-incompatibility warning every macOS build prints (chain and requested fix in [`docs/upstream/gpui-block-future-incompat.md`](upstream/gpui-block-future-incompat.md); one path is HeroGPUI's own `locale_config` dependency); multithreaded wasm needs a COOP/COEP deployment | External dependencies | M each | later |
 

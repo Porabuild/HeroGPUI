@@ -101,6 +101,7 @@ disableable!(
     DateRangePicker,
     Disclosure,
     DisclosureGroup,
+    HoverCard,
     Label,
     Input,
     TextField,
@@ -116,6 +117,8 @@ disableable!(
     RangeCalendar,
     ResizablePanelGroup,
     Select,
+    Sidebar,
+    SidebarItem,
     Slider,
     Switch,
     TabItem,
@@ -157,6 +160,7 @@ sizable!(
     TagGroup => Size,
     ToggleButton => Size,
     ToggleButtonGroup => Size,
+    Toolbar => Size,
 );
 
 selectable!(Checkbox, Switch, ToggleButton);
