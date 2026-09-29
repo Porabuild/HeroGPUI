@@ -10,7 +10,7 @@
   },
   "gallery_source": {
     "path": "web/src/data/rust-examples.json",
-    "sha256": "4ec121323d04ef6ac4b01450af2843b8557294cc216374edc843839d30347154"
+    "sha256": "d6170f06deb2bc6c0383578a8e5005b861709c01654ca82d44755d52cea682cd"
   },
   "scope_note": "Inventory only, not parity evidence. Expand each demo into its individual rendered variants and state paths before verification. Include upstream stories, documented props, CSS modifiers and inherited React Aria semantics; demos alone are not exhaustive. Gallery and upstream keys are separate inventories, not an asserted one-to-one mapping.",
   "source_changes": [
@@ -8948,14 +8948,20 @@
       },
       {
         "heading": "Context Menu",
-        "code_sha256": "f6fa1740ffd445a6e61d6055837013aa663d192fcd1e9ac68ffee7865fb59b9f",
-        "content_sha256": "589365c3a3bb0eab12929113fb21048448fd08bad6e92d597c16cc24c9c26817",
+        "code_sha256": "cfe2115fa8892aa323594d9ee2a96b183e04170a88147c2cf319f831ce40fa04",
+        "content_sha256": "3ce98e288cfc5c31a9962dc02fa610dc479889708da54ca51130e17b5f6acdd5",
         "status": "unreviewed",
         "history": [
           {
             "heading": "Context Menu",
             "code_sha256": "f6fa1740ffd445a6e61d6055837013aa663d192fcd1e9ac68ffee7865fb59b9f",
             "content_sha256": "f7c81d58c63cd95da4b70192074d8fc417fb16db2c1ed15f30a23ec815d82137",
+            "status": "unreviewed"
+          },
+          {
+            "heading": "Context Menu",
+            "code_sha256": "f6fa1740ffd445a6e61d6055837013aa663d192fcd1e9ac68ffee7865fb59b9f",
+            "content_sha256": "589365c3a3bb0eab12929113fb21048448fd08bad6e92d597c16cc24c9c26817",
             "status": "unreviewed"
           }
         ]
@@ -22405,7 +22411,7 @@
     "sha256": "034a1305e8fcdd038df72dd12ba6e8a12601ef4a3e19a111b275a4997dc959b8"
   },
   "source_snapshot": {
-    "sha256": "23a4cca3ba22a1bda1beb7ba203adc080e63d0091ff55c370540bb106dd2a91f",
+    "sha256": "7af46fb1a5886a81a5e0687796ae030b86339f0cd9c94798dc02809560e62d75",
     "files": {
       ".cargo/config.toml": "6ce2a269fd46b2570763e8e446ac93e9d04614416af21134877cf7b388e776f9",
       ".gitattributes": "e71170c75179e22e8232810e58862527293de30e2773a9ee53868d8ebcca6910",
@@ -22480,21 +22486,21 @@
       "crates/herogpui-components/src/alert_dialog.rs": "756f111b93c04c924d0e5d873509bc562aee916e147bab9f7d180f5066bb6575",
       "crates/herogpui-components/src/anim.rs": "4c9a703f4d53617fb2d886f24859d4b02bf6626ce903054bbd47c4a2af20dbec",
       "crates/herogpui-components/src/assets.rs": "7f1dd4eae2b3e0575fb970e9ee7d630e3137944e059ff4ca0a25327fd62477a8",
-      "crates/herogpui-components/src/autocomplete.rs": "fa1177820635857e3db1fea124b231f452bacb81daca498dad4f605a05796c2b",
+      "crates/herogpui-components/src/autocomplete.rs": "44f044d46ac2a9e873822569caf067668e7b23e9f51cc9376c99d014d248fe67",
       "crates/herogpui-components/src/avatar.rs": "ed001718a9a773f99d24bdafeac11186a6ca1f03605fffa4d8f72ac13d93eee4",
       "crates/herogpui-components/src/avatar_group.rs": "a20afc2ca87a0c0584c1f63970278b2673d084d75e06323a2308c70a9f64952b",
       "crates/herogpui-components/src/badge.rs": "4086b0f3bcad06f744327d6144c841200568cdded15e57e144d0bee7c3f46967",
       "crates/herogpui-components/src/breadcrumbs.rs": "bebd35562d3fb111391d4dbeb58e865506262536cb580686179e3ac556978660",
-      "crates/herogpui-components/src/button.rs": "fff33da0996218787c311204deab3f98fca90dc4be86af9bb3dc66b76b59a466",
+      "crates/herogpui-components/src/button.rs": "53807f4da165b222ae181aaaa4a520a577aa5356fb70342bb5949d9107a34159",
       "crates/herogpui-components/src/button_group.rs": "dd25ad428e36fd13677811c44ffe3269b1976ba4c9cc565023b211dee9bc7ebc",
       "crates/herogpui-components/src/calendar.rs": "e8441e68d5df561a7d8a41ef14786f8322873a01cdc86a99e4e2c52f40ee0a10",
       "crates/herogpui-components/src/calendar_keys.rs": "f43d86fe94e172dcd1bb680a8be7dfb7c9f608fe2aa5b4dec3ceb373206fc6ea",
       "crates/herogpui-components/src/calendar_system.rs": "3fc9cf74e5e380f4311a28ce387dc20b2c9227f7a91380868292c1b46ef9ed4d",
       "crates/herogpui-components/src/calendar_view.rs": "8067f86ce0507468932142f8cb9792dd4de9eba646f073e2edc08b820d792a1f",
       "crates/herogpui-components/src/card.rs": "625b5b19cd099f52231532acb617d5c35dbb5547a4f4473fcdfbd0d328cea8f4",
-      "crates/herogpui-components/src/checkbox.rs": "c204608ba510bb95e9313d2cebd2c8c7e97e8a279298693b3702a35f8167a1e8",
+      "crates/herogpui-components/src/checkbox.rs": "79bcf183543db4bc25415aa7e904f539b1b598836bc95e87bf0a71e2bbf5c23e",
       "crates/herogpui-components/src/chip.rs": "f8f28e919f5a8851f867ed63fdc727c416e6d4e9c34eb57f5a1a1726895d805e",
-      "crates/herogpui-components/src/close_button.rs": "99192f99f3515d8ff5f5b684fad8c2406df1da315a3f97b4a0786db466da0d7f",
+      "crates/herogpui-components/src/close_button.rs": "ed2a6ca5292b20c560cc8da785364670dc6813a560efc8ed5be9d56c138eb8e7",
       "crates/herogpui-components/src/color_picker/area.rs": "565fb3898e38558d1357e696bff4aca06be1d20826cf699a930a3268daead304",
       "crates/herogpui-components/src/color_picker/field.rs": "01805f1b51904ebee5e5710806776d7d5e26f9e6d68c4a2810a0ee0554003f4a",
       "crates/herogpui-components/src/color_picker/mod.rs": "11e02ad34f6e7f615215165da39334c511a17077bab0e6993174ca08742dae53",
@@ -22504,7 +22510,7 @@
       "crates/herogpui-components/src/color_picker/swatch_picker.rs": "413cfcbf19784b6751477e12606bae8ae7a48c590b35a1e736599d782391a78f",
       "crates/herogpui-components/src/combo_box.rs": "ecd981378b066a45289b5f4c71fe4eb692ec8f9f40c7a9bf7296d8ed5a9557b6",
       "crates/herogpui-components/src/command_palette.rs": "66831da2ac267635a974760ea1b06873e2df1304c1202300dfaa36ee50864bf8",
-      "crates/herogpui-components/src/context_menu.rs": "57257aa73ae659e335a481c3ed9dfcd107fee53cbfa092e70de808e649f2ce10",
+      "crates/herogpui-components/src/context_menu.rs": "14709b234cfbb2bffe351a91366a9c86a5689e4e407f7c36950b5d4aef9b3d63",
       "crates/herogpui-components/src/date_constraints.rs": "274ad025653b6c3292b574c5d64154d7942eee80af3177c68baf1252f557e741",
       "crates/herogpui-components/src/date_picker/field.rs": "ba6854a4f00ac5b3c12ddaf7931c6b98093667680a6ce581dd4efd010d4a2e5a",
       "crates/herogpui-components/src/date_picker/mod.rs": "c06834f2801c332486bbdf1c006b255f5804c042d03d22dd77be6bf1f7896911",
@@ -22521,13 +22527,13 @@
       "crates/herogpui-components/src/i18n.rs": "8ad2adc63e9329b64bd9d84052a1beaac80f8184f175cbff25d34995052f6684",
       "crates/herogpui-components/src/icon.rs": "b13ba9ee949675ed5a34e48979ba3791025ff20bd5fbf111daef5b29b5269238",
       "crates/herogpui-components/src/icons.rs": "d7ad9d4aa8d1504b5ec3a4b3dcd9afd8a52bfc5f4a1a05761037795aadf5bf13",
-      "crates/herogpui-components/src/input.rs": "0fb883a571be73ced9431ce685a91d26dcd13f1e6e5e1d46dc29218d2b38e55f",
+      "crates/herogpui-components/src/input.rs": "3f9f8c3ddfa5a8488d4cdd85265da11f263035d0e3005e1b6b890632bf7b62d0",
       "crates/herogpui-components/src/input_group.rs": "08f79ca44b49ec38242de4924404733fa7998d22b7db0f5e64720a5eac25f519",
       "crates/herogpui-components/src/input_otp.rs": "2dda9dc9770e7009682ef01a028ca8e5b27f09ea5bf274f7a9f4400210146179",
       "crates/herogpui-components/src/kbd.rs": "60383ba24133004ef5a349da2e3eff846dcb4d5043530033c45d19cc6a8db4da",
       "crates/herogpui-components/src/lib.rs": "69e7fdcc0286d122750e1a43f87c3c8e6400bfae6faddd85614ad0b4783ed711",
-      "crates/herogpui-components/src/link.rs": "6bb05c3f1622aae9d315aed50bbda4e88b49cd745804562eea3d58c2d95fcdb4",
-      "crates/herogpui-components/src/list_box.rs": "94321cd1170420101f99913d70ebfe97cdd1c790d1d615ebb7d0cb47c8ad7874",
+      "crates/herogpui-components/src/link.rs": "b71a22ac8a5d8268c5e8174995297664272dc7a03d8b7f5f71cfc05c57e120b3",
+      "crates/herogpui-components/src/list_box.rs": "165c4f186a357cd9f62521a74db31717881d0f20694fe74fbdea65143625ba39",
       "crates/herogpui-components/src/list_nav.rs": "1eab217e7b3b818a31943c329d058c76cf204de0919ce3423ec7caf3d7581516",
       "crates/herogpui-components/src/matches.rs": "89a2d028aa846d3f7fe4a24a567e16e08a6816f9b558e6d1d88e6d44e992c83d",
       "crates/herogpui-components/src/menu_bar.rs": "91d7557fa2a63b71797b2539768e7160503c20962d16b83d29193d76d68e4d87",
@@ -22538,12 +22544,12 @@
       "crates/herogpui-components/src/picker_item.rs": "c9ba3e9f9ecf8305432c1498680233a6690682bd7445607e129c8d549a8b4834",
       "crates/herogpui-components/src/popover.rs": "0190f8d4febe31f39fe18e5cbeb1aabc806431ee9fe6a1ec8c75b2102a6fd0eb",
       "crates/herogpui-components/src/progress.rs": "43386bb5801a1977a433c682521ebdc80de35d2c7b7424271eec37a578cfd479",
-      "crates/herogpui-components/src/radio_group.rs": "d303bbb0aca16723bc8aa423803e99912fd97963ed3b345d1ef2d25455433087",
+      "crates/herogpui-components/src/radio_group.rs": "9cd52dea4afd3b61e3a86bb311f882c68e37a3d0c4eb37813762882e4c1c021b",
       "crates/herogpui-components/src/range_calendar.rs": "ef3ba22a94c68ac1853cb62e8d3f8f1f93e09bec760c807098500e26c13e0933",
       "crates/herogpui-components/src/resizable.rs": "31bc714f85145ce9d3595c9d382327b6c209a9a9f8d7eb0f3d9fb3c28f8a597e",
       "crates/herogpui-components/src/scroll_shadow.rs": "29f3f35d5a1b5bb3e71fe4734e4f057c88b6ecaf6d898e34c4e7268395d6d9c2",
       "crates/herogpui-components/src/scrollbar.rs": "8020fd5b9df04075aa8a7dd4e2538b17302062c0bf0048caf8283ec3b0dc26b9",
-      "crates/herogpui-components/src/select.rs": "b4a54ef9123f4778982e6cc578d73317eb1fe9f922cecb95c2f983e45a36d581",
+      "crates/herogpui-components/src/select.rs": "3c3ea0b0bb1f803772c9fca8cd7062ba954e793e8d852ea8a081f690e32d00d2",
       "crates/herogpui-components/src/selection.rs": "5cb1b59aa951da376a769c69fbf710999bf48b8751fd89cd0ce2b04196fcdf7d",
       "crates/herogpui-components/src/separator.rs": "231a2e9d5594435b835968ba953c52c6c04944ce3b1d06fc3e439f2fbf1f6ec7",
       "crates/herogpui-components/src/sidebar.rs": "61fde900a12a577e29b0c342347759ff846503144faf2b2f273bc5f01a87a722",
@@ -22551,22 +22557,22 @@
       "crates/herogpui-components/src/slider.rs": "4eb66395cbb9f54562ae355c7bed9525db17325b3428a5d6418bc2b99636c253",
       "crates/herogpui-components/src/spinner.rs": "dcbd1dec29741a4ce56223f29425a83377897920feb3445812d844fba5f125ee",
       "crates/herogpui-components/src/surface.rs": "8c1834486c06712ac18bfcfb32e40626df9e4026f1bd3aa554057e7995cc55a2",
-      "crates/herogpui-components/src/switch.rs": "89c303487f257b3bb72c6eb2ce5c80d2e611f2239436761846fa00506bb018ed",
+      "crates/herogpui-components/src/switch.rs": "0034c5d20e7c20bef59646621daf0b887b93a6cfe56a28a4d960b380dcffc918",
       "crates/herogpui-components/src/system_locale.rs": "298d95c25ebef90610613f40bc25273bf71610bf99fae402c7245e452b8bf23b",
-      "crates/herogpui-components/src/table.rs": "0e7f95b5a215fa0b1abd3e2a846279cdd0ac4650ef551748db77f531c886aa02",
-      "crates/herogpui-components/src/tabs.rs": "3c1e2d9b464ce8867d5b409886937aa4de788acce2ccf37ee1d20429d48d94df",
+      "crates/herogpui-components/src/table.rs": "3b154c86db533830a423491e06dc588a3bf417c4dd025260ac7a39d86b73081a",
+      "crates/herogpui-components/src/tabs.rs": "8c46735750bc19b28c828ddcd305ddea8f06228a7739b2d30fda84f8741bcfa3",
       "crates/herogpui-components/src/tag_group.rs": "2df6cb01e399e351380f4e3aba5c91a626c0bcf6d4345944439d1381b900c99d",
       "crates/herogpui-components/src/textarea.rs": "86335a180ca5491c11e2503f7bd72a17eacab3319db14b5facfda0fa46ac75be",
       "crates/herogpui-components/src/time_field.rs": "187019a5ccffbd47d7389eea0fb45157d0dccdc5bb6755e00d63ebbb4627850b",
       "crates/herogpui-components/src/title_bar.rs": "164494c134deacc12f88bef71e93ff032d0f4905313af615795ae7b82ece97db",
       "crates/herogpui-components/src/toast.rs": "bc5efc67bc15f217797793e58a61c29bc35b59603ff7015a59e6fe06dad27ff4",
-      "crates/herogpui-components/src/toggle_button.rs": "6766ccb60db6bf5c8d49400242e1d849a9bd51953a50daea9a67a39d633f0600",
+      "crates/herogpui-components/src/toggle_button.rs": "c2a7540ae80ff559ae843cc84afd7b855765631b9908e3dd8ca0f5c9355cc07d",
       "crates/herogpui-components/src/toolbar.rs": "a6ce2f138182bb3d56079579b80bd077e6c2c1a436a33202fa53c9e4fae480ac",
       "crates/herogpui-components/src/tooltip.rs": "f7b5f1d8698fda3c8048be7e1be16c2c3cba3ca160e9e1962d613aeef1ceeb00",
       "crates/herogpui-components/src/traits.rs": "f006b26dc4613ddaff688baef7a157af089386fd9bd03ce296adac71c0bb0dc5",
-      "crates/herogpui-components/src/tree_view.rs": "d66da770d39723e0b075bb7dc09749b129d922369e11741576a7a04f4ae19631",
+      "crates/herogpui-components/src/tree_view.rs": "5022ca7d618c7bbb5dfc03bf9422da4a2398f825c6afaf49f01a0adef5093ca1",
       "crates/herogpui-components/src/typography.rs": "d9cd05830709531e4421294e95f80a76773f1b750333acd3350203204e73e0ec",
-      "crates/herogpui-components/src/util.rs": "ef5855f43742432325b8944c2e3304e7f301a0918f51f8f4196fd173e9d31434",
+      "crates/herogpui-components/src/util.rs": "c878a5f4c863cc3e920383e79802a0844b5b6f7a41f6e9ac9f104f7f0fbd68c0",
       "crates/herogpui-components/src/validation.rs": "8a4e32caf189e848b4557b31e366691c72e858b1569a8476d883d81a0aa6bccc",
       "crates/herogpui-components/src/virtual_list.rs": "8c8470794a479dbb01ba21f8ac00975778d8937bfe6b3c56c5917a2f6ed5ecfe",
       "crates/herogpui-components/tests/a11y_collections_deep.rs": "95d6da77ebd86c317f4506557f74d878f240e9fe32741fecac043b8e9dccc80e",
@@ -22599,7 +22605,7 @@
       "crates/herogpui-components/tests/combo_box_selection.rs": "cc4f1fd716f4178e5b37c58742c25a4f743376b9daddc6bac6bb4658383c47f7",
       "crates/herogpui-components/tests/command_palette.rs": "38a91648da2ed404abfbbfe9e72e7d9cefae8c95d33bbaff297a08f287014a9e",
       "crates/herogpui-components/tests/component_themes.rs": "1fd4f2f17a14894a1b175d626a82ba73cdac7992cbfd4d483bf73078d23d489e",
-      "crates/herogpui-components/tests/context_menu.rs": "6c1b8d5d38c708ff909b813ed1a144dd933b90f17457e97ef4d87a133e2aad2a",
+      "crates/herogpui-components/tests/context_menu.rs": "15beffc3cb501ab142a31bc52793543bfb8784a0fd8620ed34e24264b8c882d3",
       "crates/herogpui-components/tests/cursor_token.rs": "73699d71f1e81a27a1ee9cda0ead80a312337d7c6b4cdc762df1c0b304a19786",
       "crates/herogpui-components/tests/date_field_form_deep.rs": "d34dafddad3b3ce6423e21f7413363ac2028e4c49790f3ca1010405a46aac843",
       "crates/herogpui-components/tests/date_field_picker_deep.rs": "ad03a196d083a0d4a0673cb3c2430c61877d58be533a0e4a43e145aefc0a10c6",
@@ -22667,7 +22673,7 @@
       "crates/herogpui-components/tests/sx_slot.rs": "67808af935d315a166dd4282d8ae051f97046143661dcb06134a9d96efd5059e",
       "crates/herogpui-components/tests/table_and_drag.rs": "8de18e6049945c0d1dfde3c024470fdf2aa772237e97f3e80ef6d31926dca117",
       "crates/herogpui-components/tests/table_deep.rs": "65032fb7f4ea7fbf6b32ca9d6b9698c79158c10d8f68b10e1010d10081333300",
-      "crates/herogpui-components/tests/table_extras.rs": "350b9ee5189d275da1febe901136cfda211f32a6c4298f886f1f3ea455b59292",
+      "crates/herogpui-components/tests/table_extras.rs": "e74587859179dff3f7ec895fd8fad18904937ed0be59eb9533f820ebbec4f6fe",
       "crates/herogpui-components/tests/table_tabs_accordion.rs": "560eb809b1365ea04be1013a629d9e0c1aa0cc8b34659b77221bdf58dff37bf3",
       "crates/herogpui-components/tests/tabs_deep.rs": "f68cbad33ce3606b2a92ca7ebabdc981a15dd99bfa53d8e118e012074935c9f8",
       "crates/herogpui-components/tests/tag_geometry_deep.rs": "744a89f6688ac9bab13af962bd14ce07683a6e454e7232cedead104cfede2948",
@@ -22767,7 +22773,7 @@
       "gallery/src/lib.rs": "6f15a78ac0be0402995f43a5a39c1f6d5a54dac73b76f87c552d81251d40dd1b",
       "gallery/src/main.rs": "a64fc5dc15de610691418ef481cefe62a4fb10bbf531858046653b0f564d8755",
       "gallery/src/pages/components/buttons.rs": "e345c319541794daf23dd11a6cc1c8ee895ee9fb8752a0b04d3e16fece02221f",
-      "gallery/src/pages/components/collections.rs": "b92370d8936721e00a153490b852db5157592ddd68e4b3d791cce037e9b516b7",
+      "gallery/src/pages/components/collections.rs": "7b53777cf2f774facf6ea400ca723921eec9630fb9772680e1b02c0283336377",
       "gallery/src/pages/components/colors.rs": "82aa40172d4ebe52fcc3e6a8a730911497352564aeba7008742947f0b2302414",
       "gallery/src/pages/components/controls.rs": "43bb1d5a1d25e6c19b6ebda1de71414c550be2a3cdf2798ab7eeb4707503932a",
       "gallery/src/pages/components/data_display.rs": "8185d5d97476b7fc7eda85178a07a812c8fbc34be589affae180dd09a3433e15",
@@ -22905,8 +22911,8 @@
       "web/src/data/catalog.json": "034a1305e8fcdd038df72dd12ba6e8a12601ef4a3e19a111b275a4997dc959b8",
       "web/src/data/reference.json": "145bfa92a1f37a0429266d8e36c85547e3080af1b7a9411dd99922784b201cbc",
       "web/src/data/releases.json": "589bae1532f01b9e73ba21f24355369fecc99f24aa6da8c405cc36c083490953",
-      "web/src/data/rust-examples.json": "4ec121323d04ef6ac4b01450af2843b8557294cc216374edc843839d30347154",
-      "web/src/data/wasm-parity.json": "4ce6e73e133c83702164e0adaad9e50f6b067f017943be1e9a5431a423b25546",
+      "web/src/data/rust-examples.json": "d6170f06deb2bc6c0383578a8e5005b861709c01654ca82d44755d52cea682cd",
+      "web/src/data/wasm-parity.json": "e14d8dc0d6905647979082a3db4e813df2f4d50b63595a399ccc6d2cb2ad70c8",
       "web/src/data/wasm-sections.json": "caa1e677b28f01366f1ed29d7472ac054485ed5fa30f3858753f2e9969b62d73",
       "web/src/lib/catalog.ts": "79681a0e1e0e12c9352ddc9eec0d6fe428906ceca07bfefb89623639396f81cf",
       "web/src/lib/docs-nav.ts": "ffb0d7fdaa0261395306f0bfa4e09c5ef88043c702c962f847983b05be67f55a",
@@ -60430,8 +60436,8 @@
       "source": {
         "gallery": "web/src/data/rust-examples.json",
         "reference": "web/src/data/reference.json",
-        "codeSha256": "f6fa1740ffd445a6e61d6055837013aa663d192fcd1e9ac68ffee7865fb59b9f",
-        "contentSha256": "589365c3a3bb0eab12929113fb21048448fd08bad6e92d597c16cc24c9c26817",
+        "codeSha256": "cfe2115fa8892aa323594d9ee2a96b183e04170a88147c2cf319f831ce40fa04",
+        "contentSha256": "3ce98e288cfc5c31a9962dc02fa610dc479889708da54ca51130e17b5f6acdd5",
         "docsSource": "https://github.com/heroui-inc/heroui/blob/v3.2.6/apps/docs/content/docs/en/react/components/(collections)/dropdown.mdx"
       },
       "history": [
@@ -60469,6 +60475,43 @@
             "reference": "web/src/data/reference.json",
             "codeSha256": "f6fa1740ffd445a6e61d6055837013aa663d192fcd1e9ac68ffee7865fb59b9f",
             "contentSha256": "f7c81d58c63cd95da4b70192074d8fc417fb16db2c1ed15f30a23ec815d82137",
+            "docsSource": "https://github.com/heroui-inc/heroui/blob/v3.2.6/apps/docs/content/docs/en/react/components/(collections)/dropdown.mdx"
+          }
+        },
+        {
+          "id": "gallery/dropdown/context-menu",
+          "component": "Dropdown",
+          "scope": "gallery-section",
+          "status": "unreviewed",
+          "upstream": {
+            "tag": "v3.2.6",
+            "source": null,
+            "selector": null,
+            "demoSection": "Context Menu"
+          },
+          "port": {
+            "module": "dropdown",
+            "galleryPage": "Dropdown",
+            "gallerySection": "Context Menu",
+            "specimenKey": null
+          },
+          "configuration": {},
+          "state": "section-seed",
+          "setup": [],
+          "assertions": [
+            "Expand this section into concrete variant/state specimens before verification."
+          ],
+          "evidence": {
+            "upstream": [],
+            "native": [],
+            "wasm": [],
+            "tests": []
+          },
+          "source": {
+            "gallery": "web/src/data/rust-examples.json",
+            "reference": "web/src/data/reference.json",
+            "codeSha256": "f6fa1740ffd445a6e61d6055837013aa663d192fcd1e9ac68ffee7865fb59b9f",
+            "contentSha256": "589365c3a3bb0eab12929113fb21048448fd08bad6e92d597c16cc24c9c26817",
             "docsSource": "https://github.com/heroui-inc/heroui/blob/v3.2.6/apps/docs/content/docs/en/react/components/(collections)/dropdown.mdx"
           }
         }
@@ -108852,7 +108895,7 @@
       ]
     }
   ],
-  "verification_sha256": "65297511f52170c9015bc6ceaac6bf12aa10c527cb1ecf6feaa8345d48268e80",
+  "verification_sha256": "f3f11fe2cbe5b4ebb5333ee6e8b0b622d37c64d5f8848256b8a780246cccd840",
   "retired_source_changes": [
     {
       "path": "packages/react/src/components/autocomplete/autocomplete.stories.tsx",

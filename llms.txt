@@ -870,8 +870,10 @@ out of `reference_metadata`.
   secondary (right) press in the area opens the Dropdown `Menu` panel at the
   pointer; an item, Escape or an outside press closes it. Shift+F10 or the
   ContextMenu key (`menu`, or `contextmenu` on the web) with the focus inside
-  the area opens it at the area's top-left corner with the first item
-  focused, and closing returns the focus. The area is focusable outside the
+  the area opens it below the focused HeroGPUI control when that control
+  records its painted bounds (including buttons, fields and active list or
+  tree rows); otherwise it uses the area's top-left corner. The first item
+  receives focus, and closing returns it. The area is focusable outside the
   tab order: a primary press on non-focusable content focuses it.
 - **MenuBar** — `MenuBar::new(id, vec![MenuBarMenu::new(key, label,
   items).disabled_keys([..]).is_disabled(bool), ..]).on_action(|menu, item,

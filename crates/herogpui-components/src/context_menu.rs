@@ -11,10 +11,10 @@
 //!
 //! The keyboard opens it too: Shift+F10 or the ContextMenu key (`menu` on
 //! Windows and Linux, `contextmenu` on the web) while the focus is anywhere
-//! inside the area opens the menu at the area's top-left corner with its
-//! first item focused, and dismissing it hands the focus back to the element
-//! that held it. GPUI reports no bounds for the focused element, so the area
-//! is the anchor. The area owns a focus handle outside the tab order: a
+//! inside the area opens the menu below the focused HeroGPUI control when
+//! its bounds were painted, or at the area's top-left corner otherwise. The
+//! first item receives focus, and dismissing the menu returns it to the
+//! previous control. The area owns a focus handle outside the tab order: a
 //! primary press on a part of the area that does not take the focus itself
 //! focuses the area, so an area with no focusable content is reachable too.
 //!
@@ -171,7 +171,7 @@ impl RenderOnce for ContextMenu {
             })
             .read(cx)
             .clone();
-        // The area's own bounds, the keyboard-open anchor.
+        // The area's own bounds, the fallback keyboard-open anchor.
         let area_bounds = window
             .use_keyed_state(element_id::scoped(&base, "area-bounds"), cx, |_, _| {
                 Rc::new(Cell::new(None::<Bounds<Pixels>>))
@@ -219,7 +219,10 @@ impl RenderOnce for ContextMenu {
                 let Some(bounds) = area_bounds.get() else {
                     return;
                 };
-                anchor_key.set(Some(Bounds::new(bounds.origin, size(px(0.), px(0.)))));
+                let target = crate::util::focused_element_bounds(window, cx)
+                    .filter(|focused| bounds.intersects(focused))
+                    .unwrap_or(Bounds::new(bounds.origin, size(px(0.), px(0.))));
+                anchor_key.set(Some(target));
                 *restore_key.borrow_mut() = window.focused(cx);
                 focus_first_key.update(cx, |focus, _| *focus = true);
                 set_open(&own_key, &on_open_change_key, true, window, cx);

@@ -569,7 +569,7 @@ impl Gallery {
                     ]), cx),
                 ),
                 (
-                    "Context Menu", "HeroGPUI extension, not a HeroUI v3 example: `ContextMenu` opens the same menu panel on a secondary (right) press inside its area, with the panel's corner at the pointer, or on Shift+F10 / the ContextMenu key while the focus is inside the area, at the area's corner with the first item focused. Items, disabled keys, keyboard navigation, Escape and outside-press dismissal are the Dropdown menu's own.",
+                    "Context Menu", "HeroGPUI extension, not a HeroUI v3 example: a secondary press opens at the pointer. Focus the Button and press Shift+F10 or the ContextMenu key to open below it; keyboard focus on unrecorded content falls back to the area's corner. The first item receives focus, and dismissal restores the previous focus.",
                     specimen_body("dd-context-menu", col(vec![
                         h::ContextMenu::new(
                             "dd-context",
@@ -577,13 +577,16 @@ impl Gallery {
                                 .w(px(320.))
                                 .h(px(140.))
                                 .flex()
+                                .flex_col()
                                 .items_center()
                                 .justify_center()
+                                .gap(px(12.))
                                 .rounded(px(12.))
                                 .border_1()
                                 .border_color(cx.colors().border)
                                 .text_color(cx.colors().muted)
-                                .child("Right-click anywhere in this area"),
+                                .child("Right-click anywhere in this area")
+                                .child(h::Button::new("dd-context-focus").label("Focus and press Shift+F10")),
                             vec![
                                 h::MenuItem::new("cut", "Cut").shortcut("Ctrl X"),
                                 h::MenuItem::new("copy", "Copy").shortcut("Ctrl C"),

@@ -326,6 +326,7 @@ impl RenderOnce for CloseButton {
             window,
             cx,
         );
+        let el = crate::util::record_focus_bounds(el, &focus_handle, window, cx);
         let root = div()
             .size(box_size)
             .flex()

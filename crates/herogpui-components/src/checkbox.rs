@@ -1070,6 +1070,11 @@ impl RenderOnce for Checkbox {
             .font_weight(gpui::FontWeight::MEDIUM)
             .text_color(cx.colors().foreground);
 
+        let row = if self.is_disabled {
+            row
+        } else {
+            crate::util::record_focus_bounds(row, &focus_handle, window, cx)
+        };
         let content = if !self.is_disabled
             && !self.is_read_only
             && (self.on_change.is_some() || own.is_some())

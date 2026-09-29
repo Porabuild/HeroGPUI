@@ -578,9 +578,9 @@ impl RenderOnce for RadioGroup {
             })
             .collect();
 
-        let sem = cx.role(Color::Accent);
-        let colors = cx.colors();
-        let layout = cx.layout();
+        let sem = *cx.role(Color::Accent);
+        let colors = cx.colors().clone();
+        let layout = cx.layout().clone();
         // `.radio__control` is `size-4 rounded-lg` — a rounded square, not a
         // circle — and `.radio__indicator` fills it at `rounded-lg` too.
         // The selected dot is the indicator scaled to `0.4286` of the 16px
@@ -875,6 +875,9 @@ impl RenderOnce for RadioGroup {
                 });
             }
 
+            if !row_disabled && i == cursor_index {
+                row = crate::util::record_focus_bounds(row, &group_focus, window, cx);
+            }
             // `.radio` is `flex flex-col gap-1` around its content and the
             // description, which `ps-7` indents under the label -- the control
             // plus the content gap.

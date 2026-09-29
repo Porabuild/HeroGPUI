@@ -861,6 +861,9 @@ impl RenderOnce for TreeView {
                         }
                     });
                 }
+                if cursor_at == Some(ix) && focus_handle.is_focused(_window) {
+                    el = util::record_focus_bounds(el, &focus_handle, _window, cx);
+                }
                 div()
                     .w_full()
                     .h(ROW_HEIGHT + ROW_GAP)

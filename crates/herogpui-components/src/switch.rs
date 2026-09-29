@@ -919,6 +919,9 @@ impl RenderOnce for Switch {
         // Description and FieldError are direct siblings of Switch.Content.
         // Both use the size-specific track width plus the 12px content gap.
         let indent = w + px(12.);
+        if !self.is_disabled {
+            el = crate::util::record_focus_bounds(el, &focus_handle, window, cx);
+        }
         let mut root = gpui::div()
             .flex()
             .flex_col()

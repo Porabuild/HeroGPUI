@@ -356,6 +356,9 @@ impl RenderOnce for Link {
         }
 
         el = crate::util::apply_sx(el, &self.sx);
+        if interactive {
+            el = crate::util::record_focus_bounds(el, &focus, window, cx);
+        }
         el
     }
 }

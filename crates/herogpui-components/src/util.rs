@@ -2028,6 +2028,70 @@ macro_rules! impl_component_styled {
 }
 pub(crate) use impl_component_styled;
 
+/// The last laid-out bounds of a focused HeroGPUI control in each window.
+/// GPUI exposes the focus handle and prepaint bounds separately, so controls
+/// record the pair for keyboard ContextMenu placement. Weak handles prevent
+/// the registry from keeping retired controls alive.
+#[derive(Clone, Default)]
+struct FocusedBounds(
+    std::rc::Rc<
+        std::cell::RefCell<
+            std::collections::HashMap<
+                gpui::WindowId,
+                (gpui::WeakFocusHandle, gpui::Bounds<Pixels>),
+            >,
+        >,
+    >,
+);
+
+impl gpui::Global for FocusedBounds {}
+
+/// Append a layout-free probe to the focus-owning element, after its content.
+/// A stale prepaint cannot anchor a later focus: lookup checks handle identity.
+pub(crate) fn record_focus_bounds<T: ParentElement>(
+    el: T,
+    handle: &gpui::FocusHandle,
+    window: &gpui::Window,
+    cx: &mut App,
+) -> T {
+    if !handle.is_focused(window) {
+        return el;
+    }
+    let registry = if let Some(registry) = cx.try_global::<FocusedBounds>() {
+        registry.clone()
+    } else {
+        let registry = FocusedBounds::default();
+        cx.set_global(registry.clone());
+        registry
+    };
+    let weak = handle.downgrade();
+    el.child(
+        gpui::canvas(
+            move |bounds, window, _| {
+                registry
+                    .0
+                    .borrow_mut()
+                    .insert(window.window_handle().window_id(), (weak, bounds));
+            },
+            |_, _, _, _| {},
+        )
+        .absolute()
+        .inset_0(),
+    )
+}
+
+/// Bounds recorded in the last prepaint for this window's current focus.
+pub(crate) fn focused_element_bounds(
+    window: &gpui::Window,
+    cx: &App,
+) -> Option<gpui::Bounds<Pixels>> {
+    let focused = window.focused(cx)?;
+    let registry = cx.try_global::<FocusedBounds>()?;
+    let bounds = registry.0.borrow();
+    let (handle, bounds) = bounds.get(&window.window_handle().window_id())?;
+    (*handle == focused).then_some(*bounds)
+}
+
 /// Merges a captured `sx` refinement over a root element's own style.
 ///
 /// Call this after every value the component derived from its variant and the

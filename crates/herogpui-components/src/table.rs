@@ -1643,6 +1643,7 @@ impl RenderOnce for Table {
                 virtual_row_heights: virtual_body.row_heights,
                 virtual_scroll_now: &virtual_body.scroll_now,
             },
+            window,
             cx,
         );
 
@@ -3799,16 +3800,23 @@ impl Table {
                 // `.table__column` rings *inside* itself: the next column
                 // is flush against this one, and a ring drawn outside bled
                 // through the transparent cell and filled it.
-                header_cell
+                let header_cell = header_cell
                     .relative()
                     .when(header_focused[column_index], |c| {
                         c.child(crate::util::inset_focus_ring(cx))
-                    })
-                    .into_any_element()
+                    });
+                crate::util::record_focus_bounds(
+                    header_cell,
+                    &header_focus[column_index],
+                    window,
+                    cx,
+                )
+                .into_any_element()
             }
             // Not sortable, so nothing to press -- but still focusable, so
             // PageUp has a header to land on, and it rings when it does.
-            _ => cell
+            _ => {
+                let header_cell = cell
                 .id(element_id::indexed(base_id, "header", column_index))
                 // The same `role: 'columnheader'`; a column that does not
                 // sort simply has no `aria-sort` upstream either
@@ -3822,8 +3830,15 @@ impl Table {
                 .relative()
                 .when(header_focused[column_index], |c| {
                     c.child(crate::util::inset_focus_ring(cx))
-                })
-                .into_any_element(),
+                });
+                crate::util::record_focus_bounds(
+                    header_cell,
+                    &header_focus[column_index],
+                    window,
+                    cx,
+                )
+                .into_any_element()
+            }
         };
 
         // `allowsResizing` puts a handle on the column's trailing edge. The
@@ -4349,6 +4364,7 @@ impl Table {
         &self,
         mut body: gpui::Stateful<gpui::Div>,
         rows_in: BodyRows<'_>,
+        window: &Window,
         cx: &mut App,
     ) -> gpui::Stateful<gpui::Div> {
         let BodyRows {
@@ -4400,6 +4416,7 @@ impl Table {
                             metadata.has_children,
                             key,
                             Some(row_height),
+                            _window,
                             cx,
                         )
                     },
@@ -4433,6 +4450,7 @@ impl Table {
                             metadata.has_children,
                             key,
                             None,
+                            _window,
                             cx,
                         );
                         let measured = measured_heights.clone();
@@ -4465,7 +4483,16 @@ impl Table {
             );
         } else {
             for (i, (row_data, depth, has_children, tree_key, _)) in flat.into_iter().enumerate() {
-                body = body.child(ctx.row(i, row_data, depth, has_children, &tree_key, None, cx));
+                body = body.child(ctx.row(
+                    i,
+                    row_data,
+                    depth,
+                    has_children,
+                    &tree_key,
+                    None,
+                    window,
+                    cx,
+                ));
             }
         }
 
@@ -4760,6 +4787,7 @@ impl RowCtx {
         has_children: bool,
         tree_key: &SharedString,
         fixed_h: Option<Pixels>,
+        window: &Window,
         cx: &mut App,
     ) -> AnyElement {
         let colors = cx.colors();
@@ -4776,6 +4804,7 @@ impl RowCtx {
         });
         let hover_group: SharedString = format!("{}-row-hover-{i}", self.hover_group_prefix).into();
         let row_focused = self.cursor == Some(i);
+        let row_anchor = self.cursor_own.read(cx).as_ref() == Some(tree_key);
 
         let mut row = gpui::div()
             .id(element_id::indexed(&self.id, "row", i))
@@ -4855,13 +4884,15 @@ impl RowCtx {
                     .map(|(c, cell)| self.data_cell(&paint, c, cell, cx)),
             );
         }
-        let cx: &App = cx;
         row = self.row_press(row, &paint, cx);
 
         // v3 rings the focused row *inside* itself: each cell carries its own
         // inset strips so the outline stays clipped to the cell geometry.
-        row.when(is_disabled, |row| row.opacity(cx.layout().disabled_opacity))
-            .into_any_element()
+        row = row.when(is_disabled, |row| row.opacity(cx.layout().disabled_opacity));
+        if row_anchor && self.focus.is_focused(window) {
+            row = crate::util::record_focus_bounds(row, &self.focus, window, cx);
+        }
+        row.into_any_element()
     }
 
     /// A frozen table's row: the selection cell and the frozen cells in a

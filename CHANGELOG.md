@@ -10,6 +10,9 @@ version covers `herogpui`, `herogpui-core`, `herogpui-theme`,
 
 ### Changed
 
+- Keyboard ContextMenu opening uses the focused HeroGPUI control's last
+  painted bounds as its anchor when available; unrecorded content keeps the
+  area-corner fallback. Dismissal still restores the previous focus.
 - Website: the search palette follows the ARIA combobox pattern (a
   `combobox` input with `aria-activedescendant` over a `listbox` of
   `option`s, and a polite result count), and it indexes each component's

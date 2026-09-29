@@ -1407,6 +1407,9 @@ impl RenderOnce for Tabs {
                             tab = tab.hover(move |style| style.text_color(hover_fg));
                         }
                     }
+                    if focused && !disabled {
+                        tab = crate::util::record_focus_bounds(tab, &list_focus, window, cx);
+                    }
                     list = list.child(tab);
                 }
             }
@@ -1617,6 +1620,9 @@ impl RenderOnce for Tabs {
                         } else {
                             tab = tab.hover(move |style| style.text_color(hover_fg));
                         }
+                    }
+                    if focused && !disabled {
+                        tab = crate::util::record_focus_bounds(tab, &list_focus, window, cx);
                     }
                     list = list.child(tab);
                 }

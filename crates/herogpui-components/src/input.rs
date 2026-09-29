@@ -2582,7 +2582,7 @@ impl RenderOnce for Input {
             let clear_radius = crate::util::small_radius(cx);
             let clear_selector = format!("input-clear-{}", self.state.entity_id().as_u64());
             let input_focus_after_clear = focus_handle.clone();
-            let input_focus_handle = focus_handle;
+            let input_focus_handle = focus_handle.clone();
             let mut clear = gpui::div()
                 .id(element_id::scoped(&base_id, "clear"))
                 .debug_selector(move || clear_selector)
@@ -2916,6 +2916,11 @@ impl RenderOnce for Input {
             crate::util::apply_sx(field, &self.sx)
         } else {
             field
+        };
+        let field = if self.is_disabled {
+            field
+        } else {
+            crate::util::record_focus_bounds(field, &focus_handle, window, cx)
         };
 
         // The anchor is the 36px field row itself — not the

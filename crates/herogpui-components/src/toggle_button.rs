@@ -576,7 +576,8 @@ impl RenderOnce for ToggleButton {
                 cx,
             ),
         };
-        crate::util::apply_sx(el, &self.sx)
+        let el = crate::util::apply_sx(el, &self.sx);
+        crate::util::record_focus_bounds(el, &focus_handle, window, cx)
     }
 }
 

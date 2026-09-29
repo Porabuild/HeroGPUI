@@ -684,6 +684,10 @@ impl RenderOnce for ListBox {
         let focused_at = (window.is_window_active() && has_focus)
             .then_some(cursor_at)
             .flatten();
+        // The headless window may be inactive while its list still holds
+        // keyboard focus. Placement follows the active row regardless of
+        // focus-ring modality or window activation.
+        let anchor_at = has_focus.then_some(cursor_at).flatten();
 
         if !stops.is_empty() || !self.selected_keys.is_empty() {
             let held = cursor.clone();
@@ -1155,6 +1159,7 @@ impl RenderOnce for ListBox {
                             let row = rows.row(
                                 index,
                                 focused_at,
+                                anchor_at,
                                 None,
                                 interaction.get(index),
                                 &cursor,
@@ -1221,6 +1226,7 @@ impl RenderOnce for ListBox {
                         rows.row(
                             i,
                             focused_at,
+                            anchor_at,
                             Some(row_height),
                             interaction.get(i),
                             &cursor,
@@ -1243,6 +1249,7 @@ impl RenderOnce for ListBox {
             items.push(self.row(
                 index,
                 focused_at,
+                anchor_at,
                 None,
                 interaction.get(index),
                 &cursor,
@@ -1268,6 +1275,7 @@ impl ListBox {
         &self,
         index: usize,
         cursor_at: Option<usize>,
+        anchor_at: Option<usize>,
         fixed_h: Option<gpui::Pixels>,
         interaction: Option<&util::Interaction>,
         cursor: &gpui::Entity<Option<usize>>,
@@ -1686,6 +1694,11 @@ impl ListBox {
                         });
                 }
 
+                if anchor_at == Some(index)
+                    && let Some(focus) = window.focused(cx)
+                {
+                    row = util::record_focus_bounds(row, &focus, window, cx);
+                }
                 row.into_any_element()
             }
         }

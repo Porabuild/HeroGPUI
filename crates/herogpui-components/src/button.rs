@@ -1094,6 +1094,9 @@ impl RenderOnce for Button {
             el = el.text_color(foreground);
         }
         el = util::apply_sx(el, &self.sx);
+        if focusable {
+            el = util::record_focus_bounds(el, &focus_handle, window, cx);
+        }
         el.into_any_element()
     }
 }

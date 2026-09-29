@@ -967,6 +967,9 @@ impl RenderOnce for Select {
         field = self.clear_buttons(field, &frame, &colors, window, cx);
         field = self.trigger_indicator_slot(field, &frame, &colors, window, cx);
         field = self.trigger_toggle(field, &frame);
+        if !self.is_disabled {
+            field = util::record_focus_bounds(field, &frame.focus_handle, window, cx);
+        }
 
         // The popup anchors to the trigger bounds — not to the
         // label-to-description wrapper root — the way RAC's

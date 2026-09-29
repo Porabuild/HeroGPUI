@@ -867,6 +867,9 @@ impl RenderOnce for Autocomplete {
         field = field.child(self.clear_button(&frame, cx));
         field = self.trigger_indicator_slot(field, &frame, window, cx);
         field = self.trigger_toggle(field, &frame);
+        if let Some(handle) = &frame.focus_handle {
+            field = util::record_focus_bounds(field, handle, window, cx);
+        }
 
         // The popup anchors to the trigger bounds -- not to the
         // label-to-description wrapper root -- the way RAC's
