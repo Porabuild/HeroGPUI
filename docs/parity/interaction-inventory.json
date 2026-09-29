@@ -22411,7 +22411,7 @@
     "sha256": "e4603b5d106bee84d9ebd9fc8b6f35d3e12ba31eb0d385e2ec17118fdb70cbbb"
   },
   "source_snapshot": {
-    "sha256": "4412ef636e3c306f647d002ac468e4eba9de8ed9910146c19d36a66e3230fb34",
+    "sha256": "127d7ebb42755b7acfb27abbf466cfcf3748bceeee05649ff2911ec6e6029253",
     "files": {
       ".cargo/config.toml": "6ce2a269fd46b2570763e8e446ac93e9d04614416af21134877cf7b388e776f9",
       ".gitattributes": "e71170c75179e22e8232810e58862527293de30e2773a9ee53868d8ebcca6910",
@@ -22450,7 +22450,7 @@
       ".shots/package_audit.py": "af2148dccc8d5fe264115a1b30e6334dc480c660d4ff39392a532e498aed8605",
       ".shots/parity_report.py": "81930ab0d9a1fa52ddafe4cdf37cb155a9b967b0e8829484c174eead53ee4e4a",
       ".shots/part_audit.py": "56c5e079fc06c7709a09b9f6d122f11c897afabe181caba01810f0d527f6dd1d",
-      ".shots/publish-gallery.sh": "55eb7bcbb6823cc5d4f68d91ab87d78119fa6ad88137edb5ce64d65a30b045dd",
+      ".shots/publish-gallery.sh": "96619cb6b47bb860f90758930598826144f333398b1a33f6396cfb41fa648b35",
       ".shots/reason_audit.py": "ce64a07f0602b50a0d9221b1d54850924722ea4bec6c34aec3b9f23bac37016e",
       ".shots/rebuild.ps1": "68e081ce2fc49678a14758621aadf0025edc17b06b22b44f88a9764bfc126100",
       ".shots/reference_audit.py": "67b96da7c9aae9679086b9b36d47a2412d65e31d1cd80f37572890a7a507f98f",
@@ -108905,7 +108905,7 @@
       ]
     }
   ],
-  "verification_sha256": "b579fdc963b43208016ac871e13f909035763565cc617d3e95118d124812ee9d",
+  "verification_sha256": "4a08f78c8f19e0f33753e89718b18fa7c93e74f154378f5417536eac54703745",
   "retired_source_changes": [
     {
       "path": "packages/react/src/components/autocomplete/autocomplete.stories.tsx",
