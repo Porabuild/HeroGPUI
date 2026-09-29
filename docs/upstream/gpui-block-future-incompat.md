@@ -60,10 +60,11 @@ the platform's date/time locale, and on macOS that crate reached `objc` 0.2
 and `objc-foundation` 0.1.1, which depends on `block` -- a path to the
 warning no GPUI fix could remove. `crates/herogpui-components/src/system_locale.rs`
 replaced it and reads the same sources `locale_config` read for its `time`
-category: `LC_ALL`, then `LC_TIME`, then `LANG` (and `LANGUAGE` fallbacks) on
-Unix; `NSLocale.currentLocale` through `objc2-foundation` 0.3 on macOS;
+category: the POSIX environment first on every platform (`LC_ALL`, then
+`LC_TIME`, then `LANG`, with `LANGUAGE` fallbacks), and only when it names no
+locale `NSLocale.currentLocale` through `objc2-foundation` 0.3 on macOS or
 `HKCU\Control Panel\International\LocaleName` through `windows-registry`
-on Windows; with `sys-locale`'s preferred languages as fallbacks. All three
+on Windows, with `sys-locale`'s preferred languages as fallbacks. All three
 crates were already in the GPUI graph, none depends on `block`, and
 `cargo tree -i objc-foundation --target aarch64-apple-darwin` now prints
 nothing. `sys-locale` alone was not a replacement: it reports the interface

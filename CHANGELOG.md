@@ -90,9 +90,10 @@ version covers `herogpui`, `herogpui-core`, `herogpui-theme`,
 - `herogpui-components` reads the system date/time locale itself
   (`system_locale.rs`) instead of through `locale_config`, which removes
   HeroGPUI's own path to the `block` 0.1.6 future-incompatibility warning on
-  macOS. The sources and precedence are unchanged: `LC_ALL`, `LC_TIME`, `LANG`
-  (then `LANGUAGE`) on Unix, the macOS Region (`NSLocale.currentLocale`), the
-  Windows regional format, with the preferred languages as fallbacks.
+  macOS. The sources and precedence are unchanged: the POSIX environment
+  first on every platform (`LC_ALL`, `LC_TIME`, `LANG`, then `LANGUAGE`), then
+  the macOS Region (`NSLocale.currentLocale`) or the Windows regional format,
+  with the preferred languages as fallbacks.
 
 ### Removed
 

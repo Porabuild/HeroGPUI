@@ -7,19 +7,25 @@
 //! BCP 47 strings. Callers try each tag in turn because CLDR may know a region
 //! the platform reports but not the exact tag spelling.
 //!
-//! | platform | primary source | fallbacks |
+//! The POSIX environment is read first on **every** platform, as
+//! `locale_config` did (many users set it everywhere, and it is how a
+//! process or test pins a locale): `LC_ALL` alone when set; otherwise
+//! `LC_TIME`, then `LANG`, with `LANGUAGE` entries as fallbacks. Only when it
+//! names no locale does the platform's own setting answer:
+//!
+//! | platform | regional format | fallbacks |
 //! |---|---|---|
-//! | Linux and other Unix | `LC_ALL` alone when set; otherwise `LC_TIME`, then `LANG` | `LANGUAGE` entries |
 //! | macOS | `NSLocale.currentLocale.localeIdentifier` (the Region setting) | the preferred languages |
 //! | Windows | `HKCU\Control Panel\International\LocaleName` (the Regional format) | the preferred UI languages |
-//! | wasm32 | none | none |
+//! | Linux, other Unix, wasm32 | none beyond the environment | none |
 //!
 //! This replaced the `locale_config` crate, whose macOS backend pulled in
 //! `objc` 0.2 and `objc-foundation` 0.1 and through them the `block` 0.1.6
 //! future-incompatibility warning (`docs/upstream/gpui-block-future-incompat.md`).
 //! The sources and their precedence are the ones `locale_config` read for its
-//! `time` category, so the detected locale is unchanged. `sys-locale` alone
-//! is not a replacement: it reports the *interface* languages (`LC_MESSAGES`,
+//! `time` category (less its CGI `HTTP_ACCEPT_LANGUAGE` probe, meaningless
+//! for a GUI), so the detected locale is unchanged. `sys-locale` alone is not
+//! a replacement: it reports the *interface* languages (`LC_MESSAGES`,
 //! `CFLocaleCopyPreferredLanguages`, `GetUserPreferredUILanguages`), which is
 //! why it only supplies the fallbacks here.
 
@@ -35,13 +41,17 @@ pub fn time_locale_tags() -> Vec<String> {
     tags
 }
 
-#[cfg(all(unix, not(target_os = "macos")))]
 fn platform_tags() -> Vec<String> {
-    unix_time_tags(|name| std::env::var(name).ok())
+    let environment = unix_time_tags(|name| std::env::var(name).ok());
+    if environment.is_empty() {
+        native_tags()
+    } else {
+        environment
+    }
 }
 
 #[cfg(target_os = "macos")]
-fn platform_tags() -> Vec<String> {
+fn native_tags() -> Vec<String> {
     let region = objc2_foundation::NSLocale::currentLocale()
         .localeIdentifier()
         .to_string();
@@ -52,7 +62,7 @@ fn platform_tags() -> Vec<String> {
 }
 
 #[cfg(windows)]
-fn platform_tags() -> Vec<String> {
+fn native_tags() -> Vec<String> {
     windows_registry::CURRENT_USER
         .open(r"Control Panel\International")
         .and_then(|key| key.get_string("LocaleName"))
@@ -62,8 +72,8 @@ fn platform_tags() -> Vec<String> {
         .collect()
 }
 
-#[cfg(not(any(unix, windows)))]
-fn platform_tags() -> Vec<String> {
+#[cfg(not(any(target_os = "macos", windows)))]
+fn native_tags() -> Vec<String> {
     Vec::new()
 }
 
@@ -71,7 +81,6 @@ fn platform_tags() -> Vec<String> {
 /// `std::env::var` so it can be tested without mutating the process
 /// environment. `LC_ALL` overrides every category; otherwise `LC_TIME` wins
 /// over the `LANG` default, and `LANGUAGE` (colon-separated) adds fallbacks.
-#[cfg_attr(not(all(unix, not(target_os = "macos"))), allow(dead_code))]
 fn unix_time_tags(var: impl Fn(&str) -> Option<String>) -> Vec<String> {
     if let Some(tag) = var("LC_ALL").and_then(|value| posix_to_bcp47(&value)) {
         return vec![tag];
