@@ -654,6 +654,11 @@ EXTRA_OK_SCOPED = {
     'Breadcrumbs.full_width': 'repository-full-width-extension',
     'RadioGroup.full_width': 'repository-full-width-extension',
     'Toolbar.full_width': 'repository-full-width-extension',
+    # Phase 6's two named floors, each on its own owner: ComboBox's 180px
+    # root minimum (still only while not full-width) and the 80px floor on a
+    # vertical list's tabs. v3 sets both with classes.
+    'ComboBox.min_width': 'no-classname',
+    'Tabs.vertical_tab_min_width': 'no-classname',
     # v3's stylesheet declares `.range-calendar__cell-indicator`; only the
     # Calendar's prop table names the part.
     'RangeCalendar.cell_indicator': 'composition',

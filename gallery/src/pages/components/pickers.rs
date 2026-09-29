@@ -494,6 +494,17 @@ impl Gallery {
                     .into_any_element()]), cx),
                 ),
                 (
+                    "Minimum Width",
+                    "`min_width` replaces the 180px floor the root keeps while it is not full-width, for a compact filter; a full-width combo box has no floor.",
+                    specimen_body("cb-min-width", col(vec![h::ComboBox::new(
+                        self.demo_text("cb-min-width", "", cx),
+                        language_items(),
+                    )
+                    .label("Filter")
+                    .min_width(px(120.))
+                    .into_any_element()]), cx),
+                ),
+                (
                     "Virtualization", "`row_height` makes the list geometry computable, so a uniform `VirtualList` builds only the rows in view. A thousand options, forty pixels each.",
                     specimen_body("cb-virtualization", col(vec![
                         demo_field(

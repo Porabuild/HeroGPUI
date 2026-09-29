@@ -791,6 +791,22 @@ impl Gallery {
                     .into_any_element()]), cx),
                 ),
                 (
+                    "Vertical Tab Width",
+                    "`vertical_tab_min_width` replaces the 80px floor every tab of a vertical list keeps; a tab's own `width` still wins over it.",
+                    specimen_body("tabs-vertical-min-width", col(vec![h::Tabs::new(
+                        "tabs-vertical-min-width",
+                        vec![
+                            h::TabItem::new("a", "A").content(gpui::div().child("A 48px rail.")),
+                            h::TabItem::new("b", "B").content(gpui::div().child("Second pane.")),
+                            h::TabItem::new("c", "C").content(gpui::div().child("Third pane.")),
+                        ],
+                        "a",
+                    )
+                    .orientation(Orientation::Vertical)
+                    .vertical_tab_min_width(px(48.))
+                    .into_any_element()]), cx),
+                ),
+                (
                     "Wrapping Labels",
                     "The label slot releases its min-content width, so long labels wrap inside constrained horizontal shares and vertical tab columns. Tabs keep the pinned fixed 32px height and ship no truncation utility, so wrapped lines paint past the pill exactly as the v3.2.5 sheet renders them.",
                     specimen_body("tabs-wrapping", col(vec![

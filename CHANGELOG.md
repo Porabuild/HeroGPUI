@@ -310,6 +310,10 @@ for each breaking change with before/after code.
 - `ColorField::sx`, the one field without the slot: it refines the root
   column on the editable path (through the composed `Input`) and on the
   static display alike.
+- `ComboBox::min_width` and `Tabs::vertical_tab_min_width`, the roadmap's
+  phase 6 floors: the first replaces the 180px root minimum (still applied
+  only while not full-width), the second the 80px floor on a vertical list's
+  tabs. Gallery "Minimum Width" and "Vertical Tab Width" sections.
 
 ### Fixed
 

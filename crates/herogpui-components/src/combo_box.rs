@@ -224,6 +224,8 @@ pub struct ComboBox {
     allows_custom_value: bool,
     max_items: usize,
     full_width: bool,
+    /// The root's width floor while not `full_width`; the default is 180px.
+    min_width: Option<Pixels>,
     /// Optional trigger geometry/chrome overrides; defaults are the stock box.
     field: util::FieldBox,
     is_disabled: bool,
@@ -545,6 +547,7 @@ impl ComboBox {
             allows_custom_value: false,
             max_items: 8,
             full_width: false,
+            min_width: None,
             is_disabled: false,
             is_invalid: false,
             is_required: false,
@@ -666,6 +669,15 @@ impl ComboBox {
     /// Makes the combo box fill its container's width.
     pub fn full_width(mut self, v: bool) -> Self {
         self.full_width = v;
+        self
+    }
+
+    /// Replaces the 180px width floor the combo box root keeps while it is not
+    /// [`ComboBox::full_width`], so a compact toolbar filter can go narrower
+    /// or a wide one keep a larger floor. A full-width combo box has no floor
+    /// either way, as before. Not a v3 prop; v3 sizes the root with a class.
+    pub fn min_width(mut self, width: impl Into<Pixels>) -> Self {
+        self.min_width = Some(width.into());
         self
     }
 
@@ -1486,7 +1498,9 @@ impl RenderOnce for ComboBox {
             })
             .child(input.render(window, cx));
         let mut root = div()
-            .when(!self.full_width, |e| e.min_w(TRIGGER_MIN_WIDTH))
+            .when(!self.full_width, |e| {
+                e.min_w(self.min_width.unwrap_or(TRIGGER_MIN_WIDTH))
+            })
             .relative()
             .flex()
             .flex_col()
