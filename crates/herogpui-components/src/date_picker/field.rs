@@ -8,8 +8,11 @@ use super::*;
 /// One editable part of a [`DateField`].
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum DateSegment {
+    /// The month segment.
     Month,
+    /// The day segment.
     Day,
+    /// The year segment.
     Year,
 }
 
@@ -17,12 +20,27 @@ impl DateSegment {
     /// All date segments in canonical month/day/year order.
     pub const ALL: [DateSegment; 3] = [DateSegment::Month, DateSegment::Day, DateSegment::Year];
 
+    /// The lowercase segment name (`month`, `day` or `year`).
     pub fn label(self) -> &'static str {
         match self {
             DateSegment::Month => "month",
             DateSegment::Day => "day",
             DateSegment::Year => "year",
         }
+    }
+
+    /// The segment's accessible name in the active locale (`year`, `month`,
+    /// `day` in en-US; React Aria's datepicker dictionary).
+    pub(crate) fn a11y_label(self, cx: &App) -> SharedString {
+        use crate::i18n::{ui_string, UiString};
+        ui_string(
+            match self {
+                DateSegment::Month => UiString::Month,
+                DateSegment::Day => UiString::Day,
+                DateSegment::Year => UiString::Year,
+            },
+            cx,
+        )
     }
 
     /// The placeholder this segment shows with no value, sized like its digits.
@@ -247,14 +265,19 @@ pub(super) fn cycle_value(value: i32, delta: i32, min: i32, max: i32) -> i32 {
 /// `parseZonedDateTime` when the granularity drops below a day.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum Granularity {
+    /// Day precision, with no time segments.
     #[default]
     Day,
+    /// Hour precision.
     Hour,
+    /// Minute precision.
     Minute,
+    /// Second precision.
     Second,
 }
 
 impl Granularity {
+    /// Every granularity, from coarsest to finest.
     pub const ALL: [Granularity; 4] = [
         Granularity::Day,
         Granularity::Hour,
@@ -262,6 +285,7 @@ impl Granularity {
         Granularity::Second,
     ];
 
+    /// The human-readable name of this granularity.
     pub fn label(self) -> &'static str {
         match self {
             Granularity::Day => "Day",
@@ -287,7 +311,9 @@ impl Granularity {
 /// granularity -- a time part.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum FieldSegment {
+    /// A date segment (month, day or year).
     Date(DateSegment),
+    /// A time segment, present below `day` granularity.
     Time(crate::time_field::TimeSegment),
 }
 
@@ -403,6 +429,7 @@ pub struct DateFieldRenderState {
 /// v3's DateField: three editable segments (month / day / year), with the ISO
 /// text kept in the bound `InputState` so the form and `onChange` still see a
 /// plain date string.
+#[must_use = "a component does nothing until it is rendered: add it as a child or return it from `render`"]
 #[derive(IntoElement)]
 pub struct DateField {
     /// See [`DateField::content`].
@@ -541,6 +568,7 @@ impl DateField {
         self
     }
 
+    /// Sets whether the field is required (`isRequired`).
     pub fn is_required(mut self, v: bool) -> Self {
         self.is_required = v;
         self
@@ -705,6 +733,7 @@ impl DateField {
         self
     }
 
+    /// Creates a date field backed by the input `state`.
     pub fn new(state: Entity<crate::input::InputState>) -> Self {
         Self {
             content: None,
@@ -802,11 +831,13 @@ impl DateField {
         self
     }
 
+    /// Sets the label shown above the field.
     pub fn label(mut self, l: impl Into<SharedString>) -> Self {
         self.label = Some(l.into());
         self
     }
 
+    /// Sets the handler called when the date changes (`onChange`).
     pub fn on_change(mut self, f: impl Fn(&Option<Date>, &mut Window, &mut App) + 'static) -> Self {
         self.on_change = Some(std::sync::Arc::new(f));
         self
@@ -1586,8 +1617,8 @@ impl RenderOnce for DateField {
                 .a11y_named(
                     a11y::Role::TextInput,
                     &a11y::Name::labelled(match segment {
-                        FieldSegment::Date(segment) => segment.label(),
-                        FieldSegment::Time(segment) => segment.a11y_label(),
+                        FieldSegment::Date(segment) => segment.a11y_label(cx),
+                        FieldSegment::Time(segment) => segment.a11y_label(cx),
                     }),
                 )
                 .a11y_text(&seg_text, None);

@@ -2,7 +2,7 @@
 
 The web platform pinned by this port has no system fonts, so `herogpui-web`
 registers its typefaces with `include_bytes!` -- every byte of every TTF lands
-in `web/public/gallery/herogpui_web_bg.wasm`. Shipped whole, the seven OFL
+in `web/public/gallery/herogpui_web_bg.wasm`. Shipped whole, the OFL
 faces are ~13.0 MiB of a ~29.1 MiB artifact, and `NotoSansSC-Regular.ttf`
 alone is 10.1 MiB of CJK the gallery never draws: the pages need the handful of
 ideographs their own labels spell, not the whole standard.
@@ -13,17 +13,32 @@ names. The `include_bytes!` paths do not change -- the Rust source is not
 touched by adopting this -- which also means a stale subset is invisible to the
 compiler. That is what `--check` is for.
 
-`NotoSansSC-Regular.source.ttf` is the one exception on the source side: it is
-not the 10.1 MiB upstream face but its ~1.3 MiB pre-reduction, produced with
-these same pyftsubset flags over the scrape set plus headroom -- GB2312 Level I
-(the 3755 most common hanzi: every two-byte pair of the gb2312 codec's B0-D7
-rows) and the kana syllabaries the existing Japanese labels already spell
-from. A subset of that closure re-subsets to byte-identical output, so the
-pre-reduction changed no embedded bytes. A literal that outgrows the headroom
-fails `--check` as an unjustified glyph "in no source face"; grow it back by
-re-running the pre-reduction over the full NotoSansSC-Regular face (Google's
-noto-fonts release) with that same headroom text plus whatever tripped the
-check, then run this script as usual.
+The two CJK faces are the exception on the source side: neither
+`*.source.ttf` is the upstream face but a pre-reduction of it, produced with
+these same pyftsubset flags over the scrape set plus headroom, because the
+whole faces (10.1 MiB and 6.0 MiB) would weigh down the repository for glyphs
+nothing draws.
+
+  * `NotoSansSC-Regular.source.ttf` (~1.3 MiB) keeps GB2312 Level I (the 3755
+    most common hanzi: every two-byte pair of the gb2312 codec's B0-D7 rows),
+    the kana syllabaries, and the Han ideographs the zh-CN and ja-JP rows of
+    the `i18n` chrome catalogue spell (Japanese kanji are drawn with the SC
+    face's glyphs for the unified code points; no separate JP face is
+    bundled).
+  * `NotoSansKR-Regular.source.ttf` (~0.4 MiB) keeps the 2350 Hangul
+    syllables of KS X 1001 (every two-byte pair of the euc_kr codec's B0-C8
+    rows), which covers the ko-KR catalogue row with headroom. Latin, digits
+    and punctuation come from Inter, so the KR subset only ever carries
+    Hangul the sources spell.
+
+Cyrillic (the ru-RU row) needs no extra face: Inter covers it.
+
+A literal that outgrows the headroom fails `--check` as an unjustified glyph
+"in no source face"; grow it back by re-running the pre-reduction over the full
+face (Google Fonts' `ofl/notosanssc/NotoSansSC[wght].ttf` or
+`ofl/notosanskr/NotoSansKR[wght].ttf` at the commit `OFL.txt` names, instanced
+at `wght=400` as `OFL.txt` describes) with that same headroom text plus
+whatever tripped the check, then run this script as usual.
 
 The glyph set is discovered, never guessed. It is the union of:
 
@@ -122,6 +137,7 @@ FACES = (
     ('Inter-Bold.source.ttf', 'Inter-Bold.ttf'),
     ('JetBrainsMono-Regular.source.ttf', 'JetBrainsMono-Regular.ttf'),
     ('NotoSansSC-Regular.source.ttf', 'NotoSansSC-Regular.ttf'),
+    ('NotoSansKR-Regular.source.ttf', 'NotoSansKR-Regular.ttf'),
     ('NotoEmoji-Regular.source.ttf', 'NotoEmoji-Regular.ttf'),
 )
 

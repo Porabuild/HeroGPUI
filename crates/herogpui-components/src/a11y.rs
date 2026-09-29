@@ -270,10 +270,12 @@ impl Name {
         }
     }
 
+    /// The accessible name, if any.
     pub fn label(&self) -> Option<&SharedString> {
         self.label.as_ref()
     }
 
+    /// The accessible description, if any.
     pub fn description(&self) -> Option<&SharedString> {
         self.description.as_ref()
     }
@@ -347,22 +349,27 @@ impl Range {
         self
     }
 
+    /// The minimum value of the range.
     pub fn min(&self) -> f64 {
         self.min
     }
 
+    /// The maximum value of the range.
     pub fn max(&self) -> f64 {
         self.max
     }
 
+    /// The current value, if known.
     pub fn value(&self) -> Option<f64> {
         self.value
     }
 
+    /// The keyboard step size, if any.
     pub fn step_size(&self) -> Option<f64> {
         self.step
     }
 
+    /// The human-readable value text, if any.
     pub fn value_text(&self) -> Option<&SharedString> {
         self.text.as_ref()
     }

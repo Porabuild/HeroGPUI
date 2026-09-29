@@ -118,6 +118,7 @@ impl Typeahead {
         self.query.chars().count() == 1
     }
 
+    /// The characters typed so far.
     pub fn query(&self) -> &str {
         &self.query
     }

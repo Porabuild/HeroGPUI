@@ -14,6 +14,7 @@ use herogpui_theme::ActiveTheme;
 /// The shadow effect style. v3 ships one.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum ScrollShadowVariant {
+    /// A fading shadow.
     #[default]
     Fade,
 }
@@ -33,10 +34,15 @@ pub enum ScrollShadowVisibility {
     Auto,
     /// Both edges of the scroll axis.
     Both,
+    /// Shadow at the top edge only.
     Top,
+    /// Shadow at the bottom edge only.
     Bottom,
+    /// Shadow at the left edge only.
     Left,
+    /// Shadow at the right edge only.
     Right,
+    /// No shadow.
     None,
 }
 
@@ -64,6 +70,7 @@ impl ScrollShadowVisibility {
 }
 
 /// HeroUI ScrollShadow.
+#[must_use = "a component does nothing until it is rendered: add it as a child or return it from `render`"]
 #[derive(IntoElement)]
 pub struct ScrollShadow {
     id: ElementId,
@@ -95,6 +102,7 @@ pub struct ScrollShadow {
 }
 
 impl ScrollShadow {
+    /// Creates a scroll shadow with the given element id.
     pub fn new(id: impl Into<ElementId>) -> Self {
         Self {
             id: id.into(),
@@ -128,6 +136,7 @@ impl ScrollShadow {
         self
     }
 
+    /// Sets the scroll direction (v3 `orientation`).
     pub fn orientation(mut self, orientation: Orientation) -> Self {
         self.orientation = orientation;
         self
@@ -139,6 +148,7 @@ impl ScrollShadow {
         self
     }
 
+    /// Sets the scroll distance before the shadow appears (v3 `offset`).
     pub fn offset(mut self, offset: impl Into<Pixels>) -> Self {
         self.offset = offset.into();
         self
@@ -160,6 +170,7 @@ impl ScrollShadow {
         self
     }
 
+    /// Sets which edges show a shadow (v3 `visibility`).
     pub fn visibility(mut self, visibility: ScrollShadowVisibility) -> Self {
         self.visibility = visibility;
         self
@@ -177,11 +188,13 @@ impl ScrollShadow {
         self
     }
 
+    /// Sets the maximum height.
     pub fn max_h(mut self, v: impl Into<Pixels>) -> Self {
         self.max_h = Some(v.into());
         self
     }
 
+    /// Sets the maximum width.
     pub fn max_w(mut self, v: impl Into<Pixels>) -> Self {
         self.max_w = Some(v.into());
         self

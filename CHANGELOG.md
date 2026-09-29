@@ -138,6 +138,65 @@ version covers `herogpui`, `herogpui-core`, `herogpui-theme`,
   the laid-out viewport, and `Table`'s load-more still arms from the row
   count times the measured row.
 
+Upgrading from 0.12: see the
+[migration guide](https://github.com/Porabuild/HeroGPUI/blob/master/docs/migration-0.13.md)
+for each breaking change with before/after code.
+
+### Breaking
+
+- `i18n::LOCALES` and `i18n::UiString::ALL` grow (13 locales, 30 keys), so
+  code that named their array lengths no longer compiles; use
+  `UiString::COUNT` or iterate. `NoResults`, `Loading` and `Search` now have
+  translations in every built-in locale instead of falling back to en-US, so
+  a de-DE app shows "Wird geladen" rather than "Loading" (override with
+  `set_ui_string` to keep English).
+
+- `ThemeBuilder::role`, `ThemeBuilder::role_hover` and `ThemeColors::role`
+  take the typed `Color` role instead of a `&str`. An unknown string used to
+  fall back to `accent`, so a typo silently recoloured the accent and the
+  focus ring; it is now a compile error.
+- `ThemeProvider::init` / `init_with` no longer read `HEROGPUI_REDUCE_MOTION`
+  and no longer write GPUI's reduced-motion flag: the library reads no
+  environment variable. Set the preference with `set_reduce_motion` from the
+  application's own settings. The gallery maps `HEROGPUI_REDUCE_MOTION=1` onto
+  it, so the gallery's behaviour is unchanged.
+
+### Added
+
+- `#[must_use]` on every component (each `IntoElement` builder) and on the
+  builder data types (`ThemeBuilder`, `ComponentTheme(s)`, the `*Style`
+  recipes, `Toast`, `TabItem`, `ListBoxItem`, `TableColumn`, `TableRow`,
+  `TreeItem`, `ResizablePanel`, …): a builder chain whose result is dropped
+  now warns (`unused_must_use`) instead of silently rendering nothing.
+
+- Every public item in `herogpui`, `herogpui-core`, `herogpui-theme` and
+  `herogpui-components` is documented, and those crates now
+  `#![warn(missing_docs)]`, so CI's `clippy -D warnings` keeps it that way.
+
+- `Color::from_token` and `impl FromStr for Color` (`UnknownColorError`):
+  parse a role name from configuration, failing on an unknown name.
+- i18n: four more built-in locales, ja-JP, zh-CN, ko-KR and ru-RU, and 21
+  more `UiString` keys, so the remaining hard-coded chrome strings resolve
+  in the active locale: the NumberField and TimeField stepper names
+  (`Increase` / `Decrease`, templates in the locale's word order), the
+  DateField / TimeField segment names (`Year` … `DayPeriod`), the
+  DatePicker trigger (`Calendar`), a selected calendar day
+  (`DateSelected`), the ColorSlider channel names (`Hue` … `Alpha`,
+  `ColorChannel::localized_label`), Autocomplete's clear button
+  (`ClearSelection`) and Pagination's name (`Pagination`). The translations
+  come from the pinned React Aria / React Stately dictionaries.
+  `i18n::ui_string_with` and `i18n::fill` fill a template's placeholder.
+  The web gallery bundles a Noto Sans KR subset for Hangul and a wider
+  Noto Sans SC pre-reduction for the Japanese kanji.
+- Theme hot reload (HeroGPUI extension; new opt-in `watch` feature on
+  `herogpui-theme` and `herogpui`, implies `serde`): `watch_themes_dir(dir,
+  on_reload, cx)` polls a theme directory every `THEME_WATCH_INTERVAL`
+  (500ms) and re-registers changed and new `*.json` files, so an edit to the
+  active theme applies live; `ThemeReload` reports the reloaded ids and parse
+  errors, and dropping the returned `ThemeWatcher` stops it. Polling on
+  GPUI's executors keeps it dependency-free. The native gallery enables it
+  for `HEROGPUI_THEME_DIR=<dir>`.
+
 ## [0.12.0] - 2026-09-28
 
 ### Added

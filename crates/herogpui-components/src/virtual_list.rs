@@ -395,6 +395,7 @@ type RenderRow = dyn FnMut(usize, &mut Window, &mut App) -> AnyElement;
 
 /// A virtualised vertical list, measured or uniform per its handle. See the
 /// [module docs](self).
+#[must_use = "a component does nothing until it is rendered: add it as a child or return it from `render`"]
 #[derive(IntoElement)]
 pub struct VirtualList {
     id: ElementId,

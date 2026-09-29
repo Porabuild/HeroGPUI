@@ -15,6 +15,7 @@ use crate::icons;
 /// migration guide explicitly removes `isClosable`, `onClose` and
 /// `closeButtonProps`, so a close affordance is composed by the caller as an
 /// ordinary child (a `CloseButton`) instead of being built in.
+#[must_use = "a component does nothing until it is rendered: add it as a child or return it from `render`"]
 #[derive(IntoElement)]
 pub struct Alert {
     title: SharedString,
@@ -40,6 +41,7 @@ impl Alert {
         self
     }
 
+    /// Creates an alert with the given title.
     pub fn new(title: impl Into<SharedString>) -> Self {
         Self {
             title: title.into(),
@@ -52,6 +54,7 @@ impl Alert {
         }
     }
 
+    /// Sets the description shown under the title.
     pub fn description(mut self, d: impl Into<SharedString>) -> Self {
         self.description = Some(d.into());
         self

@@ -53,6 +53,7 @@ impl Default for BarState {
 }
 
 /// A painted overlay thumb bound to one [`ScrollHandle`].
+#[must_use = "a component does nothing until it is rendered: add it as a child or return it from `render`"]
 #[derive(IntoElement)]
 pub struct Scrollbar {
     id: ElementId,
@@ -77,6 +78,7 @@ pub struct Scrollbar {
 }
 
 impl Scrollbar {
+    /// Creates a scrollbar for the given scroll handle.
     pub fn new(id: impl Into<ElementId>, handle: ScrollHandle) -> Self {
         Self {
             id: id.into(),
@@ -92,6 +94,7 @@ impl Scrollbar {
         }
     }
 
+    /// Sets the scrollbar orientation.
     pub fn orientation(mut self, orientation: Orientation) -> Self {
         self.orientation = orientation;
         self

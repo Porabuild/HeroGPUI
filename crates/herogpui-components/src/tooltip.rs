@@ -242,13 +242,17 @@ fn start_tooltip_cooldown(
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum TooltipTrigger {
     #[default]
+    /// Shown while the trigger is hovered.
     Hover,
+    /// Shown while the trigger is focused.
     Focus,
 }
 
 impl TooltipTrigger {
+    /// Every trigger mode, in declaration order.
     pub const ALL: [TooltipTrigger; 2] = [TooltipTrigger::Hover, TooltipTrigger::Focus];
 
+    /// A human-readable label for this trigger mode.
     pub fn label(self) -> &'static str {
         match self {
             TooltipTrigger::Hover => "Hover",
@@ -258,6 +262,7 @@ impl TooltipTrigger {
 }
 
 /// HeroUI Tooltip: wraps a trigger and reveals a tip on hover.
+#[must_use = "a component does nothing until it is rendered: add it as a child or return it from `render`"]
 #[derive(IntoElement)]
 pub struct Tooltip {
     id: Option<ElementId>,
@@ -281,6 +286,7 @@ pub struct Tooltip {
 }
 
 impl Tooltip {
+    /// Creates a tooltip with the given content.
     pub fn new(content: impl Into<SharedString>) -> Self {
         Self {
             id: None,
@@ -349,6 +355,7 @@ impl Tooltip {
         self
     }
 
+    /// Sets where the tooltip sits relative to its trigger.
     pub fn placement(mut self, p: TooltipPlacement) -> Self {
         self.placement = p;
         self

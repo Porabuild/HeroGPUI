@@ -16,11 +16,17 @@ use crate::anim::Tween;
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 #[non_exhaustive]
 pub struct CheckboxState {
+    /// Whether the checkbox is selected.
     pub is_selected: bool,
+    /// Whether the checkbox shows the indeterminate dash.
     pub is_indeterminate: bool,
+    /// Whether the checkbox is disabled.
     pub is_disabled: bool,
+    /// Whether the checkbox is read-only.
     pub is_read_only: bool,
+    /// Whether the checkbox is invalid.
     pub is_invalid: bool,
+    /// Whether the checkbox is required.
     pub is_required: bool,
 }
 
@@ -361,12 +367,15 @@ fn lerp_point(a: (f32, f32), b: (f32, f32), t: f32) -> (f32, f32) {
 /// default and `Sm` is HeroGPUI's own 14px step. Not a v3 prop.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum CheckboxSize {
+    /// The small step (14px control).
     Sm,
+    /// The medium step; the pinned default.
     #[default]
     Md,
 }
 
 impl CheckboxSize {
+    /// Every size, in declaration order.
     pub const ALL: [CheckboxSize; 2] = [Self::Sm, Self::Md];
 
     /// `(control, indicator, label text)` for this step.
@@ -377,6 +386,7 @@ impl CheckboxSize {
         }
     }
 
+    /// The size's display name.
     pub fn label(self) -> &'static str {
         match self {
             Self::Sm => "Small",
@@ -386,6 +396,7 @@ impl CheckboxSize {
 }
 
 /// HeroUI Checkbox.
+#[must_use = "a component does nothing until it is rendered: add it as a child or return it from `render`"]
 #[derive(IntoElement)]
 pub struct Checkbox {
     /// `value` — what this control submits when checked. HTML's default is
@@ -536,11 +547,13 @@ impl Checkbox {
         self
     }
 
+    /// Sets whether the checkbox is read-only.
     pub fn is_read_only(mut self, v: bool) -> Self {
         self.is_read_only = v;
         self
     }
 
+    /// Creates an unchecked checkbox with the given element id.
     pub fn new(id: impl Into<gpui::ElementId>) -> Self {
         Self {
             value: None,
@@ -671,6 +684,7 @@ impl Checkbox {
         self
     }
 
+    /// Sets whether the checkbox is disabled.
     pub fn is_disabled(mut self, v: bool) -> Self {
         self.is_disabled = v;
         self
@@ -701,6 +715,7 @@ impl Checkbox {
         self
     }
 
+    /// Sets the handler called with the new selected state when the checkbox is toggled.
     pub fn on_change(mut self, f: impl Fn(&bool, &mut Window, &mut App) + 'static) -> Self {
         self.on_change = Some(std::sync::Arc::new(f));
         self
@@ -1108,6 +1123,7 @@ impl RenderOnce for Checkbox {
 // ---------------------------------------------------------------------------
 
 /// One option in a [`CheckboxGroup`].
+#[must_use = "builder methods return a new value; pass the option to its component"]
 #[derive(Clone)]
 pub struct CheckboxOption {
     key: gpui::SharedString,
@@ -1117,6 +1133,7 @@ pub struct CheckboxOption {
 }
 
 impl CheckboxOption {
+    /// Creates an option with the given key and label.
     pub fn new(key: impl Into<gpui::SharedString>, label: impl Into<gpui::SharedString>) -> Self {
         Self {
             key: key.into(),
@@ -1126,16 +1143,19 @@ impl CheckboxOption {
         }
     }
 
+    /// Sets the description text shown below the label.
     pub fn description(mut self, text: impl Into<gpui::SharedString>) -> Self {
         self.description = Some(text.into());
         self
     }
 
+    /// Sets whether the option is disabled.
     pub fn is_disabled(mut self, v: bool) -> Self {
         self.is_disabled = v;
         self
     }
 
+    /// The option's key.
     pub fn key(&self) -> &gpui::SharedString {
         &self.key
     }
@@ -1148,6 +1168,7 @@ type OnGroupChange =
 ///
 /// A set of checkboxes sharing a label, orientation, validation state and
 /// selected-value set.
+#[must_use = "a component does nothing until it is rendered: add it as a child or return it from `render`"]
 #[derive(IntoElement)]
 pub struct CheckboxGroup {
     /// `name` — the name this control submits under; read back by
@@ -1173,6 +1194,7 @@ pub struct CheckboxGroup {
 }
 
 impl CheckboxGroup {
+    /// Creates a group with the given element id and options.
     pub fn new(id: impl Into<gpui::ElementId>, options: Vec<CheckboxOption>) -> Self {
         Self {
             name: None,
@@ -1254,16 +1276,19 @@ impl CheckboxGroup {
         )
     }
 
+    /// Sets the group label.
     pub fn label(mut self, text: impl Into<gpui::SharedString>) -> Self {
         self.label = Some(text.into());
         self
     }
 
+    /// Sets the group description.
     pub fn description(mut self, text: impl Into<gpui::SharedString>) -> Self {
         self.description = Some(text.into());
         self
     }
 
+    /// Sets the error message shown when the group is invalid.
     pub fn error_message(mut self, text: impl Into<gpui::SharedString>) -> Self {
         self.error_message = Some(text.into());
         self
@@ -1284,11 +1309,13 @@ impl CheckboxGroup {
         self
     }
 
+    /// Sets the layout direction of the options.
     pub fn orientation(mut self, orientation: herogpui_core::Orientation) -> Self {
         self.orientation = orientation;
         self
     }
 
+    /// Sets the field variant.
     pub fn variant(mut self, variant: herogpui_core::FieldVariant) -> Self {
         self.variant = variant;
         self
@@ -1303,11 +1330,13 @@ impl CheckboxGroup {
         self
     }
 
+    /// Sets whether the group is disabled.
     pub fn is_disabled(mut self, v: bool) -> Self {
         self.is_disabled = v;
         self
     }
 
+    /// Sets whether the group is invalid.
     pub fn is_invalid(mut self, v: bool) -> Self {
         self.is_invalid = v;
         self
@@ -1319,6 +1348,7 @@ impl CheckboxGroup {
         self
     }
 
+    /// Sets whether the group is required.
     pub fn is_required(mut self, v: bool) -> Self {
         self.is_required = v;
         self

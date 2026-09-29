@@ -76,6 +76,7 @@ fn sync_toolbar_scope(scope: &FocusHandle, window: &Window, cx: &mut App) -> boo
 }
 
 /// HeroUI Toolbar.
+#[must_use = "a component does nothing until it is rendered: add it as a child or return it from `render`"]
 #[derive(IntoElement)]
 pub struct Toolbar {
     id: Option<ElementId>,
@@ -90,6 +91,7 @@ pub struct Toolbar {
 }
 
 impl Toolbar {
+    /// Creates a horizontal toolbar.
     pub fn new() -> Self {
         Self {
             id: None,
@@ -110,6 +112,7 @@ impl Toolbar {
         self
     }
 
+    /// Sets the toolbar orientation.
     pub fn orientation(mut self, orientation: Orientation) -> Self {
         self.orientation = orientation;
         self
@@ -122,6 +125,7 @@ impl Toolbar {
         self
     }
 
+    /// Sets the gap between children.
     pub fn gap(mut self, gap: impl Into<Pixels>) -> Self {
         self.gap = Some(gap.into());
         self

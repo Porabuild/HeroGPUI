@@ -21,6 +21,7 @@ pub enum CardVariant {
 }
 
 impl CardVariant {
+    /// Every card variant, in declaration order.
     pub const ALL: [CardVariant; 4] = [
         CardVariant::Transparent,
         CardVariant::Default,
@@ -28,6 +29,7 @@ impl CardVariant {
         CardVariant::Tertiary,
     ];
 
+    /// A human-readable label for this variant.
     pub fn label(self) -> &'static str {
         match self {
             CardVariant::Transparent => "Transparent",
@@ -39,6 +41,7 @@ impl CardVariant {
 }
 
 /// HeroUI Card container.
+#[must_use = "a component does nothing until it is rendered: add it as a child or return it from `render`"]
 #[derive(IntoElement)]
 pub struct Card {
     variant: CardVariant,
@@ -51,6 +54,7 @@ pub struct Card {
 }
 
 impl Card {
+    /// Creates an empty card.
     pub fn new() -> Self {
         Self {
             variant: CardVariant::Default,
@@ -61,6 +65,7 @@ impl Card {
         }
     }
 
+    /// Sets the card variant.
     pub fn variant(mut self, variant: CardVariant) -> Self {
         self.variant = variant;
         self
@@ -144,6 +149,7 @@ impl RenderOnce for Card {
 }
 
 /// Card header section (`CardHeader`).
+#[must_use = "a component does nothing until it is rendered: add it as a child or return it from `render`"]
 #[derive(IntoElement)]
 pub struct CardHeader {
     children: Vec<AnyElement>,
@@ -152,6 +158,7 @@ pub struct CardHeader {
 }
 
 impl CardHeader {
+    /// Creates an empty instance.
     pub fn new() -> Self {
         Self {
             children: Vec::new(),
@@ -192,6 +199,7 @@ impl RenderOnce for CardHeader {
 }
 
 /// Card title (`CardTitle`, upstream `.card__title`).
+#[must_use = "a component does nothing until it is rendered: add it as a child or return it from `render`"]
 #[derive(IntoElement)]
 pub struct CardTitle {
     children: Vec<AnyElement>,
@@ -200,6 +208,7 @@ pub struct CardTitle {
 }
 
 impl CardTitle {
+    /// Creates an empty instance.
     pub fn new() -> Self {
         Self {
             children: Vec::new(),
@@ -244,6 +253,7 @@ impl RenderOnce for CardTitle {
 }
 
 /// Card description (`CardDescription`, upstream `.card__description`).
+#[must_use = "a component does nothing until it is rendered: add it as a child or return it from `render`"]
 #[derive(IntoElement)]
 pub struct CardDescription {
     children: Vec<AnyElement>,
@@ -252,6 +262,7 @@ pub struct CardDescription {
 }
 
 impl CardDescription {
+    /// Creates an empty instance.
     pub fn new() -> Self {
         Self {
             children: Vec::new(),
@@ -295,6 +306,7 @@ impl RenderOnce for CardDescription {
 }
 
 /// Content section (`CardContent`, upstream `.card__content`).
+#[must_use = "a component does nothing until it is rendered: add it as a child or return it from `render`"]
 #[derive(IntoElement)]
 pub struct CardContent {
     children: Vec<AnyElement>,
@@ -303,6 +315,7 @@ pub struct CardContent {
 }
 
 impl CardContent {
+    /// Creates an empty instance.
     pub fn new() -> Self {
         Self {
             children: Vec::new(),
@@ -348,6 +361,7 @@ impl RenderOnce for CardContent {
 }
 
 /// Card footer section (`CardFooter`).
+#[must_use = "a component does nothing until it is rendered: add it as a child or return it from `render`"]
 #[derive(IntoElement)]
 pub struct CardFooter {
     children: Vec<AnyElement>,
@@ -356,6 +370,7 @@ pub struct CardFooter {
 }
 
 impl CardFooter {
+    /// Creates an empty instance.
     pub fn new() -> Self {
         Self {
             children: Vec::new(),

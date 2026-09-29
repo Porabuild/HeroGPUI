@@ -9,6 +9,7 @@ use herogpui_theme::ActiveTheme;
 use crate::a11y::{self, A11y as _};
 
 /// One radio's visible label, submitted value, and local disabled state.
+#[must_use = "builder methods return a new value; pass the option to its component"]
 #[derive(Clone)]
 pub struct RadioOption {
     label: SharedString,
@@ -19,6 +20,7 @@ pub struct RadioOption {
 }
 
 impl RadioOption {
+    /// Creates an option from a label; the submitted value defaults to the label.
     pub fn new(label: impl Into<SharedString>) -> Self {
         let label = label.into();
         Self {
@@ -77,10 +79,15 @@ impl From<&str> for RadioOption {
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 #[non_exhaustive]
 pub struct RadioOptionState {
+    /// Whether this radio is selected.
     pub is_selected: bool,
+    /// Whether this radio is disabled.
     pub is_disabled: bool,
+    /// Whether this radio is read-only.
     pub is_read_only: bool,
+    /// Whether this radio is invalid.
     pub is_invalid: bool,
+    /// Whether this radio is required.
     pub is_required: bool,
 }
 
@@ -104,12 +111,15 @@ pub struct RadioOptionState {
 /// Not a v3 prop.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum RadioSize {
+    /// The small size.
     Sm,
+    /// The medium size.
     #[default]
     Md,
 }
 
 impl RadioSize {
+    /// Every size, in display order.
     pub const ALL: [RadioSize; 2] = [Self::Sm, Self::Md];
 
     /// `(control, dot, label text, row gap)` for this step.
@@ -120,6 +130,7 @@ impl RadioSize {
         }
     }
 
+    /// The display name of this size.
     pub fn label(self) -> &'static str {
         match self {
             Self::Sm => "Small",
@@ -129,6 +140,7 @@ impl RadioSize {
 }
 
 /// HeroUI RadioGroup.
+#[must_use = "a component does nothing until it is rendered: add it as a child or return it from `render`"]
 #[derive(IntoElement)]
 pub struct RadioGroup {
     /// `name` — the name this control submits under; read back by
@@ -180,16 +192,19 @@ pub struct RadioGroup {
 }
 
 impl RadioGroup {
+    /// Sets the field variant (v3 `variant`).
     pub fn variant(mut self, variant: FieldVariant) -> Self {
         self.variant = variant;
         self
     }
 
+    /// Sets the invalid state (v3 `isInvalid`).
     pub fn is_invalid(mut self, v: bool) -> Self {
         self.is_invalid = v;
         self
     }
 
+    /// Sets the required state (v3 `isRequired`).
     pub fn is_required(mut self, v: bool) -> Self {
         self.is_required = v;
         self
@@ -231,6 +246,7 @@ impl RadioGroup {
         self
     }
 
+    /// Creates a radio group from an element id and its options.
     pub fn new(id: impl Into<gpui::ElementId>, options: Vec<RadioOption>) -> Self {
         Self {
             name: None,
@@ -378,16 +394,19 @@ impl RadioGroup {
         self
     }
 
+    /// Sets the layout direction of the options (v3 `orientation`).
     pub fn orientation(mut self, o: Orientation) -> Self {
         self.orientation = o;
         self
     }
 
+    /// Sets the disabled state (v3 `isDisabled`).
     pub fn is_disabled(mut self, v: bool) -> Self {
         self.is_disabled = v;
         self
     }
 
+    /// Sets the handler called with the newly selected value (v3 `onChange`).
     pub fn on_change(mut self, f: impl Fn(&SharedString, &mut Window, &mut App) + 'static) -> Self {
         self.on_change = Some(std::sync::Arc::new(f));
         self

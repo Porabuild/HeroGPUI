@@ -33,6 +33,7 @@ pub(crate) fn separator_variant(member: Option<Variant>, group: Variant) -> Vari
 }
 
 /// HeroUI ButtonGroup.
+#[must_use = "a component does nothing until it is rendered: add it as a child or return it from `render`"]
 #[derive(IntoElement)]
 pub struct ButtonGroup {
     variant: Variant,
@@ -68,6 +69,7 @@ impl ButtonGroup {
         self
     }
 
+    /// Creates an empty button group.
     pub fn new() -> Self {
         Self {
             variant: Variant::Primary,
@@ -97,11 +99,13 @@ impl ButtonGroup {
         self
     }
 
+    /// Sets the size inherited by the group's buttons.
     pub fn size(mut self, size: Size) -> Self {
         self.size = size;
         self
     }
 
+    /// Sets whether the group fills the available width.
     pub fn full_width(mut self, v: bool) -> Self {
         self.full_width = v;
         self

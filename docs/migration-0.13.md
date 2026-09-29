@@ -1,8 +1,8 @@
 # Migrating from 0.12 to 0.13
 
-This guide covers only the changes that can break a 0.12 build or change
-what a callback receives. The full list, including additions, is in
-[`CHANGELOG.md`](../CHANGELOG.md#unreleased).
+This guide covers only the changes in 0.13 that can break a 0.12 build or
+change behavior an application relied on. The full list, including
+additions, is in [`CHANGELOG.md`](../CHANGELOG.md).
 
 Update the dependency first:
 
@@ -29,4 +29,104 @@ match strategy {
     VirtualListScroll::Top => { /* ... */ }
     _ => { /* Center, and anything added later */ }
 }
+```
+
+## Theme roles are the typed `Color`
+
+`ThemeBuilder::role`, `ThemeBuilder::role_hover` and `ThemeColors::role` took
+the role as a `&str`, and any name they did not know (a typo such as
+`"sucess"`, or v2's `"primary"`) silently meant `accent`: the builder
+recoloured the accent and the focus ring. They now take
+`herogpui::core::Color`, so a misspelt role does not compile.
+
+```rust
+// 0.12
+Theme::builder("brand", Theme::light())
+    .role("success", oklch(0.73, 0.19, 150.0), snow())
+    .role_hover("accent", hover);
+let soft = cx.colors().role("danger").soft();
+
+// 0.13
+use herogpui::core::Color;
+Theme::builder("brand", Theme::light())
+    .role(Color::Success, oklch(0.73, 0.19, 150.0), snow())
+    .role_hover(Color::Accent, hover);
+let soft = cx.colors().role(Color::Danger).soft(); // or cx.role(Color::Danger)
+```
+
+A role name that arrives as a string (a settings file, a CLI flag) parses
+with `FromStr`, which fails on an unknown name instead of falling back:
+
+```rust
+let role: Color = name.parse()?; // Err(UnknownColorError { name })
+```
+
+`Color::from_token(&str) -> Option<Color>` is the same parse without the
+error type. Theme JSON is unchanged: the `roles` map already rejected an
+unknown key, and still does.
+
+## `HEROGPUI_REDUCE_MOTION` is no longer read by the library
+
+`ThemeProvider::init` read the `HEROGPUI_REDUCE_MOTION` environment variable
+and wrote GPUI's reduced-motion flag from it, overwriting any value the app
+had set before initializing. A library reading a hidden configuration
+channel is surprising, so it no longer does: `init` leaves the flag alone,
+and `set_reduce_motion` is the one way to set it. The gallery keeps
+honouring the variable by mapping it itself.
+
+An app that relied on the variable maps it (or, better, its own setting)
+explicitly:
+
+```rust
+// 0.12: HEROGPUI_REDUCE_MOTION=1 was honoured by ThemeProvider::init.
+ThemeProvider::init(cx);
+
+// 0.13
+ThemeProvider::init(cx);
+if std::env::var("HEROGPUI_REDUCE_MOTION").is_ok_and(|v| v != "0" && v != "false") {
+    herogpui::theme::set_reduce_motion(true, cx);
+}
+```
+
+## The i18n catalogue grows
+
+`i18n::LOCALES` is now 13 locales and `UiString::ALL` 30 keys, so a type
+that spelled their lengths stops compiling:
+
+```rust
+// 0.12
+let keys: [UiString; 9] = UiString::ALL;
+
+// 0.13
+let keys: [UiString; UiString::COUNT] = UiString::ALL;
+// or: for key in UiString::ALL { .. }
+```
+
+`NoResults`, `Loading` and `Search` used to fall back to en-US outside
+en-US; every built-in locale now translates them, as it does the new keys.
+An app that wants the English text back sets it explicitly:
+
+```rust
+i18n::set_ui_string("de", UiString::Loading, "Loading", cx);
+```
+
+The NumberField and TimeField stepper names, the DateField and TimeField
+segment names, the DatePicker trigger, the ColorSlider channel label, the
+Autocomplete clear button and Pagination's name now follow `set_locale`
+too; in en-US they are unchanged. A calendar day's accessible name no longer
+ends in a trailing space when the day is not selected.
+
+## Dropped builders warn
+
+Components and builder types are `#[must_use]`. A statement that builds a
+component and drops it never rendered anything; it now raises
+`unused_must_use`, which fails a build under `#![deny(warnings)]`. Add the
+value where it was meant to go, or delete the statement:
+
+```rust
+// 0.12: compiles, renders nothing
+Button::new("save").label("Save");
+
+// 0.13
+div().child(Button::new("save").label("Save"))
 ```

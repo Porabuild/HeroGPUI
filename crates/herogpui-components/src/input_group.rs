@@ -19,6 +19,7 @@ use crate::{
 
 /// A static, non-interactive segment of an [`InputGroup`] — the `$` before an
 /// amount, or a `.com` suffix.
+#[must_use = "a component does nothing until it is rendered: add it as a child or return it from `render`"]
 #[derive(IntoElement)]
 pub struct InputAddon {
     text: SharedString,
@@ -27,6 +28,7 @@ pub struct InputAddon {
 }
 
 impl InputAddon {
+    /// Creates an addon showing the given text.
     pub fn new(text: impl Into<SharedString>) -> Self {
         Self {
             text: text.into(),
@@ -60,6 +62,7 @@ impl RenderOnce for InputAddon {
 }
 
 /// HeroUI InputGroup.
+#[must_use = "a component does nothing until it is rendered: add it as a child or return it from `render`"]
 #[derive(IntoElement)]
 pub struct InputGroup {
     variant: FieldVariant,
@@ -98,6 +101,7 @@ pub struct InputGroup {
 }
 
 impl InputGroup {
+    /// Creates an empty input group.
     pub fn new() -> Self {
         Self {
             variant: FieldVariant::Primary,
@@ -128,11 +132,13 @@ impl InputGroup {
         self
     }
 
+    /// Sets the field variant.
     pub fn variant(mut self, variant: FieldVariant) -> Self {
         self.variant = variant;
         self
     }
 
+    /// Sets whether the group fills the available width.
     pub fn full_width(mut self, v: bool) -> Self {
         self.full_width = v;
         self
@@ -188,6 +194,7 @@ impl InputGroup {
         self
     }
 
+    /// Sets whether the group is disabled.
     pub fn is_disabled(mut self, v: bool) -> Self {
         self.is_disabled = v;
         self
@@ -200,21 +207,25 @@ impl InputGroup {
         self
     }
 
+    /// Sets whether the group is invalid.
     pub fn is_invalid(mut self, v: bool) -> Self {
         self.is_invalid = v;
         self
     }
 
+    /// Sets the label text.
     pub fn label(mut self, text: impl Into<SharedString>) -> Self {
         self.label = Some(text.into());
         self
     }
 
+    /// Sets the description text.
     pub fn description(mut self, text: impl Into<SharedString>) -> Self {
         self.description = Some(text.into());
         self
     }
 
+    /// Sets the error message text.
     pub fn error_message(mut self, text: impl Into<SharedString>) -> Self {
         self.error_message = Some(text.into());
         self

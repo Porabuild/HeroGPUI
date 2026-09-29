@@ -49,35 +49,32 @@ impl ThemeProvider {
     ///
     /// Call this once before opening the first window. Rendering a themed
     /// component before initialization panics.
+    ///
+    /// The reduced-motion preference is left as it is: GPUI does not surface
+    /// the OS `prefers-reduced-motion` setting and this crate reads no
+    /// environment variable, so an application that offers the preference
+    /// sets it explicitly with [`set_reduce_motion`] (before or after this
+    /// call) from its own settings.
     pub fn init_with(theme: Theme, cx: &mut App) {
         let mut themes = HashMap::new();
         themes.insert("light".into(), Theme::light());
         themes.insert("dark".into(), Theme::dark());
         let id = theme.id.clone();
         themes.insert(id.clone(), theme);
-        // gpui does not surface the OS `prefers-reduced-motion` setting, so the
-        // env var stands in for it; `set_reduce_motion` is the app-level
-        // override, matching v3's `data-reduce-motion` precedence.
-        let reduce_motion = std::env::var("HEROGPUI_REDUCE_MOTION")
-            .is_ok_and(|v| v != "0" && !v.eq_ignore_ascii_case("false"));
         cx.set_global(Self {
             active: id,
             themes,
             follow_system_appearance: false,
             appearance_observers: HashMap::new(),
         });
-        // The global has to exist first: GPUI's setter refreshes every window
-        // when the value changes, and a themed window repainting before
-        // `set_global` would panic looking for the provider. GPUI's own default
-        // is a plain `false` seeded at app construction (it reads no OS
-        // setting), so writing the env-var seed here clobbers nothing.
-        cx.set_reduce_motion(reduce_motion);
     }
 
+    /// Returns the global provider. Panics if `init` has not registered it.
     pub fn get(cx: &App) -> &Self {
         cx.global::<ThemeProvider>()
     }
 
+    /// The active theme.
     pub fn theme(&self) -> &Theme {
         // `set_active` refuses ids that are not registered and `register`
         // inserts before it activates, so the active id always resolves.
@@ -94,6 +91,7 @@ impl ThemeProvider {
         self.themes.contains_key(id)
     }
 
+    /// The id of the active theme.
     pub fn active_id(&self) -> &SharedString {
         &self.active
     }
@@ -142,11 +140,17 @@ impl ThemeProvider {
 ///
 /// Works with `&App`, `&mut App`, `Context<T>` (they deref to `App`).
 pub trait ActiveTheme {
+    /// The active theme.
     fn theme(&self) -> &Theme;
+    /// The active theme's semantic colors.
     fn colors(&self) -> &ThemeColors;
+    /// The active theme's layout tokens.
     fn layout(&self) -> &LayoutTheme;
+    /// The active theme's typed component defaults and recipes.
     fn components(&self) -> &crate::ComponentThemes;
+    /// The active theme's [`RoleColor`] for a semantic [`Color`].
     fn role(&self, color: Color) -> &RoleColor;
+    /// Whether the active theme's appearance is dark.
     fn is_dark_theme(&self) -> bool;
     /// Whether animations should be suppressed. Components must check this
     /// before animating; v3 requires no opt-in from the caller.
@@ -240,6 +244,21 @@ pub fn use_theme(id: impl Into<SharedString>, cx: &mut App) -> Result<(), Unknow
 /// open window to repaint. Every animated component honours it without opt-in,
 /// and so does every plain `gpui::Animation`: the value is stored in GPUI's own
 /// global, which its animation elements consult themselves.
+///
+/// This is the only way the preference is set: the library reads no
+/// environment variable or OS setting for it (GPUI exposes none), so an app
+/// wires it to its own settings, a command-line flag, or an environment
+/// variable of its choosing.
+///
+/// ```
+/// # fn startup(cx: &mut gpui::App) {
+/// herogpui_theme::ThemeProvider::init(cx);
+/// // e.g. the gallery's `HEROGPUI_REDUCE_MOTION=1`:
+/// if std::env::var("MY_APP_REDUCE_MOTION").is_ok_and(|v| v == "1") {
+///     herogpui_theme::set_reduce_motion(true, cx);
+/// }
+/// # }
+/// ```
 pub fn set_reduce_motion(v: bool, cx: &mut App) {
     cx.set_reduce_motion(v);
     // GPUI's setter already refreshes on a *change*; this repaints on a
@@ -326,4 +345,28 @@ pub fn toggle_light_dark(cx: &mut App) {
     let next = if dark { "light" } else { "dark" };
     // Registered by `init_with`, so this cannot miss.
     let _ = use_theme(next, cx);
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use gpui::TestAppContext;
+
+    /// `init` must not own the preference: a value the app set first (from
+    /// its settings, before the provider existed) survives initialization,
+    /// and a default app stays `false`.
+    #[gpui::test]
+    fn init_leaves_the_reduce_motion_preference_alone(cx: &mut TestAppContext) {
+        cx.update(|cx| {
+            ThemeProvider::init(cx);
+            assert!(!cx.reduce_motion());
+        });
+        cx.update(|cx| {
+            cx.set_reduce_motion(true);
+            ThemeProvider::init_with(Theme::dark(), cx);
+            assert!(cx.reduce_motion());
+            set_reduce_motion(false, cx);
+            assert!(!ActiveTheme::reduce_motion(cx));
+        });
+    }
 }

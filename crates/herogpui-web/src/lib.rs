@@ -168,6 +168,11 @@ pub fn run(page: Option<String>, dark: Option<bool>) {
                 std::borrow::Cow::Borrowed(
                     include_bytes!("../fonts/NotoSansSC-Regular.ttf").as_slice(),
                 ),
+                // Hangul for the ko-KR chrome strings (`i18n`); SC carries
+                // the hanzi, kana and kanji, Inter the Latin and Cyrillic.
+                std::borrow::Cow::Borrowed(
+                    include_bytes!("../fonts/NotoSansKR-Regular.ttf").as_slice(),
+                ),
                 std::borrow::Cow::Borrowed(
                     include_bytes!("../fonts/NotoEmoji-Regular.ttf").as_slice(),
                 ),

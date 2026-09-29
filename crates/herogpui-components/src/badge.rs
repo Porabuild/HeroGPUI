@@ -11,10 +11,14 @@ use herogpui_theme::{ActiveTheme, ThemeColors};
 /// Where the badge is anchored on its child (`placement`).
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum BadgePlacement {
+    /// Top-left corner of the child.
     TopLeft,
+    /// Top-right corner of the child.
     #[default]
     TopRight,
+    /// Bottom-left corner of the child.
     BottomLeft,
+    /// Bottom-right corner of the child.
     BottomRight,
 }
 
@@ -32,12 +36,14 @@ pub enum BadgeVariant {
 }
 
 impl BadgeVariant {
+    /// Every badge variant, in display order.
     pub const ALL: [BadgeVariant; 3] = [
         BadgeVariant::Primary,
         BadgeVariant::Secondary,
         BadgeVariant::Soft,
     ];
 
+    /// The human-readable name of this variant.
     pub fn label(self) -> &'static str {
         match self {
             BadgeVariant::Primary => "Primary",
@@ -71,6 +77,7 @@ impl BadgeVariant {
 /// inline-flex, so the wrapper hugs its content only inside a flex parent,
 /// and the ported `flex_shrink_0` keeps it from compressing in an overflowing
 /// row. The badge positions itself against this wrapper.
+#[must_use = "a component does nothing until it is rendered: add it as a child or return it from `render`"]
 #[derive(IntoElement)]
 pub struct BadgeAnchor {
     children: Vec<AnyElement>,
@@ -79,6 +86,7 @@ pub struct BadgeAnchor {
 }
 
 impl BadgeAnchor {
+    /// Creates an empty badge anchor.
     pub fn new() -> Self {
         Self {
             children: Vec::new(),
@@ -129,6 +137,7 @@ impl RenderOnce for BadgeAnchor {
 /// reproduce that auto-wrap: plain [`Badge`] children draw inside the badge
 /// without the label padding, and this explicit part is the seam that carries
 /// the pinned padding.
+#[must_use = "a component does nothing until it is rendered: add it as a child or return it from `render`"]
 #[derive(IntoElement)]
 pub struct BadgeLabel {
     children: Vec<AnyElement>,
@@ -137,6 +146,7 @@ pub struct BadgeLabel {
 }
 
 impl BadgeLabel {
+    /// Creates an empty badge label.
     pub fn new() -> Self {
         Self {
             children: Vec::new(),
@@ -180,6 +190,7 @@ impl RenderOnce for BadgeLabel {
 /// [`BadgeAnchor`]. Its [`ParentElement`] children are the badge's own
 /// content: text goes through [`BadgeLabel`], and a badge with no children
 /// renders as a dot — the dot is the omitted label, not a separate mode.
+#[must_use = "a component does nothing until it is rendered: add it as a child or return it from `render`"]
 #[derive(IntoElement)]
 pub struct Badge {
     color: Color,
@@ -197,6 +208,7 @@ pub struct Badge {
 }
 
 impl Badge {
+    /// Creates a badge with the default color, `Primary` variant, medium size and top-right placement.
     pub fn new() -> Self {
         // v3's table gives `color` a default of `"default"`, which is the
         // gray `.badge--default`; the seed used to be `Danger`.
@@ -212,21 +224,25 @@ impl Badge {
         }
     }
 
+    /// Sets the badge color (`color`).
     pub fn color(mut self, c: Color) -> Self {
         self.color = c;
         self
     }
 
+    /// Sets the visual variant (`variant`).
     pub fn variant(mut self, v: BadgeVariant) -> Self {
         self.variant = v;
         self
     }
 
+    /// Sets the size (`size`).
     pub fn size(mut self, s: Size) -> Self {
         self.size = s;
         self
     }
 
+    /// Sets where the badge is anchored on its child (`placement`).
     pub fn placement(mut self, p: BadgePlacement) -> Self {
         self.placement = p;
         self
@@ -276,7 +292,7 @@ impl ParentElement for Badge {
 /// variant×color rules. Every badge carries the page-background ring, so
 /// unlike a chip this always paints a fill.
 fn paint(colors: &ThemeColors, variant: BadgeVariant, color: Color) -> (Hsla, Hsla) {
-    let role = colors.role(color.token());
+    let role = colors.role(color);
     let muted_foreground = || {
         if color == Color::Default {
             colors.default.foreground
@@ -520,7 +536,7 @@ mod tests {
     fn paint_matrix_matches_the_badge_css_cascade() {
         for colors in [ThemeColors::light(), ThemeColors::dark()] {
             for color in Color::ALL {
-                let role = colors.role(color.token());
+                let role = colors.role(color);
 
                 // `.badge--primary.badge--{color}` fills with the role itself
                 // and labels in the role foreground.
@@ -573,8 +589,8 @@ mod tests {
             (Color::Warning, Color::Danger),
         ] {
             assert_ne!(
-                colors.role(a.token()).color,
-                colors.role(b.token()).color,
+                colors.role(a).color,
+                colors.role(b).color,
                 "the {a:?} and {b:?} roles must not share a fill"
             );
         }

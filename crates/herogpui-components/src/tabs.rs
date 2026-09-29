@@ -22,8 +22,10 @@ pub enum TabsVariant {
 }
 
 impl TabsVariant {
+    /// Every variant, in display order.
     pub const ALL: [TabsVariant; 2] = [TabsVariant::Primary, TabsVariant::Secondary];
 
+    /// The display name of this variant.
     pub fn label(self) -> &'static str {
         match self {
             TabsVariant::Primary => "Primary",
@@ -36,15 +38,20 @@ impl TabsVariant {
 /// Start and end follow the port's left-to-right layout.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum TabsAlign {
+    /// Aligns tab content to the start.
     Start,
+    /// Centers tab content.
     #[default]
     Center,
+    /// Aligns tab content to the end.
     End,
 }
 
 impl TabsAlign {
+    /// Every alignment, in display order.
     pub const ALL: [Self; 3] = [Self::Start, Self::Center, Self::End];
 
+    /// The display name of this alignment.
     pub fn label(self) -> &'static str {
         match self {
             Self::Start => "Start",
@@ -355,14 +362,18 @@ pub enum KeyboardActivation {
 }
 
 /// One tab: key + label + panel content.
+#[must_use = "builder methods return a new value; pass it on to its component"]
 #[non_exhaustive]
 pub struct TabItem {
+    /// Stable key identifying the tab.
     pub key: SharedString,
+    /// Visible text and accessible name of the tab.
     pub label: SharedString,
     /// Replacement content for the segment trigger itself; the label text is
     /// not rendered when it is set. `label` stays the tab's accessible name —
     /// an svg or icon div child carries no accessible name of its own.
     pub trigger: Option<AnyElement>,
+    /// Content shown in the panel when the tab is selected.
     pub content: Option<AnyElement>,
     /// `Tabs.Tab.isDisabled` — removes this tab from activation and the roving
     /// keyboard stops without disabling its siblings.
@@ -383,6 +394,7 @@ pub struct TabItem {
 }
 
 impl TabItem {
+    /// Creates a tab from a key and a label.
     pub fn new(key: impl Into<SharedString>, label: impl Into<SharedString>) -> Self {
         Self {
             key: key.into(),
@@ -411,11 +423,13 @@ impl TabItem {
         self
     }
 
+    /// Sets the panel content of the tab.
     pub fn content(mut self, el: impl IntoElement) -> Self {
         self.content = Some(el.into_any_element());
         self
     }
 
+    /// Sets whether the tab is disabled (v3 `Tabs.Tab.isDisabled`).
     pub fn is_disabled(mut self, value: bool) -> Self {
         self.is_disabled = value;
         self
@@ -501,12 +515,15 @@ struct TabFocusState {
 /// thickness at both steps. Not a v3 prop.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum TabsSize {
+    /// The small size.
     Sm,
+    /// The medium size.
     #[default]
     Md,
 }
 
 impl TabsSize {
+    /// Every size, in display order.
     pub const ALL: [TabsSize; 2] = [Self::Sm, Self::Md];
 
     /// `(height, horizontal padding, label text)` for this step; the label
@@ -518,6 +535,7 @@ impl TabsSize {
         }
     }
 
+    /// The display name of this size.
     pub fn label(self) -> &'static str {
         match self {
             Self::Sm => "Small",
@@ -527,6 +545,7 @@ impl TabsSize {
 }
 
 /// HeroUI Tabs (controlled).
+#[must_use = "a component does nothing until it is rendered: add it as a child or return it from `render`"]
 #[derive(IntoElement)]
 pub struct Tabs {
     id: gpui::ElementId,
@@ -631,11 +650,13 @@ impl Tabs {
         }
     }
 
+    /// Sets the visual variant (v3 `variant`).
     pub fn variant(mut self, v: TabsVariant) -> Self {
         self.variant = v;
         self
     }
 
+    /// Sets whether the whole tab list is disabled (v3 `isDisabled`).
     pub fn is_disabled(mut self, v: bool) -> Self {
         self.is_disabled = v;
         self

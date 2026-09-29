@@ -16,10 +16,13 @@ use crate::a11y::{self, A11y as _};
 // ToggleButton
 // ---------------------------------------------------------------------------
 
+/// Visual variant of a toggle button.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum ToggleVariant {
+    /// Filled when unselected (the default).
     #[default]
     Default,
+    /// Transparent when unselected.
     Ghost,
 }
 
@@ -31,6 +34,8 @@ struct ToggleGroupFocusState {
     edge_exit: bool,
 }
 
+/// A button that toggles between selected and unselected.
+#[must_use = "a component does nothing until it is rendered: add it as a child or return it from `render`"]
 #[derive(IntoElement)]
 pub struct ToggleButton {
     id: ElementId,
@@ -95,6 +100,7 @@ impl ToggleButton {
         })
     }
 
+    /// Creates a toggle button with the given element id.
     pub fn new(id: impl Into<ElementId>) -> Self {
         Self {
             content: None,
@@ -133,16 +139,19 @@ impl ToggleButton {
         self
     }
 
+    /// Sets the text label.
     pub fn label(mut self, l: impl Into<SharedString>) -> Self {
         self.label = Some(l.into());
         self
     }
 
+    /// Sets the variant.
     pub fn variant(mut self, v: ToggleVariant) -> Self {
         self.variant = v;
         self
     }
 
+    /// Sets the size; a size set here takes precedence over one inherited from a group.
     pub fn size(mut self, s: Size) -> Self {
         self.size = s;
         self.size_explicit = true;
@@ -183,6 +192,7 @@ impl ToggleButton {
         self
     }
 
+    /// Sets the selected state (controlled).
     pub fn is_selected(mut self, v: bool) -> Self {
         self.is_selected = Some(v);
         self
@@ -198,6 +208,7 @@ impl ToggleButton {
         self
     }
 
+    /// Sets whether the button is icon-only.
     pub fn is_icon_only(mut self, v: bool) -> Self {
         self.is_icon_only = v;
         self
@@ -242,6 +253,7 @@ impl ToggleButton {
         self
     }
 
+    /// Sets whether the button is disabled; takes precedence over the group's disabled state.
     pub fn is_disabled(mut self, v: bool) -> Self {
         self.is_disabled = v;
         self.disabled_explicit = true;
@@ -255,6 +267,7 @@ impl ToggleButton {
         self
     }
 
+    /// Appends a child element.
     pub fn child(mut self, el: impl IntoElement) -> Self {
         self.children.push(el.into_any_element());
         self
@@ -268,6 +281,7 @@ impl ToggleButton {
         self
     }
 
+    /// Sets the handler called when the button is pressed.
     pub fn on_press(mut self, f: impl Fn(&ClickEvent, &mut Window, &mut App) + 'static) -> Self {
         self.on_press = Some(std::sync::Arc::new(f));
         self
@@ -570,6 +584,8 @@ impl RenderOnce for ToggleButton {
 // ToggleButtonGroup
 // ---------------------------------------------------------------------------
 
+/// A group of toggle buttons that share selection.
+#[must_use = "a component does nothing until it is rendered: add it as a child or return it from `render`"]
 #[derive(IntoElement)]
 pub struct ToggleButtonGroup {
     id: ElementId,
@@ -614,6 +630,7 @@ impl ToggleButtonGroup {
         self.on_change(handler)
     }
 
+    /// Creates an empty group with the given element id.
     pub fn new(id: impl Into<ElementId>) -> Self {
         Self {
             id: id.into(),
@@ -634,6 +651,7 @@ impl ToggleButtonGroup {
         }
     }
 
+    /// Sets whether one or several buttons can be selected.
     pub fn selection_mode(mut self, m: SelectionMode) -> Self {
         self.selection_mode = m;
         self
@@ -657,11 +675,13 @@ impl ToggleButtonGroup {
         self
     }
 
+    /// Sets whether members are spaced apart instead of joined (detached members have a 4px gap and no separators).
     pub fn is_detached(mut self, v: bool) -> Self {
         self.is_detached = v;
         self
     }
 
+    /// Sets whether the group fills the width of its parent.
     pub fn full_width(mut self, v: bool) -> Self {
         self.full_width = v;
         self
@@ -677,6 +697,7 @@ impl ToggleButtonGroup {
         self
     }
 
+    /// Sets the selected keys (controlled).
     pub fn selected_keys(
         mut self,
         keys: impl IntoIterator<Item = impl Into<SharedString>>,
@@ -695,6 +716,7 @@ impl ToggleButtonGroup {
         self
     }
 
+    /// Sets the handler called with the selected keys when the selection changes.
     pub fn on_change(
         mut self,
         f: impl Fn(&[SharedString], &mut Window, &mut App) + 'static,
@@ -703,6 +725,7 @@ impl ToggleButtonGroup {
         self
     }
 
+    /// Appends a toggle button to the group.
     pub fn child_toggle(mut self, btn: ToggleButton) -> Self {
         self.children.push(btn);
         self
@@ -987,6 +1010,7 @@ impl RenderOnce for ToggleButtonGroup {
 }
 
 /// Separator element for ToggleButtonGroup — visual divider.
+#[must_use = "a component does nothing until it is rendered: add it as a child or return it from `render`"]
 #[derive(IntoElement)]
 pub struct ToggleSeparator;
 

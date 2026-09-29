@@ -153,7 +153,7 @@ the same `color-mix(in oklab, …)` weights the stylesheet uses.
 
 **Derived on `ThemeColors`:** `background_secondary()`, `background_tertiary()`,
 `background_inverse()`, `separator_secondary()`, `separator_tertiary()`,
-`role(name)`.
+`role(Color)`.
 
 **Layout:** `radius` (8px) with `radius_xs()`…`radius_4xl()` and `capped(r)` for v3's `min(32px, ..)` ceiling, `field_radius`,
 `border_width`, `field_border_width`, `disabled_opacity`, `ring_offset_width`,
@@ -189,17 +189,23 @@ Custom theme — override a base token and every derived value follows:
 
 ```rust
 use gpui::px;
-use herogpui::core::oklch;
+use herogpui::core::{oklch, Color};
 use herogpui::theme::{snow, Theme};
 
 let brand = Theme::builder("brand", Theme::dark())
     .accent(oklch(0.55, 0.23, 295.0))
-    .role("success", oklch(0.73, 0.19, 150.0), snow())
+    .role(Color::Success, oklch(0.73, 0.19, 150.0), snow())
     .radius(px(6.))          // field_radius follows at 1.5x
     .cursor_interactive(gpui::CursorStyle::Arrow) // every control's hover cursor
     .build();
 herogpui::theme::set_theme(brand, cx);
 ```
+
+Roles are the typed `Color`, so a misspelt role does not compile. A role
+name read from configuration parses with `"success".parse::<Color>()`
+(`Color::from_token`), which returns `UnknownColorError` for an unknown
+name instead of falling back to `accent`; the JSON `roles` map rejects an
+unknown key the same way.
 
 The same sparse overrides as JSON, behind the `serde` feature — derived
 hover / soft mixes still go through `ThemeBuilder`:
@@ -272,7 +278,7 @@ is a semantic token (`Role(Color::Accent)`, `Muted`, `FieldBackground`, …) or
 `Literal(Hsla)` / `From<Hsla>`. `SliderStyle.radius` reaches the track, thumb
 layers and caps through the same per-corner `sx` join as instance corners.
 `ButtonStyle::style(|el| …)` captures sparse GPUI metrics; instance `sx` refines
-over it. `ThemeBuilder::role_hover(name, hsla)` / `accent_hover(hsla)` (and
+over it. `ThemeBuilder::role_hover(Color, hsla)` / `accent_hover(hsla)` (and
 `RoleColor::with_hover`) name a role's `*-hover` shade outright in place of the
 derived mix toward its own foreground, for a design system whose hover moves the
 other way; it reaches every component that hovers that role, so `Variant::Primary`
@@ -787,15 +793,30 @@ out of `reference_metadata`.
   the documented API. `Sizable::Size` is the component's own scale (`Size`,
   `ModalSize`, `CheckboxSize`, `SpinnerSize`, ...).
 - **i18n** — `i18n::set_locale("de-DE", cx)`, `i18n::locale(cx)`,
-  `i18n::ui_string(UiString::Close, cx)`, `i18n::set_ui_string("fr",
-  UiString::Loading, "Chargement", cx)`, `i18n::lookup(locale, key)`. Keys:
-  `SelectPlaceholder`, `NoResults`, `Close`, `Loading`, `Previous`, `Next`,
-  `Remove`, `Breadcrumbs`, `Search`. Resolution: exact override, then an
+  `i18n::ui_string(UiString::Close, cx)`, `i18n::ui_string_with(UiString::Increase,
+  "Quantity", cx)` (fills a template's one `{..}` placeholder; `i18n::fill`),
+  `i18n::set_ui_string("fr", UiString::Loading, "Chargement", cx)`,
+  `i18n::lookup(locale, key)`. `UiString` (`#[non_exhaustive]`, `ALL`,
+  `COUNT`): `SelectPlaceholder`, `NoResults`, `Close`, `Loading`,
+  `Previous`, `Next`, `Remove`, `Breadcrumbs`, `Search`, `Increase` /
+  `Decrease` (NumberField and TimeField steppers, `{fieldLabel}` templates),
+  `Year`, `Month`, `Day`, `Hour`, `Minute`, `Second`, `DayPeriod` (DateField
+  and TimeField segment names), `Calendar` (DatePicker / DateRangePicker
+  trigger), `DateSelected` (a selected calendar day, `{date}` template),
+  `Hue`, `Saturation`, `Lightness`, `Brightness`, `Red`, `Green`, `Blue`,
+  `Alpha` (colour channels; `ColorChannel::localized_label(cx)`, drawn by
+  ColorSlider), `ClearSelection` (Autocomplete clear button), `Pagination`
+  (Pagination's navigation name). Resolution: exact override, then an
   override for the bare language, then the built-in table (exact tag, then
-  language), then en-US. Built-in: en-US, de-DE, es-ES, fr-FR, it-IT, nl-NL,
-  pl-PL, pt-BR, sv-SE (from the pinned React Aria dictionaries; `NoResults`,
-  `Loading` and `Search` are HeroUI's English-only strings). Dates and
-  numbers keep their own per-component ICU4X `.locale(..)`.
+  language), then en-US. Built-in (`LOCALES`): en-US, de-DE, es-ES, fr-FR,
+  it-IT, nl-NL, pl-PL, pt-BR, sv-SE, ja-JP, zh-CN, ko-KR, ru-RU, every key
+  translated — from the pinned React Aria 3.52.1 / React Stately 3.50.0 /
+  RAC 1.21.1 dictionaries, except `NoResults`, `Loading`, `Search`,
+  `ClearSelection` and `Pagination`, which HeroUI hard-codes in English and
+  HeroGPUI translates itself. Dates and numbers keep their own per-component
+  ICU4X `.locale(..)`. The web gallery bundles Noto Sans SC (hanzi, kana,
+  kanji) and Noto Sans KR (Hangul) subsets for the non-Latin rows; Inter
+  covers Cyrillic.
 - **Theme files** (`serde` feature) — `register_theme_json(json, cx)`
   registers a `ThemeDocument` without activating it; `load_themes_dir(dir,
   cx)` does that for every `*.json` in a directory (name order);
@@ -803,6 +824,17 @@ out of `reference_metadata`.
   `rose`; switch with `use_theme(id, cx)`. `THEME_SCHEMA` is the JSON Schema
   (`crates/herogpui-theme/theme.schema.json`). `ThemeProvider::insert` and
   `ThemeProvider::theme_ids` are the registry primitives.
+- **Theme hot reload** (`watch` feature, implies `serde`; native only) —
+  `watch_themes_dir(dir, |reload: &ThemeReload, cx| .., cx) -> Result<ThemeWatcher, ThemeLoadError>`
+  polls `dir` every `THEME_WATCH_INTERVAL` (500ms) on GPUI's executors and
+  re-registers each `*.json` whose contents changed, plus new files; an edit
+  to the active theme's file swaps its tokens in place and repaints. Files
+  present at the call count as loaded (call `load_themes_dir` first). A file
+  that fails to parse keeps its last good theme and appears once in
+  `ThemeReload::errors`; `ThemeReload::reloaded` lists the re-registered ids.
+  Dropping the `#[must_use]` `ThemeWatcher` stops the watch. Polling, not an
+  OS notification crate, so the feature adds no dependency. The native
+  gallery watches `HEROGPUI_THEME_DIR=<dir>` (activating its first theme).
 - **Test kit** (`test-support` feature) — `herogpui::test::open_window(cx,
   |_, _| View)` returns `(Entity<View>, &mut VisualTestContext)`;
   `TestWindowExt` adds `find(selector)`, `expect(selector)`,
@@ -923,12 +955,17 @@ out of `reference_metadata`.
 `cargo run -p herogpui-gallery` — 1280×820 window, centred. `HEROGPUI_PAGE`
 selects the page by nav title, `HEROGPUI_THEME=dark` selects the appearance,
 `HEROGPUI_WINDOW_SIZE=1200x2000` sets the window size,
-`HEROGPUI_UNFOCUSED=1` opens without taking focus, and
-`HEROGPUI_REDUCE_MOTION=1` seeds the reduced-motion preference at startup
-(see `gallery/src/main.rs`). The navbar's theme picker switches live between
+`HEROGPUI_UNFOCUSED=1` opens without taking focus,
+`HEROGPUI_THEME_DIR=<dir>` loads and live-reloads the theme files there, and
+`HEROGPUI_REDUCE_MOTION=1` turns on the reduced-motion preference at startup
+(the gallery calls `theme::set_reduce_motion`; see `gallery/src/main.rs`). The navbar's theme picker switches live between
 the light and dark bases and every `presets::PRESETS` theme. Screenshots are the visual regression source.
 
 ## Code style
+
+Components and builder types are `#[must_use]`: always pass the built value
+on (`.child(..)`, return it from `render`, `.build()` a `ThemeBuilder`,
+`.push(cx)` a `Toast`); a dropped chain is an `unused_must_use` warning.
 
 Pinned GPUI notes: `f32::from(px)` for `Pixels`, no `select_none`, `on_click`
 and `.active()` need `.id()`, `svg()` never inherits text color, `Arc` for
@@ -980,8 +1017,10 @@ is the gpui equivalent and the single place the timings live.
   along), `PRESSED_SCALE`, `anim::pressed_inset`.
 - **Reduced motion:** `ActiveTheme::reduce_motion(cx)` gates every animation with no opt-in
   from the caller. Set it with `theme::set_reduce_motion(bool, cx)` or
-  `theme::toggle_reduce_motion(cx)`; `HEROGPUI_REDUCE_MOTION=1` seeds it at
-  startup. The value is stored in GPUI's own `App::reduce_motion()` global, so a
+  `theme::toggle_reduce_motion(cx)` — the only way it is set: the library reads
+  no environment variable and GPUI exposes no OS preference, so an app wires it
+  to its own settings (the gallery maps `HEROGPUI_REDUCE_MOTION=1` onto it).
+  `ThemeProvider::init` leaves the flag as it is. The value is stored in GPUI's own `App::reduce_motion()` global, so a
   plain `gpui::Animation` written by the app is suppressed too, and either
   accessor reads the same flag.
 

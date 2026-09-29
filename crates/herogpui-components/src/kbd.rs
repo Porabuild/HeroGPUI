@@ -14,8 +14,10 @@ pub enum KbdVariant {
 }
 
 impl KbdVariant {
+    /// Every Kbd variant, in declaration order.
     pub const ALL: [KbdVariant; 2] = [KbdVariant::Default, KbdVariant::Light];
 
+    /// A human-readable label for this variant.
     pub fn label(self) -> &'static str {
         match self {
             KbdVariant::Default => "Default",
@@ -25,6 +27,7 @@ impl KbdVariant {
 }
 
 /// Keyboard key display (`<Kbd>`).
+#[must_use = "a component does nothing until it is rendered: add it as a child or return it from `render`"]
 #[derive(IntoElement)]
 pub struct Kbd {
     variant: KbdVariant,
@@ -36,6 +39,7 @@ pub struct Kbd {
 }
 
 impl Kbd {
+    /// Creates an empty Kbd.
     pub fn new() -> Self {
         Self {
             variant: KbdVariant::Default,
@@ -45,6 +49,7 @@ impl Kbd {
         }
     }
 
+    /// Sets the Kbd variant.
     pub fn variant(mut self, v: KbdVariant) -> Self {
         self.variant = v;
         self

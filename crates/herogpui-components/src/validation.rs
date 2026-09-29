@@ -149,7 +149,9 @@ pub type Validator<T> = Arc<dyn Fn(&T) -> Option<SharedString> + 'static>;
 /// `validationErrors`, then whatever `validate` returns.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct Validity {
+    /// Whether the value is invalid.
     pub is_invalid: bool,
+    /// The validation messages, if any.
     pub messages: Vec<SharedString>,
 }
 

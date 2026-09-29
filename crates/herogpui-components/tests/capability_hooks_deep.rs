@@ -8,7 +8,7 @@ mod harness;
 
 use gpui::{point, prelude::*, px, Modifiers, Pixels, TestAppContext, VisualTestContext};
 use harness::{click, open_host, still};
-use herogpui_components::{Button, Menu, MenuItem, PickerItem, Select, Tooltip, Variant};
+use herogpui_components::{Button, Color, Menu, MenuItem, PickerItem, Select, Tooltip, Variant};
 use herogpui_theme::{
     set_theme, ActiveTheme, ComponentTheme, ComponentThemes, MenuStyle, SelectStyle, Theme,
 };
@@ -793,7 +793,7 @@ fn a_theme_role_hover_reaches_the_fill_a_primary_button_hovers_to(cx: &mut TestA
     apply_theme(
         cx,
         Theme::builder("app", Theme::light())
-            .role_hover("accent", named)
+            .role_hover(Color::Accent, named)
             .build(),
     );
     cx.simulate_mouse_move(on_the_button, None, Modifiers::none());

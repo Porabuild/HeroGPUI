@@ -133,6 +133,7 @@ fn sync_form_state(
 }
 
 /// HeroUI Autocomplete.
+#[must_use = "a component does nothing until it is rendered: add it as a child or return it from `render`"]
 #[derive(IntoElement)]
 pub struct Autocomplete {
     /// `name` — the name this control submits under; read back by
@@ -338,6 +339,7 @@ impl Autocomplete {
         self.on_selection_change(handler)
     }
 
+    /// Creates an autocomplete over `items`, with `state` holding the input text.
     pub fn new(state: Entity<InputState>, items: Vec<PickerItem>) -> Self {
         let form_state = autocomplete_form_state(state.entity_id().as_u64());
         Self {
@@ -443,36 +445,43 @@ impl Autocomplete {
         self
     }
 
+    /// Sets the maximum number of suggestions shown; values below 1 are treated as 1.
     pub fn max_items(mut self, n: usize) -> Self {
         self.max_items = n.max(1);
         self
     }
 
+    /// Sets the label shown above the field.
     pub fn label(mut self, l: impl Into<SharedString>) -> Self {
         self.label = Some(l.into());
         self
     }
 
+    /// Sets the input placeholder.
     pub fn placeholder(mut self, p: impl Into<SharedString>) -> Self {
         self.placeholder = Some(p.into());
         self
     }
 
+    /// Sets the description shown below the field.
     pub fn description(mut self, text: impl Into<SharedString>) -> Self {
         self.description = Some(text.into());
         self
     }
 
+    /// Sets the error message shown when the field is invalid.
     pub fn error_message(mut self, text: impl Into<SharedString>) -> Self {
         self.error_message = Some(text.into());
         self
     }
 
+    /// Sets the field variant.
     pub fn variant(mut self, variant: FieldVariant) -> Self {
         self.variant = variant;
         self
     }
 
+    /// Sets whether the field fills the available width.
     pub fn full_width(mut self, v: bool) -> Self {
         self.full_width = v;
         self
@@ -556,6 +565,7 @@ impl Autocomplete {
         self
     }
 
+    /// Sets whether the field is disabled (`isDisabled`).
     pub fn is_disabled(mut self, v: bool) -> Self {
         self.is_disabled = v;
         self
@@ -569,11 +579,13 @@ impl Autocomplete {
         self
     }
 
+    /// Sets whether the field is invalid (`isInvalid`).
     pub fn is_invalid(mut self, v: bool) -> Self {
         self.is_invalid = v;
         self
     }
 
+    /// Sets whether the field is required (`isRequired`).
     pub fn is_required(mut self, v: bool) -> Self {
         self.is_required = v;
         self
@@ -644,6 +656,7 @@ impl Autocomplete {
         self
     }
 
+    /// Sets the handler called with the chosen suggestion (`onSelectionChange`).
     pub fn on_selection_change(
         mut self,
         f: impl Fn(&SharedString, &mut Window, &mut App) + 'static,
@@ -1254,7 +1267,13 @@ impl RenderOnce for Autocomplete {
             // it while the selection is empty — and gpui has no
             // `aria-hidden`, so the port leaves the empty button in the tree
             // where upstream removes it from it.
-            .a11y_named(a11y::Role::Button, &a11y::Name::labelled("Clear selection"))
+            .a11y_named(
+                a11y::Role::Button,
+                &a11y::Name::labelled(crate::i18n::ui_string(
+                    crate::i18n::UiString::ClearSelection,
+                    cx,
+                )),
+            )
             // `.autocomplete__clear-button` is `h-6 w-6`
             // and then `size-5`, so 20px, `rounded-xl` and `p-1`
             // -- with the pinned `size-3.5` (14px) glyph inside.

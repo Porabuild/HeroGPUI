@@ -39,6 +39,7 @@ pub enum GroupEdge {
 }
 
 /// HeroUI Button.
+#[must_use = "a component does nothing until it is rendered: add it as a child or return it from `render`"]
 #[derive(IntoElement)]
 pub struct Button {
     id: ElementId,
@@ -92,6 +93,7 @@ pub struct Button {
 }
 
 impl Button {
+    /// Creates a button with the given id.
     pub fn new(id: impl Into<ElementId>) -> Self {
         Self {
             id: id.into(),
@@ -139,6 +141,7 @@ impl Button {
         self
     }
 
+    /// Sets the text label.
     pub fn label(mut self, label: impl Into<SharedString>) -> Self {
         self.label = Some(label.into());
         self
@@ -165,6 +168,7 @@ impl Button {
         self
     }
 
+    /// Sets the button size.
     pub fn size(mut self, size: Size) -> Self {
         self.size = size;
         self.size_is_set = true;
@@ -179,6 +183,7 @@ impl Button {
         self
     }
 
+    /// Sets whether the button shows only an icon.
     pub fn is_icon_only(mut self, v: bool) -> Self {
         self.is_icon_only = v;
         self
@@ -365,6 +370,7 @@ impl Button {
         self.variant
     }
 
+    /// Sets whether the button is disabled.
     pub fn is_disabled(mut self, v: bool) -> Self {
         self.is_disabled = v;
         self.is_disabled_is_set = true;
@@ -378,6 +384,7 @@ impl Button {
         self
     }
 
+    /// Sets the handler run when the button is pressed.
     pub fn on_press(
         mut self,
         handler: impl Fn(&ClickEvent, &mut Window, &mut App) + 'static,

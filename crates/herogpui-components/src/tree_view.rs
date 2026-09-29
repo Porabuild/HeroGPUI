@@ -81,6 +81,7 @@ const PADDING: gpui::Pixels = px(4.);
 const INDENT: f32 = 16.;
 
 /// One node of a [`TreeView`]: a row, and the rows nested under it.
+#[must_use = "builder methods return a new value; pass it on to its component"]
 pub struct TreeItem {
     key: SharedString,
     label: SharedString,
@@ -129,6 +130,7 @@ impl TreeItem {
 }
 
 /// A tree of expandable rows. See the [module docs](self).
+#[must_use = "a component does nothing until it is rendered: add it as a child or return it from `render`"]
 #[derive(IntoElement)]
 pub struct TreeView {
     id: ElementId,

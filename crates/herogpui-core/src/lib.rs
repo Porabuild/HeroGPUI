@@ -2,6 +2,8 @@
 //!
 //! [HeroGPUI]: https://github.com/Porabuild/HeroGPUI
 
+#![warn(missing_docs)]
+
 mod color;
 pub mod element_id;
 mod enums;

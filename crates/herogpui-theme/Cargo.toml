@@ -15,6 +15,12 @@ categories.workspace = true
 # Off by default: most apps author a theme in Rust, and this crate's default
 # graph must not grow a JSON stack they never asked for.
 serde = ["dep:serde", "dep:serde_json"]
+# Theme hot reload (`watch_themes_dir`): polls a theme directory on GPUI's
+# executors and re-registers changed files. No extra dependency -- polling
+# instead of an OS notification crate -- but it is still opt-in, because only
+# a development workflow wants a background poll. Leave it off on wasm32,
+# which has no file system to watch.
+watch = ["serde"]
 
 [dependencies]
 gpui.workspace = true

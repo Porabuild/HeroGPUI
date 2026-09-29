@@ -186,6 +186,7 @@ impl ParentElement for SelectClearButton {
 }
 
 impl SelectClearButton {
+    /// Creates a clear button.
     pub fn new() -> Self {
         Self::default()
     }
@@ -207,6 +208,7 @@ impl SelectClearButton {
 }
 
 /// HeroUI Select (controlled).
+#[must_use = "a component does nothing until it is rendered: add it as a child or return it from `render`"]
 #[derive(IntoElement)]
 pub struct Select {
     /// `name` — the name this control submits under; read back by
@@ -332,6 +334,7 @@ impl Select {
         self
     }
 
+    /// Sets whether keyboard focus wraps at the ends of the list (v3 `shouldFocusWrap`).
     pub fn should_focus_wrap(mut self, v: bool) -> Self {
         self.should_focus_wrap = v;
         self
@@ -406,11 +409,13 @@ impl Select {
         self
     }
 
+    /// Sets the invalid state (v3 `isInvalid`).
     pub fn is_invalid(mut self, v: bool) -> Self {
         self.is_invalid = v;
         self
     }
 
+    /// Sets the required state (v3 `isRequired`).
     pub fn is_required(mut self, v: bool) -> Self {
         self.is_required = v;
         self
@@ -535,6 +540,7 @@ impl Select {
         self
     }
 
+    /// Creates a select from an element id and its items.
     pub fn new(id: impl Into<gpui::ElementId>, items: Vec<PickerItem>) -> Self {
         Self {
             name: None,
@@ -694,6 +700,7 @@ impl Select {
         self
     }
 
+    /// Sets the controlled open state (v3 `isOpen`).
     pub fn is_open(mut self, v: bool) -> Self {
         self.is_open = Some(v);
         self
@@ -707,22 +714,26 @@ impl Select {
         self
     }
 
+    /// Sets the label.
     pub fn label(mut self, l: impl Into<SharedString>) -> Self {
         self.label = Some(l.into());
         self
     }
 
+    /// Sets the placeholder text.
     pub fn placeholder(mut self, p: impl Into<SharedString>) -> Self {
         self.placeholder = p.into();
         self.placeholder_is_set = true;
         self
     }
 
+    /// Sets the description.
     pub fn description(mut self, d: impl Into<SharedString>) -> Self {
         self.description = Some(d.into());
         self
     }
 
+    /// Sets the field variant (v3 `variant`).
     pub fn variant(mut self, v: FieldVariant) -> Self {
         self.variant = v;
         self.variant_is_set = true;
@@ -736,16 +747,19 @@ impl Select {
         self
     }
 
+    /// Sets the disabled state (v3 `isDisabled`).
     pub fn is_disabled(mut self, v: bool) -> Self {
         self.is_disabled = v;
         self
     }
 
+    /// Sets the handler called when the open state changes (v3 `onOpenChange`).
     pub fn on_open_change(mut self, f: impl Fn(&bool, &mut Window, &mut App) + 'static) -> Self {
         self.on_open_change = Some(std::sync::Arc::new(f));
         self
     }
 
+    /// Sets the handler called when the selection changes (v3 `onSelectionChange`).
     pub fn on_selection_change(
         mut self,
         f: impl Fn(&Option<SharedString>, &mut Window, &mut App) + 'static,

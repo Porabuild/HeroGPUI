@@ -20,13 +20,16 @@ use crate::a11y::{self, A11y as _};
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 #[non_exhaustive]
 pub struct DisclosureRenderState {
+    /// Whether the disclosure is expanded.
     pub is_expanded: bool,
+    /// Whether the disclosure is disabled.
     pub is_disabled: bool,
 }
 
 type DisclosureContent = std::sync::Arc<dyn Fn(DisclosureRenderState) -> AnyElement + 'static>;
 
 /// Single Disclosure — like an accordion with one item.
+#[must_use = "a component does nothing until it is rendered: add it as a child or return it from `render`"]
 #[derive(IntoElement)]
 pub struct Disclosure {
     id: ElementId,
@@ -51,6 +54,7 @@ impl Disclosure {
         self
     }
 
+    /// Creates a disclosure with the given id and title.
     pub fn new(id: impl Into<ElementId>, title: impl Into<SharedString>) -> Self {
         Self {
             id: id.into(),
@@ -65,6 +69,7 @@ impl Disclosure {
         }
     }
 
+    /// Sets whether the disclosure is expanded.
     pub fn is_expanded(mut self, v: bool) -> Self {
         self.is_expanded = Some(v);
         self
@@ -76,6 +81,7 @@ impl Disclosure {
         self
     }
 
+    /// Sets whether the disclosure is disabled.
     pub fn is_disabled(mut self, v: bool) -> Self {
         self.is_disabled = v;
         self
@@ -203,6 +209,7 @@ impl RenderOnce for Disclosure {
 }
 
 /// Group of Disclosures — mirrors Accordion but with `Disclosure` naming.
+#[must_use = "a component does nothing until it is rendered: add it as a child or return it from `render`"]
 #[derive(IntoElement)]
 pub struct DisclosureGroup {
     id: ElementId,
@@ -218,6 +225,7 @@ pub struct DisclosureGroup {
 }
 
 impl DisclosureGroup {
+    /// Creates an empty group with the given id.
     pub fn new(id: impl Into<ElementId>) -> Self {
         Self {
             id: id.into(),
@@ -231,6 +239,7 @@ impl DisclosureGroup {
         }
     }
 
+    /// Adds an item with the given key, title and content.
     pub fn item(
         mut self,
         key: impl Into<SharedString>,

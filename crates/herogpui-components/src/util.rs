@@ -534,7 +534,9 @@ pub(crate) fn window_overlay(el: impl gpui::IntoElement, window: &gpui::Window) 
 /// the control under the pointer, matching React Aria's `useOverlay`.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum DismissResult {
+    /// The dismissal was handled and the event is consumed.
     Handled,
+    /// The dismissal was declined and the event continues to the control underneath.
     Declined,
 }
 
@@ -1485,10 +1487,12 @@ where
     .child(release)
 }
 
+/// Whether focus rings should currently be shown, i.e. the last interaction was keyboard-driven.
 pub fn focus_visible(cx: &App) -> bool {
     cx.try_global::<FocusVisible>().is_some_and(|v| v.0)
 }
 
+/// Sets whether focus rings should be shown, refreshing windows when the value changes.
 pub fn set_focus_visible(visible: bool, cx: &mut App) {
     if focus_visible(cx) != visible {
         cx.set_global(FocusVisible(visible));

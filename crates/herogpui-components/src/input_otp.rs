@@ -25,6 +25,7 @@ pub enum OtpPattern {
 }
 
 impl OtpPattern {
+    /// Every pattern, in display order.
     pub const ALL: [OtpPattern; 3] = [
         OtpPattern::Digits,
         OtpPattern::Alphanumeric,
@@ -40,6 +41,7 @@ impl OtpPattern {
         }
     }
 
+    /// The display name of this pattern.
     pub fn label(self) -> &'static str {
         match self {
             OtpPattern::Digits => "Digits",
@@ -49,6 +51,7 @@ impl OtpPattern {
     }
 }
 
+/// State of an OTP input: the entered characters, the cursor and focus.
 pub struct OtpState {
     cells: Vec<char>,
     cursor: usize,
@@ -98,14 +101,17 @@ impl OtpState {
         }
     }
 
+    /// Returns the entered characters as a string, omitting empty cells.
     pub fn code(&self) -> String {
         self.cells.iter().filter(|c| **c != ' ').collect()
     }
 
+    /// Returns whether every cell is filled.
     pub fn is_complete(&self) -> bool {
         self.cells.iter().all(|c| *c != ' ')
     }
 
+    /// Empties every cell and resets the cursor.
     pub fn clear(&mut self) {
         self.cells.iter_mut().for_each(|c| *c = ' ');
         self.cursor = 0;
@@ -299,19 +305,24 @@ fn slot_value_motion(
 /// `textAlign` — where a digit sits inside its slot.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum OtpTextAlign {
+    /// Aligns text to the left.
     Left,
+    /// Centers text.
     #[default]
     Center,
+    /// Aligns text to the right.
     Right,
 }
 
 impl OtpTextAlign {
+    /// Every alignment, in display order.
     pub const ALL: [OtpTextAlign; 3] = [
         OtpTextAlign::Left,
         OtpTextAlign::Center,
         OtpTextAlign::Right,
     ];
 
+    /// The display name of this alignment.
     pub fn label(self) -> &'static str {
         match self {
             OtpTextAlign::Left => "Left",
@@ -322,6 +333,7 @@ impl OtpTextAlign {
 }
 
 /// HeroUI InputOTP.
+#[must_use = "a component does nothing until it is rendered: add it as a child or return it from `render`"]
 #[derive(IntoElement)]
 pub struct InputOTP {
     /// `children` on `InputOTP.Slot` — v3's render prop, handed the slot's
@@ -388,6 +400,7 @@ impl InputOTP {
         self
     }
 
+    /// Creates an OTP input backed by the given state.
     pub fn new(state: Entity<OtpState>) -> Self {
         Self {
             slot: None,
@@ -457,6 +470,7 @@ impl InputOTP {
         Some(crate::form::FormField::code(name, state).is_required(false))
     }
 
+    /// Sets the field variant (v3 `variant`).
     pub fn variant(mut self, variant: FieldVariant) -> Self {
         self.variant = variant;
         self
@@ -505,6 +519,7 @@ impl InputOTP {
         self
     }
 
+    /// Sets the invalid state (v3 `isInvalid`).
     pub fn is_invalid(mut self, v: bool) -> Self {
         self.is_invalid = v;
         self
@@ -533,6 +548,7 @@ impl InputOTP {
         self
     }
 
+    /// Sets the disabled state (v3 `isDisabled`).
     pub fn is_disabled(mut self, v: bool) -> Self {
         self.is_disabled = v;
         self
@@ -548,6 +564,7 @@ impl InputOTP {
         self
     }
 
+    /// Sets the handler called with the code once every cell is filled (v3 `onComplete`).
     pub fn on_complete(mut self, f: impl Fn(&str, &mut Window, &mut App) + 'static) -> Self {
         self.on_complete = Some(std::sync::Arc::new(f));
         self

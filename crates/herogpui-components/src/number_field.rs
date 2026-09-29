@@ -15,6 +15,7 @@ use crate::{icons, input::InputState};
 
 /// State for a numeric input: text + parsed value.
 pub struct NumberState {
+    /// The text input entity that displays and edits the number.
     pub input: Entity<InputState>,
     value: f64,
     min: f64,
@@ -28,6 +29,7 @@ pub struct NumberState {
 }
 
 impl NumberState {
+    /// Creates a state seeded with `initial`, with no bounds and a step of 1.
     pub fn new(cx: &mut App, initial: f64) -> Self {
         let input = cx.new(|cx| {
             let mut s = InputState::new(cx);
@@ -54,6 +56,7 @@ impl NumberState {
         Self::new(cx, value)
     }
 
+    /// The current numeric value.
     pub fn value(&self) -> f64 {
         self.value
     }
@@ -87,6 +90,7 @@ impl NumberState {
         self.input.update(cx, |i, _| i.set_value(text));
     }
 
+    /// Sets the minimum and maximum bounds.
     pub fn set_range(&mut self, min: f64, max: f64) {
         self.min = min;
         self.max = max;
@@ -94,6 +98,7 @@ impl NumberState {
         self.has_max = true;
     }
 
+    /// The current `(min, max)` bounds.
     pub fn range(&self) -> (f64, f64) {
         (self.min, self.max)
     }
@@ -116,10 +121,12 @@ impl NumberState {
         )
     }
 
+    /// The current step size.
     pub fn step_size(&self) -> f64 {
         self.step
     }
 
+    /// Sets the step size; non-finite or non-positive values fall back to 1.
     pub fn set_step(&mut self, step: f64) {
         self.step = if step.is_finite() && step > 0.0 {
             step
@@ -248,20 +255,32 @@ type OnChange = Arc<dyn Fn(&f64, &mut Window, &mut App) + 'static>;
 #[derive(Clone, Copy, Debug)]
 #[non_exhaustive]
 pub struct NumberFieldRenderState {
+    /// Whether the field is disabled.
     pub is_disabled: bool,
+    /// Whether the field is invalid.
     pub is_invalid: bool,
+    /// Whether the field is read-only.
     pub is_read_only: bool,
+    /// Whether the field is required.
     pub is_required: bool,
+    /// Whether the field has focus.
     pub is_focused: bool,
+    /// Whether focus is within the field.
     pub is_focus_within: bool,
+    /// Whether focus is visible (keyboard focus).
     pub is_focus_visible: bool,
+    /// The current value.
     pub value: f64,
+    /// The minimum bound, if any.
     pub min_value: Option<f64>,
+    /// The maximum bound, if any.
     pub max_value: Option<f64>,
+    /// The step size.
     pub step: f64,
 }
 
 /// HeroUI NumberField.
+#[must_use = "a component does nothing until it is rendered: add it as a child or return it from `render`"]
 #[derive(IntoElement)]
 pub struct NumberField {
     state: Entity<NumberState>,
@@ -385,11 +404,13 @@ impl NumberField {
         self
     }
 
+    /// Sets the field variant.
     pub fn variant(mut self, variant: FieldVariant) -> Self {
         self.variant = variant;
         self
     }
 
+    /// Sets whether the field fills the available width.
     pub fn full_width(mut self, v: bool) -> Self {
         self.full_width = v;
         self
@@ -453,11 +474,13 @@ impl NumberField {
         self
     }
 
+    /// Sets whether the field is invalid (`isInvalid`).
     pub fn is_invalid(mut self, v: bool) -> Self {
         self.is_invalid = v;
         self
     }
 
+    /// Sets whether the field is required (`isRequired`).
     pub fn is_required(mut self, v: bool) -> Self {
         self.is_required = v;
         self
@@ -469,6 +492,7 @@ impl NumberField {
         self
     }
 
+    /// Sets whether the field is read-only (`isReadOnly`).
     pub fn is_read_only(mut self, v: bool) -> Self {
         self.is_read_only = v;
         self
@@ -533,6 +557,7 @@ impl NumberField {
         self
     }
 
+    /// Sets the label shown above the field.
     pub fn label(mut self, l: impl Into<SharedString>) -> Self {
         self.label = Some(l.into());
         self
@@ -563,11 +588,13 @@ impl NumberField {
         self
     }
 
+    /// Sets whether the field is disabled (`isDisabled`).
     pub fn is_disabled(mut self, v: bool) -> Self {
         self.is_disabled = v;
         self
     }
 
+    /// Sets the handler called when the value changes (`onChange`).
     pub fn on_change(mut self, f: impl Fn(&f64, &mut Window, &mut App) + 'static) -> Self {
         self.on_change = Some(Arc::new(f));
         self
@@ -1162,8 +1189,18 @@ fn stepper_btn(
     let focus_handle = state.read(cx).input.read(cx).focus_handle.clone();
     // `useNumberField` names each stepper "Increase {label}" / "Decrease
     // {label}", spelling the field's name into the button's own `aria-label`
-    // rather than pointing at the label element.
-    let stepper_name = field_name.prefixed(if dir >= 0.0 { "Increase" } else { "Decrease" });
+    // rather than pointing at the label element; the template (and its word
+    // order) comes from the locale's catalogue.
+    let stepper_key = if dir >= 0.0 {
+        crate::i18n::UiString::Increase
+    } else {
+        crate::i18n::UiString::Decrease
+    };
+    let stepper_name = crate::a11y::Name::labelled(crate::i18n::ui_string_with(
+        stepper_key,
+        field_name.label().map_or("", |label| label.as_ref()),
+        cx,
+    ));
     let mut b = gpui::div()
         .id(id)
         .a11y_named(crate::a11y::Role::Button, &stepper_name)

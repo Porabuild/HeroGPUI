@@ -20,6 +20,7 @@ use crate::icons;
 /// A plain proleptic-Gregorian date.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Date {
+    /// Calendar year.
     pub year: i32,
     /// 1–12
     pub month: u32,
@@ -28,10 +29,12 @@ pub struct Date {
 }
 
 impl Date {
+    /// Creates a date from `year`, `month` and `day` without validating them.
     pub fn new(year: i32, month: u32, day: u32) -> Self {
         Self { year, month, day }
     }
 
+    /// Today's date in the OS local time zone.
     pub fn today() -> Self {
         // v3 marks "today" through React Aria's `today(getLocalTimeZone())`:
         // the OS local zone's civil date, not UTC's. West of UTC the UTC
@@ -40,6 +43,7 @@ impl Date {
         civil_date_at(now.timestamp().as_second(), now.offset().seconds())
     }
 
+    /// Formats the date as `YYYY-MM-DD`.
     pub fn format_iso(&self) -> String {
         format!("{:04}-{:02}-{:02}", self.year, self.month, self.day)
     }
@@ -98,6 +102,7 @@ pub fn days_from_civil(d: &Date) -> i64 {
     era * 146_097 + doe - 719_468
 }
 
+/// Number of days in `month` of `year`, accounting for leap years; an out-of-range month yields 28.
 pub fn days_in_month(year: i32, month: u32) -> u32 {
     match month {
         1 | 3 | 5 | 7 | 8 | 10 | 12 => 31,
@@ -232,6 +237,17 @@ pub fn month_year_heading(year: i32, month: u32) -> String {
         .unwrap_or_else(|| format!("{} {year}", month_name(month)))
 }
 
+/// A day cell's accessible name: the date, then React Aria's
+/// `dateSelected` template (`"{date} selected"` in en-US) when it is
+/// selected, in the chrome locale.
+pub(crate) fn day_cell_name(date: String, is_selected: bool, cx: &App) -> SharedString {
+    if is_selected {
+        crate::i18n::ui_string_with(crate::i18n::UiString::DateSelected, &date, cx)
+    } else {
+        date.into()
+    }
+}
+
 /// The running locale's abbreviated month names, resolved once.
 fn system_month_abbrs() -> &'static [String; 12] {
     static SYSTEM_MONTH_ABBRS: OnceLock<[String; 12]> = OnceLock::new();
@@ -301,10 +317,13 @@ pub fn first_weekday_pub(year: i32, month: u32) -> usize {
 
 /// State entity for [`Calendar`].
 pub struct CalendarState {
+    /// Year of the month currently shown.
     pub view_year: i32,
+    /// Month (1-12) currently shown.
     pub view_month: u32,
     /// Anchor day for the week and day views; the month view ignores it.
     pub view_day: u32,
+    /// The most recently selected date, if any.
     pub selected: Option<Date>,
     /// Every selected date. Multiple mode toggles this set; `selected` keeps
     /// the most recent value for scalar callers.
@@ -315,6 +334,7 @@ pub struct CalendarState {
 }
 
 impl CalendarState {
+    /// Creates a state showing the current month with no selection.
     pub fn new(_cx: &mut App) -> Self {
         let t = Date::today();
         Self {
@@ -327,6 +347,7 @@ impl CalendarState {
         }
     }
 
+    /// Creates a state showing the month of `selected`, with that date selected.
     pub fn with_selected(_cx: &mut App, selected: Date) -> Self {
         Self {
             view_year: selected.year,
@@ -338,6 +359,7 @@ impl CalendarState {
         }
     }
 
+    /// The most recently selected date, if any.
     pub fn selected(&self) -> Option<Date> {
         self.selected
     }
@@ -413,6 +435,7 @@ pub struct CalendarCellState {
 }
 
 /// HeroUI Calendar, with controlled selection through the entity.
+#[must_use = "a component does nothing until it is rendered: add it as a child or return it from `render`"]
 #[derive(IntoElement)]
 pub struct Calendar {
     /// `value` — v3's controlled selection, stored for the first render only.
@@ -548,6 +571,7 @@ impl Calendar {
         self
     }
 
+    /// Creates a calendar bound to `state`.
     pub fn new(state: Entity<CalendarState>) -> Self {
         Self {
             value: None,
@@ -631,6 +655,7 @@ impl Calendar {
         self
     }
 
+    /// Sets whether the calendar is disabled (`isDisabled`).
     pub fn is_disabled(mut self, v: bool) -> Self {
         self.is_disabled = v;
         self
@@ -661,6 +686,7 @@ impl Calendar {
         self
     }
 
+    /// Sets a predicate marking dates that get a cell indicator.
     pub fn cell_indicator(mut self, f: impl Fn(Date) -> bool + 'static) -> Self {
         self.cell_indicator = Some(Box::new(f));
         self
@@ -672,6 +698,7 @@ impl Calendar {
         self
     }
 
+    /// Sets whether the calendar is read-only (`isReadOnly`).
     pub fn is_read_only(mut self, v: bool) -> Self {
         self.is_read_only = v;
         self
@@ -689,6 +716,7 @@ impl Calendar {
         self
     }
 
+    /// Sets whether the calendar is invalid (`isInvalid`).
     pub fn is_invalid(mut self, v: bool) -> Self {
         self.is_invalid = v;
         self
@@ -767,6 +795,7 @@ impl Calendar {
         self
     }
 
+    /// Sets the handler called with the selected date when it changes (`onChange`).
     pub fn on_change(mut self, f: impl Fn(&Option<Date>, &mut Window, &mut App) + 'static) -> Self {
         self.on_change = Some(std::sync::Arc::new(f));
         self
@@ -1000,11 +1029,10 @@ impl Calendar {
         let mut circle = circle
             .a11y_named(
                 a11y::Role::Button,
-                &a11y::Name::labelled(format!(
-                    "{} {} {}",
-                    date.day,
-                    month_year_heading(date.year, date.month),
-                    if is_sel { "selected" } else { "" }
+                &a11y::Name::labelled(day_cell_name(
+                    format!("{} {}", date.day, month_year_heading(date.year, date.month)),
+                    is_sel,
+                    cx,
                 )),
             )
             .a11y_selected(is_sel);

@@ -50,6 +50,7 @@ use crate::{Menu, MenuItem};
 type Callback<T> = Arc<dyn Fn(&T, &mut Window, &mut App) + 'static>;
 
 /// A secondary-click menu over `child`. See the [module docs](self).
+#[must_use = "a component does nothing until it is rendered: add it as a child or return it from `render`"]
 #[derive(IntoElement)]
 pub struct ContextMenu {
     id: gpui::ElementId,
