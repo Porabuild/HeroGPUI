@@ -693,6 +693,9 @@ EXTRA_OK_SCOPED = {
     'Table.selected_cell': 'herogpui-extension',
     'Table.default_selected_cell': 'herogpui-extension',
     'Table.on_cell_select': 'herogpui-extension',
+    # `TableColumn::frozen`, after gpui-kit's `fixed_left` columns: leading
+    # columns that stay put while the rest scroll horizontally.
+    'Table.frozen': 'herogpui-extension',
     # Toolbar sizing after gpui-kit's toolbar: the bar's size reaches the
     # controls added with `sized_child`.
     'Toolbar.size': 'herogpui-extension',

@@ -133,6 +133,8 @@ pub struct TableColumn {
     min_width: Option<Pixels>,
     /// `maxWidth` — the column's ceiling.
     max_width: Option<Pixels>,
+    /// Frozen at the leading edge (HeroGPUI extension).
+    frozen: bool,
 }
 
 impl TableColumn {
@@ -147,6 +149,7 @@ impl TableColumn {
             default_width: None,
             min_width: None,
             max_width: None,
+            frozen: false,
         }
     }
 
@@ -194,6 +197,24 @@ impl TableColumn {
     /// first.
     pub fn is_row_header(mut self, v: bool) -> Self {
         self.is_row_header = v;
+        self
+    }
+
+    /// Freezes this column at the table's leading edge (HeroGPUI extension,
+    /// after gpui-kit's `fixed_left` columns; not a HeroUI v3 prop): when the
+    /// table is wider than its box, the frozen columns (and the selection
+    /// column) stay put while the other columns scroll horizontally beneath
+    /// the header, which scrolls with them.
+    ///
+    /// Frozen columns are always displayed first, in their relative order, so
+    /// a `column_order` that interleaves them is shown with the frozen ones
+    /// moved to the front, and a column move never crosses from the frozen
+    /// region into the scrolling one or back: unfreeze the column to move it
+    /// there. A frozen column is sized at its explicit, resized or measured
+    /// width rather than sharing out the free space. When every column is
+    /// frozen nothing scrolls and the table renders as an ordinary one.
+    pub fn frozen(mut self, frozen: bool) -> Self {
+        self.frozen = frozen;
         self
     }
 }
@@ -520,6 +541,94 @@ fn shift_home_end_extends(key_name: &str, control: bool, macos: bool) -> bool {
 /// fraction of the *whole* row cannot account for the fixed columns.
 fn flex_cell(el: gpui::Div) -> gpui::Div {
     el.flex_basis(px(0.)).flex_1()
+}
+
+/// Frozen leading columns (HeroGPUI extension, see [`TableColumn::frozen`]):
+/// how many display positions are frozen, and the one horizontal scroll
+/// state every row's scrolling part and the header's share.
+///
+/// GPUI has no sticky positioning, so each row (and the header) is split in
+/// two: a frozen part that never moves and a clipped part that scrolls. The
+/// row element stays the parent of both, so its hover group, press,
+/// selection and keyboard cursor span the whole row, and a cell scrolled out
+/// of view is clipped by its part's content mask rather than hidden under a
+/// frozen cell, so a press on a frozen cell cannot reach it.
+#[derive(Clone)]
+struct FrozenColumns {
+    /// The frozen display positions, `0..count`; always fewer than the
+    /// columns, since a table with every column frozen does not split.
+    count: usize,
+    scroll: gpui::ScrollHandle,
+    /// The view to notify when a wheel over a frozen part scrolls.
+    view: gpui::EntityId,
+}
+
+impl FrozenColumns {
+    /// The frozen part of a row or of the header. A horizontal wheel over it
+    /// scrolls the rest of the table, the way it does over the scrolling
+    /// part.
+    fn frozen_part(&self) -> gpui::Div {
+        let scroll = self.scroll.clone();
+        let view = self.view;
+        gpui::div()
+            .flex()
+            .flex_shrink_0()
+            .on_scroll_wheel(move |event, window, cx| {
+                let delta = event.delta.pixel_delta(window.line_height());
+                if delta.x == px(0.) {
+                    return;
+                }
+                let at = scroll.offset();
+                let x = (at.x + delta.x).clamp(-scroll.max_offset().x, px(0.));
+                if x != at.x {
+                    scroll.set_offset(gpui::point(x, at.y));
+                    cx.notify(view);
+                }
+            })
+    }
+
+    /// The scrolling part: its cells are direct children, so the shared
+    /// handle's child bounds are the cells' and `scroll_to_item` can reveal
+    /// one. `restrict_scroll_to_axis` leaves a vertical wheel to the body.
+    fn scrolling_part(&self, part: gpui::Div, id: gpui::ElementId) -> gpui::Stateful<gpui::Div> {
+        part.flex()
+            .flex_1()
+            .min_w_0()
+            .id(id)
+            .overflow_x_scroll()
+            .track_scroll(&self.scroll)
+            .restrict_scroll_to_axis()
+    }
+
+    /// Reveals the cell at display position `column` when it scrolls.
+    fn reveal(&self, column: usize) {
+        if column >= self.count {
+            self.scroll.scroll_to_item(column - self.count);
+        }
+    }
+}
+
+/// `to` held inside the region `from` is in, so a column move never crosses
+/// between the frozen and the scrolling columns.
+fn clamp_to_region(from: usize, to: usize, frozen: usize) -> usize {
+    if frozen == 0 {
+        to
+    } else if from < frozen {
+        to.min(frozen - 1)
+    } else {
+        to.max(frozen)
+    }
+}
+
+/// `order` with the frozen columns first, each region keeping its order.
+fn frozen_first(order: &[usize], columns: &[TableColumn]) -> Vec<usize> {
+    let frozen = |ix: &usize| columns.get(*ix).is_some_and(|c| c.frozen);
+    order
+        .iter()
+        .copied()
+        .filter(frozen)
+        .chain(order.iter().copied().filter(|ix| !frozen(ix)))
+        .collect()
 }
 
 /// The pinned table stylesheet replaces the tree column's start padding with
@@ -1315,6 +1424,7 @@ struct RowCtxRows {
     round_top: Option<Pixels>,
     round_bottom: Option<Pixels>,
     cell: Option<CellCtx>,
+    frozen: Option<FrozenColumns>,
 }
 
 impl RenderOnce for Table {
@@ -1324,6 +1434,7 @@ impl RenderOnce for Table {
         // HeroGPUI extension: put the columns and cells in display order
         // first, so everything below works in display positions.
         let column_order = self.apply_column_order(&base_id, window, cx);
+        let frozen = self.frozen_columns(&base_id, window, cx);
         let (selected_keys, selection_own) = crate::util::controlled(
             window,
             cx,
@@ -1345,7 +1456,7 @@ impl RenderOnce for Table {
         let focus = self.header_focus_state(&base_id, &state, window, cx);
 
         let resizable = self.columns.iter().any(|c| c.allows_resizing);
-        let tracks = self.column_tracks(&state);
+        let tracks = self.column_tracks(&state, frozen.as_ref());
         let colors = cx.colors().clone();
         // Copies of the tokens the tail needs: the row builder borrows `cx`
         // mutably, which ends the borrow `cx.colors()` holds.
@@ -1364,7 +1475,9 @@ impl RenderOnce for Table {
         // collection with nested rows, virtual or not.
         let is_tree = self.virtual_tree_metadata.is_some()
             || self.rows.iter().any(|row| !row.children.is_empty());
-        let mut table = self.grid(&base_id, selectable, is_tree, &virtual_body);
+        let mut table = self
+            .grid(&base_id, selectable, is_tree, &virtual_body)
+            .when(frozen.is_some(), |grid| grid.w_full());
 
         // ---- header ------------------------------------------------------
         let header_parts = HeaderParts {
@@ -1388,6 +1501,7 @@ impl RenderOnce for Table {
             resize_limits: &tracks.resize_limits,
             resize_columns: &tracks.resize_columns,
             resize_measurements: &tracks.resize_measurements,
+            frozen: frozen.as_ref(),
         };
         let header = self.header_row(
             &header_parts,
@@ -1442,7 +1556,12 @@ impl RenderOnce for Table {
             window,
             cx,
         );
-        wrapper = self.cell_selection_keys(wrapper, &cell_selection, &rows.visible_collection_keys);
+        wrapper = self.cell_selection_keys(
+            wrapper,
+            &cell_selection,
+            &rows.visible_collection_keys,
+            frozen.clone(),
+        );
         let (round_top, round_bottom) = self.row_edge_rounding(
             secondary,
             &virtual_body.scroll_now,
@@ -1473,6 +1592,7 @@ impl RenderOnce for Table {
                 round_top,
                 round_bottom,
                 cell: cell_selection,
+                frozen,
             },
         ));
 
@@ -1632,6 +1752,31 @@ impl Table {
         }
     }
 
+    /// The frozen leading columns, once the columns are in display order:
+    /// `None` when none (or every one) is frozen.
+    fn frozen_columns(
+        &self,
+        base_id: &gpui::ElementId,
+        window: &mut Window,
+        cx: &mut App,
+    ) -> Option<FrozenColumns> {
+        let count = self.columns.iter().take_while(|c| c.frozen).count();
+        if count == 0 || count >= self.columns.len() {
+            return None;
+        }
+        let scroll = window
+            .use_keyed_state(element_id::scoped(base_id, "frozen-scroll"), cx, |_, _| {
+                gpui::ScrollHandle::new()
+            })
+            .read(cx)
+            .clone();
+        Some(FrozenColumns {
+            count,
+            scroll,
+            view: window.current_view(),
+        })
+    }
+
     /// The virtual projection and the scroll state of both virtual paths.
     fn virtual_body(
         &self,
@@ -1721,9 +1866,9 @@ impl Table {
 
     /// The column tracks: resize bounds, the width each column renders at,
     /// and the shared `(min, max)` layout floor.
-    fn column_tracks(&self, state: &TableState) -> ColumnTracks {
+    fn column_tracks(&self, state: &TableState, frozen: Option<&FrozenColumns>) -> ColumnTracks {
         let resize_limits = column_resize_limits(&self.columns);
-        let effective_widths =
+        let mut effective_widths =
             effective_column_widths(&self.columns, &state.resized_now, &resize_limits);
         // The one column-track computation. Upstream draws a `border-separate`
         // table, so the header's `<th>` cells resolve tracks every row shares;
@@ -1742,6 +1887,20 @@ impl Table {
             &effective_widths,
             &resize_limits,
         );
+        // A frozen column does not share out the free space: its part is
+        // sized to its cells, so the header's and every row's frozen parts
+        // only agree when each frozen column has one width. Once the column
+        // is measured that is its shared floor; a resizable column's probe
+        // measures it first.
+        if let Some(frozen) = frozen {
+            for (c, column) in self.columns.iter().enumerate().take(frozen.count) {
+                let measured = state.measured_widths_now.get(c).copied().flatten();
+                if effective_widths[c].is_none() && (!column.allows_resizing || measured.is_some())
+                {
+                    effective_widths[c] = layout_width_bounds[c].0;
+                }
+            }
+        }
         ColumnTracks {
             resize_limits,
             effective_widths,
@@ -1918,10 +2077,17 @@ impl Table {
         cx: &mut App,
     ) -> gpui::Stateful<gpui::Div> {
         let base_id = hx.base_id;
+        let frozen = hx.frozen;
         let colors = hx.colors;
         let secondary = hx.secondary;
-        let mut header = self
-            .column_reorder_measure(gpui::div(), base_id, window, cx)
+        // A frozen header measures its two parts instead (see
+        // `frozen_header_parts`).
+        let measured = if frozen.is_some() {
+            gpui::div()
+        } else {
+            self.column_reorder_measure(gpui::div(), base_id, window, cx)
+        };
+        let mut header = measured
             .id(element_id::scoped(base_id, "header"))
             // `useTableHeaderRow.mjs` is a bare `role: 'row'`. Upstream wraps
             // it in a `<TableHeader>` whose `useTableRowGroup` gives it
@@ -1935,21 +2101,32 @@ impl Table {
             .border_color(colors.separator.alpha(0.5))
             .when(!secondary, |h| h.bg(colors.surface_secondary));
 
+        let mut cells: Vec<AnyElement> = Vec::new();
         if hx.selectable {
-            header = header.child(self.select_all_header_cell(
-                base_id,
-                colors,
-                secondary,
-                selectable_collection_keys,
-                &state.selection_own,
-                &state.selection_range,
-                cx,
-            ));
+            cells.push(
+                self.select_all_header_cell(
+                    base_id,
+                    colors,
+                    secondary,
+                    selectable_collection_keys,
+                    &state.selection_own,
+                    &state.selection_range,
+                    cx,
+                )
+                .into_any_element(),
+            );
         }
 
         for (column_index, column) in self.columns.iter().enumerate() {
-            header = header.child(self.column_header_cell(hx, column_index, column, window, cx));
+            cells.push(self.column_header_cell(hx, column_index, column, window, cx));
         }
+        header = match frozen {
+            Some(frozen) => {
+                let (lead, rest) = self.frozen_header_parts(base_id, frozen, cells, window, cx);
+                header.child(lead).child(rest)
+            }
+            None => header.children(cells),
+        };
         self.column_reorder_header(
             header,
             base_id,
@@ -2129,6 +2306,7 @@ impl Table {
             round_bottom: rows.round_bottom,
             is_tree: rows.is_tree,
             cell: rows.cell,
+            frozen: rows.frozen,
         }
     }
 
@@ -2292,6 +2470,7 @@ struct HeaderParts<'a> {
     resize_limits: &'a [(f32, f32)],
     resize_columns: &'a std::sync::Arc<Vec<TableColumn>>,
     resize_measurements: &'a std::sync::Arc<Vec<Option<Pixels>>>,
+    frozen: Option<&'a FrozenColumns>,
 }
 
 /// One plain body row after flattening: the row, its depth, whether it has
@@ -4226,7 +4405,11 @@ impl Table {
                     },
                 )
                 .height(height)
-                .debug_selector(rows_selector),
+                .debug_selector(rows_selector)
+                .when(
+                    ctx.frozen.is_some(),
+                    crate::VirtualList::restrict_scroll_to_axis,
+                ),
             );
         } else if let (Some(state), Some((_, _, _, factory))) =
             (virtual_list_state, self.virtual_rows.clone())
@@ -4536,6 +4719,8 @@ struct RowCtx {
     is_tree: bool,
     /// Cell selection (HeroGPUI extension), when enabled.
     cell: Option<CellCtx>,
+    /// Frozen leading columns (HeroGPUI extension), when any scroll.
+    frozen: Option<FrozenColumns>,
 }
 
 /// One body row's per-render facts, which every part of the row reads.
@@ -4652,26 +4837,63 @@ impl RowCtx {
             round_bottom,
         };
 
-        if self.selectable {
-            row = row.child(self.select_cell(&paint, cx));
-        }
+        if let Some(frozen) = &self.frozen {
+            row = self.frozen_row_parts(row, frozen, &paint, row_data, cx);
+        } else {
+            if self.selectable {
+                row = row.child(self.select_cell(&paint, cx));
+            }
 
-        // Cells are flex rows so inline children (chips, buttons) size to
-        // their content instead of stretching to the column width.
+            // Cells are flex rows so inline children (chips, buttons) size to
+            // their content instead of stretching to the column width.
+            let cx: &App = cx;
+            row = row.children(
+                row_data
+                    .cells
+                    .into_iter()
+                    .enumerate()
+                    .map(|(c, cell)| self.data_cell(&paint, c, cell, cx)),
+            );
+        }
         let cx: &App = cx;
-        row = row.children(
-            row_data
-                .cells
-                .into_iter()
-                .enumerate()
-                .map(|(c, cell)| self.data_cell(&paint, c, cell, cx)),
-        );
         row = self.row_press(row, &paint, cx);
 
         // v3 rings the focused row *inside* itself: each cell carries its own
         // inset strips so the outline stays clipped to the cell geometry.
         row.when(is_disabled, |row| row.opacity(cx.layout().disabled_opacity))
             .into_any_element()
+    }
+
+    /// A frozen table's row: the selection cell and the frozen cells in a
+    /// part that stays put, the rest in a part that scrolls with the header.
+    /// Both stay children of the row, which keeps the row's hover, press and
+    /// cursor spanning the two.
+    fn frozen_row_parts(
+        &self,
+        row: gpui::Stateful<gpui::Div>,
+        frozen: &FrozenColumns,
+        paint: &RowPaint,
+        row_data: TableRow,
+        cx: &App,
+    ) -> gpui::Stateful<gpui::Div> {
+        let mut lead = frozen.frozen_part();
+        if self.selectable {
+            lead = lead.child(self.select_cell(paint, cx));
+        }
+        let mut cells = row_data.cells.into_iter().enumerate();
+        let lead = lead.children(
+            cells
+                .by_ref()
+                .take(frozen.count)
+                .map(|(c, cell)| self.data_cell(paint, c, cell, cx)),
+        );
+        let rest = frozen
+            .scrolling_part(
+                gpui::div(),
+                element_id::indexed(&self.id, "row-scroll", paint.i),
+            )
+            .children(cells.map(|(c, cell)| self.data_cell(paint, c, cell, cx)));
+        row.child(lead).child(rest)
     }
 
     /// The selection column's body cell and its checkbox.
@@ -5334,18 +5556,26 @@ impl Table {
     ) -> std::rc::Rc<Vec<usize>> {
         let n = self.columns.len();
         let reorder = &self.column_reorder;
-        if !reorder.allowed && reorder.order.is_none() && reorder.default_order.is_none() {
+        let configured =
+            reorder.allowed || reorder.order.is_some() || reorder.default_order.is_some();
+        if !configured && !self.columns.iter().any(|c| c.frozen) {
             return std::rc::Rc::new((0..n).collect());
         }
-        let seed = sanitize_order(reorder.default_order.as_deref().unwrap_or(&[]), n);
-        let (order, _) = crate::util::controlled(
-            window,
-            cx,
-            element_id::scoped(base_id, "column-order"),
-            reorder.order.as_ref().map(|order| sanitize_order(order, n)),
-            seed,
-        );
-        let order = sanitize_order(&order, n);
+        let order = if configured {
+            let seed = sanitize_order(reorder.default_order.as_deref().unwrap_or(&[]), n);
+            let (order, _) = crate::util::controlled(
+                window,
+                cx,
+                element_id::scoped(base_id, "column-order"),
+                reorder.order.as_ref().map(|order| sanitize_order(order, n)),
+                seed,
+            );
+            sanitize_order(&order, n)
+        } else {
+            (0..n).collect()
+        };
+        // Frozen columns (HeroGPUI extension) are always displayed first.
+        let order = frozen_first(&order, &self.columns);
         // The resized and measured widths are stored per display position;
         // when the order changes they move with their columns.
         let rendered = window.use_keyed_state(
@@ -5431,6 +5661,47 @@ impl Table {
         })
     }
 
+    /// A frozen header's two parts: the selection cell and the frozen
+    /// column headers, then the scrolling ones. When reordering is allowed
+    /// each part records its headers' bounds into the one list the column
+    /// drag reads, the frozen part first (it prepaints first).
+    fn frozen_header_parts(
+        &self,
+        base_id: &gpui::ElementId,
+        frozen: &FrozenColumns,
+        mut cells: Vec<AnyElement>,
+        window: &mut Window,
+        cx: &mut App,
+    ) -> (gpui::Div, gpui::Stateful<gpui::Div>) {
+        let skip = usize::from(self.selection_mode != SelectionMode::None);
+        let rest = cells.split_off((skip + frozen.count).min(cells.len()));
+        let mut lead = frozen.frozen_part();
+        let mut part = gpui::div();
+        if self.column_reorder.allowed && self.columns.len() >= 2 {
+            let bounds = Self::header_bounds(base_id, window, cx);
+            let scrolled = bounds.clone();
+            let count = frozen.count;
+            lead = lead.on_children_prepainted(move |children, _, _| {
+                let origin = children.first().map_or(px(0.), |b| b.left());
+                let mut measured = bounds.borrow_mut();
+                measured.0 = origin;
+                measured.1.clear();
+                measured.1.extend(children.iter().skip(skip).copied());
+            });
+            part = part.on_children_prepainted(move |children, _, _| {
+                let mut measured = scrolled.borrow_mut();
+                measured.1.truncate(count);
+                measured.1.extend(children.iter().copied());
+            });
+        }
+        (
+            lead.children(cells),
+            frozen
+                .scrolling_part(part, element_id::scoped(base_id, "header-scroll"))
+                .children(rest),
+        )
+    }
+
     /// The header row's column drag (pointer) and Alt+Left / Alt+Right
     /// (keyboard) moves, when reordering is allowed.
     #[allow(clippy::too_many_arguments)]
@@ -5462,9 +5733,18 @@ impl Table {
             None
         };
         let on_move = self.column_reorder.on_move.clone();
+        // A move stays in its region: frozen columns among the frozen ones,
+        // the rest among the rest (see `TableColumn::frozen`).
+        let frozen = self.columns.iter().take_while(|c| c.frozen).count();
+        let frozen = if frozen < self.columns.len() {
+            frozen
+        } else {
+            0
+        };
         let commit = crate::util::shared({
             let order = order.clone();
             move |from: usize, to: usize, window: &mut Window, cx: &mut App| {
+                let to = clamp_to_region(from, to, frozen);
                 if from == to || to >= order.len() {
                     return;
                 }
@@ -5560,7 +5840,7 @@ impl Table {
                 }
                 current.active = true;
                 if let Some(target) = header_at(&move_bounds.borrow().1, event.position.x) {
-                    current.target = target;
+                    current.target = clamp_to_region(current.from, target, frozen);
                 }
                 move_drag.update(cx, |d, cx| {
                     if *d != Some(current) {
@@ -5605,6 +5885,7 @@ impl Table {
                 } else {
                     from.saturating_sub(1)
                 };
+                let to = clamp_to_region(from, to, frozen);
                 cx.stop_propagation();
                 crate::util::set_focus_visible(true, cx);
                 if to != from {
@@ -5751,6 +6032,7 @@ impl Table {
         wrapper: gpui::Div,
         cell: &Option<CellCtx>,
         rows: &[SharedString],
+        frozen: Option<FrozenColumns>,
     ) -> gpui::Div {
         let Some(cell) = cell.clone() else {
             return wrapper;
@@ -5789,6 +6071,9 @@ impl Table {
                 *c = Some(to);
                 cx.notify();
             });
+            if let Some(frozen) = &frozen {
+                frozen.reveal(to);
+            }
         })
     }
 }

@@ -2,7 +2,8 @@
 //! table): column reordering by header drag and Alt+Left/Alt+Right,
 //! controlled and uncontrolled order, and single-cell selection with a
 //! press, Left/Right/Home/End and the row keys, reported by the columns'
-//! given indices.
+//! given indices; and frozen leading columns (`TableColumn::frozen`) that
+//! stay put while the rest of the body and the header scroll horizontally.
 
 mod harness;
 
@@ -13,7 +14,7 @@ use gpui::{
     TestAppContext, VisualTestContext,
 };
 use harness::{events, open_host, press, still, Events};
-use herogpui_components::{SortDescriptor, Table, TableCell, TableColumn, TableRow};
+use herogpui_components::{SelectionMode, SortDescriptor, Table, TableCell, TableColumn, TableRow};
 
 const COLUMNS: [&str; 3] = ["Name", "Role", "Status"];
 
@@ -365,6 +366,460 @@ fn virtual_rows_follow_the_column_order(cx: &mut TestAppContext) {
     });
     frame(cx);
     assert_eq!(displayed(cx), [1, 2, 0]);
+}
+
+// ---- frozen columns (`TableColumn::frozen`) --------------------------------
+
+/// Five 200px columns, the first frozen, in a 600px box: the frozen part is
+/// the 44px selection column and the first column, and the other four scroll
+/// through the 348px left of the box.
+const FROZEN: [&str; 5] = ["Name", "A", "B", "C", "D"];
+
+#[derive(Clone, Copy, Default, PartialEq)]
+enum Body {
+    #[default]
+    Plain,
+    /// `row_height` over `virtual_rows`: the uniform `VirtualList` path.
+    Fixed,
+    /// `estimated_row_height` over `virtual_rows`: the measured path.
+    Estimated,
+}
+
+#[derive(Clone, Default)]
+struct Frozen {
+    body: Body,
+    selectable: bool,
+    cells: bool,
+    reorder: bool,
+    order: Option<Vec<usize>>,
+    /// Which given columns are frozen; `[0]` when empty.
+    frozen: Vec<usize>,
+    resizable: bool,
+}
+
+/// The fill each column's content paints, so the painted scene can tell the
+/// frozen cells from the scrolling ones.
+fn swatch(c: usize) -> gpui::Hsla {
+    gpui::hsla(c as f32 / 5., 0.8, 0.5, 1.)
+}
+
+fn frozen_row(r: usize, seen: Events) -> TableRow {
+    TableRow::new(
+        (0..FROZEN.len())
+            .map(|c| {
+                let seen = seen.clone();
+                gpui::div()
+                    .id(("frozen-content", r * 10 + c))
+                    .debug_selector(move || format!("c-{r}-{c}"))
+                    .w(px(120.))
+                    .h(px(20.))
+                    .bg(swatch(c))
+                    .on_mouse_down(MouseButton::Left, move |_, _, _| {
+                        seen.borrow_mut().push(format!("content:{r}/{c}"));
+                    })
+                    .into_any_element()
+            })
+            .collect(),
+    )
+}
+
+fn frozen_host(cx: &mut TestAppContext, config: Frozen) -> (Events, &mut VisualTestContext) {
+    still();
+    let seen = events();
+    let s = seen.clone();
+    let cx = open_host(cx, move || {
+        let frozen = if config.frozen.is_empty() {
+            vec![0]
+        } else {
+            config.frozen.clone()
+        };
+        let (selection, moves, cells, rows) = (s.clone(), s.clone(), s.clone(), s.clone());
+        let mut table = Table::new(Vec::new())
+            .id("frozen")
+            .columns(
+                FROZEN
+                    .iter()
+                    .enumerate()
+                    .map(|(c, label)| {
+                        let column = TableColumn::new(*label)
+                            .allows_sorting(true)
+                            .frozen(frozen.contains(&c));
+                        if config.resizable && c == 0 {
+                            column.allows_resizing(true).default_width(px(200.))
+                        } else {
+                            column.min_width(px(200.))
+                        }
+                    })
+                    .collect(),
+            )
+            .on_sort_change(|_, _, _| {})
+            .on_column_move(move |m, _, _| {
+                moves
+                    .borrow_mut()
+                    .push(format!("move:{}->{}:{:?}", m.from, m.to, m.order));
+            })
+            .allows_column_reorder(config.reorder)
+            .on_cell_select(move |cell, _, _| {
+                cells
+                    .borrow_mut()
+                    .push(format!("cell:{}/{}", cell.row, cell.column));
+            })
+            .cell_selectable(config.cells)
+            .on_selection_change(move |keys, _, _| {
+                selection.borrow_mut().push(format!("select:{keys:?}"));
+            });
+        if config.selectable {
+            table = table.selection_mode(SelectionMode::Multiple);
+        } else {
+            table = table.selection_mode(SelectionMode::Single);
+        }
+        if let Some(order) = config.order.clone() {
+            table = table.column_order(order);
+        }
+        table = match config.body {
+            Body::Plain => {
+                for r in 0..3 {
+                    table = table.tree_row(frozen_row(r, rows.clone()));
+                }
+                table
+            }
+            Body::Fixed => table.row_height(px(44.)).max_h(px(200.)).virtual_rows(
+                30,
+                "frozen",
+                |ix| ix.to_string().into(),
+                move |ix| frozen_row(ix, rows.clone()),
+            ),
+            Body::Estimated => table
+                .estimated_row_height(px(44.))
+                .max_h(px(200.))
+                .virtual_rows(
+                    30,
+                    "frozen",
+                    |ix| ix.to_string().into(),
+                    move |ix| frozen_row(ix, rows.clone()),
+                ),
+        };
+        gpui::div().w(px(600.)).child(table).into_any_element()
+    });
+    (seen, cx)
+}
+
+/// A horizontal wheel at `at`; negative `dx` scrolls the content left.
+fn wheel_x(cx: &mut VisualTestContext, at: gpui::Point<gpui::Pixels>, dx: f32) {
+    cx.simulate_event(gpui::ScrollWheelEvent {
+        position: at,
+        delta: gpui::ScrollDelta::Pixels(point(px(dx), px(0.))),
+        ..Default::default()
+    });
+    frame(cx);
+}
+
+/// The painted quad of column `c`'s content in row `r`, found by its fill
+/// and its row's vertical band.
+fn painted_swatch(
+    cx: &mut VisualTestContext,
+    r: usize,
+    c: usize,
+) -> (gpui::Bounds<gpui::Pixels>, gpui::Bounds<gpui::Pixels>) {
+    let band = cell(cx, r, 0);
+    let scene = harness::painted(cx);
+    let quad = scene
+        .filled(swatch(c))
+        .into_iter()
+        .find(|q| (f32::from(scene.bounds(q).center().y) - f32::from(band.center().y)).abs() < 1.)
+        .unwrap_or_else(|| panic!("row {r} column {c} painted"));
+    (scene.bounds(quad), scene.mask(quad))
+}
+
+#[gpui::test]
+fn frozen_cells_keep_their_x_while_the_body_and_header_scroll(cx: &mut TestAppContext) {
+    let (_seen, cx) = frozen_host(cx, Frozen::default());
+    frame(cx);
+    let (frozen_before, _) = painted_swatch(cx, 1, 0);
+    let (scrolled_before, _) = painted_swatch(cx, 1, 2);
+    let header_before = cx.debug_bounds("table-header-track-2").unwrap();
+    assert!(
+        (f32::from(header_before.left()) - f32::from(scrolled_before.left())).abs() < 17.,
+        "the header track sits over its column"
+    );
+    // Over the scrolling part, then over the frozen part: both scroll.
+    wheel_x(cx, scrolled_before.center(), -90.);
+    wheel_x(cx, frozen_before.center(), -60.);
+    let (frozen_after, frozen_mask) = painted_swatch(cx, 1, 0);
+    let (scrolled_after, scrolled_mask) = painted_swatch(cx, 1, 2);
+    let header_after = cx.debug_bounds("table-header-track-2").unwrap();
+    assert_eq!(frozen_after, frozen_before, "the frozen cell does not move");
+    assert_eq!(
+        scrolled_after.left(),
+        scrolled_before.left() - px(150.),
+        "the scrolling cell moves with the wheel"
+    );
+    assert_eq!(
+        header_after.left(),
+        header_before.left() - px(150.),
+        "the header scrolls with the body"
+    );
+    // The scrolling part is clipped at the frozen part's edge; the frozen
+    // cell is not clipped at all.
+    assert!(scrolled_mask.left() >= frozen_after.right());
+    assert!(frozen_mask.contains(&frozen_after.origin));
+    // The scroll stops at the end of the content.
+    wheel_x(cx, scrolled_after.center(), -5000.);
+    let (last, last_mask) = painted_swatch(cx, 1, 4);
+    assert!(last.right() <= last_mask.right() + px(1.));
+    assert!(
+        last.right() + px(100.) >= last_mask.right(),
+        "scrolled to the end"
+    );
+}
+
+#[gpui::test]
+fn a_press_on_a_frozen_cell_selects_the_row_and_misses_the_hidden_cells(cx: &mut TestAppContext) {
+    let (seen, cx) = frozen_host(cx, Frozen::default());
+    frame(cx);
+    let frozen = cell(cx, 1, 0);
+    let at = cell(cx, 1, 1).center();
+    wheel_x(cx, at, -200.);
+    // Column A has scrolled out under the frozen column's x range.
+    let hidden = cell(cx, 1, 1);
+    let at = point(frozen.center().x, frozen.center().y);
+    assert!(
+        hidden.contains(&at),
+        "precondition: the hidden cell's box lies under the press ({hidden:?} vs {at:?})"
+    );
+    seen.borrow_mut().clear();
+    cx.simulate_click(at, Modifiers::none());
+    frame(cx);
+    let log = log(&seen);
+    assert!(log.contains(&"content:1/0".to_string()), "{log:?}");
+    assert!(
+        !log.iter().any(|e| e == "content:1/1"),
+        "the hidden cell is not reachable: {log:?}"
+    );
+    assert!(log.contains(&"select:[\"1\"]".to_string()), "{log:?}");
+}
+
+#[gpui::test]
+fn the_row_hover_spans_both_parts(cx: &mut TestAppContext) {
+    let (_seen, cx) = frozen_host(cx, Frozen::default());
+    frame(cx);
+    let frozen = cell(cx, 1, 0);
+    let scrolled = cell(cx, 1, 1);
+    let before = harness::painted(cx);
+    let quads_before = before.quads.len();
+    cx.simulate_mouse_move(frozen.center(), None, Modifiers::none());
+    frame(cx);
+    let after = harness::painted(cx);
+    // The hover paints a fill behind every cell of the row: one more quad
+    // per cell, and one of them behind the scrolling cell.
+    let hovered = |cell: gpui::Bounds<gpui::Pixels>| {
+        after
+            .quads
+            .iter()
+            .filter(|q| {
+                let b = after.bounds(q);
+                b.contains(&cell.center()) && b.size.width > cell.size.width
+            })
+            .count()
+            > before
+                .quads
+                .iter()
+                .filter(|q| {
+                    let b = before.bounds(q);
+                    b.contains(&cell.center()) && b.size.width > cell.size.width
+                })
+                .count()
+    };
+    assert!(after.quads.len() > quads_before);
+    assert!(hovered(frozen), "the frozen cell takes the row hover");
+    assert!(hovered(scrolled), "the scrolling cell takes it too");
+}
+
+#[gpui::test]
+fn cell_selection_crosses_the_frozen_edge_and_reveals_the_cell(cx: &mut TestAppContext) {
+    let (seen, cx) = frozen_host(
+        cx,
+        Frozen {
+            cells: true,
+            ..Frozen::default()
+        },
+    );
+    frame(cx);
+    let frozen = cell(cx, 0, 0);
+    let a_before = cell(cx, 0, 1);
+    // Column A's content sits 16px into the first scrolling cell.
+    let viewport_left = a_before.left() - px(16.);
+    // Scroll column A out of view, then select the frozen cell.
+    let at = cell(cx, 0, 1).center();
+    wheel_x(cx, at, -200.);
+    assert!(cell(cx, 0, 1).right() <= viewport_left);
+    cx.simulate_click(frozen.center(), Modifiers::none());
+    frame(cx);
+    keys(cx, "right");
+    let revealed = cell(cx, 0, 1);
+    assert_eq!(
+        revealed.left(),
+        a_before.left(),
+        "Right across the edge scrolls column A back into view"
+    );
+    let ring = cx.debug_bounds("table-selected-cell").unwrap();
+    assert!(ring.contains(&revealed.center()));
+    keys(cx, "end");
+    let last = cell(cx, 0, 4);
+    let ring = cx.debug_bounds("table-selected-cell").unwrap();
+    assert!(ring.contains(&last.center()), "End reaches the far column");
+    keys(cx, "home down");
+    assert_eq!(
+        log(&seen)
+            .into_iter()
+            .filter(|e| e.starts_with("cell:"))
+            .collect::<Vec<_>>(),
+        ["cell:0/0", "cell:0/1", "cell:0/4", "cell:0/0", "cell:1/0"]
+    );
+    // Back on the frozen column, the frozen cell never moved.
+    assert_eq!(cell(cx, 1, 0).left(), frozen.left());
+}
+
+#[gpui::test]
+fn the_selection_column_is_frozen_with_the_frozen_columns(cx: &mut TestAppContext) {
+    let (seen, cx) = frozen_host(
+        cx,
+        Frozen {
+            selectable: true,
+            ..Frozen::default()
+        },
+    );
+    frame(cx);
+    let frozen = cell(cx, 2, 0);
+    let at = cell(cx, 2, 2).center();
+    wheel_x(cx, at, -120.);
+    assert_eq!(cell(cx, 2, 0).left(), frozen.left());
+    // The row keys still walk the rows, and Space selects across the parts.
+    keys(cx, "tab down space");
+    assert!(
+        log(&seen).iter().any(|e| e.starts_with("select:")),
+        "{:?}",
+        log(&seen)
+    );
+}
+
+#[gpui::test]
+fn a_frozen_column_does_not_move_into_the_scrolling_region(cx: &mut TestAppContext) {
+    let (seen, cx) = frozen_host(
+        cx,
+        Frozen {
+            reorder: true,
+            frozen: vec![0, 1],
+            ..Frozen::default()
+        },
+    );
+    frame(cx);
+    // Tab stops: the body, then Name, A, B, ... (every header sorts).
+    keys(cx, "tab tab alt-right");
+    assert_eq!(log(&seen), ["move:0->1:[1, 0, 2, 3, 4]"]);
+    // A (now at 0) moved nowhere past the frozen edge; Name, at 1, is the
+    // last frozen position and stays there.
+    keys(cx, "alt-right");
+    assert_eq!(log(&seen).len(), 1, "{:?}", log(&seen));
+    // B, the first scrolling column, cannot move into the frozen region,
+    // but moves right among the scrolling ones.
+    keys(cx, "tab alt-left");
+    assert_eq!(log(&seen).len(), 1, "{:?}", log(&seen));
+    keys(cx, "alt-right");
+    assert_eq!(log(&seen)[1], "move:2->3:[1, 0, 3, 2, 4]");
+}
+
+#[gpui::test]
+fn a_frozen_column_is_displayed_first_whatever_the_order(cx: &mut TestAppContext) {
+    let (_seen, cx) = frozen_host(
+        cx,
+        Frozen {
+            order: Some(vec![2, 3, 0, 1, 4]),
+            ..Frozen::default()
+        },
+    );
+    frame(cx);
+    let lefts: Vec<f32> = (0..FROZEN.len())
+        .map(|c| f32::from(cell(cx, 0, c).left()))
+        .collect();
+    let mut by_x: Vec<usize> = (0..FROZEN.len()).collect();
+    by_x.sort_by(|a, b| lefts[*a].total_cmp(&lefts[*b]));
+    assert_eq!(by_x, [0, 2, 3, 1, 4]);
+}
+
+#[gpui::test]
+fn resizing_a_frozen_column_moves_the_scrolling_region_in_every_row(cx: &mut TestAppContext) {
+    let (_seen, cx) = frozen_host(
+        cx,
+        Frozen {
+            resizable: true,
+            ..Frozen::default()
+        },
+    );
+    frame(cx);
+    let before = cell(cx, 0, 1).left();
+    // Body, Name's sort, Name's resizer: Enter starts, Right widens by 10.
+    keys(cx, "tab tab tab enter right enter");
+    for r in 0..3 {
+        assert_eq!(cell(cx, r, 1).left(), before + px(10.), "row {r}");
+    }
+    let header = cx.debug_bounds("table-header-track-1").unwrap();
+    assert!((f32::from(header.left()) - f32::from(before + px(10.))).abs() < 17.);
+}
+
+fn frozen_virtual(cx: &mut TestAppContext, body: Body) {
+    let (seen, cx) = frozen_host(
+        cx,
+        Frozen {
+            body,
+            ..Frozen::default()
+        },
+    );
+    frame(cx);
+    let frozen = cell(cx, 1, 0);
+    let scrolled = cell(cx, 1, 2);
+    wheel_x(cx, scrolled.center(), -100.);
+    assert_eq!(cell(cx, 1, 0).left(), frozen.left());
+    assert_eq!(cell(cx, 1, 2).left(), scrolled.left() - px(100.));
+    // A vertical wheel still scrolls the virtual body, and the rows it
+    // builds come in at the same horizontal offset.
+    cx.simulate_event(gpui::ScrollWheelEvent {
+        position: scrolled.center(),
+        delta: gpui::ScrollDelta::Pixels(point(px(0.), px(-300.))),
+        ..Default::default()
+    });
+    frame(cx);
+    // A row built inside the viewport, below the header: rows the list
+    // builds past either edge are clipped.
+    let top = cx.debug_bounds("table-header-track-0").unwrap().bottom();
+    let bottom = cx.debug_bounds("frozen-scroll-x").unwrap().bottom();
+    let row = (6..30)
+        .find(|r| {
+            cx.debug_bounds(Box::leak(format!("c-{r}-0").into_boxed_str()))
+                .is_some_and(|b| b.top() > top && b.bottom() < bottom)
+        })
+        .expect("the body scrolled to later rows");
+    assert_eq!(cell(cx, row, 0).left(), frozen.left());
+    assert_eq!(cell(cx, row, 2).left(), scrolled.left() - px(100.));
+    seen.borrow_mut().clear();
+    let at = cell(cx, row, 0).center();
+    cx.simulate_click(at, Modifiers::none());
+    frame(cx);
+    assert!(
+        log(&seen).contains(&format!("select:[\"{row}\"]")),
+        "{:?}",
+        log(&seen)
+    );
+}
+
+#[gpui::test]
+fn frozen_columns_work_on_the_uniform_virtual_body(cx: &mut TestAppContext) {
+    frozen_virtual(cx, Body::Fixed);
+}
+
+#[gpui::test]
+fn frozen_columns_work_on_the_measured_virtual_body(cx: &mut TestAppContext) {
+    frozen_virtual(cx, Body::Estimated);
 }
 
 /// A focused row rings each of its cells, and a selected cell rings itself,
