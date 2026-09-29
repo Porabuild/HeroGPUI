@@ -17,6 +17,9 @@ use herogpui_components::{Slider, Switch, TabItem, Tabs};
 
 const TL: f32 = 7.;
 
+/// One part's corners, without and with the `sx` corner.
+type Pair = ([f32; 4], [f32; 4]);
+
 fn render(cx: &mut TestAppContext, build: fn(bool) -> AnyElement, sx: bool) -> Painted {
     still();
     let vcx = open_host(cx, move || {
@@ -31,10 +34,7 @@ fn render(cx: &mut TestAppContext, build: fn(bool) -> AnyElement, sx: bool) -> P
 
 /// The quads that paint a rounded shape by default, each paired with the
 /// quad painted at the same bounds under the `sx` corner.
-fn refined_parts(
-    cx: &mut TestAppContext,
-    build: fn(bool) -> AnyElement,
-) -> (Painted, Vec<([f32; 4], [f32; 4])>) {
+fn refined_parts(cx: &mut TestAppContext, build: fn(bool) -> AnyElement) -> (Painted, Vec<Pair>) {
     let stock = render(cx, build, false);
     let refined = render(cx, build, true);
     let pairs = stock
@@ -59,7 +59,7 @@ fn refined_parts(
     (refined, pairs)
 }
 
-fn assert_refined(name: &str, parts: &[([f32; 4], [f32; 4])], expected: usize) {
+fn assert_refined(name: &str, parts: &[Pair], expected: usize) {
     assert_eq!(
         parts.len(),
         expected,

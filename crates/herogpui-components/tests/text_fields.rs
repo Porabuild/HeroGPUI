@@ -2744,7 +2744,8 @@ fn the_field_family_gates_its_chrome_on_one_bare_flag(cx: &mut TestAppContext) {
         let time = cx.new(|cx| TimeState::new(cx));
         let date = cx.new(|cx| InputState::new(cx));
         let number = cx.new(|cx| NumberState::new(cx, 0.));
-        let fields: [(&str, Box<dyn Fn() -> gpui::AnyElement>); 4] = [
+        type Build = Box<dyn Fn() -> gpui::AnyElement>;
+        let fields: [(&str, Build); 4] = [
             (
                 "TimeField",
                 Box::new(move || {

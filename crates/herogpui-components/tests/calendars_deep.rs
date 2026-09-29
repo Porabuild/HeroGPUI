@@ -59,8 +59,7 @@ fn calendar_unavailable_cells_use_status_disabled_visuals_without_losing_keyboar
                 .solids()
                 .into_iter()
                 .find(|c| (c.h - h).abs() < 1e-3 && (c.s - 1.).abs() < 1e-3)
-                .map(|c| c.a)
-                .unwrap_or_else(|| panic!("the marker with hue {h} must paint"))
+                .map_or_else(|| panic!("the marker with hue {h} must paint"), |c| c.a)
         };
         (alpha(0.0), alpha(0.33))
     }

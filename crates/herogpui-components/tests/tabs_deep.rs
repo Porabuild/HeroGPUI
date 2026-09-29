@@ -2154,7 +2154,7 @@ fn indicator_and_tray(
             let b = scene.bounds(q);
             harness::contains(b, boxes[0]) && harness::contains(boxes[0], b)
         })
-        .cloned()
+        .copied()
         .unwrap_or_else(|| panic!("{id}: the indicator must paint\n{}", scene.describe()));
     let tray = scene
         .around(boxes[0])
@@ -2165,7 +2165,7 @@ fn indicator_and_tray(
             let area = |q: &&gpui::Quad| q.bounds.size.width.0 * q.bounds.size.height.0;
             area(a).total_cmp(&area(b))
         })
-        .cloned();
+        .copied();
     (scene, indicator, tray)
 }
 
