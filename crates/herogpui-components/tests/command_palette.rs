@@ -4,7 +4,7 @@
 //! close and return the focus, and a query with no match shows the empty
 //! state.
 
-mod harness;
+use crate::harness;
 
 use std::{cell::Cell, rc::Rc};
 

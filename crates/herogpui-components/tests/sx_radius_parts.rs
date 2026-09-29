@@ -9,7 +9,7 @@
 //! and every rounded part must take the 7px top-left corner while its other
 //! three corners stay what the component painted.
 
-mod harness;
+use crate::harness;
 
 use gpui::{prelude::*, px, AnyElement, TestAppContext};
 use harness::{open_host, painted, still, Painted};

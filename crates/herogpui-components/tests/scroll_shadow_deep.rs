@@ -1,7 +1,7 @@
 //! Behaviour coverage for ScrollShadow paths not exercised by the vertical
 //! visibility tests in `virtual_and_feedback.rs`.
 
-mod harness;
+use crate::harness;
 
 use std::cell::RefCell;
 use std::rc::Rc;

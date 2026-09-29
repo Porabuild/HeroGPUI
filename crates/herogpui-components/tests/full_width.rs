@@ -8,7 +8,7 @@
 //! claims the row, which pushes the probe to its far end. The first child
 //! stays where it was either way, since the flag widens the root only.
 
-mod harness;
+use crate::harness;
 
 use gpui::{prelude::*, px, AnyElement, TestAppContext};
 use harness::{open_host, probe, settle, still};

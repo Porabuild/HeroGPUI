@@ -47,7 +47,7 @@
 //! radios — moves its handle between presses, which is what the arrows
 //! depend on.
 
-mod harness;
+use crate::harness;
 
 use std::{cell::RefCell, collections::HashSet, rc::Rc};
 

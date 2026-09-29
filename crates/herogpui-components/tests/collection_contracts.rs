@@ -6,7 +6,7 @@
 //! or tell whether a still-visible load-more sentinel was re-armed after its
 //! collection was replaced.
 
-mod harness;
+use crate::harness;
 
 use std::cell::{Cell, RefCell};
 use std::collections::{HashMap, HashSet};

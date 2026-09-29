@@ -1,7 +1,7 @@
 //! Shared harness for the behaviour tests.
 //!
-//! A test binary opts in with `mod harness;` — Cargo compiles this file as an
-//! ordinary module of that binary, never as a test target of its own. The
+//! Each feature suite loads this once and its test modules use
+//! `crate::harness`; Cargo never treats it as a standalone test target. The
 //! helpers exist because a control can draw perfectly and not work: they open
 //! one real gpui window on the headless test platform (`test-support`,
 //! enabled in this crate's dev-dependencies) and drive it with simulated
@@ -18,9 +18,9 @@
 //!   `Ok(None)`), so every `svg()` glyph silently renders nothing. That path
 //!   logs instead of panicking, which is why no stub source is installed here.
 
-// Each test binary compiles this module separately, so a helper that one
-// binary does not call is dead code *in that binary* even though its siblings
-// use it. The allow keeps the shared surface from sprouting per-file copies.
+// Each feature suite compiles this module separately, so a helper that one
+// suite does not call is dead code there even though another uses it. The
+// allow keeps the shared surface from sprouting per-suite copies.
 #![allow(dead_code)]
 
 use std::{

@@ -38,8 +38,8 @@
 //! Two regressions pin defects the suite found: the Table's horizontal content
 //! must exceed its viewport, and the Tabs chevrons must occlude the tabs below.
 
-mod harness;
-mod source_scan;
+use crate::harness;
+use crate::source_scan;
 
 use std::cell::{Cell, RefCell};
 use std::collections::HashSet;

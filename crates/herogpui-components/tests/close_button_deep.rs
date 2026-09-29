@@ -16,8 +16,8 @@
 //! activation and render-prop state stay in `buttons.rs` and
 //! `value_props.rs`.
 
-mod harness;
-mod source_scan;
+use crate::harness;
+use crate::source_scan;
 
 use gpui::{
     point, prelude::*, px, Bounds, ElementId, Modifiers, MouseButton, Pixels, TestAppContext,

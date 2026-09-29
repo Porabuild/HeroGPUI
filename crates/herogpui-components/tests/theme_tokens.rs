@@ -8,8 +8,8 @@
 //! and close delays on the test clock, the dropdown's long press, the hover
 //! fade's duration and the Tabs hover wash on the painted scene.
 
-mod harness;
-mod source_scan;
+use crate::harness;
+use crate::source_scan;
 
 use gpui::TestAppContext;
 use herogpui_theme::{set_theme, ActiveTheme, Theme, ThemeProvider};

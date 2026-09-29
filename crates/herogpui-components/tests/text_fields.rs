@@ -45,8 +45,8 @@
 //! screenshot driver's posted messages, which is what the select-all test
 //! relies on.
 
-mod harness;
-mod source_scan;
+use crate::harness;
+use crate::source_scan;
 
 use gpui::{
     point, prelude::*, px, Bounds, Focusable, Modifiers, MouseButton, Pixels, TestAppContext,

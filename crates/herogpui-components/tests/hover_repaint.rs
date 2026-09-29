@@ -17,7 +17,7 @@
 //! endpoint, `Pagination`'s buttons carry none, and `NumberField`'s group goes
 //! through `field_chrome_ramp`'s empty refinement.
 
-mod harness;
+use crate::harness;
 
 use std::cell::Cell;
 use std::rc::Rc;

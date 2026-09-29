@@ -2,7 +2,7 @@
 //! only rows near the viewport are built, and `scroll_to_item` moves a row
 //! into view under both strategies.
 
-mod harness;
+use crate::harness;
 
 use std::cell::RefCell;
 use std::collections::BTreeSet;

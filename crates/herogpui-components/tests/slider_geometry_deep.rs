@@ -12,7 +12,7 @@
 //! binaries. The thumb render prop carries a canvas that records the laid-out
 //! thumb container bounds, which is where the inset shows.
 
-mod harness;
+use crate::harness;
 
 use std::cell::RefCell;
 use std::rc::Rc;

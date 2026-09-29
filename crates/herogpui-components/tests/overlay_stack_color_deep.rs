@@ -5,7 +5,7 @@
 //! tests keep a ColorPicker inside a Popover so a second event proves the
 //! parent remains available after the child closes.
 
-mod harness;
+use crate::harness;
 
 use std::{cell::Cell, rc::Rc};
 

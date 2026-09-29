@@ -5,7 +5,7 @@
 //! given indices; and frozen leading columns (`TableColumn::frozen`) that
 //! stay put while the rest of the body and the header scroll horizontally.
 
-mod harness;
+use crate::harness;
 
 use std::{cell::RefCell, rc::Rc};
 

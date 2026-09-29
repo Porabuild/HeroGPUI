@@ -19,8 +19,8 @@
 //! `pinned_source` below, following the `kbd_deep.rs` split. The laid-out half
 //! is measured headlessly.
 
-mod harness;
-mod source_scan;
+use crate::harness;
+use crate::source_scan;
 
 use gpui::{prelude::*, px, Bounds, Pixels, TestAppContext, VisualTestContext};
 use harness::{click, events, open_host};

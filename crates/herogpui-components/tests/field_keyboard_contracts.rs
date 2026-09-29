@@ -13,7 +13,7 @@
 //! with 40px stepper cells, so the decrement/increment centres are (20, 18)
 //! and (200, 18).
 
-mod harness;
+use crate::harness;
 
 use std::cell::{Cell, RefCell};
 use std::process::Command;

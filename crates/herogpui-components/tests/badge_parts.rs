@@ -14,7 +14,7 @@
 //! overhanging a quarter of its resolved box (7px at the 28px min) past the
 //! anchor's corner.
 
-mod harness;
+use crate::harness;
 
 use gpui::{prelude::*, px, AnyElement, Bounds, Pixels, TestAppContext, VisualTestContext};
 use harness::open_host;

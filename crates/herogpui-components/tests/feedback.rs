@@ -42,7 +42,7 @@
 //! case, which is why `alert.rs` must only ever render one closable Alert per
 //! window: its close id is the hardcoded `"alert-close"`.
 
-mod harness;
+use crate::harness;
 
 use std::cell::RefCell;
 use std::rc::Rc;

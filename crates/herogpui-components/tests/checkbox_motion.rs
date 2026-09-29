@@ -22,7 +22,7 @@
 //! visual continuity, geometry, or precise per-frame values; pixels are left
 //! to the real browser.
 
-mod harness;
+use crate::harness;
 
 use std::{cell::Cell, rc::Rc, time::Duration};
 

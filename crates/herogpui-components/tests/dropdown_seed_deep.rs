@@ -7,7 +7,7 @@
 //! `useControlledState`, so an empty controlled set is not the same thing as
 //! an absent controlled prop.
 
-mod harness;
+use crate::harness;
 
 use std::cell::RefCell;
 use std::collections::HashMap;

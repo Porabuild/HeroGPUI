@@ -88,8 +88,8 @@
 //! element's click listeners on key **up** (Enter/Space only — verified in
 //! gpui's `div.rs`, which maps Enter/Space and nothing else).
 
-mod harness;
-mod source_scan;
+use crate::harness;
+use crate::source_scan;
 
 use std::{cell::Cell, collections::HashSet, rc::Rc, time::Duration};
 

@@ -2,7 +2,7 @@
 //! pointer reaching the card cancels, Escape and outside-press dismissal,
 //! keyboard focus opening at once, and the controlled open state.
 
-mod harness;
+use crate::harness;
 
 use std::time::Duration;
 

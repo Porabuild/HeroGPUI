@@ -1,13 +1,27 @@
 # Integration test index
 
-This indexes the ~96 integration test binaries under this directory by
-feature area. Each `.rs` file here is its own `cargo test` binary. Unit tests
-for internals (`#[cfg(test)]` modules) live alongside the implementation
-under `src/` instead, and are not listed here.
+This indexes the integration test modules under this directory by feature
+area. Cargo links them into nine `suite_*` binaries declared in
+`crates/herogpui-components/Cargo.toml`; each suite file lists its modules.
+The `suite_foundations` integrity test fails if a new `.rs` source is left
+out. Unit tests for internals (`#[cfg(test)]` modules) live alongside the
+implementation under `src/` instead, and are not listed here.
+
+| Suite | Area |
+|---|---|
+| `suite_collections` | Collections, navigation and virtual lists |
+| `suite_controls` | Buttons, checks and choice controls |
+| `suite_feedback` | Feedback, media and chrome |
+| `suite_fields` | Fields, forms and text selection |
+| `suite_foundations` | Accessibility, focus, locale and theme behavior |
+| `suite_overlays` | Menus, dialogs, placement and overlay stack |
+| `suite_pickers` | Dates, colors and sliders |
+| `suite_styling` | Styling, geometry, rendering and customisation |
+| `suite_tables_layout` | Tables, layout, scrolling and desktop extensions |
 
 ## Buttons, toggles & choice controls
 
-| Binary | Covers | Tests |
+| Module | Covers | Tests |
 |---|---|---|
 | `button_geometry` | Button size ladder, box overrides, `grow`, and `font_weight` (style probe). | 8 |
 | `buttons` | Button, ButtonGroup, ToggleButton, CloseButton, Link, Chip-close and Alert-close press behavior. | 31 |
@@ -18,7 +32,7 @@ under `src/` instead, and are not listed here.
 
 ## Text fields & forms
 
-| Binary | Covers | Tests |
+| Module | Covers | Tests |
 |---|---|---|
 | `text_fields` | TextField, TextArea, SearchField and related text component behaviour. | 62 |
 | `fields` | FIELD/FORM group components: checkbox/radio/switch groups, number field, form submit/validation. | 21 |
@@ -33,7 +47,7 @@ under `src/` instead, and are not listed here.
 
 ## Pickers (select/combo/autocomplete/dropdown/list box)
 
-| Binary | Covers | Tests |
+| Module | Covers | Tests |
 |---|---|---|
 | `pickers` | Behaviour for Autocomplete, ComboBox, Select search-and-select components. | 44 |
 | `pickers_deep` | Pickers' remaining props and Drawer-adjacent picker behaviour. | 102 |
@@ -52,7 +66,7 @@ under `src/` instead, and are not listed here.
 
 ## Date & time
 
-| Binary | Covers | Tests |
+| Module | Covers | Tests |
 |---|---|---|
 | `calendars_and_more` | Calendar/RangeCalendar family plus other un-driven behaviour (Select, ColorPicker, Toolbar, Disclosure). | 61 |
 | `calendars_deep` | Edge dates and constraints on the calendar family: bounds, year picker, unavailable dates. | 65 |
@@ -64,7 +78,7 @@ under `src/` instead, and are not listed here.
 
 ## Colour
 
-| Binary | Covers | Tests |
+| Module | Covers | Tests |
 |---|---|---|
 | `color_geometry_deep` | Deep pointer-geometry tests for ColorArea and ColorSlider (drag, keyboard, form, fields). | 44 |
 | `overlay_stack_color_deep` | ColorPicker overlay-stack behavior against the pinned React Aria contract. | 10 |
@@ -72,7 +86,7 @@ under `src/` instead, and are not listed here.
 
 ## Overlays (modal/drawer/popover/toast/tooltip)
 
-| Binary | Covers | Tests |
+| Module | Covers | Tests |
 |---|---|---|
 | `overlays` | Modal, Drawer, AlertDialog and related overlay component behaviour. | 35 |
 | `overlay_padding` | Overlay panel padding on the resting panel and through the entry/exit zoom (real clock). | 3 |
@@ -92,7 +106,7 @@ under `src/` instead, and are not listed here.
 
 ## Navigation (tabs/breadcrumbs/pagination/link)
 
-| Binary | Covers | Tests |
+| Module | Covers | Tests |
 |---|---|---|
 | `nav_deep` | Navigation family keyboard and edge cases (tabs, breadcrumbs, pagination, links). | 44 |
 | `tabs_deep` | Deeper Tabs keyboard behaviour (vertical axis, ends) and the paint/toolbar overrides on the painted scene. | 39 |
@@ -103,7 +117,7 @@ under `src/` instead, and are not listed here.
 
 ## Data display (table/avatar/badge/chip/skeleton/progress)
 
-| Binary | Covers | Tests |
+| Module | Covers | Tests |
 |---|---|---|
 | `table_and_drag` | Table and drag-driven controls (Slider, etc.) behaviour. | 31 |
 | `table_deep` | Deeper Table behaviour not covered by sorting/selection/resize suites. | 42 |
@@ -120,7 +134,7 @@ under `src/` instead, and are not listed here.
 
 ## Layout & surfaces
 
-| Binary | Covers | Tests |
+| Module | Covers | Tests |
 |---|---|---|
 | `surface_deep` | Headless coverage for the measurable half of `Surface`. | 4 |
 | `scroll_shadow_deep` | ScrollShadow paths not exercised by the vertical-scroll suite. | 3 |
@@ -133,7 +147,7 @@ under `src/` instead, and are not listed here.
 
 ## Accessibility
 
-| Binary | Covers | Tests |
+| Module | Covers | Tests |
 |---|---|---|
 | `a11y_deep` | Baseline accessibility contract: AccessKit tree is not observable headlessly; keyed-instance separation. | 6 |
 | `a11y_overlays_deep` | Wave 2: accordion/disclosure/popover/dropdown/toast accessibility behaviour. | 6 |
@@ -142,7 +156,7 @@ under `src/` instead, and are not listed here.
 
 ## Theming & tokens
 
-| Binary | Covers | Tests |
+| Module | Covers | Tests |
 |---|---|---|
 | `component_themes` | Live `Theme.components` resolution: stock, defaults, recipes, instance overrides. | 11 |
 | `theme_platform` | Platform integration of the theme provider: OS appearance and GPUI window theme. | 4 |
@@ -163,19 +177,19 @@ under `src/` instead, and are not listed here.
 
 ## Animation & motion
 
-| Binary | Covers | Tests |
+| Module | Covers | Tests |
 |---|---|---|
 | `interaction` | Interaction tests driving controls (not just observing them). | 3 |
 
 ## Source-shape / parity contracts
 
-| Binary | Covers | Tests |
+| Module | Covers | Tests |
 |---|---|---|
 | `migration_extensions` | Native application composition: seek gestures, compact pickers, standalone menus. | 7 |
 
 ## Render-prop / value-prop contracts
 
-| Binary | Covers | Tests |
+| Module | Covers | Tests |
 |---|---|---|
 | `render_props` | Collection render-prop closures — the inverted per-row rendering API. | 39 |
 | `value_props` | Inverted value/output render props: the closures a caller supplies for value text. | 42 |
@@ -183,22 +197,22 @@ under `src/` instead, and are not listed here.
 
 ## Test harness / support
 
-| Binary | Covers | Tests |
+| Module | Covers | Tests |
 |---|---|---|
 | `source_scan/mod.rs` | Shared helper module (not a standalone test binary): finds a named consumer's enclosing function and asserts a reader/call appears inside it, for source-shape wiring tests. | 0 |
 
 ## How to run
 
-Run one binary:
+Run one suite:
 
 ```
-cargo test -p herogpui-components --test <name>
+cargo test -p herogpui-components --test suite_collections
 ```
 
-Filter by test-name substring within a binary:
+Run one former test module within its suite:
 
 ```
-cargo test -p herogpui-components --test <name> <substring>
+cargo test -p herogpui-components --test suite_collections collections::
 ```
 
 Run the full suite:
@@ -234,7 +248,7 @@ DEVELOPER_DIR=/Library/Developer/CommandLineTools cargo test -p herogpui-compone
   the component's own timing is separated from the theme's by stretching the
   theme's `hover_fade_ms` to a minute (a component with a stylesheet-specific
   duration still settles within it; a Button is the positive control).
-- **Source-shape / contract tests.** A few binaries (`cursor_token`,
+- **Source-shape / contract tests.** A few modules (`cursor_token`,
   `hover_overrides`, `sx_ownership`, `theme_tokens`, `i18n`) are inventories
   or bans by design and read implementation source to check that a call site
   is wired the way the contract requires. Every
@@ -247,7 +261,7 @@ DEVELOPER_DIR=/Library/Developer/CommandLineTools cargo test -p herogpui-compone
   function of a named consumer, so a sibling function's call cannot
   satisfy the check. `tests/sx_ownership.rs` documents the fixtures it
   relies on.
-- **`#[gpui::test]` render/behavior tests.** Most binaries use
+- **`#[gpui::test]` render/behavior tests.** Most modules use
   `#[gpui::test]` with a `TestAppContext`/`VisualTestContext` to mount a
   component, drive it with simulated pointer/keyboard input (including
   focus and typeahead), then assert on reported state, painted

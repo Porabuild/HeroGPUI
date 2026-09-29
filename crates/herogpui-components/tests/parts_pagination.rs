@@ -59,8 +59,8 @@
 //! `press` helper releases the last key because gpui activates a focused
 //! element's click listeners on key **up**.
 
-mod harness;
-mod source_scan;
+use crate::harness;
+use crate::source_scan;
 
 use std::cell::{Cell, RefCell};
 use std::collections::{HashMap, HashSet};

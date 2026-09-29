@@ -17,8 +17,8 @@
 //! bare text child with no caller slot beside it, so nothing a test composes
 //! inherits its style.
 
-mod harness;
-mod source_scan;
+use crate::harness;
+use crate::source_scan;
 
 use gpui::{prelude::*, AnyElement, TestAppContext};
 use harness::{open_host, seen_style, settle, still, style_probe, style_sink, StyleSink};

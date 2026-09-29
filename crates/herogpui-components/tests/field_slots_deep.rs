@@ -28,7 +28,7 @@
 //! cargo test -p herogpui-components --test field_slots_deep
 //! ```
 
-mod harness;
+use crate::harness;
 
 use gpui::{prelude::*, px, Focusable, TestAppContext};
 use herogpui_components::{

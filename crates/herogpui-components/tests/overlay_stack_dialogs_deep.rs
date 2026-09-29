@@ -1,6 +1,6 @@
 //! Explicit overlay-stack behavior for Modal, Drawer, and AlertDialog.
 
-mod harness;
+use crate::harness;
 
 use std::{cell::RefCell, rc::Rc};
 

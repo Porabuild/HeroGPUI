@@ -17,7 +17,7 @@
 //! Every builder is additive: each test pins the untouched default next to
 //! the override where a mix could hide a changed fallback.
 
-mod harness;
+use crate::harness;
 
 use std::cell::RefCell;
 use std::rc::Rc;

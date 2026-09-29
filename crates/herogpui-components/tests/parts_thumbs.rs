@@ -14,7 +14,7 @@
 //! drag is followed by a redraw; and a drag's press reports a value of its
 //! own before the move does.
 
-mod harness;
+use crate::harness;
 
 use gpui::{point, prelude::*, px, Modifiers, MouseButton, TestAppContext, VisualTestContext};
 use harness::{click, events, open_host, press};

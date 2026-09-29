@@ -7,8 +7,8 @@
 #
 #   * gpuikit#180 -- SILENT DEATH. A test binary dies without ever printing a
 #     `test result:` summary: OOM-killed while linking, killed by a signal, or
-#     aborted mid-run. With a test binary per `tests/*.rs` file in this
-#     workspace, one of them going missing is invisible in the scrollback, and
+#     aborted mid-run. With multiple integration suites in this workspace,
+#     one of them going missing is invisible in the scrollback, and
 #     in some pipelines cargo still exits 0, so a killed run reads as a pass.
 #   * gpuikit#190 -- TEARDOWN ABORT. Every test passed and every summary says
 #     `ok`, yet the process still exited non-zero, because a thread with no

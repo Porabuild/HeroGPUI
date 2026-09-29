@@ -7,7 +7,7 @@
 //! half is pinned by a source scan: every call site that used to inline an
 //! English literal now resolves it through `i18n::ui_string`.
 
-mod harness;
+use crate::harness;
 
 use gpui::{AppContext as _, IntoElement, ParentElement, TestAppContext};
 use harness::open_host;

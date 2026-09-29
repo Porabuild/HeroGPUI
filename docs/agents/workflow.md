@@ -97,7 +97,7 @@ actually reads.
 
 | Change | Iterate with | Before broad handoff |
 |---|---|---|
-| Rust logic in one component | Focused `cargo test -p herogpui-components --test <name>` | Component suite, format, lint, relevant audits |
+| Rust logic in one component | Focused `cargo test -p herogpui-components --test suite_<area> <module>::` (see the [test index](../../crates/herogpui-components/tests/README.md)) | Component suite, format, lint, relevant audits |
 | Public builder/API | Focused tests plus `api_audit.py`, `extra_audit.py`, `write_only.py` | All audits and package checks when release-facing |
 | Tokens or component metrics | `token_audit.py`, `design_audit.py`, focused screenshots | Format, lint, affected behavior tests, visual check |
 | Interaction, focus, overlay, or state | Focused behavior binary | Gallery drive for the real path, then component suite |

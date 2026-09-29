@@ -1,6 +1,6 @@
 //! Live `Theme.components` resolution: stock, defaults, recipes, and instance overrides.
 
-mod harness;
+use crate::harness;
 
 use gpui::{prelude::*, px, TestAppContext, VisualTestContext};
 use harness::open_host;

@@ -64,8 +64,8 @@
 //! as `placement.rs` does. The pickers need neither: their panels leave the
 //! tree outright when closed.
 
-mod harness;
-mod source_scan;
+use crate::harness;
+use crate::source_scan;
 
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;

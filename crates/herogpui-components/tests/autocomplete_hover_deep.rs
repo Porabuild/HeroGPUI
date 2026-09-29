@@ -19,7 +19,7 @@
 //! GPUI clears debug bounds each frame and recomputes hover after layout,
 //! so the current probe also tracks a stationary pointer when controls move.
 
-mod harness;
+use crate::harness;
 
 use std::cell::RefCell;
 use std::rc::Rc;

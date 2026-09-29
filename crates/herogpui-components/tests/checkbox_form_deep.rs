@@ -8,7 +8,7 @@
 //! while ARIA validation does not. HeroUI's CheckboxGroup validation example
 //! reads the repeated selected values with `FormData.getAll`.
 
-mod harness;
+use crate::harness;
 
 use std::{cell::RefCell, collections::HashSet, rc::Rc};
 

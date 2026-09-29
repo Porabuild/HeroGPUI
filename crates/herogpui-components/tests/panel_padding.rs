@@ -7,7 +7,7 @@
 //! inset pair. The motion half — the entry/exit zoom interpolating the same
 //! pair — is `overlay_padding.rs`.
 
-mod harness;
+use crate::harness;
 
 use std::time::Duration;
 

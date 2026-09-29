@@ -25,7 +25,7 @@
 //!   exiting panel mounted for `EXITING_MS`, so a probe click that must land
 //!   on nothing waits for the exit first.
 
-mod harness;
+use crate::harness;
 
 use std::cell::RefCell;
 use std::rc::Rc;

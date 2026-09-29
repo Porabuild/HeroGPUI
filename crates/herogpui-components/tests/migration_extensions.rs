@@ -1,5 +1,5 @@
 //! Native application composition: seek gestures, compact pickers and standalone menus.
-mod harness;
+use crate::harness;
 
 use gpui::{
     point, prelude::*, px, Modifiers, MouseButton, MouseDownEvent, MouseMoveEvent, MouseUpEvent,

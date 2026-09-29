@@ -3,7 +3,7 @@
 //! Home and End keys on a focused handle resize the two panels beside it
 //! within their limits, controlled or uncontrolled.
 
-mod harness;
+use crate::harness;
 
 use gpui::{point, prelude::*, px, Modifiers, MouseButton, TestAppContext, VisualTestContext};
 use harness::{events, open_host, press, Events};

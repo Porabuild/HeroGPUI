@@ -66,7 +66,7 @@
 //! cargo test -p herogpui-components --test forms_deep
 //! ```
 
-mod harness;
+use crate::harness;
 
 use gpui::{prelude::*, px, Focusable, SharedString, TestAppContext};
 use herogpui_components::{

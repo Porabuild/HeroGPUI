@@ -45,7 +45,7 @@
 //! exit phase, focus handle and drag offset by id, and gpui merges two dialogs
 //! sharing a key.
 
-mod harness;
+use crate::harness;
 
 use std::{
     cell::{Cell, RefCell},

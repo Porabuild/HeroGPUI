@@ -3,7 +3,7 @@
 //! rasterizes to visible pixels, the names, paths and files agree one to one,
 //! and `Icon` lays out at its size inside a real window.
 
-mod harness;
+use crate::harness;
 
 use std::{collections::BTreeSet, sync::Arc};
 

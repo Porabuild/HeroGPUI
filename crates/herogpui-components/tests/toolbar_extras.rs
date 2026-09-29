@@ -3,7 +3,7 @@
 //! plain `child` elements keep their own size, and a sized child keeps its
 //! own size when the toolbar sets none.
 
-mod harness;
+use crate::harness;
 
 use gpui::{prelude::*, px, TestAppContext, VisualTestContext};
 use harness::open_host;

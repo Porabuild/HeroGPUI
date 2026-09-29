@@ -21,7 +21,7 @@
 //! forever, so a probe that must not hit the old rows advances the clock past
 //! the 100ms exit before clicking.
 
-mod harness;
+use crate::harness;
 
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;

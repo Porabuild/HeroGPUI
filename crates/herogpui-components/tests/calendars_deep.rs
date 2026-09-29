@@ -15,8 +15,8 @@
 //! (`DateConstraints::lead_cells`, Monday-start default) for a day's
 //! row/column.
 
-mod harness;
-mod source_scan;
+use crate::harness;
+use crate::source_scan;
 
 use std::cell::RefCell;
 use std::collections::HashMap;

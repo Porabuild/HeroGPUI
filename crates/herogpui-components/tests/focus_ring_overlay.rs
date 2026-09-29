@@ -15,8 +15,8 @@
 //! chrome, the non-clipping carrier) stays pinned by the scoped source checks
 //! at the bottom of this file.
 
-mod harness;
-mod source_scan;
+use crate::harness;
+use crate::source_scan;
 
 use gpui::{prelude::*, px, AnyElement, TestAppContext};
 use harness::{open_host, painted, press, settle, still, Painted};

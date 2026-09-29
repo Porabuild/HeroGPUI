@@ -1,6 +1,6 @@
 //! Nested Dropdown and Tooltip overlay-stack contracts.
 
-mod harness;
+use crate::harness;
 
 use std::{cell::RefCell, rc::Rc};
 

@@ -218,7 +218,7 @@ opens a GPUI test window, rebuilds one `RenderOnce` component per frame, and
 records callbacks.
 
 ```powershell
-cargo test -p herogpui-components --test overlays
+cargo test -p herogpui-components --test suite_overlays overlays::
 cargo test -p herogpui-components <test_name>
 cargo test -p herogpui-components
 ```

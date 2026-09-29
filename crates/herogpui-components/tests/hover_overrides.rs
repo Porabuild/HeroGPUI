@@ -20,8 +20,8 @@
 //! pin must error — so a green run is the scanner agreeing, not it reading
 //! nothing.
 
-mod harness;
-mod source_scan;
+use crate::harness;
+use crate::source_scan;
 
 use gpui::{point, prelude::*, px, AnyElement, Modifiers, TestAppContext, VisualTestContext};
 use herogpui_components::{

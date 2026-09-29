@@ -1,6 +1,6 @@
 //! Dropdown composition metrics, explicit identity and nested overlay behavior.
 
-mod harness;
+use crate::harness;
 
 use std::{cell::Cell, cell::RefCell, collections::HashMap, rc::Rc};
 

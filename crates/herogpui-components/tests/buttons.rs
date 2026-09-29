@@ -59,8 +59,8 @@
 //! `toggle_button_content_render_prop_sees_state` runs the same cycle on a
 //! second component to prove the fix is not button-specific.
 
-mod harness;
-mod source_scan;
+use crate::harness;
+use crate::source_scan;
 
 use std::cell::RefCell;
 use std::rc::Rc;

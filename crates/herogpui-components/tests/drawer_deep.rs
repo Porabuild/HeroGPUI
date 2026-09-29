@@ -1,6 +1,6 @@
 //! Behaviour contracts specific to HeroUI v3.2.4's Drawer anatomy.
 
-mod harness;
+use crate::harness;
 
 use std::{cell::Cell, rc::Rc, time::Duration};
 

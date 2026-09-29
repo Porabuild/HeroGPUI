@@ -1,5 +1,6 @@
 [package]
 name = "herogpui-components"
+autotests = false
 description = "HeroUI-style component library for GPUI"
 version.workspace = true
 edition.workspace = true
@@ -43,6 +44,42 @@ windows-registry.workspace = true
 # control *works* rather than that it draws.
 [dev-dependencies]
 gpui = { workspace = true, features = ["test-support"] }
+
+[[test]]
+name = "suite_collections"
+path = "tests/suite_collections.rs"
+
+[[test]]
+name = "suite_controls"
+path = "tests/suite_controls.rs"
+
+[[test]]
+name = "suite_feedback"
+path = "tests/suite_feedback.rs"
+
+[[test]]
+name = "suite_fields"
+path = "tests/suite_fields.rs"
+
+[[test]]
+name = "suite_foundations"
+path = "tests/suite_foundations.rs"
+
+[[test]]
+name = "suite_overlays"
+path = "tests/suite_overlays.rs"
+
+[[test]]
+name = "suite_pickers"
+path = "tests/suite_pickers.rs"
+
+[[test]]
+name = "suite_styling"
+path = "tests/suite_styling.rs"
+
+[[test]]
+name = "suite_tables_layout"
+path = "tests/suite_tables_layout.rs"
 
 [lints]
 workspace = true

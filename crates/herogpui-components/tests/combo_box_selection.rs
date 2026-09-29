@@ -4,7 +4,7 @@
 //! `useControlledState` leaves acceptance to the controlled owner. Re-picking
 //! the current item can notify onSelectionChange but does not change onChange.
 
-mod harness;
+use crate::harness;
 
 use std::{cell::RefCell, rc::Rc, time::Duration};
 

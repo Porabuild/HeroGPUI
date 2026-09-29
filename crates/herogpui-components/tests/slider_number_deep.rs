@@ -5,7 +5,7 @@
 //! increment button centred at (200, 18). Every mouse mutation is followed by
 //! a redraw because hit testing reads the last rendered frame.
 
-mod harness;
+use crate::harness;
 
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;

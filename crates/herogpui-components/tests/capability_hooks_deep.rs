@@ -4,7 +4,7 @@
 //! Every test here pins both halves of the contract: the stock geometry or
 //! behaviour that existing callers still get, and the opted-in one.
 
-mod harness;
+use crate::harness;
 
 use gpui::{point, prelude::*, px, Modifiers, Pixels, TestAppContext, VisualTestContext};
 use harness::{click, open_host, still};

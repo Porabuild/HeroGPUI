@@ -9,7 +9,7 @@
 //! it and one at (20, 6) is inside the 36px control height and the label width
 //! the size ladder would have given, but outside the override.
 
-mod harness;
+use crate::harness;
 
 use gpui::{point, prelude::*, px, Modifiers, MouseMoveEvent, TestAppContext};
 use herogpui_components::Button;

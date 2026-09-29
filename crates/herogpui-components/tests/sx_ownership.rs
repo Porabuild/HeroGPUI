@@ -26,7 +26,7 @@
 //! the enclosing function, so a sibling's extractor call never satisfies an
 //! entry (see the fixtures at the bottom).
 
-mod source_scan;
+use crate::source_scan;
 
 use source_scan::{component_src, scope_contains};
 

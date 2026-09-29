@@ -17,7 +17,7 @@
 //! (Bottom placement, no arrow, and no flip — the host window is tall
 //! enough that the panel never turns upward).
 
-mod harness;
+use crate::harness;
 
 use gpui::{prelude::*, px, TestAppContext, VisualTestContext};
 use herogpui_components::Popover;

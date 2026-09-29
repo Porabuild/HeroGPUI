@@ -33,7 +33,7 @@
 //! assertion depends on a measured coordinate that a layout change would
 //! silently move.
 
-mod harness;
+use crate::harness;
 
 use gpui::{prelude::*, px, TestAppContext, VisualTestContext};
 use herogpui_components::{

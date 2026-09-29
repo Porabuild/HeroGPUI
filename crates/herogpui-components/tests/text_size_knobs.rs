@@ -8,7 +8,7 @@
 //! a breadcrumb item's box is one line of its link, so its height is the
 //! resolved leading and its width grows with the type size.
 
-mod harness;
+use crate::harness;
 
 use gpui::{prelude::*, px, AbsoluteLength, DefiniteLength, TestAppContext, TextStyle};
 use harness::{open_host, seen_style, settle, still, style_probe, style_sink};

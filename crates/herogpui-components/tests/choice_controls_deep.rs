@@ -20,7 +20,7 @@
 //! audits cannot prove that a read-only control keeps focus, that an arrow
 //! moved it, or that Tab escaped a composite widget.
 
-mod harness;
+use crate::harness;
 
 use std::cell::RefCell;
 use std::rc::Rc;

@@ -43,7 +43,7 @@
 //! the sibling binary `a11y_overlays_deep.rs`. Wave 3 is `a11y_collections_deep.rs`.
 //! Wave 5 — calendars and overlay-backed fields — is `a11y_pickers_deep.rs`.
 
-mod harness;
+use crate::harness;
 
 use std::collections::HashSet;
 

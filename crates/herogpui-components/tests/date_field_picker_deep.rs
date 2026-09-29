@@ -5,7 +5,7 @@
 //! the committed value, and its pinned `react-aria` 3.51.0 opens picker groups
 //! with Alt+ArrowDown or Alt+ArrowUp.
 
-mod harness;
+use crate::harness;
 
 use std::{
     cell::{Cell, RefCell},

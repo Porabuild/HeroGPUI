@@ -2,7 +2,7 @@
 //! Dropdown `Menu` at the pointer; choosing an item, Escape or a press
 //! outside closes it; a disabled context menu ignores the press.
 
-mod harness;
+use crate::harness;
 
 use gpui::{
     point, prelude::*, px, Bounds, Modifiers, MouseButton, Pixels, TestAppContext,

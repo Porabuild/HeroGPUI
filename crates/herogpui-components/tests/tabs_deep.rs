@@ -11,8 +11,8 @@
 //! both vertical axes, end wrapping, pointer-to-keyboard focus handoff, and
 //! orientation layout.
 
-mod harness;
-mod source_scan;
+use crate::harness;
+use crate::source_scan;
 
 use std::{cell::RefCell, rc::Rc, time::Duration};
 

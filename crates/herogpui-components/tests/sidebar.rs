@@ -3,7 +3,7 @@
 //! disabled items and closed groups), group expansion by press and
 //! Right/Left, typeahead, and the collapse-to-icons toggle and icon mode.
 
-mod harness;
+use crate::harness;
 
 use std::collections::HashSet;
 

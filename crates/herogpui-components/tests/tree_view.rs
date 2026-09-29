@@ -3,7 +3,7 @@
 //! first child and Left to the parent, typeahead, single and multiple
 //! selection, and disabled rows that the cursor skips.
 
-mod harness;
+use crate::harness;
 
 use std::collections::HashSet;
 

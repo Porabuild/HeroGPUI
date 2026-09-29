@@ -10,6 +10,9 @@ version covers `herogpui`, `herogpui-core`, `herogpui-theme`,
 
 ### Changed
 
+- The component integration tests run as nine feature-area suite binaries
+  instead of one binary per source file. Module filters retain focused runs,
+  and a suite integrity test catches unregistered sources.
 - Keyboard ContextMenu opening uses the focused HeroGPUI control's last
   painted bounds as its anchor when available; unrecorded content keeps the
   area-corner fallback. Dismissal still restores the previous focus.

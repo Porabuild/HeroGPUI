@@ -8,7 +8,7 @@
 //! `minimize` unimplemented, so every test intercepts the actions; the
 //! platform calls themselves are `WindowAction::perform`.
 
-mod harness;
+use crate::harness;
 
 use gpui::{
     point, prelude::*, px, Modifiers, MouseButton, MouseDownEvent, MouseMoveEvent, MouseUpEvent,

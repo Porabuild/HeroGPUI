@@ -27,7 +27,7 @@
 //!   `size_full` canvas inside the `size(circle)` box records the circle's
 //!   laid-out bounds.
 
-mod harness;
+use crate::harness;
 
 use std::{cell::RefCell, rc::Rc};
 

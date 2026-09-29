@@ -4,7 +4,7 @@
 //! uncontrolled default, and a controlled owner is told the default so it can
 //! accept it. The registered value follows the live entity, not a snapshot.
 
-mod harness;
+use crate::harness;
 
 use std::{cell::Cell, rc::Rc};
 

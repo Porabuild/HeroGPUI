@@ -6,7 +6,7 @@
 //! to the old bottom-start-only behavior, and they exercise the shared
 //! positioner's opposite-side flip when the preferred side overflows.
 
-mod harness;
+use crate::harness;
 
 use gpui::{prelude::*, px, size, TestAppContext};
 use herogpui_components::{CalendarState, DatePicker, DateRangePicker, DateRangeState};

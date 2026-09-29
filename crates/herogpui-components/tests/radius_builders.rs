@@ -8,7 +8,7 @@
 //! field chrome), and the composites whose inner parts must keep their own
 //! shape while the root takes the override.
 
-mod harness;
+use crate::harness;
 
 use std::rc::Rc;
 use std::time::Duration;

@@ -1,7 +1,7 @@
 //! HeroUI v3.2.5 toast stack: `isExpanded`, hover/focus expand, timer pause,
 //! hidden overflow, `exitDuration`, and the Alt+T hotkey.
 
-mod harness;
+use crate::harness;
 
 use std::time::Duration;
 

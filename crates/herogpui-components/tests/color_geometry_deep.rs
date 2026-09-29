@@ -8,8 +8,8 @@
 //! converts the value to `colorSpace` before reading and replacing channels.
 //! These tests drive those contracts through gpui's real headless hit testing.
 
-mod harness;
-mod source_scan;
+use crate::harness;
+use crate::source_scan;
 
 use std::{cell::RefCell, rc::Rc, sync::Arc};
 
