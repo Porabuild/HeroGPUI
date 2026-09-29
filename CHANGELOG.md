@@ -298,6 +298,16 @@ for each breaking change with before/after code.
   reaches the trigger box despite documenting a panel-only override; that
   case is an ignored test naming the defect.
 
+### Added
+
+- Field-trigger hover colours, the rest of the roadmap's phase 2 inventory:
+  `Select::trigger_hover_bg`, `Autocomplete::trigger_hover_bg` and
+  `Autocomplete::clear_hover_bg`, `NumberField::group_hover_bg` and
+  `InputGroup::group_hover_bg`. Each replaces only the hover endpoint of its
+  part's existing fade; focus, invalid, disabled and bare chrome keep
+  precedence. HeroGPUI extensions (v3 tints these parts with a class),
+  shown in "Hover Colours" gallery sections.
+
 ### Fixed
 
 - `Accordion` (Surface): a solid `sx` background recolours the whole card.

@@ -298,6 +298,8 @@ pub struct NumberField {
     full_width: bool,
     /// Optional box geometry/chrome overrides; defaults are the stock group.
     field: crate::util::FieldBox,
+    /// The group's hover endpoint, in place of the variant's token.
+    group_hover_bg: Option<gpui::Hsla>,
     min_value: Option<f64>,
     max_value: Option<f64>,
     step: Option<f64>,
@@ -439,6 +441,16 @@ impl NumberField {
         self
     }
 
+    /// The group's fill while hovered, in place of `--field-hover`
+    /// (`--default-hover` on the secondary variant). The 150ms ease-smooth
+    /// ramp and the border hover are unchanged; a focused, invalid, disabled
+    /// or bare group does not hover, so the override never reaches those
+    /// states. Not a v3 prop: v3 tints the group with a class.
+    pub fn group_hover_bg(mut self, color: impl Into<gpui::Hsla>) -> Self {
+        self.group_hover_bg = Some(color.into());
+        self
+    }
+
     /// Shows or hides only the group's visual focus ring. The number field
     /// remains focusable, editable and stepper-accessible when set to `false`.
     pub fn focus_ring(mut self, v: bool) -> Self {
@@ -548,6 +560,7 @@ impl NumberField {
             on_change: None,
             sx: None,
             field: crate::util::FieldBox::default(),
+            group_hover_bg: None,
         }
     }
 
@@ -857,12 +870,12 @@ impl RenderOnce for NumberField {
             };
             let hovered = (!self.is_disabled && !validity.is_invalid && !focused).then(|| {
                 crate::anim::FieldChrome {
-                    bg: match self.variant {
+                    bg: self.group_hover_bg.unwrap_or(match self.variant {
                         FieldVariant::Primary => colors.field.hover(),
                         // `.number-field--secondary` hovers
                         // `--number-field-group-bg-hover: var(--default-hover)`.
                         FieldVariant::Secondary => colors.default.hover(),
-                    },
+                    }),
                     border: colors.field.border_hover(),
                     border_width: layout.field_border_width,
                     ring: None,

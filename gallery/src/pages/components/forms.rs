@@ -1049,6 +1049,19 @@ impl Gallery {
                         .into_any_element()]), cx),
                 ),
                 (
+                    "Hover Colour",
+                    "`group_hover_bg` names the fill the hovered group box fades to, in place of `--field-hover`; a focused, invalid or disabled group keeps its own chrome.",
+                    specimen_body("ig-hover-colour", field_col(vec![h::InputGroup::new()
+                        .label("Website")
+                        .group_hover_bg(cx.colors().accent.soft())
+                        .prefix(h::InputAddon::new("https://"))
+                        .input(
+                            h::Input::new(self.demo_text("ig-hover-colour", "", cx))
+                                .placeholder("example.com"),
+                        )
+                        .into_any_element()]), cx),
+                ),
+                (
                     "Variants",
                     field_col(vec![
                         specimen_body(
@@ -1633,6 +1646,16 @@ impl Gallery {
                     .height(px(28.))
                     .padding_x(px(8.))
                     .is_bare(true)
+                    .into_any_element()]), cx),
+                ),
+                (
+                    "Hover Colour",
+                    "`group_hover_bg` names the fill the hovered group fades to, in place of `--field-hover`; a focused, invalid or disabled group keeps its own chrome.",
+                    specimen_body("nf-hover-colour", field_col(vec![h::NumberField::new(
+                        self.demo_number("nf-hover-colour", 5., 0., 20., 1., cx),
+                    )
+                    .label("Quantity")
+                    .group_hover_bg(cx.colors().accent.soft())
                     .into_any_element()]), cx),
                 ),
                 (

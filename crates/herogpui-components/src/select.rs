@@ -254,6 +254,8 @@ pub struct Select {
     row_padding_y: Option<Pixels>,
     /// The fill a hovered option row takes, in place of `--default`.
     row_hover_bg: Option<gpui::Hsla>,
+    /// The trigger's hover endpoint, in place of the variant's hover token.
+    trigger_hover_bg: Option<gpui::Hsla>,
     /// The family the option rows are drawn with; unset keeps the inherited
     /// family. A detached popover does not inherit the trigger's font.
     row_font_family: Option<SharedString>,
@@ -503,6 +505,17 @@ impl Select {
         self
     }
 
+    /// The trigger's fill while hovered, in place of `--field-hover`
+    /// (`--default-hover` on the secondary variant). The 150ms ease-smooth
+    /// fade, the border hover and the clear button's suppression are
+    /// unchanged; a focused, invalid, disabled or bare trigger does not hover,
+    /// so the override never reaches those states. Not a v3 prop: v3 tints the
+    /// trigger with a class.
+    pub fn trigger_hover_bg(mut self, color: impl Into<gpui::Hsla>) -> Self {
+        self.trigger_hover_bg = Some(color.into());
+        self
+    }
+
     /// The fill a hovered option row takes, in place of `--default`. v3 tints
     /// the row with a class; this names the colour.
     pub fn row_hover_bg(mut self, color: impl Into<gpui::Hsla>) -> Self {
@@ -572,6 +585,7 @@ impl Select {
             panel_padding: None,
             row_padding_y: None,
             row_hover_bg: None,
+            trigger_hover_bg: None,
             row_font_family: None,
             item_leading: None,
             radius: None,
@@ -1186,11 +1200,11 @@ impl RenderOnce for Select {
                 FieldVariant::Primary => colors.field.background,
                 FieldVariant::Secondary => colors.default.color,
             };
-            let hover_bg = match self.variant {
+            let hover_bg = self.trigger_hover_bg.unwrap_or(match self.variant {
                 FieldVariant::Primary => colors.field.hover(),
                 // `.select--secondary` hovers `--select-trigger-bg-hover: var(--default-hover)`.
                 FieldVariant::Secondary => colors.default.hover(),
-            };
+            });
             let hover_border = colors.field.border_hover();
             // Keep clear-button ownership and trigger focus stable while the
             // field surface eases over HeroUI's 150ms ease-smooth transition.

@@ -96,6 +96,20 @@ impl Gallery {
                     .into_any_element()]), cx),
                 ),
                 (
+                    "Hover Colours",
+                    "`trigger_hover_bg` names the fill a hovered trigger fades to and `clear_hover_bg` the clear button's hover fill, in place of `--field-hover` and `--default-hover`; hovering the clear button still suppresses the trigger's own hover.",
+                    specimen_body("ac-hover-colours", field_col(vec![h::Autocomplete::new(
+                        self.demo_text("ac-hover-colours", "", cx),
+                        language_items(),
+                    )
+                    .label("Language")
+                    .placeholder("Pick one")
+                    .default_value(["rust"])
+                    .trigger_hover_bg(cx.colors().accent.soft())
+                    .clear_hover_bg(cx.colors().danger.soft())
+                    .into_any_element()]), cx),
+                ),
+                (
                     "Virtualization", "`row_height` makes the list geometry computable, so gpui's `uniform_list` builds only the rows in view. A thousand options, forty pixels each.",
                     specimen_body("ac-virtualization", col(vec![
                         demo_field(
@@ -1035,6 +1049,16 @@ impl Gallery {
                         .row_hover_bg(cx.colors().accent.soft())
                         .row_font_family(crate::app::MONO_FONT)
                         .default_open(true)
+                        .into_any_element()]), cx),
+                ),
+                (
+                    "Hover Colours",
+                    "`trigger_hover_bg` names the fill a hovered trigger fades to, in place of `--field-hover`; focused, invalid and disabled triggers keep their own chrome. `row_hover_bg` does the same for the option rows.",
+                    specimen_body("sel-hover-colours", field_col(vec![h::Select::new("sel-hover-colours", language_items())
+                        .label("Language")
+                        .placeholder("Choose one")
+                        .trigger_hover_bg(cx.colors().accent.soft())
+                        .row_hover_bg(cx.colors().accent.soft())
                         .into_any_element()]), cx),
                 ),
                 (

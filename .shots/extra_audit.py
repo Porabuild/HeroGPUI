@@ -529,6 +529,14 @@ EXTRA_OK_SCOPED = {
     'Calendar.year_hover_bg': 'no-classname',
     'RangeCalendar.nav_hover_bg': 'no-classname',
     'RangeCalendar.year_hover_bg': 'no-classname',
+    # The field-trigger hover endpoints the roadmap's phase 2 inventory lists:
+    # v3 tints each with a class; the trigger/group chrome and the nested
+    # clear button are separate painted parts, so each is named on its owner.
+    'Select.trigger_hover_bg': 'no-classname',
+    'Autocomplete.trigger_hover_bg': 'no-classname',
+    'Autocomplete.clear_hover_bg': 'no-classname',
+    'NumberField.group_hover_bg': 'no-classname',
+    'InputGroup.group_hover_bg': 'no-classname',
     # The reference capture toolbar builds its icon-only segmented control on
     # Tabs: the icon children v3 composes into `Tabs.Tab` become
     # `TabItem::trigger` (the label stays the accessible name), and the

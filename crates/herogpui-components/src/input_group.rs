@@ -69,6 +69,8 @@ pub struct InputGroup {
     full_width: bool,
     /// Optional group geometry/chrome overrides; defaults are the stock box.
     field: util::FieldBox,
+    /// The group box's hover endpoint, in place of the variant's token.
+    group_hover_bg: Option<gpui::Hsla>,
     /// The family the held field is drawn and measured with; unset keeps the
     /// field's own setting.
     font_family: Option<SharedString>,
@@ -107,6 +109,7 @@ impl InputGroup {
             variant: FieldVariant::Primary,
             full_width: false,
             field: util::FieldBox::default(),
+            group_hover_bg: None,
             font_family: None,
             radius: None,
             is_disabled: false,
@@ -164,6 +167,16 @@ impl InputGroup {
     pub fn is_bare(mut self, v: bool) -> Self {
         self.field.is_bare = v;
         self.field.is_bare_is_set = true;
+        self
+    }
+
+    /// The group box's fill while hovered, in place of `--field-hover`
+    /// (`--default-hover` on the secondary variant). The 150ms ease-smooth
+    /// fade and the border hover are unchanged; a focused, invalid, disabled
+    /// or bare group does not hover, so the override never reaches those
+    /// states. Not a v3 prop: v3 tints the group with a class.
+    pub fn group_hover_bg(mut self, color: impl Into<gpui::Hsla>) -> Self {
+        self.group_hover_bg = Some(color.into());
         self
     }
 
@@ -398,10 +411,10 @@ impl RenderOnce for InputGroup {
         // paints over the focused chrome. v3's `status-disabled` is
         // `pointer-events: none` first, so a disabled group hovers never.
         if !field_box.is_bare && !focus_within && !is_invalid && !is_disabled {
-            let hover_bg = match self.variant {
+            let hover_bg = self.group_hover_bg.unwrap_or(match self.variant {
                 FieldVariant::Primary => colors.field.hover(),
                 FieldVariant::Secondary => colors.default.hover(),
-            };
+            });
             let hover_border = colors.field.border_hover();
             // Keep the group identity and focus listeners stable while only
             // the hover surface interpolates over HeroUI's 150ms ease-smooth
