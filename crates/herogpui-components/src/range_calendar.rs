@@ -2144,6 +2144,7 @@ impl RenderOnce for RangeCalendar {
             String::new()
         };
         root = root.a11y_named(a11y::Role::Application, &a11y::Name::labelled(app_name));
+        root = util::record_focus_bounds(root, &grid_focus, window, cx);
 
         if columns > 1 {
             let heading = heading_focuses

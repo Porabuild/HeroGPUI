@@ -403,7 +403,7 @@ jobs:
   #
   # This job is also where the website's artifact comes from. The ~19 MB
   # binary is not committed: `.shots/build-wasm.sh` builds, binds, optimises
-  # and stamps it, and `wasm-publish` below publishes it as a
+  # and stamps it, and `wasm-publish` publishes trusted master builds as a
   # `gallery-<key16>` prerelease keyed by the hash of every wasm build input, which the Vercel
   # build (`web/scripts/gallery-artifact.mjs fetch`) downloads for its own
   # checkout. See web/DEPLOYMENT.md, section 6.
@@ -424,8 +424,8 @@ jobs:
           persist-credentials: false
 
       # The one job that does not build on `rust-toolchain.toml`'s pinned
-      # stable: it installs nightly with the wasm32 target below and passes
-      # `+nightly` explicitly. This job is the one place a nightly toolchain is
+      # stable: it installs the dated nightly with the wasm32 target below.
+      # This job is the one place a nightly toolchain is
       # allowed, and the reason is upstream's, not ours: vanilla `gpui-pre-web` enables its
       # `multithreaded` feature by default, which pulls in `wasm_thread`,
       # whose lib.rs opens with `#![feature]` — so a stable build of this
@@ -438,15 +438,16 @@ jobs:
       # cross-origin isolation the site does not provide (evaluated in
       # docs/upstream/gpui-web-multithreaded.md). If a future `gpui-pre-web`
       # drops the default, move this job back to the pinned stable toolchain
-      # and delete the `+nightly` in .shots/build-wasm.sh.
+      # and delete the nightly switch in .shots/build-wasm.sh.
       - name: Install nightly with the wasm32 target
         run: |
-          rustup toolchain install nightly --profile minimal --component rustc,cargo,rust-std -t wasm32-unknown-unknown
-          rustup target add wasm32-unknown-unknown --toolchain nightly
+          toolchain=$(cat .shots/wasm-toolchain.txt)
+          rustup toolchain install "$toolchain" --profile minimal --component rustc,cargo,rust-std -t wasm32-unknown-unknown
+          rustup target add wasm32-unknown-unknown --toolchain "$toolchain"
 
       - uses: Swatinem/rust-cache@v2
         with:
-          key: wasm32-nightly
+          key: wasm32-nightly-2026-08-30
 
       # `wasm-bindgen` output is version-sensitive in both directions: the
       # crate compiled into the artifact and the CLI that post-processes it
@@ -487,7 +488,7 @@ jobs:
       - name: Build, bind, optimise and stamp the web gallery
         run: bash .shots/build-wasm.sh --out "$RUNNER_TEMP/gallery" --source ci
 
-      - name: Hand the artifact to wasm-publish
+      - name: Hand the artifact to wasm-publish on master
         uses: actions/upload-artifact@v4
         with:
           name: web-gallery
@@ -499,17 +500,15 @@ jobs:
   # until every asset is attached, so immutable releases are fine). A
   # separate job so the write token never shares a runner with the build: the
   # wasm job compiles third-party build scripts, this one runs only gh and jq.
-  # Fork pull requests are skipped (their token is read-only, and their bytes
-  # must not land under a key the site trusts); their previews fall back to
-  # master's artifact. On a master push it also marks the key's release
+  # Pull requests have no write token: their checkout can change scripts and
+  # workflows. Previews use master's last trusted artifact instead. On a
+  # master push the job also marks the key's release
   # `[master <time>]` (the preview fallback; a title edit, which immutable
   # releases allow) and deletes old gallery releases.
   wasm-publish:
     name: Publish web gallery artifact
     needs: [wasm]
-    if: >-
-      github.event_name != 'pull_request' ||
-      github.event.pull_request.head.repo.full_name == github.repository
+    if: github.event_name == 'push' && github.ref == 'refs/heads/master'
     runs-on: ubuntu-24.04
     permissions:
       contents: write
@@ -529,17 +528,10 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
-          # The tag points at the commit that was built (the PR head, not
-          # the synthetic merge commit).
-          HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
-          MASTER: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' }}
+          HEAD_SHA: ${{ github.sha }}
         run: |
           set -euo pipefail
-          if [ "$MASTER" = "true" ]; then
-            bash .shots/publish-gallery.sh "$RUNNER_TEMP/gallery" --master
-          else
-            bash .shots/publish-gallery.sh "$RUNNER_TEMP/gallery"
-          fi
+          bash .shots/publish-gallery.sh "$RUNNER_TEMP/gallery" --master
 
   # The published library crates' public API against their latest crates.io
   # release (whatever that is when the job runs: no baseline version is

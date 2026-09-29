@@ -44,6 +44,11 @@ WASM_OPT_ARGS=(
 )
 
 root=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
+wasm_toolchain=$(cat "$root/.shots/wasm-toolchain.txt")
+[[ "$wasm_toolchain" =~ ^nightly-[0-9]{4}-[0-9]{2}-[0-9]{2}$ ]] || {
+    echo "invalid .shots/wasm-toolchain.txt: $wasm_toolchain" >&2
+    exit 1
+}
 out="$root/web/public/gallery"
 source=local
 opt=1
@@ -85,7 +90,7 @@ if [ "$opt" -eq 1 ]; then
     esac
 fi
 
-cargo +nightly build --locked --target wasm32-unknown-unknown --profile wasm-release -p herogpui-web
+cargo +"$wasm_toolchain" build --locked --target wasm32-unknown-unknown --profile wasm-release -p herogpui-web
 
 staging=$(mktemp -d "${TMPDIR:-/tmp}/herogpui-wasm.XXXXXX")
 trap 'rm -rf "$staging"' EXIT
@@ -102,4 +107,4 @@ mkdir -p "$out"
 cp "$staging/herogpui_web.js" "$staging/herogpui_web_bg.wasm" "$out/"
 cp crates/herogpui-web/index.html "$out/index.html"
 node web/scripts/gallery-artifact.mjs stamp --dir "$out" --source "$source" \
-    --toolchain "$(rustc +nightly -V)" --wasm-bindgen "$cli_bindgen" --wasm-opt "$opt_version"
+    --toolchain "$(rustc +"$wasm_toolchain" -V)" --wasm-bindgen "$cli_bindgen" --wasm-opt "$opt_version"

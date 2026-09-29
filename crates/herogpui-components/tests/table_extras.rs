@@ -574,6 +574,41 @@ fn frozen_cells_keep_their_x_while_the_body_and_header_scroll(cx: &mut TestAppCo
 }
 
 #[gpui::test]
+fn a_short_last_row_does_not_shrink_the_frozen_scroll_extent(cx: &mut TestAppContext) {
+    still();
+    let seen = events();
+    let cx = open_host(cx, move || {
+        let table = Table::new(Vec::new())
+            .id("short-frozen")
+            .columns(
+                FROZEN
+                    .iter()
+                    .enumerate()
+                    .map(|(c, label)| TableColumn::new(*label).min_width(px(200.)).frozen(c < 2))
+                    .collect(),
+            )
+            .tree_row(frozen_row(0, seen.clone()))
+            .tree_row(TableRow::new(vec![gpui::div()
+                .w(px(120.))
+                .h(px(20.))
+                .bg(swatch(0))
+                .into_any_element()]));
+        gpui::div().w(px(600.)).child(table).into_any_element()
+    });
+    frame(cx);
+    let frozen_before = cell(cx, 0, 0);
+    let scrolling_before = cell(cx, 0, 2);
+    let header_before = cx.debug_bounds("table-header-track-2").unwrap();
+    wheel_x(cx, scrolling_before.center(), -80.);
+    assert_eq!(cell(cx, 0, 0).left(), frozen_before.left());
+    assert_eq!(cell(cx, 0, 2).left(), scrolling_before.left() - px(80.));
+    assert_eq!(
+        cx.debug_bounds("table-header-track-2").unwrap().left(),
+        header_before.left() - px(80.),
+    );
+}
+
+#[gpui::test]
 fn a_press_on_a_frozen_cell_selects_the_row_and_misses_the_hidden_cells(cx: &mut TestAppContext) {
     let (seen, cx) = frozen_host(cx, Frozen::default());
     frame(cx);

@@ -18,6 +18,7 @@ import {
   newestMasterTag,
   parseReleaseFeed,
   releaseTag,
+  releasesFeedUrl,
   validBuildInfo,
 } from "./gallery-artifact.mjs";
 
@@ -98,6 +99,20 @@ test("asset names are keyed by inputs and content-addressed binaries", () => {
     wasm: "herogpui-gallery-1111111111111111.wasm",
     glue: "herogpui-gallery-2222222222222222.js",
   });
+});
+
+test("the default GitHub feed is at the repository root", () => {
+  assert.equal(
+    releasesFeedUrl({}, "https://github.com/Porabuild/HeroGPUI/releases/"),
+    "https://github.com/Porabuild/HeroGPUI/releases.atom",
+  );
+  assert.equal(
+    releasesFeedUrl(
+      { HEROGPUI_GALLERY_BASE_URL: "https://mirror.example/releases/" },
+      "https://mirror.example/releases/",
+    ),
+    "https://mirror.example/releases/releases.atom",
+  );
 });
 
 test("build-info validation rejects malformed records and another key", () => {

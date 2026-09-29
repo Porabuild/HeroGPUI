@@ -10,8 +10,8 @@ use gpui::{
 };
 use harness::{events, open_host, press, still, Events};
 use herogpui_components::{
-    Breadcrumbs, Button, ColorArea, ContextMenu, Crumb, ListBox, ListBoxItem, MenuItem,
-    PickerColor, Table, TreeItem, TreeView,
+    Breadcrumbs, Button, ColorArea, ContextMenu, Crumb, ListBox, ListBoxItem, MenuBar, MenuBarMenu,
+    MenuItem, PickerColor, Table, TreeItem, TreeView,
 };
 
 const PANEL: &str = "context-menu";
@@ -297,6 +297,41 @@ fn shift_f10_opens_below_a_focused_color_area(cx: &mut TestAppContext) {
     let menu = panel(cx).expect("keyboard menu opened");
     assert_eq!(menu.left(), area.left() + px(40.));
     assert_eq!(menu.top(), area.top() + px(120.));
+}
+
+#[gpui::test]
+fn shift_f10_opens_below_a_focused_menu_bar_trigger(cx: &mut TestAppContext) {
+    still();
+    let cx = open_host(cx, move || {
+        gpui::div()
+            .p(px(40.))
+            .child(ContextMenu::new(
+                "menu-bar-context-menu",
+                gpui::div()
+                    .w(px(400.))
+                    .h(px(300.))
+                    .p(px(40.))
+                    .child(MenuBar::new(
+                        "context-menu-bar",
+                        vec![MenuBarMenu::new(
+                            "file",
+                            "File",
+                            vec![MenuItem::new("new", "New")],
+                        )],
+                    )),
+                vec![MenuItem::new("copy", "Copy")],
+            ))
+            .into_any_element()
+    });
+    frame(cx);
+    press(cx, "tab");
+    frame(cx);
+    let trigger = cx.debug_bounds("menu-bar-trigger-file").unwrap();
+    press(cx, "shift-f10");
+    frame(cx);
+    let menu = panel(cx).expect("keyboard menu opened");
+    assert_eq!(menu.left(), trigger.left());
+    assert_eq!(menu.top(), trigger.bottom());
 }
 
 #[gpui::test]

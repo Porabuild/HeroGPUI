@@ -274,10 +274,12 @@ and no manual step:
    wasm32 build, `wasm-bindgen`, `wasm-opt`, then `build-info.json` recording
    the **artifact key** — the SHA-256 over every wasm build input (the
    component/theme/core/facade/web/gallery sources, the workspace manifests
-   and the lockfile; `inputsHash` in `scripts/extract-wasm-sections.mjs`) —
+   the lockfile, dated nightly pin, build script and CI recipe;
+   `inputsHash` in `scripts/extract-wasm-sections.mjs`) —
    and the byte hashes.
-2. **CI publishes it** — the `wasm-publish` job (a separate job, so the write
-   token never shares a runner with third-party build scripts) publishes
+2. **CI publishes it on master pushes** — the `wasm-publish` job (a separate
+   job, so the write token never shares a runner with third-party build
+   scripts or a pull request checkout) publishes
    **one prerelease per key**, tagged `gallery-<key16>`, with the workflow's
    own `GITHUB_TOKEN` (`contents: write`; `.shots/publish-gallery.sh`). The
    release is created as a draft, the binaries
@@ -287,7 +289,7 @@ and no manual step:
    of two runs racing for one key the first to publish wins. A master push
    then renames that key's release to `… [master <time>]` (the preview
    fallback) and deletes gallery releases beyond the newest 30 (plus stale
-   drafts). Fork pull requests are not published.
+   drafts). Pull requests build and check the artifact without publishing it.
 
    **Immutable releases.** Nothing is ever attached to, or removed from, a
    published release, so the design works with GitHub's immutable releases
@@ -314,7 +316,7 @@ What the build does when the exact artifact is not there yet:
 | build | waits for CI | then |
 |---|---|---|
 | Vercel production (`VERCEL_ENV=production`) | up to 30 min | **fails**; Vercel keeps serving the previous production deployment. The next master push, or a redeploy once CI is green, ships it. |
-| Vercel preview | up to 10 min | installs master's latest artifact (the newest `[master …]` gallery release, found in the public `releases.atom` feed, else the unauthenticated REST release list); the frame shows an "earlier build" banner |
+| Vercel preview | no | installs master's latest artifact (the newest `[master …]` gallery release, found in the public `releases.atom` feed, else the unauthenticated REST release list); the frame shows an "earlier build" banner |
 | anywhere else (CI's `web` job, a laptop) | no | master's artifact, or none |
 | nothing published at all | — | builds without the artifact; the frame says "The live preview is not part of this build" |
 
@@ -323,18 +325,15 @@ Overrides: `HEROGPUI_GALLERY_ARTIFACT=require|off`,
 `HEROGPUI_GALLERY_BASE_URL`, `HEROGPUI_GALLERY_API_URL` (see the header of
 `scripts/gallery-artifact.mjs`); none needs setting on Vercel.
 
-**Timing and bootstrap.** Vercel's Git integration starts building on the
-same push that starts CI, so a Rust change's preview usually waits a few
-minutes for the `wasm` job. Production rarely waits: the pull request's own
-CI already published the artifact for its tree, and a merge whose tree
-matches the PR head (the usual case) has the same key. The first deployment
-after this pipeline merges is covered the same way: the pull request that
-introduces it runs `wasm-publish`, which publishes that tree's
-`gallery-<key16>` release before anyone merges. Two quick
-master pushes can cancel the first push's CI run (`concurrency`), so that
-first push's production build may fail after its wait; the second one ships.
+**Timing and bootstrap.** A preview uses the latest published master build,
+so it does not wait for CI and cannot execute an unreviewed pull request's
+WebAssembly. A production deploy starts with the master push, waits for that
+push's `wasm-publish` job, and fails instead of shipping mismatched bytes if
+CI does not publish the key. Two quick master pushes can cancel the first
+push's CI run (`concurrency`), so the first production build may fail after
+its wait; the second one ships.
 
-**Trust.** Only this repository's workflows (and its maintainers) can write
+**Trust.** Only trusted master-push workflows (and maintainers) can write
 the releases, the same boundary as the source itself; the download is over
 HTTPS and every byte is checked against the key's build-info. Git LFS was
 not an option: Vercel can fetch LFS objects, but GitHub's LFS bandwidth quota
@@ -352,7 +351,7 @@ publishing and pruning fail.
 The recipe is the one CI runs; from the repository root:
 
 ```bash
-rustup toolchain install nightly --profile minimal -t wasm32-unknown-unknown
+rustup toolchain install "$(cat .shots/wasm-toolchain.txt)" --profile minimal -t wasm32-unknown-unknown
 cargo install -f wasm-bindgen-cli --version <the wasm-bindgen in Cargo.lock>
 # binaryen version_133 (github.com/WebAssembly/binaryen/releases) on PATH
 bash .shots/build-wasm.sh          # writes web/public/gallery/, stamped "local"
@@ -364,7 +363,7 @@ build, `pnpm run gallery:fetch` (or `pnpm run build`) installs CI's artifact
 for the checkout, or master's. Delete `public/gallery/herogpui_web*` to go
 back from a local build to CI's.
 
-- **`+nightly` is required.** Vanilla `gpui-pre-web` enables its
+- **The dated nightly is required.** Vanilla `gpui-pre-web` enables its
   `multithreaded` feature by default, which pulls in `wasm_thread`, whose
   `lib.rs` opens with `#![feature]`; stable fails with `error[E0554]`. No
   downstream `default-features = false` edge can turn that default off (cargo

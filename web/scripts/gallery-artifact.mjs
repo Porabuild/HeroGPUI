@@ -21,13 +21,14 @@
 //   HEROGPUI_GALLERY_ARTIFACT       auto (default) | require | off
 //   HEROGPUI_GALLERY_WAIT_SECONDS   how long to wait for CI to publish the
 //                                   exact artifact (default: 1800 on a Vercel
-//                                   production build, 600 on a Vercel preview,
-//                                   0 elsewhere)
+//                                   production build, 0 elsewhere; pull
+//                                   request previews use master's artifact)
 //   HEROGPUI_GALLERY_REPO           owner/name holding the releases
 //   HEROGPUI_GALLERY_BASE_URL       releases root (default
 //                                   https://github.com/<repo>/releases/):
 //                                   assets at download/<tag>/<name>, the
-//                                   feed at releases.atom
+//                                   feed at releases.atom under that root;
+//                                   GitHub's default feed is /releases.atom
 //   HEROGPUI_GALLERY_API_URL        release list for the preview fallback
 //                                   when the feed has no master build
 
@@ -180,6 +181,12 @@ function releasesRoot(env) {
 
 const tagBase = (root, tag) => `${root}download/${tag}/`;
 
+export function releasesFeedUrl(env, root) {
+  return env.HEROGPUI_GALLERY_BASE_URL
+    ? `${root}releases.atom`
+    : `https://github.com/${repoName(env)}/releases.atom`;
+}
+
 /** The newest `[master ...]` gallery release among `(tag, title)` pairs. */
 export function newestMasterTag(entries) {
   let best = null;
@@ -215,7 +222,7 @@ export function parseReleaseFeed(xml) {
  */
 async function findMasterTag(env, root) {
   try {
-    const feed = await download(`${root}releases.atom`);
+    const feed = await download(releasesFeedUrl(env, root));
     const tag = feed && newestMasterTag(parseReleaseFeed(feed.toString("utf8")));
     if (tag) return tag;
   } catch (error) {
@@ -375,9 +382,7 @@ export async function fetchArtifact({ env = process.env, dir = galleryDir } = {}
   const onVercel = !!env.VERCEL;
   const production = env.VERCEL_ENV === "production";
   const required = mode === "require" || (mode === "auto" && production);
-  const wait = Number(
-    env.HEROGPUI_GALLERY_WAIT_SECONDS ?? (onVercel ? (production ? 1800 : 600) : 0),
-  );
+  const wait = Number(env.HEROGPUI_GALLERY_WAIT_SECONDS ?? (onVercel && production ? 1800 : 0));
   const root = releasesRoot(env);
   const base = tagBase(root, releaseTag(key));
 

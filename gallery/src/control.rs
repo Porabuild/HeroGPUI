@@ -501,6 +501,7 @@ mod tests {
             ("Icons", "All icons", "gallery", true),
             ("Icons", "Stroke width", "gallery", true),
             ("List Box", "Large Tree View", "gallery", true),
+            ("Table", "Frozen Columns", "component", true),
             ("Separator", "Collapsible Panels", "gallery", true),
             (
                 "Button",

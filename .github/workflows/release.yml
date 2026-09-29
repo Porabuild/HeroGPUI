@@ -35,12 +35,11 @@ jobs:
   # published unless its aggregating `ci` job succeeds.
   ci:
     uses: ./.github/workflows/ci.yml
-    # `write` only for CI's `wasm-publish` job, which puts the tagged tree's
-    # web-gallery artifact as its `gallery-<key16>` prerelease (usually
-    # already there from the master push); every other CI job runs under
-    # ci.yml's own `contents: read`.
+    # The web artifact is published on trusted master pushes. The tagged
+    # checkout builds it again, but this reusable CI invocation has no
+    # release-write token.
     permissions:
-      contents: write
+      contents: read
 
   # The tagged public API of the four library crates against the latest
   # crates.io release, before anything irreversible happens: the GitHub

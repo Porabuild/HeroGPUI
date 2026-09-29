@@ -341,6 +341,7 @@ impl RenderOnce for MenuBar {
                     .when(focused && focus_visible, |t| {
                         t.child(crate::util::focus_ring_overlay(radius, false, cx))
                     });
+                trigger = crate::util::record_focus_bounds(trigger, &handle, window, cx);
                 // Only a closed trigger sees its press: while its menu is
                 // open, the press lands outside the menu panel, whose
                 // capture-phase outside-press dismissal closes the menu and

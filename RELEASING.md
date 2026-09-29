@@ -108,11 +108,11 @@ is stored in GitHub.
    with `cargo install herogpui-gallery` on at least one clean machine.
 
 The web gallery (the WebAssembly build the website embeds) is **not** a
-release asset. CI publishes it on every pull request and master push as its
+release asset. CI builds it on every pull request and publishes it on master pushes as its
 own `gallery-<key16>` prerelease, keyed by its build inputs, and the website
 deploys from master on its own (`web/DEPLOYMENT.md`, section 6). The release
-workflow's CI run publishes the tagged tree's build too (that is why its `ci`
-job grants `contents: write`), usually a no-op because master already did.
+workflow's CI run builds the tagged tree again under a read-only token; the
+master push has already published its artifact.
 Those prereleases are never marked Latest and their `gallery-*` tags do not
 match the `v*` pattern this workflow triggers on, so they neither show as a
 HeroGPUI version nor start a release.

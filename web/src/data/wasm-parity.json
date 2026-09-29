@@ -1,6 +1,6 @@
 {
   "version": 4,
-  "inputsSha256": "b3fc813202eb0892e527805b61ac80e7c19788eb2e712d123ca3e4a6ba3b5642",
+  "inputsSha256": "1dea6d7bb26bcf24892c52f558bb212b95e68e04a8992a97f34deb416f407291",
   "examples": {
     "accordion/Controlled": {
       "codeSha256": "ac39d58e626756503af3f2fedbcf0a3a791b32096093d62ca5c6aab77146d75b",

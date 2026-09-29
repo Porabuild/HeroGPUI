@@ -104,13 +104,13 @@ own checkout and verifies its SHA-256 before `next build`. To build
 it locally instead (the site build then uses the local copy):
 
 ```bash
-rustup toolchain install nightly --profile minimal -t wasm32-unknown-unknown
+rustup toolchain install "$(cat .shots/wasm-toolchain.txt)" --profile minimal -t wasm32-unknown-unknown
 cargo install -f wasm-bindgen-cli --version <the wasm-bindgen in Cargo.lock>
 # binaryen version_133's wasm-opt on PATH, or pass --no-opt
 bash .shots/build-wasm.sh          # -> web/public/gallery/ (gitignored)
 ```
 
-The `+nightly` is required and is not a preference — `wasm_thread`, pulled
+The dated nightly is required and is not a preference — `wasm_thread`, pulled
 in by the GPUI web platform's `multithreaded` default feature, opens its
 `lib.rs` with a `#![feature]` attribute, so stable fails with `error[E0554]`
 from a dependency this repository does not own. Two facts about how, because

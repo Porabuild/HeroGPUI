@@ -346,6 +346,7 @@ impl RenderOnce for Toolbar {
         }
 
         el = el.track_focus(&scope);
+        el = crate::util::record_focus_bounds(el, &scope, window, cx);
         // Pinned `useToolbar` handles exactly the orientation's axis —
         // ArrowRight/ArrowLeft when horizontal, ArrowDown/ArrowUp when
         // vertical — through a FocusManager scoped to the toolbar's element

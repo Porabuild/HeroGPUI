@@ -8,6 +8,8 @@ version covers `herogpui`, `herogpui-core`, `herogpui-theme`,
 
 ## [Unreleased]
 
+## [0.13.0] - 2026-09-29
+
 ### Changed
 
 - The component integration tests run as nine feature-area suite binaries
@@ -87,12 +89,12 @@ version covers `herogpui`, `herogpui-core`, `herogpui-theme`,
 - The WebAssembly gallery artifact is no longer committed (the ~19 MB
   `web/public/gallery/herogpui_web_bg.wasm` and its glue are removed from the
   tree; history keeps them). CI's `wasm` job builds it with
-  `.shots/build-wasm.sh` and a new `wasm-publish` job uploads it to the
+  `.shots/build-wasm.sh` and a new master-push-only `wasm-publish` job uploads it to the
   `gallery-<key16>` prerelease per hash of the wasm build inputs (assets
   attached while it is a draft, so it works with immutable releases on);
   `pnpm run build` in `web/` downloads the artifact for its checkout and
   verifies its SHA-256 first (`web/scripts/gallery-artifact.mjs`). Vercel
-  previews fall back to master's artifact with an "earlier build" banner,
+  pull request previews use master's artifact with an "earlier build" banner,
   production waits for CI and never ships a mismatched gallery, and a local
   `.shots/build-wasm.sh` build takes precedence. `wasm-parity.json` now
   records the artifact key and example bodies only (`pnpm run wasm:manifest`
@@ -204,7 +206,7 @@ for each breaking change with before/after code.
 
 ### Breaking
 
-- `i18n::LOCALES` and `i18n::UiString::ALL` grow (13 locales, 30 keys), so
+- `i18n::LOCALES` and `i18n::UiString::ALL` grow (13 locales, 31 keys), so
   code that named their array lengths no longer compiles; use
   `UiString::COUNT` or iterate. `NoResults`, `Loading` and `Search` now have
   translations in every built-in locale instead of falling back to en-US, so
@@ -270,9 +272,7 @@ for each breaking change with before/after code.
   column of another row; `on_cell_select` reports a `TableCell` by row key
   and given column index, and the cell is controlled (`selected_cell`) or
   uncontrolled (`default_selected_cell`). Tables that use neither are
-  unchanged. Frozen columns are not included: GPUI 0.3.5 has no sticky
-  positioning, and the roadmap records why the alternatives are not correct
-  yet. Two gallery sections on the Table page show them.
+  unchanged. Two gallery sections on the Table page show them.
 - `Toolbar::size`, `Toolbar::sized_child` and `Toolbar::sized_children`
   (HeroGPUI extension, after gpui-kit's toolbar): the toolbar's size reaches
   every control added with `sized_child` when the toolbar renders, whatever
@@ -692,7 +692,8 @@ for each breaking change with before/after code.
   `herogpui-components` and the `herogpui-gallery` CLI, built on the
   published `gpui-pre` 0.3.5 crates with no GPUI fork.
 
-[Unreleased]: https://github.com/Porabuild/HeroGPUI/compare/v0.12.0...HEAD
+[Unreleased]: https://github.com/Porabuild/HeroGPUI/compare/v0.13.0...HEAD
+[0.13.0]: https://github.com/Porabuild/HeroGPUI/compare/v0.12.0...v0.13.0
 [0.12.0]: https://github.com/Porabuild/HeroGPUI/compare/v0.11.0...v0.12.0
 [0.11.0]: https://github.com/Porabuild/HeroGPUI/compare/v0.10.2...v0.11.0
 [0.10.2]: https://github.com/Porabuild/HeroGPUI/compare/v0.10.1...v0.10.2

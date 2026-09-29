@@ -574,12 +574,18 @@ impl FrozenColumns {
             .flex()
             .flex_shrink_0()
             .on_scroll_wheel(move |event, window, cx| {
+                let at = scroll.offset();
+                crate::util::shift_wheel_scroll_x(&scroll, event);
                 let delta = event.delta.pixel_delta(window.line_height());
-                if delta.x == px(0.) {
+                let x_delta = if delta.x != px(0.) {
+                    delta.x
+                } else {
+                    scroll.offset().x - at.x
+                };
+                if x_delta == px(0.) {
                     return;
                 }
-                let at = scroll.offset();
-                let x = (at.x + delta.x).clamp(-scroll.max_offset().x, px(0.));
+                let x = (at.x + x_delta).clamp(-scroll.max_offset().x, px(0.));
                 if x != at.x {
                     scroll.set_offset(gpui::point(x, at.y));
                     cx.notify(view);
@@ -4907,6 +4913,7 @@ impl RowCtx {
         row_data: TableRow,
         cx: &App,
     ) -> gpui::Stateful<gpui::Div> {
+        let data_count = row_data.cells.len();
         let mut lead = frozen.frozen_part();
         if self.selectable {
             lead = lead.child(self.select_cell(paint, cx));
@@ -4918,13 +4925,36 @@ impl RowCtx {
                 .take(frozen.count)
                 .map(|(c, cell)| self.data_cell(paint, c, cell, cx)),
         );
+        let lead =
+            lead.children((data_count..frozen.count).map(|c| self.empty_frozen_track(paint.i, c)));
         let rest = frozen
             .scrolling_part(
                 gpui::div(),
                 element_id::indexed(&self.id, "row-scroll", paint.i),
             )
-            .children(cells.map(|(c, cell)| self.data_cell(paint, c, cell, cx)));
+            .children(cells.map(|(c, cell)| self.data_cell(paint, c, cell, cx)))
+            .children(
+                (data_count.max(frozen.count)..self.widths.len())
+                    .map(|c| self.empty_frozen_track(paint.i, c)),
+            );
         row.child(lead).child(rest)
+    }
+
+    /// Keep every row's shared horizontal scroll extent aligned with the
+    /// header, even when a caller supplies fewer cells than columns. The
+    /// empty track has no accessibility node or interaction target.
+    fn empty_frozen_track(&self, row: usize, column: usize) -> gpui::Stateful<gpui::Div> {
+        let (width, min_width, max_width) = self.widths[column];
+        gpui::div()
+            .when(width.is_none(), flex_cell)
+            .when_some(width, |cell, width| cell.w(width))
+            .when_some(min_width, |cell, width| cell.min_w(width))
+            .when_some(max_width, |cell, width| cell.max_w(width))
+            .id(element_id::indexed(
+                &element_id::indexed(&self.id, "row", row),
+                "empty-cell",
+                column,
+            ))
     }
 
     /// The selection column's body cell and its checkbox.

@@ -368,9 +368,10 @@ impl VirtualListHandle {
         }
     }
 
-    /// Whether the list's last row ends inside the viewport. A list that
-    /// does not scroll (or has not been laid out yet) answers `true`: every
-    /// row it has is on screen.
+    /// Whether the list's last row ends inside the viewport. An empty list
+    /// answers `true`. A nonempty measured list answers `false` until its
+    /// last row has been laid out; uniform mode defaults to `true` before
+    /// GPUI reports its scroll extent.
     pub fn is_scrolled_to_end(&self) -> bool {
         match &self.engine {
             Engine::Uniform(state) => state.scroll.is_scrolled_to_end().unwrap_or(true),

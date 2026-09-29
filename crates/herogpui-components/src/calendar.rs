@@ -2223,6 +2223,7 @@ impl RenderOnce for Calendar {
             calendar_view::range_heading(&linear)
         };
         root = root.a11y_named(a11y::Role::Application, &a11y::Name::labelled(app_name));
+        root = crate::util::record_focus_bounds(root, &grid_focus, window, cx);
 
         if columns > 1 {
             let heading = heading_focuses

@@ -17,8 +17,9 @@
 // records what that key is made of:
 //
 //   * every wasm build input (`inputsSha256`): the component, theme, core,
-//     facade, web-entry and gallery sources plus the workspace manifests and
-//     lockfile -- the artifact key; and
+//     facade, web-entry and gallery sources plus the workspace manifests,
+//     lockfile, dated wasm toolchain and CI build recipe -- the artifact key;
+//     and
 //   * every example body (`examples`), so a change to what the page's code
 //     block shows is visible in review next to the key it moves.
 //
@@ -45,7 +46,15 @@ export const MANIFEST_VERSION = 4;
 
 // The inputs of `cargo build -p herogpui-web`: every file under these roots
 // (tests, docs and licence texts excluded) plus the workspace-level files.
-const INPUT_FILES = ["Cargo.toml", "Cargo.lock", "rust-toolchain.toml", ".cargo/config.toml"];
+const INPUT_FILES = [
+  "Cargo.toml",
+  "Cargo.lock",
+  "rust-toolchain.toml",
+  ".cargo/config.toml",
+  ".shots/wasm-toolchain.txt",
+  ".shots/build-wasm.sh",
+  ".github/workflows/ci.yml",
+];
 const INPUT_ROOTS = [
   "crates/herogpui-core",
   "crates/herogpui-theme",
