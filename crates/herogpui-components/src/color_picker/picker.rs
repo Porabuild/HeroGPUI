@@ -291,6 +291,11 @@ impl RenderOnce for ColorPicker {
         let trigger = trigger
             .a11y_named(a11y::Role::Button, &trigger_name)
             .a11y_expanded(is_open);
+        let trigger = if self.is_disabled {
+            trigger
+        } else {
+            util::record_focus_bounds(trigger, &trigger_focus, window, cx)
+        };
         let trigger = trigger_focus_motion.render(trigger, Vec::new(), true, cx);
 
         // The popover overlays the page rather than pushing it down.

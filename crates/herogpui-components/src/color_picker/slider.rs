@@ -791,7 +791,7 @@ impl RenderOnce for ColorSlider {
                 let down_dragging = dragging.clone();
                 let down_change = self.on_change.clone();
                 let down_own = own.clone();
-                let focus_for_press = focus_handle;
+                let focus_for_press = focus_handle.clone();
                 track = track.on_mouse_down(
                     gpui::MouseButton::Left,
                     move |event: &MouseDownEvent, window, cx| {
@@ -908,6 +908,9 @@ impl RenderOnce for ColorSlider {
         track = track
             .a11y_named(a11y::Role::Slider, &a11y::Name::maybe(self.name.clone()))
             .a11y_orientation(self.orientation);
+        if !self.is_disabled {
+            track = util::record_focus_bounds(track, &focus_handle, window, cx);
+        }
 
         if !self.show_label {
             return div().child(track);

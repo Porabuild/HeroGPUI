@@ -618,12 +618,15 @@ impl RenderOnce for ColorSwatchPicker {
                 });
             }
 
-            let cell = cell
+            let mut cell = cell
                 .a11y_named(
                     a11y::Role::RadioButton,
                     &a11y::Name::labelled(swatch.to_hex()),
                 )
                 .a11y_selected(selected);
+            if cursor_index == Some(index) {
+                cell = util::record_focus_bounds(cell, &swatch_focus, window, cx);
+            }
             let focus_motion =
                 color_focus_ring_motion(&item_id, swatch_ring && item_focused, window, cx);
             row = row.child(focus_motion.render(cell, Vec::new(), true, cx));

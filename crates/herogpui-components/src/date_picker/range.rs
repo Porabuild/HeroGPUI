@@ -1077,6 +1077,10 @@ impl RenderOnce for DateRangePicker {
                 &a11y::Name::labelled(crate::i18n::ui_string(crate::i18n::UiString::Calendar, cx)),
             )
             .a11y_expanded(is_open);
+        let separator_color = colors.field.placeholder;
+        if !self.is_disabled && !self.is_read_only {
+            trigger = crate::util::record_focus_bounds(trigger, &trigger_focus, window, cx);
+        }
 
         field = field
             .a11y_named(a11y::Role::Group, &a11y::Name::maybe(self.label.clone()))
@@ -1084,13 +1088,10 @@ impl RenderOnce for DateRangePicker {
             .child(
                 // `.date-range-picker__range-separator` is `px-1` in
                 // `--field-placeholder`.
-                gpui::div()
-                    .px(px(4.))
-                    .text_color(colors.field.placeholder)
-                    .child(
-                        self.range_separator
-                            .unwrap_or_else(|| gpui::div().child(" - ").into_any_element()),
-                    ),
+                gpui::div().px(px(4.)).text_color(separator_color).child(
+                    self.range_separator
+                        .unwrap_or_else(|| gpui::div().child(" - ").into_any_element()),
+                ),
             )
             .child(end_field)
             .child(trigger);

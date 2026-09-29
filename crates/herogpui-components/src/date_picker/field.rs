@@ -1648,6 +1648,9 @@ impl RenderOnce for DateField {
                     .child(suffix),
             );
         }
+        if navigable {
+            group = crate::util::record_focus_bounds(group, &focus_handle, window, cx);
+        }
 
         if self.embedded {
             if self.is_disabled {

@@ -680,6 +680,9 @@ impl RenderOnce for DatePicker {
                     }
                 });
         }
+        if !self.is_disabled && !self.is_read_only {
+            trigger = crate::util::record_focus_bounds(trigger, &trigger_focus, window, cx);
+        }
         let mut date_field = DateField::new(field_state)
             .embedded(false)
             .full_width(true)

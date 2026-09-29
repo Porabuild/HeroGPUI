@@ -617,7 +617,7 @@ impl RenderOnce for ColorArea {
         if self.on_change.is_some() || self.on_change_end.is_some() || own.is_some() {
             let down_bounds = bounds_slot.clone();
             let down_dragging = dragging.clone();
-            let down_focus = area_focus;
+            let down_focus = area_focus.clone();
             let down_change = self.on_change.clone();
             let down_own = own.clone();
             let down_value = self.value;
@@ -721,6 +721,9 @@ impl RenderOnce for ColorArea {
         }
 
         area = util::apply_sx(area, &self.sx);
+        if !self.is_disabled {
+            area = util::record_focus_bounds(area, &area_focus, window, cx);
+        }
         // `useColorArea` is `role: 'group'` on the area; the thumb is
         // `role: 'presentation'` and has no node of its own.
         area.a11y(a11y::Role::Group)
