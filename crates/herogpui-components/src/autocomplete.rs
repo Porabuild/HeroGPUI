@@ -151,10 +151,16 @@ pub struct Autocomplete {
     row_padding_y: Option<Pixels>,
     /// The fill a hovered row takes, in place of `--default`.
     row_hover_bg: Option<gpui::Hsla>,
+    /// The trigger's hover endpoint, in place of the variant's hover token.
+    trigger_hover_bg: Option<gpui::Hsla>,
+    /// The clear button's hover fill, in place of `--default-hover`.
+    clear_hover_bg: Option<gpui::Hsla>,
     /// The family the option rows are drawn with; unset keeps the
     /// inherited family. A detached popover does not inherit the trigger's
     /// font.
     row_font_family: Option<SharedString>,
+    /// The trigger's and filter field's family; unset keeps the inherited one.
+    font_family: Option<SharedString>,
     /// The corner radius of the detached panel, in place of the owning
     /// `container_radius` helper.
     radius: Option<Pixels>,
@@ -351,7 +357,10 @@ impl Autocomplete {
             row_padding_x: None,
             row_padding_y: None,
             row_hover_bg: None,
+            trigger_hover_bg: None,
+            clear_hover_bg: None,
             row_font_family: None,
+            font_family: None,
             radius: None,
             field: util::FieldBox::default(),
             label: None,
@@ -529,9 +538,37 @@ impl Autocomplete {
         self
     }
 
+    /// The trigger's fill while hovered, in place of `--field-hover`
+    /// (`--default-hover` on the secondary variant). The 150ms ease-smooth
+    /// fade, the border hover and the clear button's suppression are
+    /// unchanged; a disabled or bare trigger does not hover. Not a v3 prop:
+    /// v3 tints the trigger with a class.
+    pub fn trigger_hover_bg(mut self, color: impl Into<gpui::Hsla>) -> Self {
+        self.trigger_hover_bg = Some(color.into());
+        self
+    }
+
+    /// The clear button's fill while hovered, in place of `--default-hover`.
+    /// Its press scale is unchanged. Not a v3 prop: v3 tints the button with
+    /// a class.
+    pub fn clear_hover_bg(mut self, color: impl Into<gpui::Hsla>) -> Self {
+        self.clear_hover_bg = Some(color.into());
+        self
+    }
+
     /// The fill a hovered row takes, in place of `--default`.
     pub fn row_hover_bg(mut self, color: impl Into<gpui::Hsla>) -> Self {
         self.row_hover_bg = Some(color.into());
+        self
+    }
+
+    /// The family the trigger's value and placeholder, and the popover's
+    /// filter field (query, placeholder and caret measurement), are drawn
+    /// with; unset keeps the inherited family. The detached rows take
+    /// [`Autocomplete::row_font_family`] instead. Not a v3 prop; v3 sets it
+    /// with a class.
+    pub fn font_family(mut self, family: impl Into<SharedString>) -> Self {
+        self.font_family = Some(family.into());
         self
     }
 
@@ -1024,6 +1061,7 @@ impl RenderOnce for Autocomplete {
         // `pe-7` because the indicator sits inside it.
         let mut field = gpui::div()
             .id(element_id::scoped(&base_id, "trigger"))
+            .when_some(self.font_family.clone(), |field, family| field.font_family(family))
             // Headless probe: the decision that gates the hover refinement
             // above, so a test can drive real hover coordinates and read the
             // rendered state without painted-color access.
@@ -1082,12 +1120,12 @@ impl RenderOnce for Autocomplete {
                     FieldVariant::Primary => colors.field.background,
                     FieldVariant::Secondary => colors.default.color,
                 };
-                let hover_bg = match self.variant {
+                let hover_bg = self.trigger_hover_bg.unwrap_or(match self.variant {
                     FieldVariant::Primary => colors.field.hover(),
                     // `.autocomplete--secondary` hovers
                     // `--autocomplete-trigger-bg-hover: var(--default-hover)`.
                     FieldVariant::Secondary => colors.default.hover(),
-                };
+                });
                 let hover_border = colors.field.border_hover();
                 // The trigger owns the stable focus/clear listeners. Animate
                 // only its background fill with the pinned 150ms
@@ -1221,7 +1259,7 @@ impl RenderOnce for Autocomplete {
         let clear_radius = px(f32::from(util::small_radius(cx)) * clear_scale);
         // `.autocomplete__clear-button:hover` fills with `bg-default-hover`,
         // the role-hover mix -- not the lighter soft-hover wash.
-        let hover_bg = colors.default.hover();
+        let hover_bg = self.clear_hover_bg.unwrap_or(colors.default.hover());
         let clear_visual = gpui::div()
             .debug_selector({
                 let base = base.clone();
@@ -1771,7 +1809,12 @@ impl RenderOnce for Autocomplete {
             let edit_query = query_edit;
             let edit_key = plain_edit_key;
             let input_change = self.on_input_change.clone();
-            let search = SearchField::new(self.state.clone())
+            let search = SearchField::new(self.state.clone());
+            let search = match self.font_family.clone() {
+                Some(family) => search.font_family(family),
+                None => search,
+            };
+            let search = search
                 .variant(FieldVariant::Secondary)
                 .placeholder("Search...")
                 .is_read_only(self.is_read_only)
@@ -2214,7 +2257,8 @@ mod hover_tokens {
             .next()
             .expect("the implementation section is always present");
         assert!(
-            source.contains("let hover_bg = colors.default.hover();"),
+            source
+                .contains("let hover_bg = self.clear_hover_bg.unwrap_or(colors.default.hover());"),
             "the clear button must hover `bg-default-hover` \
              (pinned `.autocomplete__clear-button:hover`)"
         );

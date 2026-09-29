@@ -559,6 +559,8 @@ pub struct Tabs {
     is_disabled: bool,
     /// The compact step; `Md` is the pinned default.
     size: TabsSize,
+    /// The tab labels' font size, in place of the size step's.
+    text_size: Option<gpui::Pixels>,
     full_width: bool,
     orientation: Orientation,
     keyboard_activation: KeyboardActivation,
@@ -575,6 +577,8 @@ pub struct Tabs {
     indicator_shadow: bool,
     /// The primary tray's uniform inset override; the pinned default is 4px.
     list_padding: Option<gpui::Pixels>,
+    /// A vertical list's per-tab width floor; the pinned default is 80px.
+    vertical_tab_min_width: Option<gpui::Pixels>,
     /// Gates the unselected-tab hover wash; the default keeps it.
     hover_fill: bool,
     /// The `sx` slot, refined over the root style at the end of render.
@@ -637,6 +641,7 @@ impl Tabs {
             is_disabled: false,
             full_width: false,
             size: TabsSize::default(),
+            text_size: None,
             orientation: Orientation::Horizontal,
             keyboard_activation: KeyboardActivation::Automatic,
             on_selection_change: None,
@@ -645,6 +650,7 @@ impl Tabs {
             indicator_bg: None,
             indicator_shadow: true,
             list_padding: None,
+            vertical_tab_min_width: None,
             hover_fill: true,
             sx: None,
         }
@@ -667,6 +673,14 @@ impl Tabs {
     /// (16px leading). Not a v3 prop.
     pub fn size(mut self, size: TabsSize) -> Self {
         self.size = size;
+        self
+    }
+
+    /// The tab labels' font size, in place of the size step's. A 12/14/16px size
+    /// takes v3's leading pair (16/20/24); any other keeps the 20px leading.
+    /// Each tab keeps its fixed height and inline padding, so a larger type wants a matching `TabItem::height`. Not a v3 prop: v3 sets it with a class on `Tabs.Tab`.
+    pub fn text_size(mut self, size: impl Into<gpui::Pixels>) -> Self {
+        self.text_size = Some(size.into());
         self
     }
 
@@ -740,6 +754,17 @@ impl Tabs {
     /// `Tabs.List`.
     pub fn list_padding(mut self, padding: impl Into<gpui::Pixels>) -> Self {
         self.list_padding = Some(padding.into());
+        self
+    }
+
+    /// Replaces the width floor every tab of a vertical list keeps (v3's
+    /// `min-w-20`, 80px), so a narrow icon rail can go below it or a wide
+    /// one can set a larger floor. Only the vertical orientation reads it —
+    /// a horizontal list has no per-tab floor — and a tab's own
+    /// [`TabItem::width`] still wins over it. Not a v3 prop; it stands in for
+    /// the `className` a caller passes to `Tabs.Tab`.
+    pub fn vertical_tab_min_width(mut self, width: impl Into<gpui::Pixels>) -> Self {
+        self.vertical_tab_min_width = Some(width.into());
         self
     }
 
@@ -909,6 +934,9 @@ impl RenderOnce for Tabs {
             (false, false)
         });
         let vertical = self.orientation == Orientation::Vertical;
+        let vertical_tab_min_width = self
+            .vertical_tab_min_width
+            .unwrap_or(VERTICAL_TAB_MIN_WIDTH);
         // `full_width` is a horizontal contract: equal shares of the list's
         // width. A vertical list's tabs are already `w_full`.
         let stretch = self.full_width && !vertical;
@@ -922,6 +950,7 @@ impl RenderOnce for Tabs {
         let hover_fill = self.hover_fill;
         let list_padding = self.list_padding;
         let (tab_h, tab_padding_x, tab_text) = self.size.metrics();
+        let tab_text = self.text_size.unwrap_or(tab_text);
         let geometry = window.use_keyed_state(element_id::scoped(&base, "geometry"), cx, |_, _| {
             TabsGeometry::default()
         });
@@ -1172,7 +1201,7 @@ impl RenderOnce for Tabs {
                         // and `full_width`'s equal shares below, whose
                         // `flex_1` basis of zero would ignore the width.
                         .when(vertical && item.width.is_none(), |t| {
-                            t.w_full().min_w(VERTICAL_TAB_MIN_WIDTH)
+                            t.w_full().min_w(vertical_tab_min_width)
                         })
                         .when_some(item.width, |t, w| t.w(w))
                         // Stretched tabs take an equal share: `flex_1` zeroes
@@ -1417,7 +1446,7 @@ impl RenderOnce for Tabs {
                         // and its 80px minimum, and beats the stretch share
                         // whose `flex_1` basis of zero would ignore it.
                         .when(vertical && item.width.is_none(), |t| {
-                            t.w_full().min_w(VERTICAL_TAB_MIN_WIDTH)
+                            t.w_full().min_w(vertical_tab_min_width)
                         })
                         .when_some(item.width, |t, w| t.w(w))
                         // Stretched tabs take an equal share: `flex_1` zeroes

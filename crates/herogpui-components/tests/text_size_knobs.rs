@@ -1,6 +1,7 @@
 //! Phase 5 `text_size` knobs: the builder stores the size and the label site
 //! resolves it, with the v3 leading pair following `util::leading_for`
-//! (Chip, Breadcrumbs) or the badge's own fractional multiplier.
+//! (Chip, Breadcrumbs, and the choice controls' labels: Checkbox, RadioGroup,
+//! Tabs and Switch) or the badge's own fractional multiplier.
 //!
 //! Observed, not read from source: a style probe in the Chip's and Badge's
 //! children reads the text size and line height their label draws with, and
@@ -149,5 +150,134 @@ fn breadcrumbs_text_size_reaches_the_link_with_the_leading_for_pair(cx: &mut Tes
     assert!(
         (odd_h - 20.).abs() < 0.5,
         "a size with no Tailwind leading keeps the 20px line, got {odd_h}"
+    );
+}
+
+/// What a style probe in `build`'s label slot saw, for the stock control and
+/// for `text_size(size)`.
+fn label_style(
+    cx: &mut TestAppContext,
+    what: &str,
+    build: impl Fn(harness::StyleSink, Option<f32>) -> gpui::AnyElement + 'static,
+    size: Option<f32>,
+) -> TextStyle {
+    still();
+    let sink = style_sink();
+    let seen = sink.clone();
+    let vcx = open_host(cx, move || build(sink.clone(), size));
+    settle(vcx);
+    seen_style(&seen, what)
+}
+
+/// Stock 14/20, then 16 → 24 through `leading_for`, then 13 keeping 20.
+fn assert_label_knob(
+    cx: &mut TestAppContext,
+    what: &str,
+    build: impl Fn(harness::StyleSink, Option<f32>) -> gpui::AnyElement + Clone + 'static,
+) {
+    let stock = label_style(cx, what, build.clone(), None);
+    assert_eq!(size_of(&stock), px(14.), "{what}: Md labels are text-sm");
+    assert_eq!(
+        line_of(&stock),
+        fixed(20.),
+        "{what}: with their 20px leading"
+    );
+    let sixteen = label_style(cx, what, build.clone(), Some(16.));
+    assert_eq!(
+        size_of(&sixteen),
+        px(16.),
+        "{what}: `text_size` replaces the step"
+    );
+    assert_eq!(
+        line_of(&sixteen),
+        fixed(24.),
+        "{what}: 16px pairs with 24px"
+    );
+    let odd = label_style(cx, what, build, Some(13.));
+    assert_eq!(size_of(&odd), px(13.));
+    assert_eq!(
+        line_of(&odd),
+        fixed(20.),
+        "{what}: an odd size keeps the 20px line"
+    );
+}
+
+#[gpui::test]
+fn checkbox_text_size_reaches_the_label_and_keeps_the_control(cx: &mut TestAppContext) {
+    use herogpui_components::Checkbox;
+    let build = |sink: harness::StyleSink, size: Option<f32>| {
+        let checkbox = Checkbox::new("knob-checkbox").label(style_probe(&sink));
+        match size {
+            Some(s) => checkbox.text_size(px(s)),
+            None => checkbox,
+        }
+        .into_any_element()
+    };
+    assert_label_knob(cx, "Checkbox", build);
+
+    // The control box keeps the size step's 16px square under a 20px label.
+    still();
+    let vcx = open_host(cx, move || build(style_sink(), Some(20.)));
+    let scene = harness::painted(vcx);
+    assert!(
+        scene.quads.iter().any(|q| {
+            let b = scene.bounds(q);
+            (f32::from(b.size.width) - 16.).abs() < 0.05
+                && (f32::from(b.size.height) - 16.).abs() < 0.05
+        }),
+        "the control stays 16x16:\n{}",
+        scene.describe()
+    );
+}
+
+#[gpui::test]
+fn radio_group_text_size_reaches_the_option_labels(cx: &mut TestAppContext) {
+    use herogpui_components::{RadioGroup, RadioOption};
+    assert_label_knob(
+        cx,
+        "RadioGroup",
+        |sink: harness::StyleSink, size: Option<f32>| {
+            let group = RadioGroup::new("knob-radio", vec![RadioOption::new("One")])
+                .option_content(move |_, _| style_probe(&sink));
+            match size {
+                Some(s) => group.text_size(px(s)),
+                None => group,
+            }
+            .into_any_element()
+        },
+    );
+}
+
+#[gpui::test]
+fn tabs_text_size_reaches_the_tab_labels(cx: &mut TestAppContext) {
+    use herogpui_components::{TabItem, Tabs};
+    assert_label_knob(cx, "Tabs", |sink: harness::StyleSink, size: Option<f32>| {
+        let tabs = Tabs::new(
+            "knob-tabs",
+            vec![TabItem::new("a", "A").trigger(style_probe(&sink))],
+            "a",
+        );
+        match size {
+            Some(s) => tabs.text_size(px(s)),
+            None => tabs,
+        }
+        .into_any_element()
+    });
+}
+
+#[gpui::test]
+fn switch_text_size_reaches_the_label(cx: &mut TestAppContext) {
+    use herogpui_components::Switch;
+    assert_label_knob(
+        cx,
+        "Switch",
+        |sink: harness::StyleSink, size: Option<f32>| {
+            let switch = Switch::new("knob-switch").label(style_probe(&sink));
+            match size {
+                Some(s) => switch.text_size(px(s)),
+                None => switch,
+            }
+            .into_any_element()
+        },
     );
 }

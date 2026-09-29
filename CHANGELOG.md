@@ -336,6 +336,51 @@ for each breaking change with before/after code.
   reaches the trigger box despite documenting a panel-only override; that
   case is an ignored test naming the defect.
 
+### Added
+
+- Field-trigger hover colours, the rest of the roadmap's phase 2 inventory:
+  `Select::trigger_hover_bg`, `Autocomplete::trigger_hover_bg` and
+  `Autocomplete::clear_hover_bg`, `NumberField::group_hover_bg` and
+  `InputGroup::group_hover_bg`. Each replaces only the hover endpoint of its
+  part's existing fade; focus, invalid, disabled and bare chrome keep
+  precedence. HeroGPUI extensions (v3 tints these parts with a class),
+  shown in "Hover Colours" gallery sections.
+- `ColorField::sx`, the one field without the slot: it refines the root
+  column on the editable path (through the composed `Input`) and on the
+  static display alike.
+- `ComboBox::min_width` and `Tabs::vertical_tab_min_width`, the roadmap's
+  phase 6 floors: the first replaces the 180px root minimum (still applied
+  only while not full-width), the second the 80px floor on a vertical list's
+  tabs. Gallery "Minimum Width" and "Vertical Tab Width" sections.
+- `text_size` on `Checkbox`, `RadioGroup`, `Tabs` and `Switch` (phase 5
+  typography): the label's font size, with v3's 16/20/24 leading for a
+  12/14/16px size and 20px otherwise. Control boxes, marks, tracks, gaps and
+  descriptions keep their size step. Gallery "Label Size" sections.
+- `font_family` on `SearchField`, `NumberField`, `ColorField`, `Select`,
+  `ComboBox` and `Autocomplete`, completing phase 5's field font seam: the
+  composed fields forward it to their `Input` (so caret measurement agrees),
+  the pickers set it on the trigger; detached rows keep `row_font_family`.
+
+- `UiString::LoadingMore`: `Table`'s pending load-more row ("Loading…") is
+  the last hard-coded chrome string and now resolves through the i18n
+  catalogue in all 13 locales (`UiString::ALL` is 31 keys).
+
+### Fixed
+
+- `Accordion` (Surface): a solid `sx` background recolours the whole card.
+  Each closed trigger's hover fade rested on the stock surface colour, so
+  the headers painted that surface over the override; the resting endpoint
+  is now the resolved card fill, and hover still fades to `hover_bg` or
+  `bg-default`.
+
+### Changed
+
+- `tests/sx_ownership.rs` has no pending entries: every inventoried part is
+  either wired to its `sx` extractor or ruled independent with its reason
+  (the root `sx` refines a wrapper the part does not paint over), and an
+  independent part whose function starts reading the extractor now fails
+  the test until the entry is flipped deliberately.
+
 ## [0.12.0] - 2026-09-28
 
 ### Added

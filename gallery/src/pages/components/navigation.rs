@@ -744,6 +744,22 @@ impl Gallery {
                     .into_any_element()]), cx),
                 ),
                 (
+                    "Label Size",
+                    "`text_size` replaces the tab labels' size step; a 12/14/16px size takes v3's 16/20/24 leading. Each tab keeps its fixed height and padding.",
+                    specimen_body("tabs-label-size", col(vec![h::Tabs::new(
+                        "tabs-label-size",
+                        vec![
+                            h::TabItem::new("a", "Account")
+                                .content(gpui::div().child("12px labels.")),
+                            h::TabItem::new("b", "Billing")
+                                .content(gpui::div().child("12px labels.")),
+                        ],
+                        "a",
+                    )
+                    .text_size(px(12.))
+                    .into_any_element()]), cx),
+                ),
+                (
                     "Sizes",
                     "`size` is additive, not a v3 prop: `Md` is the pinned 32px box with 16px padding and a 14px label; `Sm` is 28/12/12 with 16px leading. The secondary underline keeps its thickness.",
                     specimen_body("tabs-sizes", col(vec![
@@ -788,6 +804,22 @@ impl Gallery {
                         "account",
                     )
                     .orientation(Orientation::Vertical)
+                    .into_any_element()]), cx),
+                ),
+                (
+                    "Vertical Tab Width",
+                    "`vertical_tab_min_width` replaces the 80px floor every tab of a vertical list keeps; a tab's own `width` still wins over it.",
+                    specimen_body("tabs-vertical-min-width", col(vec![h::Tabs::new(
+                        "tabs-vertical-min-width",
+                        vec![
+                            h::TabItem::new("a", "A").content(gpui::div().child("A 48px rail.")),
+                            h::TabItem::new("b", "B").content(gpui::div().child("Second pane.")),
+                            h::TabItem::new("c", "C").content(gpui::div().child("Third pane.")),
+                        ],
+                        "a",
+                    )
+                    .orientation(Orientation::Vertical)
+                    .vertical_tab_min_width(px(48.))
                     .into_any_element()]), cx),
                 ),
                 (

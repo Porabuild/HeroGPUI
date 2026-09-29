@@ -1,6 +1,12 @@
 //! Phase 2 hover overrides: every owner resolves the named fill and its
 //! painted consumer uses the resolved value.
 //!
+//! The field-trigger seams (`Select`/`Autocomplete::trigger_hover_bg`,
+//! `Autocomplete::clear_hover_bg`, `NumberField`/`InputGroup::group_hover_bg`)
+//! are checked on the painted scene instead, at the bottom of this file: the
+//! pointer hovers the part, the fade settles on the real clock and the frame
+//! must hold the override (and a disabled trigger must not).
+//!
 //! The drawn states are exercised by each owner's own behavior tests; these
 //! checks pin the wiring, so a builder that stores the colour without feeding
 //! the fill cannot pass. Resolver-style endpoint logic (Button's contract)
@@ -14,8 +20,13 @@
 //! pin must error — so a green run is the scanner agreeing, not it reading
 //! nothing.
 
+mod harness;
 mod source_scan;
 
+use gpui::{point, prelude::*, px, AnyElement, Modifiers, TestAppContext, VisualTestContext};
+use herogpui_components::{
+    Autocomplete, Input, InputGroup, InputState, NumberField, NumberState, PickerItem, Select,
+};
 use source_scan::{component_src, scope_contains};
 
 #[test]
@@ -218,4 +229,140 @@ fn fixture(resolved: &str, painted: &str, co_located: bool) -> String {
     }
     source.push_str("\n}\n");
     source
+}
+
+// Painted-scene checks for the field-trigger hover seams: the pointer is
+// moved onto the control and the 150ms fade is allowed to settle on the real
+// clock, then the frame's quads must hold the override colour. The colour is
+// one no theme token uses, so finding it proves the seam reached the fill.
+
+const OVERRIDE: gpui::Hsla = gpui::Hsla {
+    h: 0.83,
+    s: 0.7,
+    l: 0.42,
+    a: 1.0,
+};
+
+fn picker_items() -> Vec<PickerItem> {
+    ["Rust", "Go"]
+        .iter()
+        .map(|l| PickerItem::new(l.to_string(), l.to_string()))
+        .collect()
+}
+
+fn paints_override(cx: &mut VisualTestContext) -> bool {
+    harness::has_color(&harness::painted(cx).solids(), OVERRIDE)
+}
+
+/// Polls the real clock for up to two seconds until `want` holds: gpui runs
+/// the fade on wall time, so a loaded machine can take several frames.
+fn eventually(cx: &mut VisualTestContext, want: bool) -> bool {
+    for _ in 0..20 {
+        if paints_override(cx) == want {
+            return true;
+        }
+        harness::wait_real(cx, 100);
+    }
+    paints_override(cx) == want
+}
+
+/// Whether hovering (`x`, `y`) settles on a frame that paints `OVERRIDE`.
+fn hover_paints_override(cx: &mut VisualTestContext, x: f32, y: f32) -> bool {
+    // The first frame is laid out with the pointer at the origin, before the
+    // host parks it outside; that crossing's fade runs out first, and the
+    // override is a hover endpoint only, so nothing paints it at rest.
+    assert!(
+        eventually(cx, false),
+        "the override is a hover endpoint only; nothing paints it at rest"
+    );
+    cx.simulate_mouse_move(point(px(x), px(y)), None, Modifiers::none());
+    eventually(cx, true)
+}
+
+fn open(
+    cx: &mut TestAppContext,
+    build: impl Fn() -> AnyElement + 'static,
+) -> &mut VisualTestContext {
+    harness::open_host(cx, build)
+}
+
+#[gpui::test]
+fn select_trigger_hover_bg_is_the_trigger_hover_endpoint(cx: &mut TestAppContext) {
+    let cx = open(cx, || {
+        Select::new("hover-select", picker_items())
+            .trigger_hover_bg(OVERRIDE)
+            .into_any_element()
+    });
+    assert!(hover_paints_override(cx, 20., 18.));
+}
+
+#[gpui::test]
+fn a_disabled_select_never_paints_its_trigger_hover_bg(cx: &mut TestAppContext) {
+    let cx = open(cx, || {
+        Select::new("hover-select-off", picker_items())
+            .trigger_hover_bg(OVERRIDE)
+            .is_disabled(true)
+            .into_any_element()
+    });
+    assert!(
+        !hover_paints_override(cx, 20., 18.),
+        "disabled outranks the hover override"
+    );
+}
+
+#[gpui::test]
+fn autocomplete_trigger_hover_bg_is_the_trigger_hover_endpoint(cx: &mut TestAppContext) {
+    let state = cx.new(|cx| InputState::new(cx));
+    let cx = open(cx, move || {
+        Autocomplete::new(state.clone(), picker_items())
+            .trigger_hover_bg(OVERRIDE)
+            .into_any_element()
+    });
+    assert!(hover_paints_override(cx, 20., 18.));
+}
+
+#[gpui::test]
+fn autocomplete_clear_hover_bg_fills_the_hovered_clear_button(cx: &mut TestAppContext) {
+    let state = cx.new(|cx| InputState::new(cx));
+    let base = format!("autocomplete-{}", state.entity_id().as_u64());
+    let cx = open(cx, move || {
+        Autocomplete::new(state.clone(), picker_items())
+            .default_value(["Rust"])
+            .clear_hover_bg(OVERRIDE)
+            .into_any_element()
+    });
+    cx.update(|window, _| window.refresh());
+    let clear: &'static str = Box::leak(format!("{base}-clear-visual").into_boxed_str());
+    let bounds = cx
+        .debug_bounds(clear)
+        .expect("a selected Autocomplete renders its clear button");
+    let centre = bounds.center();
+    assert!(hover_paints_override(
+        cx,
+        f32::from(centre.x),
+        f32::from(centre.y)
+    ));
+}
+
+#[gpui::test]
+fn number_field_group_hover_bg_is_the_group_hover_endpoint(cx: &mut TestAppContext) {
+    let state = cx.new(|cx| NumberState::new(cx, 4.));
+    let cx = open(cx, move || {
+        NumberField::new(state.clone())
+            .group_hover_bg(OVERRIDE)
+            .into_any_element()
+    });
+    assert!(hover_paints_override(cx, 20., 18.));
+}
+
+#[gpui::test]
+fn input_group_group_hover_bg_is_the_group_hover_endpoint(cx: &mut TestAppContext) {
+    let state = cx.new(|cx| InputState::new(cx));
+    let cx = open(cx, move || {
+        InputGroup::new()
+            .group_hover_bg(OVERRIDE)
+            .input(Input::new(state.clone()))
+            .into_any_element()
+    });
+    assert!(hover_paints_override(cx, 20., 18.));
 }

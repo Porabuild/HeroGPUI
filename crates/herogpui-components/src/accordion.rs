@@ -429,9 +429,16 @@ impl RenderOnce for Accordion {
                 // fill while leaving the trigger's text, indicator and focus
                 // slot on the stable element. The default endpoint is
                 // transparent; a surface trigger rests on the card fill.
+                // The card is the root `apply_sx` refines last, so a solid
+                // `sx` background is the card fill the trigger rests on: the
+                // fade starts from it rather than painting the stock surface
+                // over it. The hover endpoint stays a state wash (`hover_bg`
+                // or `bg-default`); `sx` recolours the card, not the wash.
                 let idle_bg = match self.variant {
                     AccordionVariant::Default => herogpui_core::with_alpha(colors.foreground, 0.0),
-                    AccordionVariant::Surface => colors.surface.background,
+                    AccordionVariant::Surface => {
+                        crate::util::sx_background(&self.sx).unwrap_or(colors.surface.background)
+                    }
                 };
                 // Vanilla GPUI clips `overflow_hidden()` to the rectangle, so
                 // the fade overlay paints its own corners: the first header

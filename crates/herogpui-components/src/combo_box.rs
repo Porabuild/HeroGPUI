@@ -224,6 +224,8 @@ pub struct ComboBox {
     allows_custom_value: bool,
     max_items: usize,
     full_width: bool,
+    /// The root's width floor while not `full_width`; the default is 180px.
+    min_width: Option<Pixels>,
     /// Optional trigger geometry/chrome overrides; defaults are the stock box.
     field: util::FieldBox,
     is_disabled: bool,
@@ -244,6 +246,8 @@ pub struct ComboBox {
     /// inherited family. A detached popover does not inherit the trigger's
     /// font.
     row_font_family: Option<SharedString>,
+    /// The trigger field text's family, forwarded to the inner `Input`.
+    font_family: Option<SharedString>,
     /// The corner radius of the detached panel, in place of the owning
     /// `container_radius` helper.
     radius: Option<Pixels>,
@@ -545,6 +549,7 @@ impl ComboBox {
             allows_custom_value: false,
             max_items: 8,
             full_width: false,
+            min_width: None,
             is_disabled: false,
             is_invalid: false,
             is_required: false,
@@ -555,6 +560,7 @@ impl ComboBox {
             row_padding_y: None,
             row_hover_bg: None,
             row_font_family: None,
+            font_family: None,
             radius: None,
             field: util::FieldBox::default(),
             validate: None,
@@ -669,6 +675,15 @@ impl ComboBox {
         self
     }
 
+    /// Replaces the 180px width floor the combo box root keeps while it is not
+    /// [`ComboBox::full_width`], so a compact toolbar filter can go narrower
+    /// or a wide one keep a larger floor. A full-width combo box has no floor
+    /// either way, as before. Not a v3 prop; v3 sizes the root with a class.
+    pub fn min_width(mut self, width: impl Into<Pixels>) -> Self {
+        self.min_width = Some(width.into());
+        self
+    }
+
     /// Replaces the trigger's 36px box height (forwarded to the inner field).
     pub fn height(mut self, h: impl Into<Pixels>) -> Self {
         self.field.height = Some(h.into());
@@ -712,6 +727,17 @@ impl ComboBox {
     /// The fill a hovered row takes, in place of `--default`.
     pub fn row_hover_bg(mut self, color: impl Into<gpui::Hsla>) -> Self {
         self.row_hover_bg = Some(color.into());
+        self
+    }
+
+    /// The trigger field's font family, forwarded to the inner
+    /// [`crate::Input`] so the query, placeholder and caret measurement all
+    /// use it (see [`crate::Input::font_family`]), and set on the root so the
+    /// `ComboBox.Value` line inherits it; unset keeps the inherited family.
+    /// The detached rows take [`ComboBox::row_font_family`] instead. Not a v3
+    /// prop; v3 sets it with a class.
+    pub fn font_family(mut self, family: impl Into<SharedString>) -> Self {
+        self.font_family = Some(family.into());
         self
     }
 
@@ -1245,6 +1271,7 @@ impl RenderOnce for ComboBox {
             .is_required(self.is_required)
             .is_read_only(self.is_read_only)
             .auto_focus(self.auto_focus)
+            .when_some(self.font_family.clone(), |i, family| i.font_family(family))
             .when_some(self.validation_behavior, |i, b| i.validation_behavior(b))
             .when_some(validate, |i, f| i.validate(move |v| f(v)))
             .end_content(trigger);
@@ -1486,11 +1513,16 @@ impl RenderOnce for ComboBox {
             })
             .child(input.render(window, cx));
         let mut root = div()
-            .when(!self.full_width, |e| e.min_w(TRIGGER_MIN_WIDTH))
+            .when(!self.full_width, |e| {
+                e.min_w(self.min_width.unwrap_or(TRIGGER_MIN_WIDTH))
+            })
             .relative()
             .flex()
             .flex_col()
-            .gap(px(4.));
+            .gap(px(4.))
+            // The value line and label inherit the family; the field takes it
+            // explicitly above for its caret measurement.
+            .when_some(self.font_family.clone(), |e, family| e.font_family(family));
 
         // `ComboBox.Value` — `.combo-box__value` is `text-sm
         // text-field-foreground empty:hidden`, so it shows only once something

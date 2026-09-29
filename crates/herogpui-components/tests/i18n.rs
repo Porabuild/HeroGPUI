@@ -185,6 +185,7 @@ fn call_sites_resolve_through_the_catalogue() {
         ("color_picker/slider.rs", "localized_label(cx)"),
         ("autocomplete.rs", "UiString::ClearSelection"),
         ("pagination.rs", "UiString::Pagination"),
+        ("table.rs", "UiString::LoadingMore"),
     ] {
         let text = std::fs::read_to_string(format!("{src}{file}")).unwrap();
         assert!(text.contains(key), "{file} does not resolve {key}");

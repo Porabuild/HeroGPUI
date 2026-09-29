@@ -113,3 +113,123 @@ fn sx_background_with_hover_bg_keeps_the_press_path_through_the_hover_fade(
     click(cx, 36., 18.);
     assert_eq!(recorded.borrow().as_slice(), ["press"]);
 }
+
+fn surface_accordion(sx: Option<gpui::Hsla>) -> gpui::AnyElement {
+    use herogpui_components::{Accordion, AccordionItem, AccordionVariant};
+    let accordion = Accordion::new(vec![
+        AccordionItem::new("one", "Item one"),
+        AccordionItem::new("two", "Item two"),
+    ])
+    .id("acc-surface")
+    .variant(AccordionVariant::Surface);
+    match sx {
+        Some(card) => accordion.sx(move |s| s.bg(card)).into_any_element(),
+        None => accordion.into_any_element(),
+    }
+}
+
+/// The stock card and both resting triggers paint the surface; this is what
+/// lets the override case below fail.
+#[gpui::test]
+fn accordion_surface_triggers_rest_on_the_stock_card_fill(cx: &mut TestAppContext) {
+    use herogpui_theme::ActiveTheme;
+    let cx = open_host(cx, || surface_accordion(None));
+    let surface = cx.update(|_, cx| cx.colors().surface.background);
+    assert!(
+        harness::painted(cx).filled(surface).len() >= 3,
+        "the stock card and its two triggers paint the surface"
+    );
+}
+
+/// A Surface accordion's root is its card, and each closed trigger rests on
+/// the card fill through the hover fade's resting endpoint. With a solid `sx`
+/// card colour that endpoint is the override, so no trigger paints the stock
+/// surface over it — at rest, hovered, or while its fade runs back out.
+#[gpui::test]
+fn accordion_surface_triggers_rest_on_the_sx_card_fill(cx: &mut TestAppContext) {
+    use harness::{has_color, painted, wait_real};
+    use herogpui_theme::ActiveTheme;
+
+    let card = gpui::hsla(0.33, 0.6, 0.45, 1.0);
+    let cx = open_host(cx, move || surface_accordion(Some(card)));
+    let (surface, wash) =
+        cx.update(|_, cx| (cx.colors().surface.background, cx.colors().default.color));
+    let rest = painted(cx);
+    assert!(
+        rest.filled(surface).is_empty(),
+        "no trigger may cover the sx card with the stock surface:\n{}",
+        rest.describe()
+    );
+    assert!(
+        rest.filled(card).len() >= 3,
+        "the card and both triggers rest on the sx fill"
+    );
+
+    // The first trigger is 52px tall at the origin.
+    cx.simulate_mouse_move(point(px(60.), px(26.)), None, Modifiers::none());
+    wait_real(cx, 250);
+    let hovered = painted(cx);
+    assert!(
+        has_color(&hovered.solids(), wash),
+        "a hovered trigger fades to the bg-default wash, not to the sx fill"
+    );
+    assert!(hovered.filled(surface).is_empty());
+
+    cx.simulate_mouse_move(point(px(-100.), px(-100.)), None, Modifiers::none());
+    wait_real(cx, 250);
+    let left = painted(cx);
+    assert!(left.filled(surface).is_empty());
+    assert!(left.filled(card).len() >= 3);
+}
+
+/// `ColorField::sx` lands on the label-to-description column on both render
+/// paths: the static display refines its own root, and the editable field
+/// hands the refinement to the `Input` it composes, whose standalone root is
+/// the same column. Either way the column spans the label and the box, and
+/// the box keeps its own chrome.
+#[gpui::test]
+fn color_field_sx_refines_the_column_on_both_paths(cx: &mut TestAppContext) {
+    use herogpui_components::{ColorField, InputState, PickerColor};
+    use herogpui_theme::ActiveTheme;
+
+    let column = gpui::hsla(0.61, 0.55, 0.5, 1.0);
+    let state = cx.new(|cx| InputState::new(cx));
+    let cx = open_host(cx, move || {
+        gpui::div()
+            .flex()
+            .flex_col()
+            .gap(px(40.))
+            .child(
+                ColorField::new("sx-static", PickerColor::hsb(200., 0.5, 0.5))
+                    .label("Static")
+                    .sx(move |s| s.bg(column)),
+            )
+            .child(
+                ColorField::new("sx-editable", PickerColor::hsb(20., 0.5, 0.5))
+                    .label("Editable")
+                    .state(state.clone())
+                    .sx(move |s| s.bg(column)),
+            )
+            .into_any_element()
+    });
+    let field_bg = cx.update(|_, cx| cx.colors().field.background);
+    let scene = harness::painted(cx);
+    let columns = scene.filled(column);
+    assert_eq!(
+        columns.len(),
+        2,
+        "each field's root column paints the sx fill once:\n{}",
+        scene.describe()
+    );
+    for quad in columns {
+        let b = scene.bounds(quad);
+        assert!(
+            f32::from(b.size.height) > 36.5,
+            "the column holds the label above the 36px box, not just the box"
+        );
+    }
+    assert!(
+        scene.filled(field_bg).len() >= 2,
+        "both boxes keep their own field chrome over the column"
+    );
+}

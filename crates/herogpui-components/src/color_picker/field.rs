@@ -62,6 +62,8 @@ pub struct ColorField {
     /// `autoFocus` — take focus on the first render.
     auto_focus: bool,
     placeholder: Option<SharedString>,
+    /// The value text's family; unset keeps the inherited family.
+    font_family: Option<SharedString>,
     /// Supplying an `InputState` makes the field editable; without one it is a
     /// read-only display of `value`.
     state: Option<Entity<crate::input::InputState>>,
@@ -82,6 +84,8 @@ pub struct ColorField {
     field: util::FieldBox,
     /// The corner radius, in place of the owning `field_radius` helper.
     radius: Option<Pixels>,
+    /// The `sx` slot, refined over the root style at the end of render.
+    sx: Option<Box<gpui::StyleRefinement>>,
     form_state: Rc<RefCell<crate::form::LiveFormFieldState>>,
 }
 
@@ -114,6 +118,29 @@ impl ColorField {
         self
     }
 
+    /// The family the value text is drawn with, on both paths: the editable
+    /// field forwards it to the [`crate::Input`] it composes, so the caret
+    /// measurement uses it too (see [`crate::Input::font_family`]), and the
+    /// static display sets it on its box. Unset keeps the inherited family.
+    /// Not a v3 prop; v3 sets it with a class.
+    pub fn font_family(mut self, family: impl Into<SharedString>) -> Self {
+        self.font_family = Some(family.into());
+        self
+    }
+
+    /// The one slot for caller-owned low-level styling: GPUI's styling methods
+    /// (`bg`, `text_color`, `w`, `h`, `p`, `rounded`, `border_color`, …)
+    /// applied to the field's root element — the column holding the label,
+    /// the box and the description or error — after every value the variant
+    /// and the active theme chose, so they win. Both paths land on that
+    /// column: the editable field hands the slot to the [`crate::Input`] it
+    /// composes, whose standalone root is the same column, and the static
+    /// display refines its own. The box's chrome stays with the variant.
+    pub fn sx(mut self, style: impl FnOnce(gpui::Div) -> gpui::Div) -> Self {
+        self.sx = Some(util::capture_sx(style));
+        self
+    }
+
     /// Creates a color field with the id `id`, showing `value` (or empty for `None`).
     pub fn new(id: impl Into<ElementId>, value: impl Into<Option<PickerColor>>) -> Self {
         Self {
@@ -131,6 +158,7 @@ impl ColorField {
             is_wheel_disabled: false,
             auto_focus: false,
             placeholder: None,
+            font_family: None,
             state: None,
             on_change: None,
             on_blur: None,
@@ -144,6 +172,7 @@ impl ColorField {
             is_required: false,
             field: util::FieldBox::default(),
             radius: None,
+            sx: None,
             form_state: live_color_form_state(
                 crate::form::FormValue::Text(SharedString::default()),
             ),
@@ -712,7 +741,12 @@ impl RenderOnce for ColorField {
             if let Some(value) = self.value {
                 input = input.start_content(ColorSwatch::new(value).size(SizeXl::Xs));
             }
-            input = input.with_field_box(self.field);
+            input = input
+                .with_field_box(self.field)
+                .with_sx_refinement(self.sx.take());
+            if let Some(family) = self.font_family.clone() {
+                input = input.font_family(family);
+            }
             // The editable box is the inner field's own, so the radius rides
             // along with the field box, the way its `height` and `padding_x`
             // do; the static box below paints its own.
@@ -852,6 +886,9 @@ impl RenderOnce for ColorField {
         let radius = self.radius.unwrap_or_else(|| util::field_radius(cx));
         let mut field = div()
             .id(self.id.clone())
+            .when_some(self.font_family.clone(), |field, family| {
+                field.font_family(family)
+            })
             .flex()
             .flex_row()
             .items_center()
@@ -1009,7 +1046,7 @@ impl RenderOnce for ColorField {
         if let Some(description) = self.description {
             root = root.child(crate::field::Description::new(description));
         }
-        root.into_any_element()
+        util::apply_sx(root, &self.sx).into_any_element()
     }
 }
 

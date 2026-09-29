@@ -17,11 +17,12 @@
 //! pins, which is where HeroUI's own strings come from: `react-aria` 3.52.1
 //! `dist/private/intl/<package>/<locale>.mjs`, `react-stately` 3.50.0
 //! `dist/private/intl/color/<locale>.mjs` (the colour channel names) and
-//! `react-aria-components` 1.21.1 `dist/private/intl/<locale>.mjs`. Five
+//! `react-aria-components` 1.21.1 `dist/private/intl/<locale>.mjs`. Six
 //! strings HeroUI hard-codes in English with no dictionary entry
 //! ([`UiString::NoResults`], [`UiString::Loading`], [`UiString::Search`],
-//! [`UiString::ClearSelection`], [`UiString::Pagination`]) carry HeroGPUI's
-//! own translations; reword any of them with [`set_ui_string`].
+//! [`UiString::ClearSelection`], [`UiString::Pagination`],
+//! [`UiString::LoadingMore`]) carry HeroGPUI's own translations; reword any
+//! of them with [`set_ui_string`].
 //!
 //! A few strings are templates with one `{..}` placeholder, as in React
 //! Aria ([`UiString::Increase`] is `"Increase {fieldLabel}"`, German
@@ -110,11 +111,14 @@ pub enum UiString {
     ClearSelection,
     /// Pagination's navigation name (HeroUI; HeroGPUI translations).
     Pagination,
+    /// Table's load-more row text while `is_pending` (HeroUI; HeroGPUI
+    /// translations: [`UiString::Loading`] with an ellipsis).
+    LoadingMore,
 }
 
 impl UiString {
     /// The number of keys.
-    pub const COUNT: usize = 30;
+    pub const COUNT: usize = 31;
 
     /// Every key, in declaration order.
     pub const ALL: [UiString; UiString::COUNT] = [
@@ -148,6 +152,7 @@ impl UiString {
         UiString::Alpha,
         UiString::ClearSelection,
         UiString::Pagination,
+        UiString::LoadingMore,
     ];
 
     fn index(self) -> usize {
@@ -192,6 +197,7 @@ const EN: [&str; UiString::COUNT] = [
     "Alpha",                 // Alpha
     "Clear selection",       // ClearSelection
     "pagination",            // Pagination
+    "Loading\u{2026}",       // LoadingMore
 ];
 
 const TABLE: [[&str; UiString::COUNT]; 12] = [
@@ -227,6 +233,7 @@ const TABLE: [[&str; UiString::COUNT]; 12] = [
         "Alpha",                     // Alpha
         "Auswahl löschen",           // ClearSelection
         "Seitennummerierung",        // Pagination
+        "Wird geladen…",             // LoadingMore
     ],
     // es-ES
     [
@@ -260,6 +267,7 @@ const TABLE: [[&str; UiString::COUNT]; 12] = [
         "Alpha",                        // Alpha
         "Borrar selección",             // ClearSelection
         "paginación",                   // Pagination
+        "Cargando…",                    // LoadingMore
     ],
     // fr-FR
     [
@@ -293,6 +301,7 @@ const TABLE: [[&str; UiString::COUNT]; 12] = [
         "Alpha",                   // Alpha
         "Effacer la sélection",    // ClearSelection
         "pagination",              // Pagination
+        "Chargement…",             // LoadingMore
     ],
     // it-IT
     [
@@ -326,6 +335,7 @@ const TABLE: [[&str; UiString::COUNT]; 12] = [
         "Alfa",                     // Alpha
         "Cancella selezione",       // ClearSelection
         "paginazione",              // Pagination
+        "Caricamento…",             // LoadingMore
     ],
     // nl-NL
     [
@@ -359,6 +369,7 @@ const TABLE: [[&str; UiString::COUNT]; 12] = [
         "Alfa",                     // Alpha
         "Selectie wissen",          // ClearSelection
         "paginering",               // Pagination
+        "Laden…",                   // LoadingMore
     ],
     // pl-PL
     [
@@ -392,6 +403,7 @@ const TABLE: [[&str; UiString::COUNT]; 12] = [
         "Alfa",                           // Alpha
         "Wyczyść zaznaczenie",            // ClearSelection
         "paginacja",                      // Pagination
+        "Ładowanie…",                     // LoadingMore
     ],
     // pt-BR
     [
@@ -425,6 +437,7 @@ const TABLE: [[&str; UiString::COUNT]; 12] = [
         "Alfa",                        // Alpha
         "Limpar seleção",              // ClearSelection
         "paginação",                   // Pagination
+        "Carregando…",                 // LoadingMore
     ],
     // sv-SE
     [
@@ -458,6 +471,7 @@ const TABLE: [[&str; UiString::COUNT]; 12] = [
         "Alfa",                   // Alpha
         "Rensa urval",            // ClearSelection
         "sidnumrering",           // Pagination
+        "Läser in…",              // LoadingMore
     ],
     // ja-JP
     [
@@ -491,6 +505,7 @@ const TABLE: [[&str; UiString::COUNT]; 12] = [
         "アルファ",             // Alpha
         "選択をクリア",         // ClearSelection
         "ページネーション",     // Pagination
+        "読み込み中…",          // LoadingMore
     ],
     // zh-CN
     [
@@ -524,6 +539,7 @@ const TABLE: [[&str; UiString::COUNT]; 12] = [
         "Alpha",             // Alpha
         "清除选择",          // ClearSelection
         "分页",              // Pagination
+        "加载中…",           // LoadingMore
     ],
     // ko-KR
     [
@@ -557,6 +573,7 @@ const TABLE: [[&str; UiString::COUNT]; 12] = [
         "알파",                    // Alpha
         "선택 지우기",             // ClearSelection
         "페이지 매김",             // Pagination
+        "로드 중…",                // LoadingMore
     ],
     // ru-RU
     [
@@ -590,6 +607,7 @@ const TABLE: [[&str; UiString::COUNT]; 12] = [
         "Альфа",                   // Alpha
         "Очистить выбор",          // ClearSelection
         "нумерация страниц",       // Pagination
+        "Загрузка…",               // LoadingMore
     ],
 ];
 
@@ -768,6 +786,20 @@ mod tests {
                 );
             }
         }
+    }
+
+    /// Table's pending row reads the Spinner's word with an ellipsis in every
+    /// locale, so the two HeroGPUI-owned strings cannot drift apart.
+    #[test]
+    fn loading_more_is_the_loading_word_with_an_ellipsis() {
+        for locale in LOCALES {
+            assert_eq!(
+                lookup(locale, UiString::LoadingMore),
+                format!("{}\u{2026}", lookup(locale, UiString::Loading)),
+                "{locale}"
+            );
+        }
+        assert_eq!(lookup("en-US", UiString::LoadingMore), "Loading\u{2026}");
     }
 
     #[test]

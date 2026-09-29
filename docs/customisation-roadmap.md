@@ -1,14 +1,72 @@
 # Customisation roadmap
 
-Status: proposal, source-reviewed against `b72f285` on 2026-09-10. This
-document plans implementation; it does not amend repository policy or claim
-that the proposed APIs or tests already exist.
+Status: **Phases 0–6 are closed for 0.13.** Written as a proposal against
+`b72f285` on 2026-09-10; most of it landed in 0.9.0–0.10.1, and the 0.13
+close-out (2026-09-29) implemented the remaining gaps and decided the rest.
+[Status of Phases 0–6](#status-of-phases-06-013-close-out) is the item-by-item
+matrix; the phase sections below keep the original plan and its reasoning,
+which the matrix cites. Repository policy lives in the
+[parity guide](agents/parity.md) (including the size/radius extension
+exception this plan asked for), not here.
 
 Authority: [workflow](agents/workflow.md), [component guide](agents/components.md),
 [parity policy](agents/parity.md), and the root [AGENTS.md](../AGENTS.md).
 Upstream evidence comes from the checked-in HeroUI **v3.2.4** bundle/CSS and
 the unpacked **gpui-pre 0.3.5** registry sources. Recheck source symbols when
 starting each phase; line numbers are not durable contracts.
+
+## Status of Phases 0–6 (0.13 close-out)
+
+Cross-checked against the tree on 2026-09-29. "Done" gives the first release
+that shipped the item (from `git tag --contains` on the commit that
+introduced it); "0.13" is this close-out; "declined" gives the policy or
+evidence that decided it. Every new builder is a HeroGPUI extension recorded
+in `.shots/extra_audit.py`, kept out of `reference_metadata`, documented in
+`llms.txt` and shown in a gallery section.
+
+| Phase | Item | Status |
+|---|---|---|
+| 0.0 | Owner-scoped reasons for the existing extension surface | Done 0.9.0 — `extra_audit.py` reports 0 unexplained names |
+| 0.1 | `sx_padding` / `sx_radius` (pixels only, per edge/corner) | Done 0.9.0 (`util.rs`, with `sx_pixel_size`) |
+| 0.1 | Part-scoped `sx` ownership inventory with scoped scanner fixtures | Done 0.9.0 (`tests/sx_ownership.rs`) |
+| 0.1 | The inventory's 18 pending parts | **0.13**: Accordion's Surface triggers wired (their fade rested on the stock surface over an `sx` card); the other 17 ruled *independent* — the root `sx` refines a wrapper they do not paint over (own control fill, field chrome, transparent rest, detached panel), principle 2 forbids forwarding it, and each has a named hover seam. An independent part that starts reading the extractor now fails the test |
+| 0.2 | `tabs_hover_opacity`, `tooltip_cooldown_ms`, `long_press_ms`, `hover_fade_ms`; builder and document keys for `tooltip_delay_ms` / `tooltip_close_delay_ms` | Done 0.9.0 (layout field, `ThemeBuilder`, `ThemeDocument`, consumer) |
+| 0.2 | Tests that a themed token changes the consumer's behaviour | **0.13** (`tests/theme_tokens.rs`: delays, cooldown, long press, fade duration, Tabs wash); document keys → layout stay in `herogpui-theme --features serde` |
+| 0.2 | `overlay_zoom_offset` | Declined — `ZoomBox::panel` takes resting padding, not a motion amplitude (§0.2); padding is Phase 3's seam |
+| 0.3 | Crate-internal `FieldBox` | Done 0.9.0 |
+| 1 | `height` / `padding_x` / `is_bare` on NumberField, Select, ComboBox, Autocomplete, DateField, TimeField, ColorField, InputGroup, SearchField | Done 0.9.0 |
+| 1 | Row geometry (`row_padding_x` / `row_padding_y`) on Select, ListBox, ComboBox, Autocomplete; `Select::padding_y` | Done 0.9.0; `padding_y` 0.10.0 |
+| 1 | ColorField `sx` on both render paths | **0.13** (`ColorField::sx`) |
+| 2 | `hover_bg` on Button, ToggleButton, CloseButton (Button's endpoint contract) | Done 0.9.0 |
+| 2 | Pagination, TagGroup tag/remove, Toast close, Dropdown/Menu rows | Done 0.9.0 |
+| 2 | Row hovers on Select, ComboBox, Autocomplete, ListBox; TimeField stepper, InputOTP slot, Input clear, DateRangePicker trigger | Done 0.9.0 |
+| 2 | Select trigger, Autocomplete trigger and clear button, NumberField group, InputGroup | **0.13** (`trigger_hover_bg`, `clear_hover_bg`, `group_hover_bg`); focus, invalid, disabled and bare chrome keep precedence |
+| 2 | Calendar/RangeCalendar day, nav, year; Accordion header; Switch and Checkbox (Tween paths) | Done 0.9.0 |
+| 2 | Table `row_hover_bg` for unselected interactive rows | Done 0.9.0 |
+| 2 | Table selected-row hover | Declined — in the pinned `table.css` the `[data-selected]` cell fill follows the `:hover` rule at equal specificity, so a selected row has no hover state to recolour |
+| 2 | Independent Pagination `pressed_bg` | Declined — hover and pressed share one upstream value; §2 keeps the pair coupled and the override feeds both |
+| 2 | Per-instance hover-fade duration builders | Declined — no consumer; the theme's `hover_fade_ms` covers it (§ principles) |
+| 2 | Tabs opacity token, `list_bg`, indicator parts, `hover_fill` | Done 0.9.0–0.10.1 |
+| 2 | Link underline/icon seam | Declined — no distinct consumer requirement (§2's own condition) |
+| 3 | `CheckboxSize`, `RadioSize`, `TabsSize` (with `SliderSize`) | Done 0.9.0, under the parity guide's size exception |
+| 3 | Panel padding on Popover, Toast, Select, Dropdown (resting and zoom geometry) | Done 0.9.0 |
+| 3 | Panel padding on the other overlays | Declined until a consumer asks — §3 adds the seam "to a concrete overlay when needed" |
+| 4 | Per-corner `sx` reconciliation for child and animated shapes | Done 0.9.0 (`util::fill_unspecified_corners`) |
+| 4 | Per-component `radius` builders | Done 0.9.0 (Tabs 0.10.0), under the parity guide's radius exception |
+| 4 | `is_pill` | Declined — `radius(px)` with a large value is already a pill (the painter clamps to half the shorter side) and `sx` names corners; §4 defers it unless it adds a shorthand beyond those. Checkbox keeps `is_round` |
+| 5 | `font_family` on TimeField, DateField, ColorPicker, Typography; InputGroup forwarding; `row_font_family` on detached rows | Done 0.9.0 |
+| 5 | `font_family` on SearchField, NumberField, ColorField, Select, ComboBox, Autocomplete | **0.13** — composed fields forward it to their `Input` (caret measurement), pickers to the trigger |
+| 5 | `text_size` on Input, TextField, SearchField, Badge, Chip, Breadcrumbs, Button; Select trigger/row | Done 0.9.0–0.10.0 |
+| 5 | `text_size` on Checkbox, RadioGroup, Tabs, Switch | **0.13** — label type only; control geometry keeps its size step |
+| 5 | Font knobs on Kbd, Table cells, Toast | Declined — none hardcodes a family (§5), so a knob would be a new capability with no consumer |
+| 6 | `full_width` on TagGroup, Pagination, Breadcrumbs, horizontal RadioGroup, Toolbar | Done 0.9.0 |
+| 6 | ComboBox root minimum; vertical Tabs item minimum | **0.13** (`ComboBox::min_width`, `Tabs::vertical_tab_min_width`) |
+
+Totals: 20 done in 0.9.0–0.10.1, 7 implemented in 0.13, 8 declined.
+
+Not part of Phases 0–6 and still open: `Styled` on components (0.14, after
+this ownership contract), and keyboard `ContextMenu` anchoring at the focused
+element (blocked on GPUI reporting focused-element bounds).
 
 ## Corrections to the previous proposal
 
@@ -473,7 +531,9 @@ Deliberately not done, and next in this order:
    directly and are the next candidates.
 3. **Theme hot reload** (`watch_dir`); **i18n** for more locales (non-Latin locales also need the web
    font subsets extended) and for the remaining hard-coded strings (NumberField
-   stepper names, ColorPicker channel names, DateField segment names).
+   stepper names, ColorPicker channel names, DateField segment names). Done
+   for 0.13: `watch_themes_dir`, four more locales, and every chrome string,
+   the last being `Table`'s load-more row (`UiString::LoadingMore`).
 4. **Follow-ups on the 0.12.0 split, tree and icon extensions.** Done for
    0.13. `ResizablePanel` takes pixel limits (`min_size_px`/`max_size_px`,
    converted against the measured group length at every clamp, from the
@@ -559,13 +619,13 @@ to five days, L over a week.
 | P2 | Icon: `Sizable` steps, stroke width, a Lucide sync script, a gallery Icons page | The set cannot grow or be browsed without hand work | M | done (0.13) |
 | P2 | Theme API safety: typed roles for `ThemeBuilder::role` (a typo silently recolours the accent); stop reading `HEROGPUI_REDUCE_MOTION` from the environment inside the library | Silent misconfiguration in a library API | S | **Done** (0.13): `ThemeBuilder::role`/`role_hover` and `ThemeColors::role` take `Color` (`FromStr` fails on an unknown name); `set_reduce_motion` is the only setter, the gallery maps the variable |
 | P2 | `#[must_use]` on builders (none today) and a `missing_docs` ratchet | A dropped builder does nothing, silently; public docs have gaps | S / M | **Done** (0.13): type-level `#[must_use]` on every component and builder type; `missing_docs` warns (so `clippy -D warnings` fails) in core, theme, components and the facade. Every public item is documented |
-| P2 | i18n: more locales, the hard-coded NumberField/ColorPicker/DateField strings, non-Latin web font subsets | Localisation is incomplete for real users | M | **Done** (0.13): ja-JP, zh-CN, ko-KR, ru-RU; steppers, segments, channels, DatePicker trigger, selected day, Autocomplete clear, Pagination; Noto Sans KR subset and a wider SC pre-reduction. Left: `Table`'s "Loading…" row |
+| P2 | i18n: more locales, the hard-coded NumberField/ColorPicker/DateField strings, non-Latin web font subsets | Localisation is incomplete for real users | M | **Done** (0.13): ja-JP, zh-CN, ko-KR, ru-RU; steppers, segments, channels, DatePicker trigger, selected day, Autocomplete clear, Pagination; Noto Sans KR subset and a wider SC pre-reduction; `Table`'s "Loading…" row (`UiString::LoadingMore`) |
 | P2 | Theme hot reload (`watch_dir`; `ThemeRegistry` has `load_dir` only) | Faster theming workflow | S–M | **Done** (0.13): `watch_themes_dir` behind the `watch` feature (polling, no new dependency); the native gallery watches `HEROGPUI_THEME_DIR` |
 | P2 | ~~Website hardening: CSP and `frame-ancestors`, remove the unused `web/public/shots/` images, PR preview deploys~~ Done in 0.13 (previews were already on through Vercel's Git integration) | Security headers and deploy size | M | 0.13 |
 | P3 | ~~Stop committing the wasm artifact; build it in CI and publish it with the site~~ **Done (0.13):** CI publishes it as a `gallery-<key16>` prerelease per wasm build-input hash (assets attached while a draft, so immutable releases are fine); the Vercel build downloads and verifies the one for its checkout (previews fall back to master's with a banner; production waits, then fails rather than ship a mismatch). No secrets, no manual step; `web/DEPLOYMENT.md` section 6 | Repository weight grows ~19 MB per gallery change | L | 0.13 |
 | P3 | `Styled` on components (item 1 above), after the per-part ownership rules of Phase 0.1 | Largest API change and semver risk; needs part ownership first | L | 0.14 |
 | P3 | Split the largest `render` functions (`table.rs` and others), merge the 110+ test binaries into a few suites | Review cost and link time | L | 0.14 |
-| P3 | Customisation Phases 0.2–6 (theme tokens, field geometry, state colours, sizing, shape, typography) | The largest documented backlog; opt-in and unscheduled | L | 0.14+ |
+| P3 | ~~Customisation Phases 0.2–6 (theme tokens, field geometry, state colours, sizing, shape, typography)~~ **Done (0.13):** most landed in 0.9.0–0.10.1; the close-out implemented the rest and recorded each decline (see [Status of Phases 0–6](#status-of-phases-06-013-close-out)) | The largest documented backlog | L | 0.13 |
 | P3 | ~~Opt-in -O1/-O3 (`Cargo.toml` profile) test job on pull requests, by label or path filter~~ **Done (0.13):** `ci:opt-levels` label, or a PR touching build configuration | It is push-only by design, so an optimisation-level regression first shows on master or at tag time | S | 0.13 |
 | P3 | Extensions from the gpui-kit gap list: Sidebar, TitleBar, CommandPalette, HoverCard, Toolbar extras, data-table extras | Done on the 0.13 line except frozen table columns (see "Extensions from the gpui-kit gap list" above) | L | 0.13 |
 | P3 | Frozen table columns | GPUI has no sticky positioning; the overlay emulation mis-routes presses and the split-row one needs the `table.rs` render split | M | 0.13 (with the `table.rs` render split) |
