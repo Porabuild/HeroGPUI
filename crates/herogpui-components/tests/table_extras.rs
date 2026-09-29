@@ -366,3 +366,45 @@ fn virtual_rows_follow_the_column_order(cx: &mut TestAppContext) {
     frame(cx);
     assert_eq!(displayed(cx), [1, 2, 0]);
 }
+
+/// A focused row rings each of its cells, and a selected cell rings itself,
+/// with an `inset_0` overlay as wide as the cell. The intrinsic measurement
+/// that floors a column's track must not read those overlays as content, or
+/// the floor grows by the cell padding on every frame the ring is shown.
+#[gpui::test]
+fn a_focused_row_or_selected_cell_does_not_widen_its_column(cx: &mut TestAppContext) {
+    let (_seen, cx) = host(
+        cx,
+        Config {
+            cells: true,
+            ..Config::default()
+        },
+    );
+    frame(cx);
+    let widths = |cx: &mut VisualTestContext| {
+        (0..COLUMNS.len())
+            .map(|c| {
+                cx.debug_bounds(Box::leak(format!("table-row-track-0-{c}").into_boxed_str()))
+                    .expect("row track")
+                    .size
+                    .width
+            })
+            .collect::<Vec<_>>()
+    };
+    let before = widths(cx);
+    // The row cursor's ring, over several frames.
+    keys(cx, "tab down");
+    frame(cx);
+    frame(cx);
+    assert_eq!(widths(cx), before, "the focused row's ring is not content");
+    // The selected cell's ring.
+    let at = cell(cx, 0, 0).center();
+    cx.simulate_click(at, Modifiers::none());
+    frame(cx);
+    frame(cx);
+    assert_eq!(
+        widths(cx),
+        before,
+        "the selected cell's ring is not content"
+    );
+}

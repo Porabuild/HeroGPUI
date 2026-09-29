@@ -104,6 +104,10 @@ version covers `herogpui`, `herogpui-core`, `herogpui-theme`,
 
 ### Fixed
 
+- `Table`: a focused row's inset ring and a selected cell's ring no longer
+  widen their column. Both are cell-wide overlays, and the intrinsic
+  measurement that floors each column's track read them as content, so the
+  floor grew by the cell padding on every frame they were shown.
 - `Autocomplete::radius` now overrides only the detached panel, as documented;
   the closed trigger keeps the field chrome's `--field-radius` instead of
   also painting the override.

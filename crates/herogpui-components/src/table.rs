@@ -3488,8 +3488,12 @@ impl Table {
             .relative();
         if !column.allows_resizing && !cfg!(target_arch = "wasm32") {
             let measurements = measured_widths.clone();
+            // The label and the sort indicator; a focused header's ring is an
+            // overlay as wide as the cell (see `RowCtx::data_cell`).
+            let content_children = 1 + usize::from(sorted.is_some() && self.show_indicator);
             cell = cell.on_children_prepainted(move |bounds, _, cx| {
-                let content = intrinsic_children_width(&bounds);
+                let content =
+                    intrinsic_children_width(&bounds[..content_children.min(bounds.len())]);
                 if content <= 0. {
                     return;
                 }
@@ -4831,8 +4835,16 @@ impl RowCtx {
             } else {
                 0.
             };
+            // Only the cell's own content: the tree column's chevron or
+            // spacer, then the caller's element. The rings a focused row or a
+            // selected cell add after them are `inset_0` overlays as wide as
+            // the cell, and measuring them grew the floor every frame.
+            let content_children = 1 + usize::from(
+                c == tree_column && (has_children || depth > 0 || self.tree_column_has_children),
+            );
             cell_el = cell_el.on_children_prepainted(move |bounds, _, cx| {
-                let content = intrinsic_children_width(&bounds);
+                let content =
+                    intrinsic_children_width(&bounds[..content_children.min(bounds.len())]);
                 if content <= 0. {
                     return;
                 }
