@@ -204,8 +204,66 @@
         }).observe(parentRoot, { attributes: true, attributeFilter: ['class'] });
       }
 
+      // An embedded preview must not take keyboard focus from the page that
+      // embeds it. GPUI's web platform focuses its hidden IME textarea as soon
+      // as the window exists (and again whenever a text input gains GPUI
+      // focus), which moves the host document's focus into this frame on load:
+      // the reader's Cmd/Ctrl+K and page scrolling keys then land here until
+      // they click back out. So until the reader interacts with the frame --
+      // a pointer press inside it, or keyboard focus arriving on its window
+      // (Tab from the host) -- programmatic focus() calls are held, and the
+      // last one is replayed at that moment. After that, focus behaves
+      // normally. The standalone gallery (not framed) is untouched.
+      function holdFocusUntilInteraction() {
+        if (window.parent === window) return;
+        const proto = HTMLElement.prototype;
+        const focus = proto.focus;
+        let held;
+        let released = false;
+        proto.focus = function (options) {
+          if (released) return focus.call(this, options);
+          held = [this, options];
+        };
+        function release() {
+          if (released) return;
+          released = true;
+          proto.focus = focus;
+          window.removeEventListener('pointerdown', release, true);
+          window.removeEventListener('focus', release);
+          if (held && held[0].isConnected) focus.call(held[0], held[1]);
+          held = undefined;
+        }
+        window.addEventListener('pointerdown', release, true);
+        window.addEventListener('focus', release);
+      }
+
+      // Once the reader is working inside the frame, the host's site-search
+      // shortcut would otherwise stop at GPUI. Forward it instead: the host
+      // (web/src/components/site/command-palette.tsx) opens its palette on
+      // { type: 'herogpui:shortcut', shortcut: 'search' } from its own frame.
+      function forwardHostShortcuts() {
+        if (window.parent === window) return;
+        window.addEventListener(
+          'keydown',
+          (event) => {
+            const search =
+              (event.metaKey || event.ctrlKey) &&
+              !event.altKey &&
+              !event.shiftKey &&
+              event.key.toLowerCase() === 'k';
+            if (!search) return;
+            event.preventDefault();
+            event.stopImmediatePropagation();
+            window.parent.postMessage({ type: 'herogpui:shortcut', shortcut: 'search' }, '*');
+          },
+          true,
+        );
+      }
+
       async function boot() {
         const loading = document.getElementById('loading');
+        holdFocusUntilInteraction();
+        forwardHostShortcuts();
         reflectTheme(parentDark() ?? queryDark());
         try {
           // Dynamic import: the URL form serving this page varies (see

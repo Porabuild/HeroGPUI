@@ -7,6 +7,7 @@ import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import type { SearchItem } from "@/lib/docs-nav";
+import { isSearchShortcutMessage } from "@/lib/gallery-embed";
 
 function isTypingTarget(target: EventTarget | null): boolean {
   if (!(target instanceof HTMLElement)) return false;
@@ -138,8 +139,19 @@ export function CommandPalette({ items }: { items: SearchItem[] }) {
       }
       setOpen(true);
     };
+    // An embedded gallery the reader has clicked into holds keyboard focus,
+    // so it forwards Cmd/Ctrl+K here instead of swallowing it.
+    const onMessage = (event: MessageEvent) => {
+      if (!isSearchShortcutMessage(event)) return;
+      if (open) close();
+      else setOpen(true);
+    };
     window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
+    window.addEventListener("message", onMessage);
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      window.removeEventListener("message", onMessage);
+    };
   }, [close, open]);
 
   useEffect(() => {
