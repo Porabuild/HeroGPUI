@@ -307,6 +307,9 @@ for each breaking change with before/after code.
   part's existing fade; focus, invalid, disabled and bare chrome keep
   precedence. HeroGPUI extensions (v3 tints these parts with a class),
   shown in "Hover Colours" gallery sections.
+- `ColorField::sx`, the one field without the slot: it refines the root
+  column on the editable path (through the composed `Input`) and on the
+  static display alike.
 
 ### Fixed
 

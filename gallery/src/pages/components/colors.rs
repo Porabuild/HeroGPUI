@@ -183,6 +183,23 @@ impl Gallery {
                         .into_any_element()]), cx),
                 ),
                 (
+                    "Root Styling",
+                    "`sx` refines the field's root, the column holding the label, the box and the description, on the editable and the static path alike; the box keeps its own chrome.",
+                    specimen_body("cf-root-styling", field_col(vec![
+                        h::ColorField::new("cf-sx-editable", value)
+                            .state(self.demo_text("cf-sx-editable", "#0085F5", cx))
+                            .label("Editable")
+                            .description("Padded, tinted column")
+                            .sx(|s| s.p(px(8.)).rounded(px(12.)).bg(gpui::hsla(0.58, 0.9, 0.5, 0.08)))
+                            .into_any_element(),
+                        h::ColorField::new("cf-sx-static", value)
+                            .label("Static")
+                            .description("Same slot, display-only box")
+                            .sx(|s| s.p(px(8.)).rounded(px(12.)).bg(gpui::hsla(0.58, 0.9, 0.5, 0.08)))
+                            .into_any_element(),
+                    ]), cx),
+                ),
+                (
                     "Variants",
                     specimen_body("cf-variants", col(vec![
                         h::ColorField::new("cf-v-primary", value)

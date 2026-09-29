@@ -1705,6 +1705,16 @@ impl Input {
     /// Applies a standalone [`crate::util::FieldBox`] to this field: explicit
     /// height and padding, plus the chrome-less bare mode. Crate-internal for
     /// the components that forward their box seam to a held `Input`.
+    /// Hands a wrapper's captured `sx` refinement to this field, so it lands on
+    /// the same root [`Input::sx`] would (a `ColorField` composing this field
+    /// has no element of its own to refine).
+    pub(crate) fn with_sx_refinement(mut self, sx: Option<Box<gpui::StyleRefinement>>) -> Self {
+        if sx.is_some() {
+            self.sx = sx;
+        }
+        self
+    }
+
     pub(crate) fn with_field_box(mut self, field: crate::util::FieldBox) -> Self {
         if let Some(height) = field.height {
             self = self.height(height);

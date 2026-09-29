@@ -181,3 +181,55 @@ fn accordion_surface_triggers_rest_on_the_sx_card_fill(cx: &mut TestAppContext) 
     assert!(left.filled(surface).is_empty());
     assert!(left.filled(card).len() >= 3);
 }
+
+/// `ColorField::sx` lands on the label-to-description column on both render
+/// paths: the static display refines its own root, and the editable field
+/// hands the refinement to the `Input` it composes, whose standalone root is
+/// the same column. Either way the column spans the label and the box, and
+/// the box keeps its own chrome.
+#[gpui::test]
+fn color_field_sx_refines_the_column_on_both_paths(cx: &mut TestAppContext) {
+    use herogpui_components::{ColorField, InputState, PickerColor};
+    use herogpui_theme::ActiveTheme;
+
+    let column = gpui::hsla(0.61, 0.55, 0.5, 1.0);
+    let state = cx.new(|cx| InputState::new(cx));
+    let cx = open_host(cx, move || {
+        gpui::div()
+            .flex()
+            .flex_col()
+            .gap(px(40.))
+            .child(
+                ColorField::new("sx-static", PickerColor::hsb(200., 0.5, 0.5))
+                    .label("Static")
+                    .sx(move |s| s.bg(column)),
+            )
+            .child(
+                ColorField::new("sx-editable", PickerColor::hsb(20., 0.5, 0.5))
+                    .label("Editable")
+                    .state(state.clone())
+                    .sx(move |s| s.bg(column)),
+            )
+            .into_any_element()
+    });
+    let field_bg = cx.update(|_, cx| cx.colors().field.background);
+    let scene = harness::painted(cx);
+    let columns = scene.filled(column);
+    assert_eq!(
+        columns.len(),
+        2,
+        "each field's root column paints the sx fill once:\n{}",
+        scene.describe()
+    );
+    for quad in columns {
+        let b = scene.bounds(quad);
+        assert!(
+            f32::from(b.size.height) > 36.5,
+            "the column holds the label above the 36px box, not just the box"
+        );
+    }
+    assert!(
+        scene.filled(field_bg).len() >= 2,
+        "both boxes keep their own field chrome over the column"
+    );
+}

@@ -82,6 +82,8 @@ pub struct ColorField {
     field: util::FieldBox,
     /// The corner radius, in place of the owning `field_radius` helper.
     radius: Option<Pixels>,
+    /// The `sx` slot, refined over the root style at the end of render.
+    sx: Option<Box<gpui::StyleRefinement>>,
     form_state: Rc<RefCell<crate::form::LiveFormFieldState>>,
 }
 
@@ -111,6 +113,19 @@ impl ColorField {
     /// `ColorField.Suffix` — the slot after the value.
     pub fn suffix(mut self, el: impl IntoElement) -> Self {
         self.suffix = Some(el.into_any_element());
+        self
+    }
+
+    /// The one slot for caller-owned low-level styling: GPUI's styling methods
+    /// (`bg`, `text_color`, `w`, `h`, `p`, `rounded`, `border_color`, …)
+    /// applied to the field's root element — the column holding the label,
+    /// the box and the description or error — after every value the variant
+    /// and the active theme chose, so they win. Both paths land on that
+    /// column: the editable field hands the slot to the [`crate::Input`] it
+    /// composes, whose standalone root is the same column, and the static
+    /// display refines its own. The box's chrome stays with the variant.
+    pub fn sx(mut self, style: impl FnOnce(gpui::Div) -> gpui::Div) -> Self {
+        self.sx = Some(util::capture_sx(style));
         self
     }
 
@@ -144,6 +159,7 @@ impl ColorField {
             is_required: false,
             field: util::FieldBox::default(),
             radius: None,
+            sx: None,
             form_state: live_color_form_state(
                 crate::form::FormValue::Text(SharedString::default()),
             ),
@@ -712,7 +728,9 @@ impl RenderOnce for ColorField {
             if let Some(value) = self.value {
                 input = input.start_content(ColorSwatch::new(value).size(SizeXl::Xs));
             }
-            input = input.with_field_box(self.field);
+            input = input
+                .with_field_box(self.field)
+                .with_sx_refinement(self.sx.take());
             // The editable box is the inner field's own, so the radius rides
             // along with the field box, the way its `height` and `padding_x`
             // do; the static box below paints its own.
@@ -1009,7 +1027,7 @@ impl RenderOnce for ColorField {
         if let Some(description) = self.description {
             root = root.child(crate::field::Description::new(description));
         }
-        root.into_any_element()
+        util::apply_sx(root, &self.sx).into_any_element()
     }
 }
 
