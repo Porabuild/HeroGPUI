@@ -159,6 +159,8 @@ pub struct Autocomplete {
     /// inherited family. A detached popover does not inherit the trigger's
     /// font.
     row_font_family: Option<SharedString>,
+    /// The trigger's and filter field's family; unset keeps the inherited one.
+    font_family: Option<SharedString>,
     /// The corner radius of the detached panel, in place of the owning
     /// `container_radius` helper.
     radius: Option<Pixels>,
@@ -358,6 +360,7 @@ impl Autocomplete {
             trigger_hover_bg: None,
             clear_hover_bg: None,
             row_font_family: None,
+            font_family: None,
             radius: None,
             field: util::FieldBox::default(),
             label: None,
@@ -556,6 +559,16 @@ impl Autocomplete {
     /// The fill a hovered row takes, in place of `--default`.
     pub fn row_hover_bg(mut self, color: impl Into<gpui::Hsla>) -> Self {
         self.row_hover_bg = Some(color.into());
+        self
+    }
+
+    /// The family the trigger's value and placeholder, and the popover's
+    /// filter field (query, placeholder and caret measurement), are drawn
+    /// with; unset keeps the inherited family. The detached rows take
+    /// [`Autocomplete::row_font_family`] instead. Not a v3 prop; v3 sets it
+    /// with a class.
+    pub fn font_family(mut self, family: impl Into<SharedString>) -> Self {
+        self.font_family = Some(family.into());
         self
     }
 
@@ -1048,6 +1061,7 @@ impl RenderOnce for Autocomplete {
         // `pe-7` because the indicator sits inside it.
         let mut field = gpui::div()
             .id(element_id::scoped(&base_id, "trigger"))
+            .when_some(self.font_family.clone(), |field, family| field.font_family(family))
             // Headless probe: the decision that gates the hover refinement
             // above, so a test can drive real hover coordinates and read the
             // rendered state without painted-color access.
@@ -1795,7 +1809,12 @@ impl RenderOnce for Autocomplete {
             let edit_query = query_edit;
             let edit_key = plain_edit_key;
             let input_change = self.on_input_change.clone();
-            let search = SearchField::new(self.state.clone())
+            let search = SearchField::new(self.state.clone());
+            let search = match self.font_family.clone() {
+                Some(family) => search.font_family(family),
+                None => search,
+            };
+            let search = search
                 .variant(FieldVariant::Secondary)
                 .placeholder("Search...")
                 .is_read_only(self.is_read_only)

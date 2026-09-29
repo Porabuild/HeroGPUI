@@ -318,6 +318,10 @@ for each breaking change with before/after code.
   typography): the label's font size, with v3's 16/20/24 leading for a
   12/14/16px size and 20px otherwise. Control boxes, marks, tracks, gaps and
   descriptions keep their size step. Gallery "Label Size" sections.
+- `font_family` on `SearchField`, `NumberField`, `ColorField`, `Select`,
+  `ComboBox` and `Autocomplete`, completing phase 5's field font seam: the
+  composed fields forward it to their `Input` (so caret measurement agrees),
+  the pickers set it on the trigger; detached rows keep `row_font_family`.
 
 ### Fixed
 

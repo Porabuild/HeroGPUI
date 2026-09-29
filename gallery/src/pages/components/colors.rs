@@ -180,6 +180,7 @@ impl Gallery {
                         .height(px(28.))
                         .padding_x(px(8.))
                         .is_bare(true)
+                        .font_family(crate::app::MONO_FONT)
                         .into_any_element()]), cx),
                 ),
                 (

@@ -3314,6 +3314,8 @@ pub struct SearchField {
     variant_is_set: bool,
     recipes: Vec<SharedString>,
     text_size: Option<Pixels>,
+    /// The field text's family, forwarded to the inner `Input`.
+    font_family: Option<SharedString>,
     radius: Option<Pixels>,
     full_width: bool,
     /// Optional box geometry/chrome overrides forwarded to the inner `Input`.
@@ -3371,6 +3373,7 @@ impl SearchField {
             variant_is_set: false,
             recipes: Vec::new(),
             text_size: None,
+            font_family: None,
             radius: None,
             full_width: false,
             field: crate::util::FieldBox::default(),
@@ -3426,6 +3429,14 @@ impl SearchField {
     /// The field text size — forwarded to the inner [`Input`].
     pub fn text_size(mut self, size: impl Into<Pixels>) -> Self {
         self.text_size = Some(size.into());
+        self
+    }
+
+    /// The field text's font family — forwarded to the inner [`Input`], so
+    /// the query, placeholder and caret measurement all use it (see
+    /// [`Input::font_family`]). Not a v3 prop; v3 sets it with a class.
+    pub fn font_family(mut self, family: impl Into<SharedString>) -> Self {
+        self.font_family = Some(family.into());
         self
     }
 
@@ -3641,6 +3652,9 @@ impl RenderOnce for SearchField {
         }
         if let Some(size) = self.text_size {
             input = input.text_size(size);
+        }
+        if let Some(family) = self.font_family {
+            input = input.font_family(family);
         }
         if let Some(r) = self.radius {
             input = input.radius(r);

@@ -570,6 +570,15 @@ EXTRA_OK_SCOPED = {
     'Select.row_font_family': 'no-classname',
     'ComboBox.row_font_family': 'no-classname',
     'Autocomplete.row_font_family': 'no-classname',
+    # Phase 5: the rest of the field family's text seam. Each composed field
+    # forwards the family to the `Input` it holds (caret measurement) or to
+    # the trigger that draws its value; detached rows keep `row_font_family`.
+    'NumberField.font_family': 'no-classname',
+    'SearchField.font_family': 'no-classname',
+    'ColorField.font_family': 'no-classname',
+    'Select.font_family': 'no-classname',
+    'ComboBox.font_family': 'no-classname',
+    'Autocomplete.font_family': 'no-classname',
     'Badge.text_size': 'no-classname',
     'Chip.text_size': 'no-classname',
     'Breadcrumbs.text_size': 'no-classname',

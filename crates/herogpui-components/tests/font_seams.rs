@@ -8,6 +8,11 @@
 //! headless `NoopTextSystem` resolves every family to one font, so glyph
 //! metrics cannot tell families apart; the inherited style can.
 //!
+//! The composed fields (`Select`, `Autocomplete`, `ComboBox`, `SearchField`,
+//! `NumberField`, `ColorField`) forward their family to the part that draws
+//! the text; their probes sit in a trigger's `value_content`, a suffix or
+//! search icon inside the composed `Input`, or a stepper icon in the group.
+//!
 //! One seam stays a scoped source check: `ColorPicker`'s hex readout is a
 //! bare text child with no caller slot beside it, so nothing a test composes
 //! inherits its style.
@@ -178,4 +183,147 @@ fn color_picker_readout_keeps_mono_and_accepts_a_family() {
     .unwrap();
     source_scan::scope_contains(&picker, "pub fn font_family(", "self.font_family = Some(")
         .unwrap();
+}
+
+/// The fields that compose an `Input` or draw a trigger forward
+/// `font_family` to the part that draws their text. Each probe sits in a slot
+/// rendered inside that part: a trigger's `value_content`, a field's suffix
+/// or search icon (inside the composed `Input`'s box), a stepper icon (inside
+/// the group that holds the field).
+#[gpui::test]
+fn field_family_builders_reach_the_text_part(cx: &mut TestAppContext) {
+    use herogpui_components::{ColorField, NumberField, NumberState, PickerColor, SearchField};
+    type Build = Box<
+        dyn Fn(Option<&'static str>, &mut TestAppContext) -> Box<dyn Fn(StyleSink) -> AnyElement>,
+    >;
+    let cases: Vec<(&str, Build)> = vec![
+        (
+            "Select trigger",
+            Box::new(|family, _| {
+                Box::new(move |sink: StyleSink| {
+                    let select = Select::new("fam-select", items())
+                        .default_value(Some("a".into()))
+                        .value_content(move |_| style_probe(&sink));
+                    match family {
+                        Some(f) => select.font_family(f),
+                        None => select,
+                    }
+                    .into_any_element()
+                })
+            }),
+        ),
+        (
+            "Autocomplete trigger",
+            Box::new(|family, cx| {
+                let state = cx.new(|cx| InputState::new(cx));
+                Box::new(move |sink: StyleSink| {
+                    let ac = Autocomplete::new(state.clone(), items())
+                        .default_value(["a"])
+                        .value_content(move |_| style_probe(&sink));
+                    match family {
+                        Some(f) => ac.font_family(f),
+                        None => ac,
+                    }
+                    .into_any_element()
+                })
+            }),
+        ),
+        (
+            "SearchField",
+            Box::new(|family, cx| {
+                let state = cx.new(|cx| InputState::new(cx));
+                Box::new(move |sink: StyleSink| {
+                    let field = SearchField::new(state.clone()).search_icon(style_probe(&sink));
+                    match family {
+                        Some(f) => field.font_family(f),
+                        None => field,
+                    }
+                    .into_any_element()
+                })
+            }),
+        ),
+        (
+            "NumberField",
+            Box::new(|family, cx| {
+                let state = cx.new(|cx| NumberState::new(cx, 1.));
+                Box::new(move |sink: StyleSink| {
+                    let field = NumberField::new(state.clone()).increment_icon(style_probe(&sink));
+                    match family {
+                        Some(f) => field.font_family(f),
+                        None => field,
+                    }
+                    .into_any_element()
+                })
+            }),
+        ),
+        (
+            "ColorField editable",
+            Box::new(|family, cx| {
+                let state = cx.new(|cx| InputState::new(cx));
+                Box::new(move |sink: StyleSink| {
+                    let field = ColorField::new("fam-color-edit", PickerColor::hsb(10., 0.5, 0.5))
+                        .state(state.clone())
+                        .suffix(style_probe(&sink));
+                    match family {
+                        Some(f) => field.font_family(f),
+                        None => field,
+                    }
+                    .into_any_element()
+                })
+            }),
+        ),
+        (
+            "ColorField static",
+            Box::new(|family, _| {
+                Box::new(move |sink: StyleSink| {
+                    let field =
+                        ColorField::new("fam-color-static", PickerColor::hsb(10., 0.5, 0.5))
+                            .suffix(style_probe(&sink));
+                    match family {
+                        Some(f) => field.font_family(f),
+                        None => field,
+                    }
+                    .into_any_element()
+                })
+            }),
+        ),
+    ];
+    for (name, build) in cases {
+        let stock = build(None, cx);
+        let seen = family(cx, move |sink| stock(sink));
+        assert_ne!(
+            seen, CUSTOM,
+            "{name}: no family is forced without the override"
+        );
+        let custom = build(Some(CUSTOM), cx);
+        let seen = family(cx, move |sink| custom(sink));
+        assert_eq!(
+            seen, CUSTOM,
+            "{name}: the override must reach the text part"
+        );
+    }
+}
+
+/// ComboBox's trigger is an `Input` whose end slot holds the chevron; its
+/// `value_content` is a render closure over the selection, so the family is
+/// observed there when a value is shown.
+#[gpui::test]
+fn combo_box_family_reaches_the_trigger_field(cx: &mut TestAppContext) {
+    for custom in [None, Some(CUSTOM)] {
+        let state = cx.new(|cx| InputState::new(cx));
+        let seen = family(cx, move |sink| {
+            let combo = ComboBox::new(state.clone(), items())
+                .default_value(["a"])
+                .value_content(move |_| style_probe(&sink));
+            match custom {
+                Some(f) => combo.font_family(f),
+                None => combo,
+            }
+            .into_any_element()
+        });
+        match custom {
+            Some(f) => assert_eq!(seen, f, "the override must reach the trigger"),
+            None => assert_ne!(seen, CUSTOM),
+        }
+    }
 }

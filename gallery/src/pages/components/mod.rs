@@ -841,15 +841,15 @@ mod example_quality {
     #[test]
     fn gallery_sections_are_preserved_while_reordering() {
         for (name, count) in [
-            ("select", 25),
-            ("autocomplete", 21),
-            ("combo_box", 29),
+            ("select", 26),
+            ("autocomplete", 22),
+            ("combo_box", 30),
             ("slider", 17),
             ("date_field", 15),
             ("alert_dialog", 12),
             ("dropdown", 25),
             ("popover", 6),
-            ("number_field", 17),
+            ("number_field", 18),
             ("text_area", 6),
             ("date_range_picker", 10),
             ("list_box", 18),

@@ -62,6 +62,8 @@ pub struct ColorField {
     /// `autoFocus` — take focus on the first render.
     auto_focus: bool,
     placeholder: Option<SharedString>,
+    /// The value text's family; unset keeps the inherited family.
+    font_family: Option<SharedString>,
     /// Supplying an `InputState` makes the field editable; without one it is a
     /// read-only display of `value`.
     state: Option<Entity<crate::input::InputState>>,
@@ -116,6 +118,16 @@ impl ColorField {
         self
     }
 
+    /// The family the value text is drawn with, on both paths: the editable
+    /// field forwards it to the [`crate::Input`] it composes, so the caret
+    /// measurement uses it too (see [`crate::Input::font_family`]), and the
+    /// static display sets it on its box. Unset keeps the inherited family.
+    /// Not a v3 prop; v3 sets it with a class.
+    pub fn font_family(mut self, family: impl Into<SharedString>) -> Self {
+        self.font_family = Some(family.into());
+        self
+    }
+
     /// The one slot for caller-owned low-level styling: GPUI's styling methods
     /// (`bg`, `text_color`, `w`, `h`, `p`, `rounded`, `border_color`, …)
     /// applied to the field's root element — the column holding the label,
@@ -146,6 +158,7 @@ impl ColorField {
             is_wheel_disabled: false,
             auto_focus: false,
             placeholder: None,
+            font_family: None,
             state: None,
             on_change: None,
             on_blur: None,
@@ -731,6 +744,9 @@ impl RenderOnce for ColorField {
             input = input
                 .with_field_box(self.field)
                 .with_sx_refinement(self.sx.take());
+            if let Some(family) = self.font_family.clone() {
+                input = input.font_family(family);
+            }
             // The editable box is the inner field's own, so the radius rides
             // along with the field box, the way its `height` and `padding_x`
             // do; the static box below paints its own.
@@ -870,6 +886,9 @@ impl RenderOnce for ColorField {
         let radius = self.radius.unwrap_or_else(|| util::field_radius(cx));
         let mut field = div()
             .id(self.id.clone())
+            .when_some(self.font_family.clone(), |field, family| {
+                field.font_family(family)
+            })
             .flex()
             .flex_row()
             .items_center()

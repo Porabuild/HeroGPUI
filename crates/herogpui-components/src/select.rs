@@ -259,6 +259,8 @@ pub struct Select {
     /// The family the option rows are drawn with; unset keeps the inherited
     /// family. A detached popover does not inherit the trigger's font.
     row_font_family: Option<SharedString>,
+    /// The trigger text's family; unset keeps the inherited family.
+    font_family: Option<SharedString>,
     /// The corner radius of the detached panel, in place of the owning
     /// `container_radius` helper.
     radius: Option<Pixels>,
@@ -523,6 +525,15 @@ impl Select {
         self
     }
 
+    /// The family the trigger's value and placeholder are drawn with; unset
+    /// keeps the inherited family. The detached rows take
+    /// [`Select::row_font_family`] instead. Not a v3 prop; v3 sets it with a
+    /// class.
+    pub fn font_family(mut self, family: impl Into<SharedString>) -> Self {
+        self.font_family = Some(family.into());
+        self
+    }
+
     /// The family the option rows are drawn with; unset keeps the inherited
     /// family. A detached popover does not inherit the trigger's font.
     pub fn row_font_family(mut self, family: impl Into<SharedString>) -> Self {
@@ -587,6 +598,7 @@ impl Select {
             row_hover_bg: None,
             trigger_hover_bg: None,
             row_font_family: None,
+            font_family: None,
             item_leading: None,
             radius: None,
             field: util::FieldBox::default(),
@@ -1150,6 +1162,7 @@ impl RenderOnce for Select {
             .items_center()
             .justify_between()
             .gap(px(8.))
+            .when_some(self.font_family.clone(), |field, family| field.font_family(family))
             .min_h(h)
             .when_some(field_box.height, |el, h| el.h(h))
             .px(field_box.resolved_padding_x())

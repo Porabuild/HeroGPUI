@@ -246,6 +246,8 @@ pub struct ComboBox {
     /// inherited family. A detached popover does not inherit the trigger's
     /// font.
     row_font_family: Option<SharedString>,
+    /// The trigger field text's family, forwarded to the inner `Input`.
+    font_family: Option<SharedString>,
     /// The corner radius of the detached panel, in place of the owning
     /// `container_radius` helper.
     radius: Option<Pixels>,
@@ -558,6 +560,7 @@ impl ComboBox {
             row_padding_y: None,
             row_hover_bg: None,
             row_font_family: None,
+            font_family: None,
             radius: None,
             field: util::FieldBox::default(),
             validate: None,
@@ -724,6 +727,17 @@ impl ComboBox {
     /// The fill a hovered row takes, in place of `--default`.
     pub fn row_hover_bg(mut self, color: impl Into<gpui::Hsla>) -> Self {
         self.row_hover_bg = Some(color.into());
+        self
+    }
+
+    /// The trigger field's font family, forwarded to the inner
+    /// [`crate::Input`] so the query, placeholder and caret measurement all
+    /// use it (see [`crate::Input::font_family`]), and set on the root so the
+    /// `ComboBox.Value` line inherits it; unset keeps the inherited family.
+    /// The detached rows take [`ComboBox::row_font_family`] instead. Not a v3
+    /// prop; v3 sets it with a class.
+    pub fn font_family(mut self, family: impl Into<SharedString>) -> Self {
+        self.font_family = Some(family.into());
         self
     }
 
@@ -1257,6 +1271,7 @@ impl RenderOnce for ComboBox {
             .is_required(self.is_required)
             .is_read_only(self.is_read_only)
             .auto_focus(self.auto_focus)
+            .when_some(self.font_family.clone(), |i, family| i.font_family(family))
             .when_some(self.validation_behavior, |i, b| i.validation_behavior(b))
             .when_some(validate, |i, f| i.validate(move |v| f(v)))
             .end_content(trigger);
@@ -1504,7 +1519,10 @@ impl RenderOnce for ComboBox {
             .relative()
             .flex()
             .flex_col()
-            .gap(px(4.));
+            .gap(px(4.))
+            // The value line and label inherit the family; the field takes it
+            // explicitly above for its caret measurement.
+            .when_some(self.font_family.clone(), |e, family| e.font_family(family));
 
         // `ComboBox.Value` — `.combo-box__value` is `text-sm
         // text-field-foreground empty:hidden`, so it shows only once something

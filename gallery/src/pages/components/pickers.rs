@@ -92,6 +92,7 @@ impl Gallery {
                     .row_padding_x(px(16.))
                     .row_padding_y(px(2.))
                     .row_hover_bg(cx.colors().accent.soft())
+                    .font_family(crate::app::MONO_FONT)
                     .row_font_family(crate::app::MONO_FONT)
                     .into_any_element()]), cx),
                 ),
@@ -490,6 +491,7 @@ impl Gallery {
                     .row_padding_x(px(16.))
                     .row_padding_y(px(2.))
                     .row_hover_bg(cx.colors().accent.soft())
+                    .font_family(crate::app::MONO_FONT)
                     .row_font_family(crate::app::MONO_FONT)
                     .into_any_element()]), cx),
                 ),
@@ -1058,6 +1060,7 @@ impl Gallery {
                         .row_padding_x(px(8.))
                         .row_padding_y(px(2.))
                         .row_hover_bg(cx.colors().accent.soft())
+                        .font_family(crate::app::MONO_FONT)
                         .row_font_family(crate::app::MONO_FONT)
                         .default_open(true)
                         .into_any_element()]), cx),

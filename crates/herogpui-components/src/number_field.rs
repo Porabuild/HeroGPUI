@@ -325,6 +325,8 @@ pub struct NumberField {
     is_wheel_disabled: bool,
     /// `autoFocus` — take focus on the first render.
     auto_focus: bool,
+    /// The field text's family, forwarded to the inner `Input`.
+    font_family: Option<SharedString>,
     on_change: Option<OnChange>,
     /// The `sx` slot, refined over the root style at the end of render.
     sx: Option<Box<gpui::StyleRefinement>>,
@@ -451,6 +453,16 @@ impl NumberField {
         self
     }
 
+    /// The field text's font family, forwarded to the inner [`crate::Input`]
+    /// so the value, placeholder and caret measurement all use it (see
+    /// [`crate::Input::font_family`]), and set on the group so custom stepper
+    /// content inherits it; unset keeps the inherited family. Not a v3 prop;
+    /// v3 sets it with a class.
+    pub fn font_family(mut self, family: impl Into<SharedString>) -> Self {
+        self.font_family = Some(family.into());
+        self
+    }
+
     /// Shows or hides only the group's visual focus ring. The number field
     /// remains focusable, editable and stepper-accessible when set to `false`.
     pub fn focus_ring(mut self, v: bool) -> Self {
@@ -557,6 +569,7 @@ impl NumberField {
             is_read_only: false,
             is_wheel_disabled: false,
             auto_focus: false,
+            font_family: None,
             on_change: None,
             sx: None,
             field: crate::util::FieldBox::default(),
@@ -746,6 +759,7 @@ impl RenderOnce for NumberField {
             .is_read_only(self.is_read_only)
             .is_required(self.is_required)
             .auto_focus(self.auto_focus)
+            .when_some(self.font_family.clone(), |f, family| f.font_family(family))
             .is_invalid(validity.is_invalid)
             .when_some(self.label.clone(), |f, label| f.a11y_label(label))
             .on_change(move |_text: &str, w, cx| {
@@ -796,6 +810,10 @@ impl RenderOnce for NumberField {
         let mut group = gpui::div()
             .id(element_id::scoped(&base_id, "group"))
             .a11y_named(crate::a11y::Role::Group, &a11y_name)
+            // The family also reaches caller stepper content (`increment_icon`
+            // / `decrement_icon`); the inner field takes it explicitly above
+            // for its caret measurement.
+            .when_some(self.font_family.clone(), |group, family| group.font_family(family))
             .flex()
             .items_center()
             .h(h)
