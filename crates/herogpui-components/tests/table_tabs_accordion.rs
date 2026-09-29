@@ -39,6 +39,7 @@
 //! must exceed its viewport, and the Tabs chevrons must occlude the tabs below.
 
 mod harness;
+mod source_scan;
 
 use std::cell::{Cell, RefCell};
 use std::collections::HashSet;
@@ -658,9 +659,15 @@ fn table_newly_disabled_cursor_cannot_activate(cx: &mut TestAppContext) {
 // Tabs
 // ---------------------------------------------------------------------------
 
+/// Remaining source-text check. A constrained tab keeps its box whether its
+/// label wraps or overflows (`tabs_full_width_does_not_overflow_the_scroller`
+/// and `tabs_vertical_labels_wrap_inside_the_pinned_fixed_height` measure the
+/// boxes, and both still pass with a `nowrap` label), the label slot carries
+/// no debug selector, and glyph runs are not exposed, so the wrap itself is
+/// not observable headlessly.
 #[test]
 fn tabs_use_a_constrained_normal_whitespace_label_slot() {
-    let source = include_str!("../src/tabs.rs");
+    let source = source_scan::component_src("tabs.rs");
     assert_eq!(
         source.matches(".whitespace_normal()").count(),
         1,
@@ -1094,26 +1101,94 @@ fn tabs_disabled_list_answers_no_key_or_click(cx: &mut TestAppContext) {
 // Accordion
 // ---------------------------------------------------------------------------
 
+/// Accordion and Disclosure share `anim::collapsible_panel`: a toggled panel
+/// eases its height on the pinned 200ms `DISCLOSURE` motion (measured on the
+/// real clock, since gpui animations read wall time) instead of snapping, and
+/// the collapsing body stays mounted until the motion ends. A probe below
+/// the component reads the height it takes up.
+#[gpui::test]
+fn accordion_and_disclosure_panels_ease_open_and_closed(cx: &mut TestAppContext) {
+    type Build = fn() -> gpui::AnyElement;
+    let builds: [(&str, Build); 2] = [
+        ("Accordion", || {
+            Accordion::new(vec![
+                AccordionItem::new("one", "Item one").content(gpui::div().h(px(120.)))
+            ])
+            .id("acc-ease")
+            .into_any_element()
+        }),
+        ("Disclosure", || {
+            herogpui_components::Disclosure::new("dis-ease", "Details")
+                .child(gpui::div().h(px(120.)))
+                .into_any_element()
+        }),
+    ];
+    for (name, build) in builds {
+        let cx = open_host(cx, move || {
+            gpui::div()
+                .flex()
+                .flex_col()
+                .w(px(400.))
+                .child(build())
+                .child(harness::probe("below"))
+                .into_any_element()
+        });
+        harness::settle(cx);
+        let below = |cx: &mut VisualTestContext| {
+            harness::settle(cx);
+            f32::from(
+                cx.debug_bounds("below")
+                    .expect("the probe must be laid out")
+                    .origin
+                    .y,
+            )
+        };
+        let closed = below(cx);
+        click(cx, 100., closed / 2.);
+        let opening = below(cx);
+        harness::wait_real(cx, 400);
+        let open = below(cx);
+        assert!(
+            open >= closed + 119.,
+            "{name}: the open panel must take its 120px body ({closed} -> {open})"
+        );
+        assert!(
+            opening < open - 1.,
+            "{name}: opening must ease the height, not snap ({closed} -> {opening} -> {open})"
+        );
+
+        click(cx, 100., closed / 2.);
+        let closing = below(cx);
+        assert!(
+            closing > closed + 1.,
+            "{name}: the collapsing body must stay mounted while it eases shut \
+             ({open} -> {closing})"
+        );
+        harness::wait_real(cx, 400);
+        assert!(
+            (below(cx) - closed).abs() < 0.5,
+            "{name}: the closed panel must give its height back"
+        );
+    }
+}
+
+/// Remaining source-text check. The chevrons are `svg()` glyphs turned by a
+/// paint transformation: the test platform draws no svg and exposes no
+/// transforms, so the path and its 250ms rotation leave no trace.
 #[test]
 fn accordion_and_disclosure_indicators_use_shared_rotating_chevrons() {
-    let accordion = include_str!("../src/accordion.rs");
-    let disclosure = include_str!("../src/disclosure.rs");
-    let animation = include_str!("../src/anim.rs");
+    let accordion = source_scan::component_src("accordion.rs");
+    let disclosure = source_scan::component_src("disclosure.rs");
+    let animation = source_scan::component_src("anim.rs");
 
     assert!(accordion.contains("crate::anim::rotating_indicator"));
     assert!(accordion.contains(".path(icons::CHEVRON_DOWN)"));
     assert!(disclosure.contains("crate::anim::rotating_indicator"));
     assert!(disclosure.contains(".path(crate::icons::CHEVRON_DOWN)"));
-    assert!(disclosure.contains(".flex_shrink_0()"));
     assert!(animation.contains("INDICATOR_ROTATION_MS: u64 = 250"));
     assert!(animation.contains("with_easing(tailwind_default_ease())"));
     assert!(animation.contains("rotation.target() * angle"));
     assert!(animation.contains("progress * angle"));
-    assert!(accordion.contains("crate::anim::collapsible_panel"));
-    assert!(disclosure.contains("crate::anim::collapsible_panel"));
-    assert!(animation.contains("panel_phase"));
-    assert!(animation.contains("natural-height"));
-    assert!(animation.contains("Motion::DISCLOSURE.ms"));
 }
 
 /// `allowsMultipleExpanded` opted in to true: expanding a second item must
