@@ -35,11 +35,11 @@ jobs:
   # published unless its aggregating `ci` job succeeds.
   ci:
     uses: ./.github/workflows/ci.yml
-    # The web artifact is published on trusted master pushes. The tagged
-    # checkout builds it again, but this reusable CI invocation has no
-    # release-write token.
+    # GitHub validates the called workflow's maximum job permission even
+    # though `wasm-publish` skips on a tag. Grant that maximum here; ci.yml
+    # keeps every running job read-only, and publishes only on master pushes.
     permissions:
-      contents: read
+      contents: write
 
   # The tagged public API of the four library crates against the latest
   # crates.io release, before anything irreversible happens: the GitHub
