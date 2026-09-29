@@ -52,7 +52,7 @@ function prefetchArtifact(wasmVersion: string): void {
 }
 
 interface HeroWasmShowcaseProps {
-  /** SHA-256 of the checked-in artifact (wasm-parity.json), for `?v=`. */
+  /** SHA-256 of the installed artifact (public/gallery/build-info.json), for `?v=`. */
   wasmVersion: string;
 }
 

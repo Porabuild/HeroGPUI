@@ -1,34 +1,30 @@
-// Pin the checked-in web-gallery artifact to the gallery source it was built
-// from, and record which example headings the embed can render.
+// Pin the web-gallery artifact's key to the gallery source, and record which
+// example headings the embed can render.
 //
 //   node scripts/extract-wasm-sections.mjs
 //
 // Writes `src/data/wasm-sections.json` (consumed by the component page to
-// decide which headings get a live embed) and `src/data/wasm-parity.json`
-// (whose `artifactSha256` doubles as the embed's cache-busting version).
+// decide which headings get a live embed) and `src/data/wasm-parity.json`.
 //
 // There is one gallery source. `crates/herogpui-web` is a workspace member
 // that links the `herogpui-gallery` library and compiles for wasm32, so the
 // browser runs the same `gallery/src/pages/components/` the native binary
-// does. This script used to compare that file against a second, separately
-// checked-out copy and report native-vs-WASM "drift"; there is no second copy
-// to drift from now, so it reads one source and the drift fields are gone.
+// does.
 //
-// What it still guards is the committed binary. `web/public/gallery/` holds a
-// ~19 MB artifact that no compiler checks against the sources in this
-// repository. The manifest pins three things together:
+// The ~19 MB artifact itself is not committed: CI builds it from the checkout
+// and publishes it keyed by `inputsSha256`, and the site build downloads the
+// artifact for its own key (`scripts/gallery-artifact.mjs`). The manifest
+// records what that key is made of:
 //
-//   * the artifact and glue bytes (`artifactSha256`, `glueSha256`);
-//   * every example body (`examples`), so the page's code block and the live
-//     embed cannot disagree; and
 //   * every wasm build input (`inputsSha256`): the component, theme, core,
 //     facade, web-entry and gallery sources plus the workspace manifests and
-//     lockfile. A component-behaviour change that leaves every example body
-//     untouched still invalidates the committed artifact, and this catches it.
+//     lockfile -- the artifact key; and
+//   * every example body (`examples`), so a change to what the page's code
+//     block shows is visible in review next to the key it moves.
 //
-// `--check` recomputes all of it and fails when any part is stale (it is in
-// `pnpm run extract:check`, so CI runs it). The fix is always the same: rebuild
-// the artifact (root AGENTS.md) and run `pnpm run wasm:manifest`.
+// `--check` recomputes both and fails when either is stale (it is in
+// `pnpm run extract:check`, so CI runs it). The fix is always
+// `pnpm run wasm:manifest`; no artifact rebuild is needed, CI does that.
 
 import { createHash } from "node:crypto";
 import { readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
@@ -45,7 +41,7 @@ const repoRoot = resolve(webRoot, "..");
 const sectionsOut = resolve(webRoot, "src", "data", "wasm-sections.json");
 const parityOut = resolve(webRoot, "src", "data", "wasm-parity.json");
 
-export const MANIFEST_VERSION = 3;
+export const MANIFEST_VERSION = 4;
 
 // The inputs of `cargo build -p herogpui-web`: every file under these roots
 // (tests, docs and licence texts excluded) plus the workspace-level files.
@@ -111,8 +107,8 @@ function descriptionHash(value) {
 }
 
 // Hash the example body with whitespace, comments and trailing commas removed,
-// so reformatting the gallery does not demand a 19 MB artifact rebuild while a
-// real edit to the code still does.
+// so reformatting the gallery does not read as an example change in the
+// manifest diff while a real edit to the code still does.
 function codeHash(value) {
   let normalized = "";
   let index = 0;
@@ -174,14 +170,12 @@ export function parseExampleSource(source) {
   return { pages, examples };
 }
 
-export function buildManifest(source, artifact, glue = Buffer.alloc(0), inputs = "") {
+export function buildManifest(source, inputs = "") {
   const { pages, examples } = parseExampleSource(source);
   return {
     sections: Object.fromEntries(pages),
     parity: {
       version: MANIFEST_VERSION,
-      artifactSha256: createHash("sha256").update(artifact).digest("hex"),
-      glueSha256: createHash("sha256").update(glue).digest("hex"),
       inputsSha256: inputs,
       examples: Object.fromEntries(
         [...examples.keys()].sort().map((key) => [key, examples.get(key)]),
@@ -192,17 +186,7 @@ export function buildManifest(source, artifact, glue = Buffer.alloc(0), inputs =
 
 export function run({ check = false } = {}) {
   const sourcePath = argument("--source", galleryComponentsDir(repoRoot));
-  const artifactPath = argument(
-    "--wasm",
-    resolve(webRoot, "public", "gallery", "herogpui_web_bg.wasm"),
-  );
-  const gluePath = argument("--glue", resolve(webRoot, "public", "gallery", "herogpui_web.js"));
-  const { sections, parity } = buildManifest(
-    readGallerySource(sourcePath),
-    readFileSync(artifactPath),
-    readFileSync(gluePath),
-    inputsHash(repoRoot),
-  );
+  const { sections, parity } = buildManifest(readGallerySource(sourcePath), inputsHash(repoRoot));
   const sectionsText = `${JSON.stringify(sections, null, 2)}\n`;
   const parityText = `${JSON.stringify(parity, null, 2)}\n`;
 
@@ -211,20 +195,18 @@ export function run({ check = false } = {}) {
     const stale = [];
     if (readFileSync(sectionsOut, "utf8") !== sectionsText) stale.push("example headings");
     if (current.version !== parity.version) stale.push("manifest version");
-    if (current.artifactSha256 !== parity.artifactSha256) stale.push("artifact bytes");
-    if (current.glueSha256 !== parity.glueSha256) stale.push("glue bytes");
     if (current.inputsSha256 !== parity.inputsSha256)
       stale.push("wasm build inputs (Rust sources, manifests or lockfile)");
     if (JSON.stringify(current.examples) !== JSON.stringify(parity.examples))
       stale.push("example bodies");
     if (stale.length) {
       console.error(
-        `ERROR: the committed web-gallery artifact is stale (${stale.join(", ")} changed). ` +
-          "Rebuild it (root AGENTS.md, nightly wasm build + wasm-bindgen) and run `pnpm run wasm:manifest`.",
+        `ERROR: src/data/wasm-parity.json / wasm-sections.json are stale (${stale.join(", ")} changed). ` +
+          "Run `pnpm run wasm:manifest`; CI builds and publishes the matching artifact.",
       );
       process.exitCode = 1;
     } else {
-      console.log(`wasm-parity.json: current (artifact ${parity.artifactSha256.slice(0, 12)})`);
+      console.log(`wasm-parity.json: current (artifact key ${parity.inputsSha256.slice(0, 16)})`);
     }
     return { sections, parity };
   }
@@ -234,7 +216,7 @@ export function run({ check = false } = {}) {
   console.log(
     `wasm-sections.json: ${Object.keys(sections).length} pages, ${Object.values(sections).flat().length} examples`,
   );
-  console.log(`wasm-parity.json: artifact ${parity.artifactSha256.slice(0, 12)}`);
+  console.log(`wasm-parity.json: artifact key ${parity.inputsSha256.slice(0, 16)}`);
   return { sections, parity };
 }
 

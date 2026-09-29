@@ -3,7 +3,8 @@
  * the component pages' `GalleryFrame` and the landing page showcase so both
  * load the same cache-versioned artifact the same way.
  *
- * The checked-in artifact is served from `/gallery`; `NEXT_PUBLIC_GALLERY_URL`
+ * The artifact is served from `/gallery` (installed there by the build, see
+ * scripts/gallery-artifact.mjs); `NEXT_PUBLIC_GALLERY_URL`
  * may point at another path or origin.
  */
 
@@ -81,5 +82,27 @@ export function isReadyMessage(event: MessageEvent, frame: HTMLIFrameElement | n
     typeof data === "object" &&
     data !== null &&
     (data as { type?: unknown }).type === "herogpui:ready"
+  );
+}
+
+/**
+ * True for the site-search shortcut an embedded gallery forwards once the
+ * reader is working inside it (Cmd/Ctrl+K would otherwise stop at GPUI; see
+ * `forwardHostShortcuts` in `public/gallery/index.html`). Accepted only from
+ * the gallery's origin and from a frame of this document.
+ */
+export function isSearchShortcutMessage(event: MessageEvent): boolean {
+  const data: unknown = event.data;
+  if (
+    typeof data !== "object" ||
+    data === null ||
+    (data as { type?: unknown }).type !== "herogpui:shortcut" ||
+    (data as { shortcut?: unknown }).shortcut !== "search"
+  ) {
+    return false;
+  }
+  if (event.origin !== new URL(galleryOrigin(), window.location.href).origin) return false;
+  return Array.from(document.querySelectorAll("iframe")).some(
+    (frame) => frame.contentWindow !== null && frame.contentWindow === event.source,
   );
 }

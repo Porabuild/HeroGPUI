@@ -186,9 +186,9 @@ fn date_order_for_locale(locale: &str) -> Option<[DateSegment; 3]> {
 pub fn system_date_order() -> [DateSegment; 3] {
     static ORDER: OnceLock<[DateSegment; 3]> = OnceLock::new();
     *ORDER.get_or_init(|| {
-        locale_config::Locale::user_default()
-            .tags_for("time")
-            .find_map(|tag| date_order_for_locale(tag.as_ref()))
+        herogpui_components::__private::time_locale_tags()
+            .iter()
+            .find_map(|tag| date_order_for_locale(tag))
             .unwrap_or(DateSegment::ALL)
     })
 }

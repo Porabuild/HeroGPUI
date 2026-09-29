@@ -29,30 +29,31 @@ except the release notes, which come from the GitHub Releases API. Run
 
 Each component page shows the real HeroGPUI component running in the browser,
 with its Rust below. One lazily booted iframe per page
-(`src/components/preview/gallery-frame.tsx`) runs the checked-in artifact in
+(`src/components/preview/gallery-frame.tsx`) runs the artifact in
 `public/gallery/` (`index.html` + `herogpui_web.js` + `herogpui_web_bg.wasm`);
 the example switcher selects among that component's examples over the
 `herogpui:preview-section` message bridge while the description and matching
 Rust code update outside the frame. Component pages do not render native
 screenshots in place of the frame and do not instantiate the full gallery
-shell.
+shell. The frame no longer takes keyboard focus on load (Cmd/Ctrl+K keeps
+working), and forwards Cmd/Ctrl+K to the page once the reader is inside it.
 
-The WASM gallery was restored and verified on production in commit 52d4f099
-("Align HeroGPUI parity and restore the WASM gallery"). `crates/herogpui-web`
-is a normal member of the root workspace — there is no separate checkout of
-the repository to keep the artifact building from, and component sources
-carry no wasm-specific code. `src/data/wasm-sections.json` plus
-`wasm-parity.json` pin the compiled examples and the artifact hash so the
-selector never advertises an example the artifact lacks. Regenerate both
-manifests from the native gallery source (`gallery/src/pages/components/`)
-with `pnpm run wasm:manifest` whenever the artifact changes. A `wasm` job in
-`.github/workflows/ci.yml` also builds the artifact and runs `wasm-bindgen`
-on every PR, ahead of the final `ci` gate.
+Since 0.13 the artifact is **not committed**: CI's `wasm` job builds it
+(nightly, `wasm-bindgen`, `wasm-opt -O1`) and `wasm-publish` uploads it to
+its own `gallery-<key16>` GitHub prerelease, keyed by the hash of every wasm
+build input; `pnpm run build` downloads the one for its checkout and verifies
+it (`scripts/gallery-artifact.mjs`), and a local `.shots/build-wasm.sh` build
+takes precedence. `DEPLOYMENT.md` section 6 has the design, the preview
+fallback and the bootstrap. `src/data/wasm-sections.json` plus
+`wasm-parity.json` record the compiled examples and the artifact key;
+regenerate them with `pnpm run wasm:manifest` after a Rust change (no
+rebuild needed).
 
 The plain (non-shared-memory) wasm build needs no COOP/COEP headers
 anywhere; `next.config.ts` maps `/gallery` onto the artifact's `index.html`.
 `NEXT_PUBLIC_GALLERY_URL` is an optional build-time override for hosting the
-artifact at another path or origin.
+artifact at another path or origin. The multi-threaded platform was
+evaluated and not adopted (`docs/upstream/gpui-web-multithreaded.md`).
 
 ## Known open items
 

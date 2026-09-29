@@ -36,7 +36,11 @@ repository and runs the commands inside `web/`. That matters: the build
 reads the sibling `../llms.txt` (the `/llms.txt` route handler prerenders
 it at build time) and the committed generated data was extracted from
 `../gallery` — but the pipeline itself never runs on Vercel (see
-[README.md](README.md), "The generated data pipeline").
+[README.md](README.md), "The generated data pipeline"). The build's first
+step also hashes the sibling Rust sources (`../crates`, `../gallery`, the
+workspace manifests) to find and download the WebAssembly gallery CI built
+for this commit, from this repository's `gallery-<key16>` release — no
+token, no Rust toolchain (section 6).
 
 ## 2. Environment variables
 
@@ -140,7 +144,12 @@ Run through these on the production URL:
   `<link rel="prefetch">` of the versioned glue and `.wasm`, which the frame
   then reads from cache — and toggling the site theme does not restart it.
 - `curl -sI "https://porabuild.com/herogpui/gallery/herogpui_web_bg.wasm?v=<12 hex>"`
-  (the `v` of any embed URL) answers `cache-control: public, max-age=31536000, immutable`.
+  (the `v` of any embed URL) answers `cache-control: public, max-age=31536000, immutable`,
+  and `/herogpui/gallery/build-info.json` reports `"status": "exact"` with the
+  deployed commit's key.
+- Loading a component page leaves keyboard focus on the page: Cmd/Ctrl+K
+  opens search before and after the preview boots, and still does after
+  clicking into the preview.
 - Navigate Docs → Components → a component page: internal navigation stays
   inside the `/herogpui` prefix (it is one zone, so these are soft
   navigations).
@@ -203,14 +212,15 @@ Adding a third-party script, image host or embed means adding its origin in
 Component pages embed the real HeroGPUI gallery — the Rust application
 compiled to wasm — in an iframe (`GalleryFrame`,
 `src/components/preview/gallery-frame.tsx`; URLs and messages in
-`src/lib/gallery-embed.ts`). Three files make that work; they live in
+`src/lib/gallery-embed.ts`). These files make that work; they live in
 `public/gallery/` and are served by the same deployment:
 
-| file | what it is |
-|---|---|
-| `index.html` | the hosting page (loading spinner, error UI, boot script, message bridge); a copy of `crates/herogpui-web/index.html` |
-| `herogpui_web.js` | `wasm-bindgen` glue |
-| `herogpui_web_bg.wasm` | the application, ~18 MiB raw / ~5.4 MB brotli |
+| file | what it is | in git? |
+|---|---|---|
+| `index.html` | the hosting page (loading spinner, error UI, boot script, message bridge); a copy of `crates/herogpui-web/index.html` | yes |
+| `herogpui_web.js` | `wasm-bindgen` glue | no — installed by the build |
+| `herogpui_web_bg.wasm` | the application, ~18 MiB raw / ~4.1 MB brotli after `wasm-opt -O1` | no — installed by the build |
+| `build-info.json` | which artifact was installed (key, hashes, commit, toolchain) and how (`exact`, `fallback`, `local`, `missing`) | no — written by the build |
 
 Keep this as one browser-cached module. A component page defers the download
 until its preview nears the viewport; the landing page defers it until the
@@ -219,22 +229,29 @@ examples, components (`story`) and the theme switch over the message bridge
 (`herogpui:preview-section`, `herogpui:set-theme`; the instance answers
 `herogpui:ready` once booted), never by reloading the frame.
 
+**Focus.** An embedded instance does not take keyboard focus on load: GPUI's
+web platform focuses its hidden IME textarea as soon as the window exists,
+which used to move the page's focus into the frame and swallow Cmd/Ctrl+K.
+`index.html` holds programmatic `focus()` calls until the reader presses
+inside the frame or tabs into it, then replays the last one, so in-frame
+typing works from the first click. While the reader works inside the frame,
+it forwards Cmd/Ctrl+K to the page (`herogpui:shortcut`), which opens the
+search palette (`src/components/site/command-palette.tsx`). The standalone
+gallery is unaffected.
+
 **Caching.** Every embed URL carries `?v=<first 12 hex of the artifact
-SHA-256>` (from `src/data/wasm-parity.json`), and `index.html` forwards it
-onto the glue and the `.wasm`. A new build is therefore a new URL, so
-`next.config.ts` serves versioned requests of those two files with
-`Cache-Control: public, max-age=31536000, immutable`; an unversioned request
-(a direct gallery link) keeps the default revalidating policy.
+SHA-256>` (from `public/gallery/build-info.json`, read at build time), and
+`index.html` forwards it onto the glue and the `.wasm`. A new build is
+therefore a new URL, so `next.config.ts` serves versioned requests of those
+two files with `Cache-Control: public, max-age=31536000, immutable`; an
+unversioned request (a direct gallery link) keeps the default revalidating
+policy.
 
 `next.config.ts` maps `/gallery` onto `/gallery/index.html` (public/ has no
 directory-index resolution), so `/gallery` is the default.
 `NEXT_PUBLIC_GALLERY_URL` is an optional build-time override for hosting the
 artifact at another path or origin; changing it takes effect on the next
 deployment.
-
-The three files are **tracked in git**: remote builds run `next build` alone
-— no Rust toolchain — so the artifact must ship in the tree. See "Why the
-artifact is committed" below.
 
 Component previews use
 `/gallery/index.html?preview=component&story=button&section=Usage&theme=dark&v=…`:
@@ -245,22 +262,107 @@ with `308 → /gallery?story=…` (Next strips the trailing slash), and
 `index.html` resolves its module through an `assetUrl()` helper so both URL
 forms boot.
 
-### Rebuilding the artifact (Rust side)
+### Where the artifact comes from
 
-The artifact is compiled from this repository's own workspace:
-`crates/herogpui-web` is a normal member of the root `Cargo.toml` workspace,
-linking the same `gallery/src/lib.rs` gallery shell the desktop build uses.
-The recipe is the one the CI `wasm` job runs (`.github/workflows/ci.yml`);
-from the repository root:
+The artifact is **not committed** (it was until 0.13; history keeps the old
+copies). Vercel builds the site with `pnpm run build` and no Rust toolchain,
+so CI builds the artifact and the site build downloads it — with no secrets
+and no manual step:
+
+1. **CI builds it** — the `wasm` job in `.github/workflows/ci.yml`, on every
+   pull request and every master push, runs `.shots/build-wasm.sh`: nightly
+   wasm32 build, `wasm-bindgen`, `wasm-opt`, then `build-info.json` recording
+   the **artifact key** — the SHA-256 over every wasm build input (the
+   component/theme/core/facade/web/gallery sources, the workspace manifests
+   and the lockfile; `inputsHash` in `scripts/extract-wasm-sections.mjs`) —
+   and the byte hashes.
+2. **CI publishes it** — the `wasm-publish` job (a separate job, so the write
+   token never shares a runner with third-party build scripts) publishes
+   **one prerelease per key**, tagged `gallery-<key16>`, with the workflow's
+   own `GITHUB_TOKEN` (`contents: write`; `.shots/publish-gallery.sh`). The
+   release is created as a draft, the binaries
+   (`herogpui-gallery-<sha16>.wasm`/`.js`) and the key's
+   `herogpui-gallery-<key16>.json` are attached while it is a draft, and only
+   then is it published; a key that is already published is left alone, and
+   of two runs racing for one key the first to publish wins. A master push
+   then renames that key's release to `… [master <time>]` (the preview
+   fallback) and deletes gallery releases beyond the newest 30 (plus stale
+   drafts). Fork pull requests are not published.
+
+   **Immutable releases.** Nothing is ever attached to, or removed from, a
+   published release, so the design works with GitHub's immutable releases
+   on (RELEASING.md, one-time setup step 3). What it still does to published
+   releases is what immutability allows: editing the title and deleting a
+   whole release (GitHub's docs: title and notes stay editable, assets cannot
+   be added, replaced or deleted after publishing, a deleted immutable
+   release's tag cannot be reused — keys are unique, so no tag is ever
+   reused). If GitHub ever rejects a call for immutability, the script stops
+   with an `::error::` naming it instead of a bare HTTP 422.
+3. **The site build fetches it** — `pnpm run build` is
+   `node scripts/gallery-artifact.mjs fetch && next build`. The fetch hashes
+   the checkout's wasm inputs (Vercel clones the whole repository), downloads
+   `herogpui-gallery-<key16>.json` from
+   `https://github.com/Porabuild/HeroGPUI/releases/download/gallery-<key16>/`
+   (public, anonymous, no API rate limit), downloads the two binaries it
+   names, and installs them only if their sizes and SHA-256 match. The
+   checked-in `src/data/wasm-parity.json` records the same key, and
+   `extract:check` keeps it equal to the tree, so a review shows when a
+   change moves it.
+
+What the build does when the exact artifact is not there yet:
+
+| build | waits for CI | then |
+|---|---|---|
+| Vercel production (`VERCEL_ENV=production`) | up to 30 min | **fails**; Vercel keeps serving the previous production deployment. The next master push, or a redeploy once CI is green, ships it. |
+| Vercel preview | up to 10 min | installs master's latest artifact (the newest `[master …]` gallery release, found in the public `releases.atom` feed, else the unauthenticated REST release list); the frame shows an "earlier build" banner |
+| anywhere else (CI's `web` job, a laptop) | no | master's artifact, or none |
+| nothing published at all | — | builds without the artifact; the frame says "The live preview is not part of this build" |
+
+Overrides: `HEROGPUI_GALLERY_ARTIFACT=require|off`,
+`HEROGPUI_GALLERY_WAIT_SECONDS`, `HEROGPUI_GALLERY_REPO`,
+`HEROGPUI_GALLERY_BASE_URL`, `HEROGPUI_GALLERY_API_URL` (see the header of
+`scripts/gallery-artifact.mjs`); none needs setting on Vercel.
+
+**Timing and bootstrap.** Vercel's Git integration starts building on the
+same push that starts CI, so a Rust change's preview usually waits a few
+minutes for the `wasm` job. Production rarely waits: the pull request's own
+CI already published the artifact for its tree, and a merge whose tree
+matches the PR head (the usual case) has the same key. The first deployment
+after this pipeline merges is covered the same way: the pull request that
+introduces it runs `wasm-publish`, which publishes that tree's
+`gallery-<key16>` release before anyone merges. Two quick
+master pushes can cancel the first push's CI run (`concurrency`), so that
+first push's production build may fail after its wait; the second one ships.
+
+**Trust.** Only this repository's workflows (and its maintainers) can write
+the releases, the same boundary as the source itself; the download is over
+HTTPS and every byte is checked against the key's build-info. Git LFS was
+not an option: Vercel can fetch LFS objects, but GitHub's LFS bandwidth quota
+would be spent on every deploy, and the binary would still be versioned in
+the repository.
+
+**Side effects.** The gallery prereleases (up to 30, never marked Latest)
+appear on the repository's Releases page and in its feed; their `gallery-*`
+tags do not match `release.yml`'s `v*` trigger. A tag ruleset that restricts
+creating or deleting tags must exempt `gallery-*` for GitHub Actions, or
+publishing and pruning fail.
+
+### Building the artifact locally (Rust side)
+
+The recipe is the one CI runs; from the repository root:
 
 ```bash
 rustup toolchain install nightly --profile minimal -t wasm32-unknown-unknown
-cargo +nightly build --locked --target wasm32-unknown-unknown --profile wasm-release -p herogpui-web
-wasm-bindgen --target web --no-typescript --out-dir web/public/gallery \
-  target/wasm32-unknown-unknown/wasm-release/herogpui_web.wasm
-cp crates/herogpui-web/index.html web/public/gallery/index.html
-cd web && pnpm run wasm:manifest
+cargo install -f wasm-bindgen-cli --version <the wasm-bindgen in Cargo.lock>
+# binaryen version_133 (github.com/WebAssembly/binaryen/releases) on PATH
+bash .shots/build-wasm.sh          # writes web/public/gallery/, stamped "local"
+cd web && pnpm run dev             # or pnpm run build: a local build is never replaced
 ```
+
+`--no-opt` skips `wasm-opt` if binaryen is not installed. Without a local
+build, `pnpm run gallery:fetch` (or `pnpm run build`) installs CI's artifact
+for the checkout, or master's. Delete `public/gallery/herogpui_web*` to go
+back from a local build to CI's.
 
 - **`+nightly` is required.** Vanilla `gpui-pre-web` enables its
   `multithreaded` feature by default, which pulls in `wasm_thread`, whose
@@ -271,39 +373,38 @@ cd web && pnpm run wasm:manifest
   lives under `docs/upstream/retired-patches/` for the upstream-PR effort only.
 - **The multi-threaded platform is unused.** The app starts with
   `gpui_platform::single_threaded_web()`; web workers over shared wasm memory
-  need a cross-origin-isolated context this deployment does not provide.
+  need a cross-origin-isolated context. Why isolating even the standalone
+  gallery is not worth it: `docs/upstream/gpui-web-multithreaded.md`.
 - **Never set `RUSTFLAGS`.** `.cargo/config.toml`'s
   `[target.wasm32-unknown-unknown]` table sets `rustflags = []` deliberately
   (a plain, non-shared-memory wasm that renders without COOP/COEP headers on
-  any ancestor page), and the environment variable replaces that list.
+  any ancestor page), and the environment variable replaces that list; the
+  script refuses to run with it set.
 - **`wasm-bindgen` CLI = the crate in `Cargo.lock`** (0.2.127 when written); a
-  mismatched CLI refuses the binary with a descriptor-schema error.
+  mismatched CLI refuses the binary with a descriptor-schema error. The
+  script checks it.
+- **`wasm-opt -O1`, binaryen version_133.** Measured on the 0.13 artifact
+  (Chromium 1234 boots all three identically):
+
+  | | raw | gzip -9 | brotli 11 |
+  |---|---|---|---|
+  | no `wasm-opt` | 19,837,631 | 5,963,495 | 4,117,154 |
+  | `-O1` (used) | 19,118,023 (-3.6%) | 5,917,580 (-0.8%) | 4,096,441 (-0.5%) |
+  | `-Oz` | 17,712,743 (-10.7%) | 6,181,847 (+3.7%) | 4,274,212 (+3.8%) |
+
+  `-O2`, `-O3`, `-Os` and `-Oz --converge` land with `-Oz`: smaller raw
+  modules that compress worse. Visitors download the compressed bytes, so
+  `-O1` is the only level that is a win on every column. The build is already
+  `opt-level = "z"` with fat LTO, which is why the rest is small.
 - **The app is started with `run_embedded`** and its `ApplicationHandle`
   stored (`crates/herogpui-web/src/lib.rs`); plain `run` tears the canvas down
   when the launch callback returns.
 
 `pnpm run wasm:manifest` writes `src/data/wasm-sections.json` (the example
-headings compiled into the artifact) and `src/data/wasm-parity.json`, which
-pins the artifact and glue bytes, every example body, and a hash of every
-wasm build input (the component/theme/core/facade/web/gallery sources, the
-workspace manifests and the lockfile). `pnpm run extract:check` (CI's `web`
-job) recomputes all of it, so a Rust change that invalidates the committed
-artifact fails CI until the artifact is rebuilt. The CI `wasm` job also builds
-the artifact and runs `wasm-bindgen` on every PR.
-
-### Why the artifact is committed
-
-The artifact stays in git for now. Vercel's Git integration builds the site
-with `next build` alone (no Rust toolchain), so it can only ship the artifact
-the tree carries; building it in CI instead would need a deploy workflow with
-Vercel credentials (none are configured in this repository), and removing the
-file from the tree before such a workflow exists would publish component pages
-with no live preview. The drift guard above keeps the
-committed file honest meanwhile. Moving it out is a follow-up: a workflow that
-builds it (the `wasm` job already does), uploads it as an artifact, and runs
-`vercel build` + `vercel deploy --prebuilt` with `VERCEL_TOKEN`,
-`VERCEL_ORG_ID` and `VERCEL_PROJECT_ID` secrets, validating the manifest
-against the freshly built bytes. History is not rewritten.
+headings the page offers live) and `src/data/wasm-parity.json` (the artifact
+key and every example body). `pnpm run extract:check` (CI's `web` job)
+recomputes both, so a Rust change without `pnpm run wasm:manifest` fails CI;
+no artifact rebuild is needed, CI makes it.
 
 ### Verifying the embed
 

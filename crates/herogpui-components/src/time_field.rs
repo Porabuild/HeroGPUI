@@ -198,25 +198,22 @@ impl RegionalTimeFormat {
         })
     }
 
-    fn for_preferences(locale: &locale_config::Locale) -> Option<Self> {
-        locale
-            .tags_for("time")
-            .find_map(|tag| Self::for_locale(tag.as_ref()))
+    fn for_preferences(tags: &[String]) -> Option<Self> {
+        tags.iter().find_map(|tag| Self::for_locale(tag))
     }
 }
 
 fn system_time_format() -> &'static RegionalTimeFormat {
     static SYSTEM_TIME_FORMAT: OnceLock<RegionalTimeFormat> = OnceLock::new();
     SYSTEM_TIME_FORMAT.get_or_init(|| {
-        RegionalTimeFormat::for_preferences(&locale_config::Locale::user_default()).unwrap_or(
-            RegionalTimeFormat {
+        RegionalTimeFormat::for_preferences(&crate::date_constraints::system_locale_tags())
+            .unwrap_or(RegionalTimeFormat {
                 hour_cycle: HourCycle::H24,
                 minute_pattern: RegionalTimePattern::fallback(TimeGranularity::Minute, false),
                 second_pattern: RegionalTimePattern::fallback(TimeGranularity::Second, false),
                 am: "AM".to_owned(),
                 pm: "PM".to_owned(),
-            },
-        )
+            })
     })
 }
 
@@ -228,11 +225,9 @@ fn system_time_format_for_cycle(hour_cycle: HourCycle) -> &'static RegionalTimeF
         HourCycle::H24 => &SYSTEM_H24_FORMAT,
     };
     cache.get_or_init(|| {
-        locale_config::Locale::user_default()
-            .tags_for("time")
-            .find_map(|tag| {
-                RegionalTimeFormat::for_locale_with_cycle(tag.as_ref(), Some(hour_cycle))
-            })
+        crate::date_constraints::system_locale_tags()
+            .iter()
+            .find_map(|tag| RegionalTimeFormat::for_locale_with_cycle(tag, Some(hour_cycle)))
             .unwrap_or(RegionalTimeFormat {
                 hour_cycle,
                 minute_pattern: RegionalTimePattern::fallback(
@@ -1846,9 +1841,10 @@ mod tests {
 
     #[test]
     fn hour_cycle_prefers_the_system_time_category() {
-        let locale = locale_config::Locale::new("de-DE,time=en-US").unwrap();
+        // The time category comes first in the system chain (`system_locale`).
+        let tags = ["en-US".to_owned(), "de-DE".to_owned()];
         assert_eq!(
-            RegionalTimeFormat::for_preferences(&locale).map(|format| format.hour_cycle),
+            RegionalTimeFormat::for_preferences(&tags).map(|format| format.hour_cycle),
             Some(HourCycle::H12)
         );
     }

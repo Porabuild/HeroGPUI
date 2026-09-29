@@ -220,10 +220,8 @@ impl RegionalDateFormat {
         })
     }
 
-    pub(super) fn for_preferences(locale: &locale_config::Locale) -> Option<Self> {
-        locale
-            .tags_for("time")
-            .find_map(|tag| Self::for_locale(tag.as_ref()))
+    pub(super) fn for_preferences(tags: &[String]) -> Option<Self> {
+        tags.iter().find_map(|tag| Self::for_locale(tag))
     }
 
     pub(super) fn date_hint(&self) -> String {
@@ -243,14 +241,13 @@ impl RegionalDateFormat {
 pub(super) fn system_date_format() -> &'static RegionalDateFormat {
     static SYSTEM_DATE_FORMAT: OnceLock<RegionalDateFormat> = OnceLock::new();
     SYSTEM_DATE_FORMAT.get_or_init(|| {
-        RegionalDateFormat::for_preferences(&locale_config::Locale::user_default()).unwrap_or(
-            RegionalDateFormat {
+        RegionalDateFormat::for_preferences(&crate::date_constraints::system_locale_tags())
+            .unwrap_or(RegionalDateFormat {
                 order: DateSegment::ALL,
                 literals: [String::new(), "/".to_owned(), "/".to_owned(), String::new()],
                 month_has_leading_zero: false,
                 day_has_leading_zero: false,
-            },
-        )
+            })
     })
 }
 
@@ -1770,9 +1767,10 @@ mod tests {
 
     #[test]
     fn date_padding_prefers_the_system_time_category() {
-        let locale = locale_config::Locale::new("en-US,time=en-GB").unwrap();
+        // The time category comes first in the system chain (`system_locale`).
+        let tags = ["en-GB".to_owned(), "en-US".to_owned()];
         assert_eq!(
-            RegionalDateFormat::for_preferences(&locale),
+            RegionalDateFormat::for_preferences(&tags),
             RegionalDateFormat::for_locale("en-GB")
         );
     }

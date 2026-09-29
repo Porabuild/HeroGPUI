@@ -64,7 +64,14 @@ icu_locale_core = "=2.2.0"
 # as optional dependencies that jiff itself gates to wasm targets internally,
 # so it is a no-op on native.
 jiff = { version = "0.2", features = ["js"] }
-locale_config = "=0.3.0"
+# The platform's date/time locale (`herogpui-components/src/system_locale.rs`),
+# which replaced `locale_config` and its `objc`/`objc-foundation` -> `block`
+# 0.1.6 chain. All three are already in the GPUI graph at these versions:
+# objc2-foundation (macOS region, `NSLocale`), windows-registry (Windows
+# regional format) and sys-locale (the preferred-language fallbacks).
+objc2-foundation = { version = "0.3.2", default-features = false, features = ["std", "NSLocale", "NSString"] }
+sys-locale = "0.3.2"
+windows-registry = "0.6.1"
 web-time = "=1.1.0"
 # Extended grapheme cluster boundaries for caret motion and deletion in the
 # text fields, so Backspace never splits an emoji or a combining sequence.

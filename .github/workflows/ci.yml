@@ -69,7 +69,7 @@ jobs:
 
       # extract:check compares every generated dataset (reference, catalog and
       # versions, Rust snippets, releases from CHANGELOG.md) and the wasm
-      # manifest -- artifact bytes, example bodies and a hash of every wasm
+      # manifest -- example bodies and the artifact key, a hash of every wasm
       # build input -- against the checkout, with no network. That the
       # snippets compile is the `test` job's: gallery/build.rs turns each one
       # into a test-only module of herogpui-gallery.
@@ -77,8 +77,16 @@ jobs:
         working-directory: web
         run: pnpm run extract:check
 
+      # The production build's first step downloads the gallery artifact for
+      # this checkout (web/scripts/gallery-artifact.mjs). Here it runs beside
+      # the `wasm` job that builds that artifact, so it takes whatever is
+      # published without waiting -- the exact build, master's as a fallback,
+      # or none -- and never fails for want of one: this job checks the site,
+      # the Vercel build is what ships it.
       - name: Website typecheck, lint and production build
         working-directory: web
+        env:
+          HEROGPUI_GALLERY_WAIT_SECONDS: "0"
         run: |
           pnpm run typecheck
           pnpm run lint
@@ -217,10 +225,12 @@ jobs:
   # in the workspace root builds everywhere with no per-OS feature matrix.
   #
   # `lint`, `doc` and `install` stay Linux-only on purpose: this workspace's
-  # own sources carry no `cfg(windows)`/`cfg(macos)` branches (only the wasm
-  # ones in herogpui/herogpui-web), so clippy and rustdoc analyze identical
-  # code on any host, while the OS-sensitive surface -- linking and running
-  # the suite -- is what this matrix exercises. `unsafe_code = "deny"` is a
+  # own sources carry almost no `cfg(windows)`/`cfg(macos)` branches (the wasm
+  # ones in herogpui/herogpui-web, and the two platform readers of
+  # herogpui-components' `system_locale.rs`, a few lines each), so clippy and
+  # rustdoc analyze essentially identical code on any host, while the
+  # OS-sensitive surface -- linking and running the suite, which does compile
+  # those readers -- is what this matrix exercises. `unsafe_code = "deny"` is a
   # rustc lint inherited through `[workspace.lints]`, so every matrix leg's
   # build enforces it on its own host even without clippy.
   test:
@@ -389,17 +399,29 @@ jobs:
   # The web gallery is built from this workspace now, not from a second
   # checkout: `crates/herogpui-web` is a workspace member that links the
   # `herogpui-gallery` library and compiles for wasm32. So a PR that breaks the
-  # web build has to fail here, before merge, rather than the next time someone
-  # regenerates the checked-in artifact by hand.
+  # web build fails here, before merge.
   #
-  # This builds rather than checks. `wasm-bindgen` is the step that actually
-  # rejects a bad `#[wasm_bindgen]` surface, and it needs a real .wasm; a
-  # `cargo check` would pass on inputs it cannot process.
+  # This job is also where the website's artifact comes from. The ~19 MB
+  # binary is not committed: `.shots/build-wasm.sh` builds, binds, optimises
+  # and stamps it, and `wasm-publish` below publishes it as a
+  # `gallery-<key16>` prerelease keyed by the hash of every wasm build input, which the Vercel
+  # build (`web/scripts/gallery-artifact.mjs fetch`) downloads for its own
+  # checkout. See web/DEPLOYMENT.md, section 6.
+  #
+  # It builds rather than checks: `wasm-bindgen` is the step that actually
+  # rejects a bad `#[wasm_bindgen]` surface, and it needs a real .wasm.
   wasm:
     name: Build (wasm32)
     runs-on: ubuntu-24.04
+    env:
+      # binaryen's wasm-opt, pinned by version and archive digest (the
+      # version is also checked by .shots/build-wasm.sh).
+      BINARYEN_VERSION: "133"
+      BINARYEN_SHA256: 2dc9c7813f5375db93d96ead4b78222fcc3e2677bbb832297af4797782a37489
     steps:
       - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
 
       # The one job that does not build on `rust-toolchain.toml`'s pinned
       # stable: it installs nightly with the wasm32 target below and passes
@@ -413,9 +435,10 @@ jobs:
       # is retired — see `docs/upstream/retired-patches/`. Nothing in the
       # gallery uses the multi-threaded platform: `crates/herogpui-web`
       # starts the app with `single_threaded_web()`, and web workers need
-      # cross-origin isolation the Vercel-hosted site does not provide. If a
-      # future `gpui-pre-web` drops the default, move this job back to the
-      # pinned stable toolchain and delete the `+nightly` below.
+      # cross-origin isolation the site does not provide (evaluated in
+      # docs/upstream/gpui-web-multithreaded.md). If a future `gpui-pre-web`
+      # drops the default, move this job back to the pinned stable toolchain
+      # and delete the `+nightly` in .shots/build-wasm.sh.
       - name: Install nightly with the wasm32 target
         run: |
           rustup toolchain install nightly --profile minimal --component rustc,cargo,rust-std -t wasm32-unknown-unknown
@@ -439,29 +462,84 @@ jobs:
           test -n "$version"
           cargo install -f wasm-bindgen-cli --version "$version"
 
-      # No `RUSTFLAGS` here, deliberately. `.cargo/config.toml`'s
-      # `[target.wasm32-unknown-unknown]` table sets `rustflags = []` (the
-      # shared-memory build was abandoned for `single_threaded_web()` under
-      # the Vercel-hosted site, which sends no COOP/COEP headers), and a
-      # `RUSTFLAGS` environment variable *replaces* a config file's rustflags
-      # rather than appending to them. Setting it here — even to the same
-      # value — would silently diverge from that table the moment either side
-      # changed. `+nightly` matches the toolchain installed above; everything
-      # else in the workspace stays on the pinned stable.
-      - name: Build the web gallery
-        run: cargo +nightly build --locked --target wasm32-unknown-unknown --profile wasm-release -p herogpui-web
-
-      # The bindgen pass is the check, not a packaging convenience: it is what
-      # validates the generated glue against the artifact. The output is
-      # thrown away — `web/public/gallery/` holds the committed artifact and
-      # this job does not touch it.
-      - name: Generate bindings
+      - name: Install binaryen (wasm-opt) ${{ env.BINARYEN_VERSION }}
         run: |
           set -euo pipefail
-          wasm-bindgen --target web --no-typescript \
-            --out-dir "$RUNNER_TEMP/wasm-bindgen-out" \
-            target/wasm32-unknown-unknown/wasm-release/herogpui_web.wasm
-          ls -l "$RUNNER_TEMP/wasm-bindgen-out"
+          archive="$RUNNER_TEMP/binaryen.tar.gz"
+          curl -sSfL -o "$archive" \
+            "https://github.com/WebAssembly/binaryen/releases/download/version_${BINARYEN_VERSION}/binaryen-version_${BINARYEN_VERSION}-x86_64-linux.tar.gz"
+          echo "${BINARYEN_SHA256}  $archive" | sha256sum -c -
+          tar -xzf "$archive" -C "$RUNNER_TEMP"
+          echo "$RUNNER_TEMP/binaryen-version_${BINARYEN_VERSION}/bin" >> "$GITHUB_PATH"
+
+      # The stamp step (web/scripts/gallery-artifact.mjs) is plain Node with
+      # no dependencies; the same major as the website build.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      # No `RUSTFLAGS` here, deliberately. `.cargo/config.toml`'s
+      # `[target.wasm32-unknown-unknown]` table sets `rustflags = []`, and a
+      # `RUSTFLAGS` environment variable *replaces* a config file's rustflags
+      # rather than appending to them; .shots/build-wasm.sh refuses to run
+      # with it set. The script is the same recipe a developer runs locally:
+      # nightly build, wasm-bindgen, wasm-opt, then build-info.json.
+      - name: Build, bind, optimise and stamp the web gallery
+        run: bash .shots/build-wasm.sh --out "$RUNNER_TEMP/gallery" --source ci
+
+      - name: Hand the artifact to wasm-publish
+        uses: actions/upload-artifact@v4
+        with:
+          name: web-gallery
+          path: ${{ runner.temp }}/gallery/
+          retention-days: 7
+          if-no-files-found: error
+
+  # Publishes what `wasm` built as its `gallery-<key16>` prerelease (a draft
+  # until every asset is attached, so immutable releases are fine). A
+  # separate job so the write token never shares a runner with the build: the
+  # wasm job compiles third-party build scripts, this one runs only gh and jq.
+  # Fork pull requests are skipped (their token is read-only, and their bytes
+  # must not land under a key the site trusts); their previews fall back to
+  # master's artifact. On a master push it also marks the key's release
+  # `[master <time>]` (the preview fallback; a title edit, which immutable
+  # releases allow) and deletes old gallery releases.
+  wasm-publish:
+    name: Publish web gallery artifact
+    needs: [wasm]
+    if: >-
+      github.event_name != 'pull_request' ||
+      github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+          sparse-checkout: .shots/publish-gallery.sh
+          sparse-checkout-cone-mode: false
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: web-gallery
+          path: ${{ runner.temp }}/gallery
+
+      - name: Publish the gallery-<key16> release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+          # The tag points at the commit that was built (the PR head, not
+          # the synthetic merge commit).
+          HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+          MASTER: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' }}
+        run: |
+          set -euo pipefail
+          if [ "$MASTER" = "true" ]; then
+            bash .shots/publish-gallery.sh "$RUNNER_TEMP/gallery" --master
+          else
+            bash .shots/publish-gallery.sh "$RUNNER_TEMP/gallery"
+          fi
 
   # The published library crates' public API against their latest crates.io
   # release (whatever that is when the job runs: no baseline version is
@@ -551,7 +629,7 @@ jobs:
   ci:
     name: ci
     if: always()
-    needs: [web, parity, lint, test, doc, install, changes, optimized, semver, no-default-features, wasm]
+    needs: [web, parity, lint, test, doc, install, changes, optimized, semver, no-default-features, wasm, wasm-publish]
     runs-on: ubuntu-24.04
     steps:
       - name: decide

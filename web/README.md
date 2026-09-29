@@ -64,9 +64,12 @@ the prefix.
 
 The pages are driven by JSON extracted from the Rust workspace — the same
 source files the desktop gallery renders. **The generated outputs are
-committed** (`src/data/*.json`, `public/shots/`, `public/gallery/`), so a
-plain `pnpm run build` works from a fresh clone; Vercel never runs the
-pipeline. Re-run it by hand when the Rust sources they read change:
+committed** (`src/data/*.json`, `public/shots/`, `public/gallery/index.html`),
+so a plain `pnpm run build` works from a fresh clone; Vercel never runs the
+pipeline. The one exception is the WebAssembly artifact, which CI builds:
+`pnpm run build` first downloads the one for the checkout
+(`scripts/gallery-artifact.mjs`, see `DEPLOYMENT.md` section 6). Re-run the
+pipeline by hand when the Rust sources it reads change:
 
 | Command | Reads | Produces |
 |---|---|---|
@@ -76,7 +79,8 @@ pipeline. Re-run it by hand when the Rust sources they read change:
 | `node scripts/copy-shots.mjs` | `.shots/*-tile*-v3.png` | `public/shots/` — the cropped catalog tiles the components index shows (the full-page captures stay in `.shots/` as parity goldens) |
 | `node scripts/extract-releases.mjs` | `../CHANGELOG.md` | `src/data/releases.json` — the `/docs/releases` notes, one per dated version |
 | `node scripts/build-data.mjs` | — | runs the four offline extractors in dependency order with one summary |
-| `node scripts/extract-wasm-sections.mjs` (`pnpm run wasm:manifest`) | `gallery/src/pages/components/` — the same native source the desktop gallery builds from — plus the shipped artifact and every wasm build input | `src/data/wasm-sections.json` + `src/data/wasm-parity.json` — the examples compiled into the wasm artifact, the artifact hash used as the embed's immutable cache key, and an inputs hash that fails `--check` when Rust sources change without a rebuild |
+| `node scripts/extract-wasm-sections.mjs` (`pnpm run wasm:manifest`) | `gallery/src/pages/components/` — the same native source the desktop gallery builds from — plus every wasm build input | `src/data/wasm-sections.json` + `src/data/wasm-parity.json` — the examples compiled into the wasm artifact and the artifact key (an inputs hash) CI publishes it under; `--check` fails when Rust sources change without regenerating |
+| `node scripts/gallery-artifact.mjs fetch` (first step of `pnpm run build`; `pnpm run gallery:fetch`) | the checkout's wasm inputs, the checkout's `gallery-<key16>` GitHub prerelease | `public/gallery/herogpui_web*` + `build-info.json` — CI's artifact for this checkout, verified by SHA-256 (not committed) |
 | `node scripts/sync-porabuild-brand.mjs` (`pnpm run brand:sync`) | the sibling `@porabuild/brand` package | `src/styles/porabuild/` — the vendored brand layer (never hand-edit; re-sync instead) |
 
 `pnpm run extract` runs the reference, catalog, snippet and releases steps;

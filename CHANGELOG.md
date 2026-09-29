@@ -47,6 +47,14 @@ version covers `herogpui`, `herogpui-core`, `herogpui-theme`,
 - `.shots/package_audit.py` fails when `rust-toolchain.toml`'s pin stops
   being a release of `rust-version` or clippy's `msrv` differs, the reason CI
   needs no separate MSRV job.
+- `docs/upstream/prs/`: ready-to-submit upstream Zed patches and PR
+  descriptions against `zed@d89e9c2` (`gpui-pre` 0.3.5) for the retired
+  deviations (`aria_current`, spread-shadow corner radii, rounded content
+  masks, web shift+wheel) and the web IME-mirror resync after paste, with
+  submission steps; and the HeroGPUI-side design for anchoring a
+  keyboard-opened ContextMenu at the focused element.
+- `docs/upstream/gpui-web-multithreaded.md`: why the multi-threaded web
+  platform (COOP/COEP) was evaluated and not adopted.
 - `docs/upstream/gpui-block-future-incompat.md`: where the `block` 0.1.6
   future-incompatibility warning on macOS builds comes from (the GPUI macOS
   stack, and HeroGPUI's own `locale_config` dependency) and the upstream fix
@@ -61,6 +69,32 @@ version covers `herogpui`, `herogpui-core`, `herogpui-theme`,
 - The lint inheritance check now also covers `examples/*` and only accepts
   `workspace = true` inside `[lints]` (or top-level `lints.workspace`), not
   under any other table.
+- The WebAssembly gallery artifact is no longer committed (the ~19 MB
+  `web/public/gallery/herogpui_web_bg.wasm` and its glue are removed from the
+  tree; history keeps them). CI's `wasm` job builds it with
+  `.shots/build-wasm.sh` and a new `wasm-publish` job uploads it to the
+  `gallery-<key16>` prerelease per hash of the wasm build inputs (assets
+  attached while it is a draft, so it works with immutable releases on);
+  `pnpm run build` in `web/` downloads the artifact for its checkout and
+  verifies its SHA-256 first (`web/scripts/gallery-artifact.mjs`). Vercel
+  previews fall back to master's artifact with an "earlier build" banner,
+  production waits for CI and never ships a mismatched gallery, and a local
+  `.shots/build-wasm.sh` build takes precedence. `wasm-parity.json` now
+  records the artifact key and example bodies only (`pnpm run wasm:manifest`
+  after a Rust change; no rebuild).
+- The wasm build runs binaryen `wasm-opt -O1` (version_133, pinned by version
+  and archive digest in CI): -3.6% raw, -0.5% brotli. `-Oz` was measured and
+  rejected: 10.7% smaller raw but 3.8% larger compressed.
+- `.shots/lint.sh` (CI's lint gate) runs clippy a second time with
+  `--all-features`, so `missing_docs` and clippy reach the feature-gated code
+  (`herogpui-theme`'s `serde` and `watch`, `gallery-source`).
+- `herogpui-components` reads the system date/time locale itself
+  (`system_locale.rs`) instead of through `locale_config`, which removes
+  HeroGPUI's own path to the `block` 0.1.6 future-incompatibility warning on
+  macOS. The sources and precedence are unchanged: the POSIX environment
+  first on every platform (`LC_ALL`, `LC_TIME`, `LANG`, then `LANGUAGE`), then
+  the macOS Region (`NSLocale.currentLocale`) or the Windows regional format,
+  with the preferred languages as fallbacks.
 
 ### Removed
 
@@ -76,6 +110,10 @@ version covers `herogpui`, `herogpui-core`, `herogpui-theme`,
 - Stale CI, release and agent guidance: test-binary counts, "Git GPUI is not
   registry-publishable", "stable wasm32 build", "unpublished" crates,
   "does not publish to crates.io", and advisory reasons naming `gpui 0.2`.
+- Website: a component page's live preview no longer takes keyboard focus
+  when it boots, so Cmd/Ctrl+K search and page keys keep working; the frame
+  takes focus on the first click or Tab into it, and forwards Cmd/Ctrl+K to
+  the page while the reader works inside it.
 
 ### Added
 
