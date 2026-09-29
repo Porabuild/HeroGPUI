@@ -8,6 +8,24 @@ version covers `herogpui`, `herogpui-core`, `herogpui-theme`,
 
 ## [Unreleased]
 
+### Changed
+
+- Tests: the remaining source-text assertions in
+  `crates/herogpui-components/tests/` became behaviour and painted-scene
+  tests. The shared harness now reads the painted quads (fill, corners,
+  borders, content mask), the offset focus ring's gap band, and the text
+  style inherited at a caller-owned slot, and observes motion on the real
+  clock. Overlay panels (tooltip, modal, toast, popover, dropdown, alert
+  dialog, the picker panels) are opened through their builders or real
+  input; field-family chrome, radius, padding, font and hover-timing seams
+  are read off the scene. `include_str!` of component sources went from 115
+  to 0, and the source-reading tests in the 21 affected files from 63 to 19;
+  each one kept (svg paths and rotations, shadows, the cursor, AccessKit
+  output, text with no probe slot) is listed with its reason in
+  `tests/README.md`. The conversion found that `Autocomplete::radius`
+  reaches the trigger box despite documenting a panel-only override; that
+  case is an ignored test naming the defect.
+
 ## [0.12.0] - 2026-09-28
 
 ### Added
