@@ -805,7 +805,7 @@ impl Tabs {
     /// applied to the tabs' root element after every value the variant and the
     /// active theme chose, so they win.
     pub fn sx(mut self, style: impl FnOnce(gpui::Div) -> gpui::Div) -> Self {
-        self.sx = Some(crate::util::capture_sx(style));
+        crate::util::refine_sx(&mut self.sx, style);
         self
     }
 }
@@ -1951,3 +1951,5 @@ mod tabs_size_tests {
         );
     }
 }
+
+crate::util::impl_component_styled!(Tabs);

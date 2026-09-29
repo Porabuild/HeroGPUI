@@ -234,7 +234,7 @@ impl TitleBar {
 
     /// Caller-owned styling refined over the bar after the theme's values.
     pub fn sx(mut self, style: impl FnOnce(gpui::Div) -> gpui::Div) -> Self {
-        self.sx = Some(util::capture_sx(style));
+        util::refine_sx(&mut self.sx, style);
         self
     }
 
@@ -724,3 +724,5 @@ mod tests {
         assert_eq!(at(788., 300.), Some(ResizeEdge::Right));
     }
 }
+
+crate::util::impl_component_styled!(TitleBar);

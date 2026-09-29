@@ -215,7 +215,7 @@ impl ColorArea {
     /// applied to the area's root element after every value the channels and
     /// the active theme chose, so they win.
     pub fn sx(mut self, style: impl FnOnce(gpui::Div) -> gpui::Div) -> Self {
-        self.sx = Some(util::capture_sx(style));
+        util::refine_sx(&mut self.sx, style);
         self
     }
 
@@ -1210,3 +1210,5 @@ pub(super) fn color_field_display_text(
 }
 
 // ---------------------------------------------------------------------------
+
+crate::util::impl_component_styled!(ColorArea);

@@ -125,7 +125,7 @@ impl Meter {
     /// the bar it delegates to is the meter's root — so the override travels
     /// down with it.
     pub fn sx(mut self, style: impl FnOnce(gpui::Div) -> gpui::Div) -> Self {
-        self.sx = Some(crate::util::capture_sx(style));
+        crate::util::refine_sx(&mut self.sx, style);
         self
     }
 
@@ -179,3 +179,5 @@ impl RenderOnce for Meter {
         p.into_any_element()
     }
 }
+
+crate::util::impl_component_styled!(Meter);

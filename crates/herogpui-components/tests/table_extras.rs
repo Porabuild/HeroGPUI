@@ -591,12 +591,12 @@ fn a_press_on_a_frozen_cell_selects_the_row_and_misses_the_hidden_cells(cx: &mut
     cx.simulate_click(at, Modifiers::none());
     frame(cx);
     let log = log(&seen);
-    assert!(log.contains(&"content:1/0".to_string()), "{log:?}");
+    assert!(log.contains(&"content:1/0".to_owned()), "{log:?}");
     assert!(
         !log.iter().any(|e| e == "content:1/1"),
         "the hidden cell is not reachable: {log:?}"
     );
-    assert!(log.contains(&"select:[\"1\"]".to_string()), "{log:?}");
+    assert!(log.contains(&"select:[\"1\"]".to_owned()), "{log:?}");
 }
 
 #[gpui::test]

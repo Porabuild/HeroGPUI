@@ -476,7 +476,7 @@ impl NumberField {
     /// group and the message — after every value the variant and the active
     /// theme chose, so they win. The group's own chrome stays with the variant.
     pub fn sx(mut self, style: impl FnOnce(gpui::Div) -> gpui::Div) -> Self {
-        self.sx = Some(crate::util::capture_sx(style));
+        crate::util::refine_sx(&mut self.sx, style);
         self
     }
 
@@ -1494,3 +1494,5 @@ mod hover_tokens {
         );
     }
 }
+
+crate::util::impl_component_styled!(NumberField);

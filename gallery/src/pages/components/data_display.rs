@@ -955,6 +955,32 @@ impl Gallery {
                         ),
                     ]), cx),
                 ),
+                (
+                    "Frozen Columns", "HeroGPUI extension, not a HeroUI v3 example: the Name column and the selection column stay visible while the other columns scroll horizontally. Use a horizontal wheel or trackpad gesture over either part; row selection and keyboard cell navigation still span the whole table.",
+                    specimen_body("tbl-frozen-columns", stretch_col(vec![
+                        gpui::div()
+                            .w(px(520.))
+                            .max_w_full()
+                            .child({
+                                let cell = |text: &str| {
+                                    gpui::div().child(text.to_owned()).into_any_element()
+                                };
+                                h::Table::new(vec![])
+                                    .id("tbl-frozen-columns")
+                                    .column(h::TableColumn::new("Name").frozen(true).min_width(px(180.)))
+                                    .column(h::TableColumn::new("Role").min_width(px(180.)))
+                                    .column(h::TableColumn::new("Department").min_width(px(180.)))
+                                    .column(h::TableColumn::new("Location").min_width(px(180.)))
+                                    .column(h::TableColumn::new("Status").min_width(px(180.)))
+                                    .selection_mode(SelectionMode::Multiple)
+                                    .row(vec![cell("Tony Reichert"), cell("CEO"), cell("Leadership"), cell("New York"), cell("Active")])
+                                    .row(vec![cell("Zoey Lang"), cell("Tech Lead"), cell("Engineering"), cell("London"), cell("Active")])
+                                    .row(vec![cell("Jane Fisher"), cell("Designer"), cell("Design"), cell("Berlin"), cell("Away")])
+                                    .into_any_element()
+                            })
+                            .into_any_element(),
+                    ]), cx),
+                ),
             ],
             cx,
         )

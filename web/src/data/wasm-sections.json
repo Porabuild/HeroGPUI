@@ -94,6 +94,7 @@
     "Virtualization",
     "Virtual List",
     "Tree View",
+    "Large Tree View",
     "Custom Check Icon",
     "Single selection",
     "Multiple selection",
@@ -132,6 +133,7 @@
     "Usage",
     "Empty Value",
     "Box Customisation",
+    "Root Styling",
     "Variants",
     "On Surface",
     "With Description",
@@ -210,6 +212,7 @@
   ],
   "switch": [
     "Usage",
+    "Label Size",
     "Sizes",
     "With Icons",
     "Without Label",
@@ -257,7 +260,10 @@
     "Pagination",
     "Custom Cells",
     "Empty State",
-    "Loading"
+    "Loading",
+    "Column Reordering",
+    "Cell Selection",
+    "Frozen Columns"
   ],
   "calendar": [
     "International Calendars",
@@ -412,6 +418,7 @@
   ],
   "checkbox": [
     "Usage",
+    "Label Size",
     "Sizes",
     "Variants",
     "Full Rounded",
@@ -476,6 +483,7 @@
   "input-group": [
     "Usage",
     "Box Customisation",
+    "Hover Colour",
     "Variants",
     "In Surface",
     "Loading State",
@@ -517,6 +525,7 @@
   "number-field": [
     "Usage",
     "Box Customisation",
+    "Hover Colour",
     "Without steppers",
     "Format Options",
     "Variants",
@@ -535,6 +544,7 @@
   ],
   "radio-group": [
     "Usage",
+    "Label Size",
     "Sizes",
     "Variants",
     "In Surface",
@@ -600,7 +610,8 @@
     "With Content",
     "Variants",
     "Vertical",
-    "Resizable Panels"
+    "Resizable Panels",
+    "Collapsible Panels"
   ],
   "surface": [
     "Usage",
@@ -612,7 +623,9 @@
     "With ButtonGroup",
     "Horizontal",
     "Attached",
-    "Vertical"
+    "Vertical",
+    "Sized Controls",
+    "Title Bar"
   ],
   "avatar": [
     "Usage",
@@ -682,8 +695,10 @@
   ],
   "tabs": [
     "Usage",
+    "Label Size",
     "Sizes",
     "Vertical",
+    "Vertical Tab Width",
     "Wrapping Labels",
     "Full Width",
     "Alignment",
@@ -694,7 +709,8 @@
     "Icon-Only Toolbar Segments",
     "Secondary Variant",
     "Secondary Variant Vertical",
-    "Primary"
+    "Primary",
+    "Sidebar"
   ],
   "alert-dialog": [
     "Usage",
@@ -732,7 +748,8 @@
     "Dismiss Behavior",
     "Close Methods",
     "Custom Animations",
-    "Usage"
+    "Usage",
+    "Command Palette"
   ],
   "popover": [
     "Usage",
@@ -765,13 +782,15 @@
     "Usage",
     "Placement",
     "Long Content",
-    "Delay"
+    "Delay",
+    "Hover Card"
   ],
   "autocomplete": [
     "Usage",
     "Placement",
     "Long Selected Value",
     "Box Customisation",
+    "Hover Colours",
     "Virtualization",
     "Variants",
     "In Surface",
@@ -794,6 +813,7 @@
     "Usage",
     "Placement",
     "Box Customisation",
+    "Minimum Width",
     "Virtualization",
     "Full Width",
     "With Description",
@@ -827,6 +847,7 @@
     "Long Values & Option Focus",
     "With Clear Button",
     "Box Customisation",
+    "Hover Colours",
     "Virtualization",
     "With Description",
     "Required",

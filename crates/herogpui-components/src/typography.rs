@@ -264,7 +264,7 @@ impl Typography {
     /// applied to the typography's root element after every value the kind, the
     /// color and the active theme chose, so they win.
     pub fn sx(mut self, style: impl FnOnce(gpui::Div) -> gpui::Div) -> Self {
-        self.sx = Some(crate::util::capture_sx(style));
+        crate::util::refine_sx(&mut self.sx, style);
         self
     }
 }
@@ -352,7 +352,7 @@ impl Prose {
     /// applied to the prose block's root element after every value the active
     /// theme chose, so they win.
     pub fn sx(mut self, style: impl FnOnce(gpui::Div) -> gpui::Div) -> Self {
-        self.sx = Some(crate::util::capture_sx(style));
+        crate::util::refine_sx(&mut self.sx, style);
         self
     }
 }
@@ -377,3 +377,5 @@ impl RenderOnce for Prose {
         crate::util::apply_sx(el, &self.sx)
     }
 }
+
+crate::util::impl_component_styled!(Typography, Prose);

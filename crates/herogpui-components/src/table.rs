@@ -1226,7 +1226,7 @@ impl Table {
     /// applied to the table's root element after every value the variant and
     /// the active theme chose, so they win.
     pub fn sx(mut self, style: impl FnOnce(gpui::Div) -> gpui::Div) -> Self {
-        self.sx = Some(crate::util::capture_sx(style));
+        crate::util::refine_sx(&mut self.sx, style);
         self
     }
 
@@ -1476,7 +1476,7 @@ impl RenderOnce for Table {
         let is_tree = self.virtual_tree_metadata.is_some()
             || self.rows.iter().any(|row| !row.children.is_empty());
         let mut table = self
-            .grid(&base_id, selectable, is_tree, &virtual_body)
+            .grid_element(&base_id, selectable, is_tree, &virtual_body)
             .when(frozen.is_some(), |grid| grid.w_full());
 
         // ---- header ------------------------------------------------------
@@ -1991,7 +1991,7 @@ impl Table {
 
     /// `.table__content`: the grid itself, the column the header, body,
     /// load-more row and footer stack in.
-    fn grid(
+    fn grid_element(
         &self,
         base_id: &gpui::ElementId,
         selectable: bool,
@@ -6520,3 +6520,5 @@ mod tests {
         );
     }
 }
+
+crate::util::impl_component_styled!(Table);

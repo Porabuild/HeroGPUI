@@ -516,7 +516,7 @@ impl Switch {
     /// applied to the switch's root element after every value the size, the
     /// state and the active theme chose, so they win.
     pub fn sx(mut self, style: impl FnOnce(gpui::Div) -> gpui::Div) -> Self {
-        self.sx = Some(crate::util::capture_sx(style));
+        crate::util::refine_sx(&mut self.sx, style);
         self
     }
 
@@ -977,7 +977,7 @@ impl SwitchGroup {
     /// applied to the group's root element after every value the orientation
     /// chose, so it wins.
     pub fn sx(mut self, style: impl FnOnce(gpui::Div) -> gpui::Div) -> Self {
-        self.sx = Some(crate::util::capture_sx(style));
+        crate::util::refine_sx(&mut self.sx, style);
         self
     }
 
@@ -1019,3 +1019,5 @@ impl RenderOnce for SwitchGroup {
         crate::util::apply_sx(root, &self.sx)
     }
 }
+
+crate::util::impl_component_styled!(Switch, SwitchGroup);

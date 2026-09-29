@@ -1071,7 +1071,7 @@ impl ToastViewport {
     /// positioned, so an override that sets its own position wins over the
     /// placement's insets.
     pub fn sx(mut self, style: impl FnOnce(gpui::Div) -> gpui::Div) -> Self {
-        self.sx = Some(crate::util::capture_sx(style));
+        crate::util::refine_sx(&mut self.sx, style);
         self
     }
 }
@@ -2131,3 +2131,5 @@ mod tests {
         );
     }
 }
+
+crate::util::impl_component_styled!(ToastViewport);

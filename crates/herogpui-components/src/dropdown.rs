@@ -593,7 +593,7 @@ impl Menu {
     /// and the active theme chose, so they win. The panel inside paints its
     /// own chrome, so this reaches the surface it floats in, not the panel.
     pub fn sx(mut self, style: impl FnOnce(gpui::Div) -> gpui::Div) -> Self {
-        self.sx = Some(crate::util::capture_sx(style));
+        crate::util::refine_sx(&mut self.sx, style);
         self
     }
 }
@@ -2097,7 +2097,7 @@ impl Dropdown {
     /// the caller's own element and the panel paints its own chrome, so this
     /// reaches the wrapper they sit in.
     pub fn sx(mut self, style: impl FnOnce(gpui::Div) -> gpui::Div) -> Self {
-        self.sx = Some(crate::util::capture_sx(style));
+        crate::util::refine_sx(&mut self.sx, style);
         self
     }
 }
@@ -2397,3 +2397,5 @@ mod hover_tokens {
         );
     }
 }
+
+crate::util::impl_component_styled!(Menu, Dropdown);

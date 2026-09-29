@@ -285,7 +285,7 @@ impl Button {
     /// replaces the hover fade's endpoints and an overridden pixel size the
     /// press geometry, so the override holds across states.
     pub fn sx(mut self, style: impl FnOnce(Div) -> Div) -> Self {
-        self.sx = Some(util::capture_sx(style));
+        util::refine_sx(&mut self.sx, style);
         self
     }
 
@@ -1340,3 +1340,5 @@ mod tests {
         );
     }
 }
+
+crate::util::impl_component_styled!(Button);

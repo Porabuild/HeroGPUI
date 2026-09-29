@@ -35,6 +35,39 @@ fn sx_pixel_size_replaces_the_control_footprint(cx: &mut TestAppContext) {
 }
 
 #[gpui::test]
+fn styled_methods_and_sx_share_the_root_refinement_in_builder_order(cx: &mut TestAppContext) {
+    let changes = events();
+    let recorded = changes.clone();
+    let cx = open_host(cx, move || {
+        let pressed = changes.clone();
+        Button::new("styled-sized")
+            .label("Much wider than the override")
+            .w(px(24.))
+            .sx(|el| el.h(px(12.)))
+            .w(px(13.))
+            .on_press(move |_, _, _| pressed.borrow_mut().push("press".into()))
+            .into_any_element()
+    });
+    click(cx, 6., 6.);
+    click(cx, 20., 6.);
+    click(cx, 6., 20.);
+    assert_eq!(recorded.borrow().as_slice(), ["press"]);
+}
+
+#[gpui::test]
+fn styled_methods_refine_a_plain_component_root(cx: &mut TestAppContext) {
+    let cx = open_host(cx, move || {
+        Chip::new()
+            .child(ChipLabel::new().child("Sized"))
+            .h(px(40.))
+            .into_any_element()
+    });
+    cx.run_until_parked();
+    let bounds = cx.debug_bounds("chip").unwrap();
+    assert!((f32::from(bounds.size.height) - 40.0).abs() < 0.5);
+}
+
+#[gpui::test]
 fn sx_background_keeps_the_press_path_through_the_hover_fade(cx: &mut TestAppContext) {
     let changes = events();
     let recorded = changes.clone();

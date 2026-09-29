@@ -598,7 +598,7 @@ impl Autocomplete {
     /// variant and the active theme chose, so they win. The trigger paints its
     /// own chrome, so this reaches the box that chrome sits in, not the chrome.
     pub fn sx(mut self, style: impl FnOnce(gpui::Div) -> gpui::Div) -> Self {
-        self.sx = Some(util::capture_sx(style));
+        util::refine_sx(&mut self.sx, style);
         self
     }
 
@@ -2894,3 +2894,5 @@ mod hover_tokens {
         );
     }
 }
+
+crate::util::impl_component_styled!(Autocomplete);

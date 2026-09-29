@@ -99,7 +99,7 @@ impl BadgeAnchor {
     /// applied to the anchor's root element after every value the anchor and
     /// the active theme chose, so they win.
     pub fn sx(mut self, style: impl FnOnce(gpui::Div) -> gpui::Div) -> Self {
-        self.sx = Some(crate::util::capture_sx(style));
+        crate::util::refine_sx(&mut self.sx, style);
         self
     }
 }
@@ -159,7 +159,7 @@ impl BadgeLabel {
     /// applied to the label's root element after every value the badge and the
     /// active theme chose, so they win.
     pub fn sx(mut self, style: impl FnOnce(gpui::Div) -> gpui::Div) -> Self {
-        self.sx = Some(crate::util::capture_sx(style));
+        crate::util::refine_sx(&mut self.sx, style);
         self
     }
 }
@@ -270,7 +270,7 @@ impl Badge {
     /// applied to the badge's root element after every value the variant, the
     /// color and the active theme chose, so they win.
     pub fn sx(mut self, style: impl FnOnce(gpui::Div) -> gpui::Div) -> Self {
-        self.sx = Some(crate::util::capture_sx(style));
+        crate::util::refine_sx(&mut self.sx, style);
         self
     }
 }
@@ -596,3 +596,5 @@ mod tests {
         }
     }
 }
+
+crate::util::impl_component_styled!(BadgeAnchor, BadgeLabel, Badge);

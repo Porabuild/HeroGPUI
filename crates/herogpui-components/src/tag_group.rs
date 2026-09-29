@@ -374,7 +374,7 @@ impl TagGroup {
     /// applied to the group's root element after every value the size, the
     /// variant and the active theme chose, so they win.
     pub fn sx(mut self, style: impl FnOnce(gpui::Div) -> gpui::Div) -> Self {
-        self.sx = Some(crate::util::capture_sx(style));
+        crate::util::refine_sx(&mut self.sx, style);
         self
     }
 
@@ -1298,3 +1298,5 @@ mod tests {
         assert!(home_end_registered(fn_home.modifiers, false));
     }
 }
+
+crate::util::impl_component_styled!(TagGroup);

@@ -454,7 +454,7 @@ impl RadioGroup {
     /// applied to the radio group's root element after every value the
     /// orientation and the active theme chose, so they win.
     pub fn sx(mut self, style: impl FnOnce(gpui::Div) -> gpui::Div) -> Self {
-        self.sx = Some(crate::util::capture_sx(style));
+        crate::util::refine_sx(&mut self.sx, style);
         self
     }
 }
@@ -1022,3 +1022,5 @@ mod radio_size_tests {
         );
     }
 }
+
+crate::util::impl_component_styled!(RadioGroup);

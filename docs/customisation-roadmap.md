@@ -64,9 +64,9 @@ in `.shots/extra_audit.py`, kept out of `reference_metadata`, documented in
 
 Totals: 20 done in 0.9.0–0.10.1, 7 implemented in 0.13, 8 declined.
 
-Not part of Phases 0–6 and still open: `Styled` on components (0.14, after
-this ownership contract), and keyboard `ContextMenu` anchoring at the focused
-element (blocked on GPUI reporting focused-element bounds).
+Not part of Phases 0–6: `Styled` on components landed in 0.13 after this
+ownership contract; keyboard `ContextMenu` anchoring at the focused element
+remains on the 0.13 integration queue.
 
 ## Corrections to the previous proposal
 
@@ -512,10 +512,11 @@ reach yet, and are the next candidates.
 
 Deliberately not done, and next in this order:
 
-1. **`Styled` on components** (comparison §4 #3, L). Replaces per-prop box
-   builders with GPUI's full style surface backed by the existing `sx`
-   refinement. Needs the per-part ownership rules above first, because a root
-   `Styled` call must not silently restyle child parts.
+1. **`Styled` on components** (comparison §4 #3, L). Landed in 0.13 for every
+   component with an `sx` root slot: GPUI's style methods and `sx` share one
+   refinement, with builder order deciding overlapping properties. The
+   per-part ownership rules above keep root styling off independent child
+   parts.
 2. **VirtualList for the fixed-height paths.** Done for 0.13.
    `VirtualListHandle::uniform` gives `VirtualList` a uniform mode (GPUI's
    `uniform_list` underneath, so a row is still measured once and
@@ -567,27 +568,14 @@ selection. The comparison's "Toolbar extras" row names no single feature;
 the concrete gaps against gpui-kit's `toolbar.rs` were its size propagation
 to the controls and a named group, which landed as `Toolbar::size` /
 `sized_child` and `Toolbar::label`. gpui-kit's toolbar has no overflow menu,
-so there is none to port.
+so there is none to port. `TableColumn::frozen` also landed after the
+`table.rs` render split: a frozen header and each frozen row keep a leading
+part alongside a clipped scrolling part, with a shared horizontal scroll
+handle. Row hover, press, selection and keyboard cell navigation cross the
+boundary; `tests/table_extras.rs` covers plain and virtual bodies.
 
 Not done, with the reason:
 
-- **Frozen (sticky) table columns.** GPUI 0.3.5 has no sticky positioning:
-  `style.rs`'s `Position` is `Relative` or `Absolute` only. The two
-  emulations were checked against the pinned sources and neither is a
-  localized, correct change yet. (a) An overlay: paint the leading cells with
-  `Window::defer_draw(.., Some(window.content_mask()))` shifted back by the
-  horizontal scroll offset. Paint order and clipping come out right, but hit
-  testing does not: `Window::hit_test` collects every non-blocking hitbox
-  under the pointer (`hitbox.bounds ∩ content_mask`), so a press on a frozen
-  cell also reaches the cell (and any caller control) scrolled underneath,
-  and making the frozen cell `HitboxBehavior::BlockMouse` also blocks the
-  row element beneath it, which owns the row's press, selection and hover.
-  Fixing that means moving the row interactions onto the cells. (b) Split
-  rows: each row and the header as a frozen part plus a clipped scrolling
-  part moved by a manual offset. That is correct, but it replaces the
-  table's native `overflow_x_scroll` with manual wheel and scroll-bar
-  handling and splits every row builder path; it belongs with the planned
-  `table.rs` render split (0.14), after the fixed-row VirtualList move.
 - **Sidebar width drag.** `ResizablePanelGroup` sizes panels in percent
   (see item 4 above), so a sidebar in a panel resizes but has no pixel
   minimum; the sidebar's own widths are fixed pixels.
@@ -623,12 +611,12 @@ to five days, L over a week.
 | P2 | Theme hot reload (`watch_dir`; `ThemeRegistry` has `load_dir` only) | Faster theming workflow | S–M | **Done** (0.13): `watch_themes_dir` behind the `watch` feature (polling, no new dependency); the native gallery watches `HEROGPUI_THEME_DIR` |
 | P2 | ~~Website hardening: CSP and `frame-ancestors`, remove the unused `web/public/shots/` images, PR preview deploys~~ Done in 0.13 (previews were already on through Vercel's Git integration) | Security headers and deploy size | M | 0.13 |
 | P3 | ~~Stop committing the wasm artifact; build it in CI and publish it with the site~~ **Done (0.13):** CI publishes it as a `gallery-<key16>` prerelease per wasm build-input hash (assets attached while a draft, so immutable releases are fine); the Vercel build downloads and verifies the one for its checkout (previews fall back to master's with a banner; production waits, then fails rather than ship a mismatch). No secrets, no manual step; `web/DEPLOYMENT.md` section 6 | Repository weight grows ~19 MB per gallery change | L | 0.13 |
-| P3 | `Styled` on components (item 1 above), after the per-part ownership rules of Phase 0.1 | Largest API change and semver risk; needs part ownership first | L | 0.14 |
-| P3 | Split the largest `render` functions (`table.rs` and others), merge the 110+ test binaries into a few suites | Review cost and link time | L | 0.14 |
+| P3 | ~~`Styled` on components~~ **Done (0.13):** all components with an `sx` root slot implement GPUI `Styled`, backed by that slot; `sx` and direct methods compose in builder order | GPUI's full root style API is available without duplicating per-prop builders | L | 0.13 |
+| P3 | Split the largest `render` functions (`table.rs` and others), merge the 110+ test binaries into a few suites | Review cost and link time | L | In progress (0.13): `table.rs`, Select, ComboBox and Autocomplete are split; test-binary consolidation remains |
 | P3 | ~~Customisation Phases 0.2–6 (theme tokens, field geometry, state colours, sizing, shape, typography)~~ **Done (0.13):** most landed in 0.9.0–0.10.1; the close-out implemented the rest and recorded each decline (see [Status of Phases 0–6](#status-of-phases-06-013-close-out)) | The largest documented backlog | L | 0.13 |
 | P3 | ~~Opt-in -O1/-O3 (`Cargo.toml` profile) test job on pull requests, by label or path filter~~ **Done (0.13):** `ci:opt-levels` label, or a PR touching build configuration | It is push-only by design, so an optimisation-level regression first shows on master or at tag time | S | 0.13 |
-| P3 | Extensions from the gpui-kit gap list: Sidebar, TitleBar, CommandPalette, HoverCard, Toolbar extras, data-table extras | Done on the 0.13 line except frozen table columns (see "Extensions from the gpui-kit gap list" above) | L | 0.13 |
-| P3 | Frozen table columns | GPUI has no sticky positioning; the overlay emulation mis-routes presses and the split-row one needs the `table.rs` render split | M | 0.13 (with the `table.rs` render split) |
+| P3 | Extensions from the gpui-kit gap list: Sidebar, TitleBar, CommandPalette, HoverCard, Toolbar extras, data-table extras | Done on the 0.13 line, including frozen table columns (see "Extensions from the gpui-kit gap list" above) | L | 0.13 |
+| P3 | ~~Frozen table columns~~ **Done (0.13):** `TableColumn::frozen` keeps the leading columns and selection column fixed with split header and row parts; plain and virtual paths are covered by `table_extras` | GPUI has no sticky positioning, so the table uses clipped scroll parts | M | 0.13 |
 | P3 | Keyboard ContextMenu anchored at the focused element | gpui-pre 0.3.5 has no public focused-element bounds, but a HeroGPUI-side design works with public APIs (focusable components record their bounds in a `canvas()` prepaint keyed by focus handle): written up for implementation in [`docs/upstream/prs/context-menu-focus-anchor.md`](upstream/prs/context-menu-focus-anchor.md) | M (82 call sites) | 0.14 |
 | P3 | Upstream GPUI work: IME-mirror resync after paste, the retired patches, the `block` 0.1.6 future-incompatibility warning every macOS build prints (chain and requested fix in [`docs/upstream/gpui-block-future-incompat.md`](upstream/gpui-block-future-incompat.md)); multithreaded wasm. **0.13:** ready-to-submit patches and PR texts for the IME resync and the retired patches against zed@d89e9c2 in [`docs/upstream/prs/`](upstream/prs/README.md) (submission needs a maintainer with a Zed CLA); HeroGPUI's own `locale_config` edge to `block` is gone (replaced by `system_locale.rs`); multithreaded wasm evaluated and not adopted ([`docs/upstream/gpui-web-multithreaded.md`](upstream/gpui-web-multithreaded.md)) | External dependencies | M each | later |
 

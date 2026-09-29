@@ -1995,6 +1995,39 @@ pub fn capture_sx(style: impl FnOnce(Div) -> Div) -> Box<gpui::StyleRefinement> 
     Box::new(style(gpui::div()).style().clone())
 }
 
+/// Adds a closure's root refinement to one already set through GPUI's
+/// `Styled` methods (or an earlier `sx` call). Builder order stays meaningful
+/// for fields both calls set; unrelated fields remain in place.
+pub(crate) fn refine_sx(
+    sx: &mut Option<Box<gpui::StyleRefinement>>,
+    style: impl FnOnce(Div) -> Div,
+) {
+    let next = capture_sx(style);
+    if let Some(current) = sx {
+        current.as_mut().refine(&next);
+    } else {
+        *sx = Some(next);
+    }
+}
+
+/// The `Styled` storage is the same root-only refinement that `sx` uses.
+/// Invoke this beside each component type with an `sx` field so GPUI's full
+/// style vocabulary can be used without forwarding styles into child parts.
+macro_rules! impl_component_styled {
+    ($($component:ty),+ $(,)?) => {
+        $(
+            impl gpui::Styled for $component {
+                fn style(&mut self) -> &mut gpui::StyleRefinement {
+                    self.sx
+                        .get_or_insert_with(|| Box::new(gpui::StyleRefinement::default()))
+                        .as_mut()
+                }
+            }
+        )+
+    };
+}
+pub(crate) use impl_component_styled;
+
 /// Merges a captured `sx` refinement over a root element's own style.
 ///
 /// Call this after every value the component derived from its variant and the

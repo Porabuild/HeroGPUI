@@ -148,7 +148,7 @@ impl Breadcrumbs {
     /// applied to the breadcrumbs' root element after every value the active
     /// theme chose, so they win.
     pub fn sx(mut self, style: impl FnOnce(gpui::Div) -> gpui::Div) -> Self {
-        self.sx = Some(crate::util::capture_sx(style));
+        crate::util::refine_sx(&mut self.sx, style);
         self
     }
 }
@@ -384,3 +384,5 @@ impl RenderOnce for Breadcrumbs {
         crate::util::apply_sx(el, &self.sx)
     }
 }
+
+crate::util::impl_component_styled!(Breadcrumbs);

@@ -41,7 +41,7 @@ impl InputAddon {
     /// applied to the addon's root element after every value the active theme
     /// chose, so they win.
     pub fn sx(mut self, style: impl FnOnce(gpui::Div) -> gpui::Div) -> Self {
-        self.sx = Some(util::capture_sx(style));
+        util::refine_sx(&mut self.sx, style);
         self
     }
 }
@@ -282,7 +282,7 @@ impl InputGroup {
     /// active theme chose, so they win. The group box's own chrome stays with
     /// the variant.
     pub fn sx(mut self, style: impl FnOnce(gpui::Div) -> gpui::Div) -> Self {
-        self.sx = Some(util::capture_sx(style));
+        util::refine_sx(&mut self.sx, style);
         self
     }
 }
@@ -697,3 +697,5 @@ mod tests {
         );
     }
 }
+
+crate::util::impl_component_styled!(InputAddon, InputGroup);

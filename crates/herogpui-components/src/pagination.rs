@@ -82,7 +82,7 @@ impl Pagination {
     /// active theme chose, so they win. The page cells and nav buttons keep
     /// their own ladder geometry.
     pub fn sx(mut self, style: impl FnOnce(gpui::Div) -> gpui::Div) -> Self {
-        self.sx = Some(crate::util::capture_sx(style));
+        crate::util::refine_sx(&mut self.sx, style);
         self
     }
 
@@ -720,3 +720,5 @@ mod tests {
         );
     }
 }
+
+crate::util::impl_component_styled!(Pagination);

@@ -293,7 +293,7 @@ impl Avatar {
     /// applied to the avatar's root element after every value the variant, the
     /// color and the active theme chose, so they win.
     pub fn sx(mut self, style: impl FnOnce(gpui::Div) -> gpui::Div) -> Self {
-        self.sx = Some(crate::util::capture_sx(style));
+        crate::util::refine_sx(&mut self.sx, style);
         self
     }
 
@@ -782,3 +782,5 @@ mod outcome_guard {
         assert!(!first_completion(true, 1, 1));
     }
 }
+
+crate::util::impl_component_styled!(Avatar);

@@ -2,8 +2,8 @@
 # HeroGPUI parity coverage report
 
 Target: `v3.2.6` (`e385ac202b2cdb94b1bf6fa76d32c31c8259cc5e`)
-Inventory date: `2026-09-28`
-Inventory verification: `9e6d3b8716ff9adecdd757b2883e3d332dfa66d690d214ac9486bcc774fe8cc1`
+Inventory date: `2026-09-29`
+Inventory verification: `65297511f52170c9015bc6ceaac6bf12aa10c527cb1ecf6feaa8345d48268e80`
 Last evidence commit: `(none recorded)`
 
 This is a maintainer work-queue summary. It does not turn gallery section headings, static audits, or successful builds into parity evidence.
@@ -12,12 +12,12 @@ This is a maintainer work-queue summary. It does not turn gallery section headin
 
 | Metric | Count |
 | --- | --- |
-| Specimens | 750 |
+| Specimens | 771 |
 | Verified | 0 |
-| Outstanding | 750 |
-| Unobserved/unreviewed | 750 |
+| Outstanding | 771 |
+| Unobserved/unreviewed | 771 |
 | Components | 68 |
-| Gallery sections | 743 |
+| Gallery sections | 764 |
 
 ## Status distribution
 
@@ -29,18 +29,18 @@ This is a maintainer work-queue summary. It does not turn gallery section headin
 | not-applicable | 0 |
 | platform-limited | 0 |
 | specified | 0 |
-| unreviewed | 743 |
+| unreviewed | 764 |
 | verified | 0 |
 
 ## Evidence surfaces
 
 | Surface | With evidence | Missing evidence |
 | --- | --- | --- |
-| upstream | 5 | 745 |
-| native | 1 | 749 |
-| wasm | 1 | 749 |
-| tests | 5 | 745 |
-| all_surfaces | 1 | 749 |
+| upstream | 5 | 766 |
+| native | 1 | 770 |
+| wasm | 1 | 770 |
+| tests | 5 | 766 |
+| all_surfaces | 1 | 770 |
 
 ## Component queue
 
@@ -49,7 +49,7 @@ This is a maintainer work-queue summary. It does not turn gallery section headin
 | Accordion | 11 | 0 | 11 |
 | Alert | 4 | 0 | 4 |
 | Alert Dialog | 12 | 0 | 12 |
-| Autocomplete | 21 | 0 | 21 |
+| Autocomplete | 22 | 0 | 22 |
 | Avatar | 6 | 0 | 6 |
 | AvatarGroup | 7 | 0 | 7 |
 | Badge | 7 | 0 | 7 |
@@ -58,17 +58,17 @@ This is a maintainer work-queue summary. It does not turn gallery section headin
 | Button Group | 9 | 0 | 9 |
 | Calendar | 21 | 0 | 21 |
 | Card | 6 | 0 | 6 |
-| Checkbox | 14 | 0 | 14 |
+| Checkbox | 15 | 0 | 15 |
 | Checkbox Group | 11 | 0 | 11 |
 | Chip | 6 | 0 | 6 |
 | Close Button | 6 | 0 | 6 |
 | Color Area | 7 | 0 | 7 |
-| Color Field | 18 | 0 | 18 |
+| Color Field | 19 | 0 | 19 |
 | Color Picker | 6 | 0 | 6 |
 | Color Slider | 9 | 0 | 9 |
 | Color Swatch | 7 | 0 | 7 |
 | Color Swatch Picker | 11 | 0 | 11 |
-| Combo Box | 29 | 0 | 29 |
+| Combo Box | 30 | 0 | 30 |
 | Date Field | 15 | 0 | 15 |
 | Date Picker | 10 | 0 | 10 |
 | Date Range Picker | 10 | 0 | 10 |
@@ -78,41 +78,41 @@ This is a maintainer work-queue summary. It does not turn gallery section headin
 | Fieldset | 2 | 0 | 2 |
 | Form | 2 | 0 | 2 |
 | Input | 9 | 0 | 9 |
-| Input Group | 25 | 0 | 25 |
+| Input Group | 26 | 0 | 26 |
 | Input OTP | 12 | 0 | 12 |
 | Kbd | 6 | 0 | 6 |
 | Label & Messages | 13 | 0 | 13 |
 | Link | 5 | 0 | 5 |
-| List Box | 17 | 0 | 17 |
+| List Box | 18 | 0 | 18 |
 | Meter | 5 | 0 | 5 |
-| Modal | 13 | 0 | 13 |
-| Number Field | 17 | 0 | 17 |
+| Modal | 14 | 0 | 14 |
+| Number Field | 18 | 0 | 18 |
 | Pagination | 12 | 0 | 12 |
 | Popover | 6 | 0 | 6 |
 | Progress Bar | 6 | 0 | 6 |
 | Progress Circle | 7 | 0 | 7 |
-| Radio Group | 12 | 0 | 12 |
+| Radio Group | 13 | 0 | 13 |
 | Range Calendar | 20 | 0 | 20 |
 | Scroll Shadow | 9 | 0 | 9 |
 | Search Field | 15 | 0 | 15 |
-| Select | 26 | 0 | 26 |
-| Separator | 6 | 0 | 6 |
+| Select | 27 | 0 | 27 |
+| Separator | 7 | 0 | 7 |
 | Shared focus modality | 1 | 0 | 1 |
 | Skeleton | 8 | 0 | 8 |
 | Slider | 17 | 0 | 17 |
 | Spinner | 6 | 0 | 6 |
 | Surface | 3 | 0 | 3 |
-| Switch | 13 | 0 | 13 |
-| Table | 17 | 0 | 17 |
-| Tabs | 15 | 0 | 15 |
+| Switch | 14 | 0 | 14 |
+| Table | 20 | 0 | 20 |
+| Tabs | 18 | 0 | 18 |
 | Tag Group | 17 | 0 | 17 |
 | Text Area | 6 | 0 | 6 |
 | Text Field | 12 | 0 | 12 |
 | Time Field | 15 | 0 | 15 |
 | Toast | 14 | 0 | 14 |
 | Toggle Button | 16 | 0 | 16 |
-| Toolbar | 5 | 0 | 5 |
-| Tooltip | 7 | 0 | 7 |
+| Toolbar | 7 | 0 | 7 |
+| Tooltip | 8 | 0 | 8 |
 | Typography | 7 | 0 | 7 |
 
 ## Explicit gap queues
@@ -120,6 +120,6 @@ This is a maintainer work-queue summary. It does not turn gallery section headin
 - Measured gaps: **0**
 - Intentional deviations: **0**
 - Platform limits: **0**
-- Unresolved specimen records: **750**
+- Unresolved specimen records: **771**
 
 The JSON file contains the complete unresolved id list and per-component detail. Add a concrete evidence record before changing a specimen to `verified`; record intentional deviations and platform limits with user-facing notes.

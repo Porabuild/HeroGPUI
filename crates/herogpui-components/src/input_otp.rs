@@ -576,7 +576,7 @@ impl InputOTP {
     /// the active theme chose, so they win. The root is the row of cells —
     /// or the column that also holds the error message, when one shows.
     pub fn sx(mut self, style: impl FnOnce(gpui::Div) -> gpui::Div) -> Self {
-        self.sx = Some(crate::util::capture_sx(style));
+        crate::util::refine_sx(&mut self.sx, style);
         self
     }
 }
@@ -1198,3 +1198,5 @@ mod tests {
         assert!(source.contains("value-in"));
     }
 }
+
+crate::util::impl_component_styled!(InputOTP);

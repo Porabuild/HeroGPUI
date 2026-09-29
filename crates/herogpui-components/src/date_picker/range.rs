@@ -555,7 +555,7 @@ impl DateRangePicker {
     /// applied to the picker's root element after every value the component
     /// and the active theme chose, so they win.
     pub fn sx(mut self, style: impl FnOnce(gpui::Div) -> gpui::Div) -> Self {
-        self.sx = Some(crate::util::capture_sx(style));
+        crate::util::refine_sx(&mut self.sx, style);
         self
     }
 }
@@ -1290,3 +1290,5 @@ impl RenderOnce for DateRangePicker {
 }
 
 // ---------------------------------------------------------------------------
+
+crate::util::impl_component_styled!(DateRangePicker);

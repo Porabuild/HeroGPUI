@@ -114,7 +114,7 @@ impl Separator {
     /// applied to the separator's root element after every value the variant
     /// and the active theme chose, so they win.
     pub fn sx(mut self, style: impl FnOnce(gpui::Div) -> gpui::Div) -> Self {
-        self.sx = Some(crate::util::capture_sx(style));
+        crate::util::refine_sx(&mut self.sx, style);
         self
     }
 
@@ -214,3 +214,5 @@ fn finish_separator(el: gpui::Div, id: Option<ElementId>) -> AnyElement {
         None => el.into_any_element(),
     }
 }
+
+crate::util::impl_component_styled!(Separator);

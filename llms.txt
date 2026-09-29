@@ -506,16 +506,17 @@ Button::new("save")
     .on_press(cx.listener(|this, _, _, cx| this.save(cx)))
 ```
 
-Every builder also carries one `sx` slot for caller-owned low-level styling
-— this port's answer to React's `sx`. The closure styles a scratch `Div`
-with GPUI's own `Styled` methods; the refinement it leaves behind is merged
-over the component's root element at the end of render, after every value
-the variant and the theme chose, so the override wins:
+Components with an `sx` slot also implement GPUI's `Styled` trait. Direct
+methods such as `.bg(..)`, `.w(..)` and `.rounded(..)` write to the same
+root-only refinement as `sx`; neither styles independent child parts or
+detached popovers. Both forms are applied after the variant and theme values,
+and later builder calls win for properties they both set:
 
 ```rust
 Button::new("save")
     .label("Save")
-    .sx(|el| el.bg(gpui::rgba(0xffa500ff)).text_color(gpui::rgba(0x000000ff)))
+    .bg(gpui::rgba(0xffa500ff))
+    .sx(|el| el.text_color(gpui::rgba(0x000000ff)))
 ```
 
 State-driven layers a component draws itself — Button's hover fade, the
@@ -965,9 +966,13 @@ out of `reference_metadata`.
   so a cell keeps its identity across moves. A press selects a cell,
   Left/Right/Home/End move within the row, and the row keys (Up/Down,
   PageUp/PageDown, Ctrl+Home/End) keep the column. The selected cell carries
-  an inset ring and `aria-selected`. Frozen columns are not available: the
-  pinned GPUI has no sticky positioning, and see the roadmap for why an
-  overlay is not correct yet.
+  an inset ring and `aria-selected`. Freeze leading columns with
+  `TableColumn::frozen(true)`: frozen columns are displayed first in their
+  relative order, followed by scrolling columns; the selection column stays
+  fixed too. A column move stays within its frozen or scrolling region.
+  Horizontal wheel and trackpad input over either part scrolls the header and
+  body together; keyboard cell navigation reveals an offscreen cell. When
+  every column is frozen, the table uses its ordinary unsplit layout.
 - **Toolbar extras** — `Toolbar::new().size(Size::Sm).sized_child(Button::new(
   id).label(..)).sized_children([..]).label("Formatting")`: `size` reaches
   every `sized_child` (any `Sizable<Size = Size>` control) at render time,

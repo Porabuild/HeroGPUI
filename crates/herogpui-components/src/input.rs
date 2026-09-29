@@ -1879,7 +1879,7 @@ impl Input {
     /// column a standalone field returns; inside an `InputGroup` it is the
     /// field row itself, which is all the group leaves the field.
     pub fn sx(mut self, style: impl FnOnce(gpui::Div) -> gpui::Div) -> Self {
-        self.sx = Some(crate::util::capture_sx(style));
+        crate::util::refine_sx(&mut self.sx, style);
         self
     }
 }
@@ -3591,7 +3591,7 @@ impl SearchField {
     /// to the [`Input`] this field builds at render time, whose render
     /// applies it.
     pub fn sx(mut self, style: impl FnOnce(gpui::Div) -> gpui::Div) -> Self {
-        self.sx = Some(crate::util::capture_sx(style));
+        crate::util::refine_sx(&mut self.sx, style);
         self
     }
 }
@@ -4284,3 +4284,5 @@ mod hover_tokens {
         );
     }
 }
+
+crate::util::impl_component_styled!(Input, SearchField);

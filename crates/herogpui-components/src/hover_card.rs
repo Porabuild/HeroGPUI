@@ -207,7 +207,7 @@ impl HoverCard {
     /// Caller-owned styling refined over the card panel after the theme's
     /// values.
     pub fn sx(mut self, style: impl FnOnce(gpui::Div) -> gpui::Div) -> Self {
-        self.sx = Some(util::capture_sx(style));
+        util::refine_sx(&mut self.sx, style);
         self
     }
 }
@@ -491,3 +491,5 @@ fn selector_base(id: &ElementId) -> String {
         other => format!("{other:?}"),
     }
 }
+
+crate::util::impl_component_styled!(HoverCard);

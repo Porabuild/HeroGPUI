@@ -1140,7 +1140,7 @@ impl TimeField {
     /// column, so an override reaches the box the segments' chrome sits in,
     /// not that chrome.
     pub fn sx(mut self, style: impl FnOnce(gpui::Div) -> gpui::Div) -> Self {
-        self.sx = Some(util::capture_sx(style));
+        util::refine_sx(&mut self.sx, style);
         self
     }
 
@@ -2030,3 +2030,5 @@ mod clamp_tests {
         assert_eq!(clamp_time(inside, Some(min), None), inside);
     }
 }
+
+crate::util::impl_component_styled!(TimeField);

@@ -32,6 +32,15 @@ version covers `herogpui`, `herogpui-core`, `herogpui-theme`,
 
 ### Added
 
+- Components with an `sx` root slot implement GPUI's `Styled` trait, so
+  callers can use `.bg`, `.w`, `.rounded` and other style methods directly.
+  Direct methods and `sx` compose in builder order on the same root slot;
+  independent child parts retain their own styling.
+- `TableColumn::frozen(true)` fixes leading columns and the selection column
+  while the other columns scroll horizontally. Frozen columns are displayed
+  first; column moves stay within their region, and cell keyboard navigation
+  reveals scrolling cells. The header and plain or virtual rows share the
+  horizontal offset.
 - CI checks the four library crates' public API with `cargo semver-checks`
   against their latest crates.io release on every pull request (a deliberate
   break carries the `semver:breaking` label), and the release workflow runs

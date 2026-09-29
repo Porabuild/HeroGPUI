@@ -298,7 +298,7 @@ impl AlertDialog {
     /// applied to the dialog's root element after every value the size, the
     /// placement and the active theme chose, so they win.
     pub fn sx(mut self, style: impl FnOnce(gpui::Div) -> gpui::Div) -> Self {
-        self.sx = Some(util::capture_sx(style));
+        util::refine_sx(&mut self.sx, style);
         self
     }
 
@@ -826,3 +826,5 @@ mod tests {
         }
     }
 }
+
+crate::util::impl_component_styled!(AlertDialog);

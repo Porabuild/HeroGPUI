@@ -480,7 +480,7 @@ impl ListBox {
     /// applied to the list box's root element after every value the layout
     /// and the active theme chose, so they win.
     pub fn sx(mut self, style: impl FnOnce(gpui::Div) -> gpui::Div) -> Self {
-        self.sx = Some(util::capture_sx(style));
+        util::refine_sx(&mut self.sx, style);
         self
     }
 }
@@ -1847,3 +1847,5 @@ mod tests {
         assert!(home_end_registered(fn_home.modifiers, false));
     }
 }
+
+crate::util::impl_component_styled!(ListBox);

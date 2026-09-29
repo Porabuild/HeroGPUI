@@ -171,7 +171,7 @@ impl Scrollbar {
     /// definite cross-axis `w`/`h` is the track thickness, and per-corner
     /// radii shape the thumb.
     pub fn sx(mut self, style: impl FnOnce(Div) -> Div) -> Self {
-        self.sx = Some(crate::util::capture_sx(style));
+        crate::util::refine_sx(&mut self.sx, style);
         self
     }
 }
@@ -582,3 +582,5 @@ mod tests {
         assert_eq!(collapsed.size.height, px(0.0));
     }
 }
+
+crate::util::impl_component_styled!(Scrollbar);

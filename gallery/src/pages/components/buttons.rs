@@ -319,7 +319,7 @@ impl Gallery {
                         .into_any_element()]),
                 ),
                 (
-                    "Sx slot", "Every builder carries one `sx` slot for caller-owned low-level styling: the closure styles the component's root with GPUI's own methods and is applied after every variant and theme value, so it wins.",
+                    "Sx slot", "Components with an `sx` slot also implement GPUI's `Styled` trait. Its methods and `sx` refine the same root after the variant and theme values; later calls win for properties both set.",
                     row(vec![
                         h::Button::new("btn-sx-sized")
                             .label("200x56")
@@ -334,6 +334,12 @@ impl Gallery {
                                 el.bg(gpui::rgba(0xffa500ff))
                                     .text_color(gpui::rgba(0x000000ff))
                             })
+                            .into_any_element(),
+                        h::Button::new("btn-styled-root")
+                            .label("Direct Styled")
+                            .bg(gpui::rgba(0x7828c8ff))
+                            .text_color(gpui::rgba(0xffffffff))
+                            .rounded(px(12.))
                             .into_any_element(),
                     ]),
                 ),
