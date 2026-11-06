@@ -1,6 +1,6 @@
 {
   "schema_version": 3,
-  "recorded_on": "2026-11-06",
+  "recorded_on": "2026-11-07",
   "upstream": {
     "repository": "https://github.com/heroui-inc/heroui",
     "baseline_tag": "v3.2.6",
@@ -24002,14 +24002,14 @@
   ],
   "reference_source": {
     "path": "web/src/data/reference.json",
-    "sha256": "2e3f0a8122488225bc764e16f72c764fe85cd9a8d8aca393547fd0c7d3a83a11"
+    "sha256": "4bf8a9f796d34401b5fd8c4c2533c91706e0ca2bb29e4b3d515893f514d0bb01"
   },
   "catalog_source": {
     "path": "web/src/data/catalog.json",
-    "sha256": "96edac2e9b1f99e334c92dab978668422ee3467eade3fdeff1cd58a4ca314e73"
+    "sha256": "7aef9d9c048620750362a0349f2d53984bd5b83e8ec165db306767e9138e8f0b"
   },
   "source_snapshot": {
-    "sha256": "89bacfe4b38b90abe9cb4489344e0e7eae948bd9eb32fe4f8bf8bfadaec287b9",
+    "sha256": "85213d7e240c5154c1e91b29edb512d787fc667f7ec2355f631b1a7551fbdfc7",
     "files": {
       ".cargo/config.toml": "6ce2a269fd46b2570763e8e446ac93e9d04614416af21134877cf7b388e776f9",
       ".gitattributes": "13aede5d4eaee3f19ecad6be9d4941dafe8bc4d596e83a2083f4143fb6e0f434",
@@ -24060,7 +24060,7 @@
       ".shots/stale_docs_audit.py": "e9d1a6952eed2fdb9458b9ff8af62dd5f91a1137182b0503f20d91d04598273c",
       ".shots/state_audit.py": "2def978e5abf18e6c02dc69b04defd278ac107c46b586c8ef0b2a4fa49a1884d",
       ".shots/strip_size.py": "f3996d1457902f3ff718d0f6d6d0d7e826c4d4435bbc659d01d2569c0141aab3",
-      ".shots/subset-fonts.py": "8777e1942f6c58535b5ac6f7fc6616052b4ab1c7d331a9e1d40cd5f618f943b1",
+      ".shots/subset-fonts.py": "cd06c3969232b70763ebd4a789872b60667a8a59816e84d80c7ad7714fdb020e",
       ".shots/sync-lucide.py": "171c099bc720e51eb8499ba626c492c4f8a10865f4d80cde567488df8a7d2ca4",
       ".shots/test-control.ps1": "2e6c1da119b308cd99847a0067d677a6cffd5f55038e1939912682011e4754be",
       ".shots/test_bundle.py": "4ca12fc27d363ed6510267d39cd0a7a216fe603dffb9c131a8b1b40ccc764fea",
@@ -24427,8 +24427,8 @@
       "gallery/src/snippet_check.rs": "8c8f1d81a6811ea7875602459544b20d046af3116f74d956b85968e28bff2343",
       "rust-toolchain.toml": "f4d06acf80a8988d360650c5d9c25c723f9b86037d79eb10ac5fa7994f2f06a7",
       "web/next.config.ts": "cc5f66350c0d8d35bbeec03d45e1c1182b2c1ae3f7a9023a104254bf64dc6966",
-      "web/package.json": "17a8d9f30a3066bdffc74ec09580dc5cad24314e0a99e7795b33f89f0030dd74",
-      "web/pnpm-lock.yaml": "72a004d8f0e36b0a3be35c6e76e146cd32f08adc344526dbaed15b39e6c8e12e",
+      "web/package.json": "f1eb7036da9f56692580ca57d3773221cce7228585672a60e578b866de0ebf51",
+      "web/pnpm-lock.yaml": "c8e9653d91d1eb39eb7abaf9bee8bfb2cbf09b2a1ecd8d96010973e0a64093c8",
       "web/public/gallery/index.html": "bb57c09da7da0a9537eca0b7396cac5189edf9add0cdaea3d254599bf9218b44",
       "web/scripts/build-data.mjs": "4d46b3156f9fd0043b46878b3350acf4555e0d225aea7b2da3fffea55f6acc8e",
       "web/scripts/copy-shots.mjs": "778a6b08354266dbce17863502b678a4b6f6f98b2613e83f0f24bb910c39a6e5",
@@ -24522,11 +24522,11 @@
       "web/src/components/ui/props-table.tsx": "61eafda14144a31d43cf19e2293ddc5f9c07dbb6d90125c48be35e9310019123",
       "web/src/components/ui/static-table.tsx": "e863e7b9ea6d94ab1a89169e9f03959d3e1dd5ac9649e8d6ec686a043e1f1b25",
       "web/src/components/ui/status-chip.tsx": "c64a34146c0e9a5889f3c3d766b595d7099bcc705ba42b588b79532acb5a3c25",
-      "web/src/data/catalog.json": "96edac2e9b1f99e334c92dab978668422ee3467eade3fdeff1cd58a4ca314e73",
-      "web/src/data/reference.json": "2e3f0a8122488225bc764e16f72c764fe85cd9a8d8aca393547fd0c7d3a83a11",
+      "web/src/data/catalog.json": "7aef9d9c048620750362a0349f2d53984bd5b83e8ec165db306767e9138e8f0b",
+      "web/src/data/reference.json": "4bf8a9f796d34401b5fd8c4c2533c91706e0ca2bb29e4b3d515893f514d0bb01",
       "web/src/data/releases.json": "22a8358a523c9993bde2657a6686b45ad0842fac08a2dd2c9dbc7defa641bbd3",
       "web/src/data/rust-examples.json": "82a3cfec77d2c395a9bb745b50409f007f3282442d226098f447ce658f4aa9eb",
-      "web/src/data/wasm-parity.json": "9bdb714d306847a2e6d811d476ce258515fa49731766f0b21143fd34c04b5e7f",
+      "web/src/data/wasm-parity.json": "7ea4e3b7c10c321890f0040bef8d210aa4d5a923decab0f8e2b376ce17690ffa",
       "web/src/data/wasm-sections.json": "e6b201eee5a98ebfe31de104849d24862b8af7a834c2aea371c2c4ab263312a6",
       "web/src/lib/catalog.ts": "79681a0e1e0e12c9352ddc9eec0d6fe428906ceca07bfefb89623639396f81cf",
       "web/src/lib/docs-nav.ts": "ffb0d7fdaa0261395306f0bfa4e09c5ef88043c702c962f847983b05be67f55a",
@@ -140150,7 +140150,7 @@
       ]
     }
   ],
-  "verification_sha256": "06ea8d956db2064aa8be2a606f4100719daee769e89d92ad743af22c3d5fda39",
+  "verification_sha256": "157d3f0fc7672d00f245c2fae3461826b78c9cd9ac9be7fc927863d11c74bdaf",
   "retired_source_changes": [
     {
       "path": "packages/react/src/components/autocomplete/autocomplete.stories.tsx",
