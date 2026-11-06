@@ -217,6 +217,8 @@ impl Gallery {
             crate::pages::Page::Separator.description(),
             crate::pages::Page::Separator.import_line(),
             vec![
+                ("Decorative", "Native separators are visual only: the pinned AccessKit version has no separator role.", col(vec![h::Separator::new().into_any_element()])),
+
                 (
                     "Usage",
                     col(vec![gpui::div()

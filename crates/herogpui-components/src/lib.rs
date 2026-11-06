@@ -89,6 +89,7 @@ pub mod scrollbar;
 pub mod select;
 pub mod selection;
 pub mod separator;
+pub mod sheet;
 pub mod sidebar;
 pub mod skeleton;
 pub mod slider;
@@ -150,6 +151,7 @@ pub use field::*;
 pub use filter::*;
 pub use form::*;
 pub use hover_card::*;
+pub use sheet::*;
 
 /// `formatOptions` for the components that take it, re-exported so a caller
 /// reaches it beside the component it configures.

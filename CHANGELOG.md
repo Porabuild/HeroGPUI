@@ -8,6 +8,35 @@ version covers `herogpui`, `herogpui-core`, `herogpui-theme`,
 
 ## [Unreleased]
 
+### Added
+
+- HeroUI 3.2.7 `Sheet`: four placements, controlled and uncontrolled state,
+  partial pixel/fraction snap positions, detached panels, nested sheets,
+  mouse handle gestures, modal focus, close controls and lifecycle callbacks.
+  The reference records native limits for DOM touch gestures, arbitrary CSS
+  lengths, retained inert content and perspective scaling. Closing removes
+  caller content immediately while the measured panel chrome exits, keeping
+  closed controls out of the interaction tree.
+- Slider step dots and marks through `show_steps`, `marks` and `SliderMark`,
+  with bounded decimal dot generation, custom labels and RTL input/geometry.
+- `CloseButton::aria_label` overrides the localized accessible name.
+
+### Changed
+
+- Pin HeroUI documentation, styles, demos and website dependencies to 3.2.7;
+  inherited behavior uses React Aria 3.53.1 / Components 1.22.1 and Stately 3.51.0.
+- Picker popovers use the nested row radius; Dropdown keeps its minimum on
+  narrow windows and stays within the viewport. Toast actions move below text
+  on narrow windows, and calendar weekday labels cannot widen their columns.
+- Overlay motion audits read HeroUI's named CSS animations. Drawer recovers
+  when a pointer drag loses its button state.
+
+### Fixed
+
+- Focus rings on pill controls clamp their SVG corners to the fitted circular
+  radius, keeping the glow and gap even around the control instead of stretching
+  the corner arcs into ellipses.
+
 ## [0.14.0] - 2026-09-29
 
 ### Added

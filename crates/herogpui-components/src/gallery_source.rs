@@ -37,6 +37,7 @@ pub fn source_for(module: &str) -> Option<&'static str> {
         ),
         "disclosure" => include_str!("disclosure.rs"),
         "drawer" => include_str!("drawer.rs"),
+        "sheet" => concat!(include_str!("sheet.rs"), include_str!("close_button.rs")),
         "dropdown" => include_str!("dropdown.rs"),
         "field" => include_str!("field.rs"),
         "form" => include_str!("form.rs"),

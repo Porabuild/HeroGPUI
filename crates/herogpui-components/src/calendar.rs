@@ -1119,6 +1119,9 @@ impl Calendar {
                 .map(|(column, d)| {
                     gpui::div()
                     .flex_1()
+                    .min_w(px(0.))
+                    .overflow_hidden()
+                    .text_ellipsis()
                     .debug_selector({
                         let key = format!("{:?}-weekday-{column}", self.id);
                         move || key

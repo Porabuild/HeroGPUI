@@ -2664,6 +2664,7 @@ dependencies = [
  "herogpui-theme",
  "icu_calendar",
  "icu_datetime",
+ "icu_locale",
  "icu_locale_core",
  "jiff",
  "objc2-foundation 0.3.2",

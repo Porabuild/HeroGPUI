@@ -3,7 +3,7 @@
 The prop and animation audits both read documentation, and neither says anything
 about whether a control is the right *size*: `api_audit.py` was perfectly happy
 with a button whose corner radius was a third of v3's. This reads the real
-stylesheets from the v3.2.6 tag of the React repo, resolves the Tailwind
+stylesheets from the v3.2.7 tag of the React repo, resolves the Tailwind
 utilities through v3's own token scales, and compares the result with the
 constants this port renders from.
 
@@ -33,10 +33,10 @@ import sys
 sys.stdout.reconfigure(encoding='utf-8', errors='replace')
 
 from bundle import CSS_CACHE as CACHE
-COMPONENTS = ('https://raw.githubusercontent.com/heroui-inc/heroui/v3.2.6'
+COMPONENTS = ('https://raw.githubusercontent.com/heroui-inc/heroui/v3.2.7'
               '/packages/styles/components/%s.css')
 # The same stylesheets are vendored so the audit needs no network and
-# every run measures the same v3.2.6 tag. `--fetch` still refreshes upstream.
+# every run measures the same v3.2.7 tag. `--fetch` still refreshes upstream.
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from component_source import list_modules, read_module, read_path
 from bundle import css_cache as unpack
@@ -156,6 +156,10 @@ def helper_px(name):
         src, re.S)
     if not body:
         return None
+    nested = re.search(r'\(cx\.layout\(\)\.radius_(\w+)\(\) \+ gpui::px\(([\d.]+)\)\)\.min\(gpui::px\(([\d.]+)\)\)', body.group(1))
+    if nested:
+        step = RADIUS.get(nested.group(1))
+        return min(step + float(nested.group(2)), float(nested.group(3))) if step is not None else None
     step = re.search(r'radius_(\w+)\(\)', body.group(1))
     if step:
         return RADIUS.get(step.group(1))
@@ -794,7 +798,7 @@ CHECKS = [
      r'`\.switch__content` is `gap-3`[\s\S]{0,500}?\.gap\(px\((\d+(?:\.\d*)?)\.\)\)', None),
     ('dropdown', '.dropdown__popover', 'min_w', 'Dropdown menu min width',
      SRC + 'dropdown.rs',
-     '\\.min_w\\(self\\.panel_min_width\\.unwrap_or\\(px\\(([0-9.]+)\\)\\)\\)', None),
+     r'\.min_w\(self\.panel_min_width\.unwrap_or\(if dropdown_composition\s*\{\s*px\(([0-9.]+)\)\.min\(viewport_width\)', None),
     ('dropdown', '.dropdown__menu', 'gap', 'Dropdown menu gap',
      SRC + 'dropdown.rs',
      r'\.gap\(self\.panel_gap\.unwrap_or\(px\(([0-9.]+)\)\)\)\s*\.p\(panel_padding\)', None),
@@ -1473,7 +1477,7 @@ CHECKS = [
      '\\.gap\\(px\\((\\d+(?:\\.\\d*)?)\\)\\)', None),
     ('toolbar', '.toolbar', 'gap', 'Toolbar default gap', SRC + 'toolbar.rs',
      r'let gap = self\.gap\.unwrap_or\(px\((\d+(?:\.\d*)?)\.\)\)', None),
-    ('toast', '.toast', 'gap', 'Toast gap', SRC + 'toast.rs',
+    ('toast', '.toast', 'gap_x', 'Toast horizontal gap', SRC + 'toast.rs',
      '\\.gap\\(px\\((\\d+(?:\\.\\d*)?)\\)\\)', None),
     ('tabs', '.tabs', 'gap', 'Tabs root gap', SRC + 'tabs.rs',
      r'let mut el = gpui::div\(\)[\s\S]{0,220}?\.gap\(px\((\d+(?:\.\d*)?)\.\)\)', None),
@@ -2056,10 +2060,15 @@ CHECKS = [
 ]
 
 
+for _comp, _module in [('select', 'select.rs'), ('autocomplete', 'autocomplete.rs'), ('combo-box', 'combo_box.rs')]:
+    CHECKS.append((_comp, '.' + _comp + '__popover', 'radius', _comp + ' nested popover radius', SRC + _module,
+                   r'let (?:radius|container_radius) = self\.radius\.unwrap_or_else\(\|\| util::(picker_radius)\(cx\)\)', helper_px))
+
+
 THEME_FILES = (
-    ('variables.css', 'https://raw.githubusercontent.com/heroui-inc/heroui/v3.2.6'
+    ('variables.css', 'https://raw.githubusercontent.com/heroui-inc/heroui/v3.2.7'
                       '/packages/styles/themes/default/variables.css'),
-    ('shared_theme.css', 'https://raw.githubusercontent.com/heroui-inc/heroui/v3.2.6'
+    ('shared_theme.css', 'https://raw.githubusercontent.com/heroui-inc/heroui/v3.2.7'
                          '/packages/styles/themes/shared/theme.css'),
 )
 
@@ -2677,6 +2686,17 @@ def measure(body, inherited_leading=None):
             if radius:
                 offer('radius', 8.0 * float(radius.group(1)), '')
 
+    # v3.2.7 moves Avatar's per-size shape into a custom property.
+    avatar_radius = re.search(r'--avatar-radius:\s*calc\(var\(--radius\)\s*\*\s*([\d.]+)\)', body)
+    if avatar_radius:
+        offer('radius', RADIUS_BASE * float(avatar_radius.group(1)), '')
+    nested_radius = re.search(r'border-radius:\s*min\(([\d.]+)px,\s*calc\(var\(--radius-([a-z0-9]+)\)\s*\+\s*var\(--spacing\)\s*\*\s*([\d.]+)\)\)', body)
+    if nested_radius and nested_radius.group(2) in RADIUS:
+        offer('radius', min(float(nested_radius.group(1)), RADIUS[nested_radius.group(2)] + SPACING * float(nested_radius.group(3))), '')
+    viewport_min = re.search(r'min-width:\s*min\(calc\(var\(--spacing\)\s*\*\s*([\d.]+)\),\s*100%,\s*calc\(100svw - 2rem\)\)', body)
+    if viewport_min:
+        offer('min_w', SPACING * float(viewport_min.group(1)), '')
+
     # A border width is sometimes a utility (`border-2`) and sometimes plain CSS
     # -- the colour-area thumb is `border: 3px solid white`, which no `@apply`
     # can spell. Both are the same metric; Tailwind's border scale is in pixels,
@@ -2687,6 +2707,7 @@ def measure(body, inherited_leading=None):
             for prefix, metric in (('h-', 'h'), ('w-', 'w'), ('px-', 'px'),
                                    ('py-', 'py'), ('gap-', 'gap'), ('p-', 'p'),
                                    ('size-', 'size'), ('min-w-', 'min_w'),
+                                   ('gap-x-', 'gap_x'), ('gap-y-', 'gap_y'),
                                    ('mt-', 'mt'), ('ms-', 'ms'), ('min-h-', 'min_h'),
                                    ('ps-', 'ps'), ('leading-', 'leading'),
                                    ('max-w-', 'max_w'),
@@ -3911,6 +3932,19 @@ def self_test():
     def expect(condition, message):
         if not condition:
             failures.append(message)
+
+    # Named radius expressions and viewport floors introduced by v3.2.7.
+    expect(measure('--avatar-radius: calc(var(--radius) * 2);').get('radius') == 16., 'avatar custom radius')
+    expect('radius' not in measure('--other-radius: calc(var(--radius) * 2);'), 'unrelated variable cannot satisfy avatar radius')
+    expect(measure('border-radius: min(32px, calc(var(--radius-2xl) + var(--spacing) * 1.5));').get('radius') == 22., 'nested picker radius')
+    expect('radius' not in measure('border-radius: min(32px, calc(var(--unknown-2xl) + var(--spacing) * 1.5));'), 'unknown radius must remain unreadable')
+    expect(measure('min-width: min(calc(var(--spacing) * 55), 100%, calc(100svw - 2rem));').get('min_w') == 220., 'viewport minimum')
+    expect(measure('@apply gap-x-1.5 sm:gap-y-0;').get('gap_x') == 6., 'horizontal toast gap')
+
+    dropdown_min = next(row[5] for row in CHECKS if row[3] == 'Dropdown menu min width')
+    dropdown_source = read_path(SRC + 'dropdown.rs')
+    expect(re.search(dropdown_min, dropdown_source) is not None, 'dropdown minimum must follow its actual builder')
+    expect(re.search(dropdown_min, dropdown_source.replace('.min_w(self.panel_min_width', '.max_w(self.panel_min_width')) is None, 'a disconnected dropdown minimum must fail')
 
     def indicator(source):
         return 'alert = alert.child(\n' + source + ');\n'

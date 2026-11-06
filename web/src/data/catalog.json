@@ -129,6 +129,7 @@
       "components": [
         "alert-dialog",
         "drawer",
+        "sheet",
         "modal",
         "popover",
         "toast",
@@ -785,6 +786,17 @@
       "importLine": "use herogpui::components::drawer::{Drawer, DrawerCloseTrigger, DrawerPlacement};",
       "tile": "/shots/drawer-tile-v3.png",
       "tileDark": "/shots/drawer-tile-dark-v3.png",
+      "demos": [],
+      "hasReference": true
+    },
+    "sheet": {
+      "slug": "sheet",
+      "title": "Sheet",
+      "description": "A swipeable overlay with partial snap positions and nested sheets.",
+      "category": "Overlays",
+      "importLine": "use herogpui::components::sheet::{Sheet, SheetSnapPoint};",
+      "tile": null,
+      "tileDark": null,
       "demos": [],
       "hasReference": true
     },

@@ -1762,3 +1762,30 @@ fn progress_and_meter_text_keep_twenty_pixel_lines(cx: &mut TestAppContext) {
         }
     }
 }
+
+#[gpui::test]
+fn toast_action_moves_below_text_on_narrow_windows_and_still_activates(cx: &mut TestAppContext) {
+    still();
+    let actions = events();
+    let seen = actions.clone();
+    cx.update(move |cx| {
+        Toast::new("Saved")
+            .timeout(Duration::ZERO)
+            .action("Undo", move |_| seen.borrow_mut().push("undo".into()))
+            .push(None, cx);
+    });
+    let cx = open_host(cx, || ToastViewport::new().into_any_element());
+    let wide_title = cx.debug_bounds("toast-title").unwrap();
+    let wide_action = cx.debug_bounds("toast-action").unwrap();
+    assert!(wide_action.left() >= wide_title.right());
+    cx.simulate_resize(gpui::size(px(500.), px(800.)));
+    flush_frame(cx);
+    let narrow_title = cx.debug_bounds("toast-title").unwrap();
+    let narrow_action = cx.debug_bounds("toast-action").unwrap();
+    assert!(narrow_action.top() >= narrow_title.bottom() + px(8.));
+    assert!((f32::from(narrow_action.left() - narrow_title.left())).abs() < 0.5);
+    let at = narrow_action.center();
+    click(cx, at.x.into(), at.y.into());
+    assert_eq!(&*actions.borrow(), &["undo"]);
+    cx.update(|_, cx| assert!(toast_store(cx).read(cx).toasts().is_empty()));
+}

@@ -116,6 +116,7 @@ impl Gallery {
             // Overlays
             Page::AlertDialog => self.page_alert_dialog(cx),
             Page::Drawer => self.page_drawer(cx),
+            Page::Sheet => self.page_sheet(cx),
             Page::Modal => self.page_modal(cx),
             Page::Popover => self.page_popover(cx),
             Page::Toast => self.page_toast(cx),
@@ -237,6 +238,7 @@ pub enum Page {
     // Overlays
     AlertDialog,
     Drawer,
+    Sheet,
     Modal,
     Popover,
     Toast,
@@ -326,6 +328,7 @@ impl Page {
             Page::Tabs => "Tabs",
             Page::AlertDialog => "Alert Dialog",
             Page::Drawer => "Drawer",
+            Page::Sheet => "Sheet",
             Page::Modal => "Modal",
             Page::Popover => "Popover",
             Page::Toast => "Toast",
@@ -419,6 +422,7 @@ impl Page {
             Page::Tabs => "Organise content into switchable panels.",
             Page::AlertDialog => "A modal for critical confirmations.",
             Page::Drawer => "A slide-over panel anchored to a window edge.",
+            Page::Sheet => "A swipeable overlay with partial snap positions and nested sheets.",
             Page::Modal => "Display a dialog over the page content.",
             Page::Popover => "A floating panel anchored to a trigger.",
             Page::Toast => "Transient notifications stacked in a corner.",
@@ -510,6 +514,7 @@ impl Page {
             Page::Tabs => "use herogpui::components::tabs::{TabItem, Tabs};",
             Page::AlertDialog => "use herogpui::components::alert_dialog::{AlertDialog, AlertDialogCloseTrigger};",
             Page::Drawer => "use herogpui::components::drawer::{Drawer, DrawerCloseTrigger, DrawerPlacement};",
+            Page::Sheet => "use herogpui::components::sheet::{Sheet, SheetSnapPoint};",
             Page::Modal => "use herogpui::components::modal::{Modal, ModalCloseTrigger, ModalSize};",
             Page::Popover => "use herogpui::components::popover::{Popover, PopoverArrow, PopoverPlacement};",
             Page::Toast => "use herogpui::components::toast::{Toast, ToastViewport};",
@@ -666,6 +671,7 @@ pub fn nav_sections() -> Vec<NavSection> {
             items: vec![
                 Page::AlertDialog,
                 Page::Drawer,
+                Page::Sheet,
                 Page::Modal,
                 Page::Popover,
                 Page::Toast,

@@ -249,7 +249,7 @@ pub struct ComboBox {
     /// The trigger field text's family, forwarded to the inner `Input`.
     font_family: Option<SharedString>,
     /// The corner radius of the detached panel, in place of the owning
-    /// `container_radius` helper.
+    /// `picker_radius` helper.
     radius: Option<Pixels>,
     /// `validate` — run by the component, not the caller.
     validate: Option<crate::validation::Validator<str>>,
@@ -749,7 +749,7 @@ impl ComboBox {
     }
 
     /// The corner radius of the detached panel, in place of the owning
-    /// `container_radius` helper. The panel's entry zoom interpolates the same
+    /// `picker_radius` helper. The panel's entry zoom interpolates the same
     /// value, so both follow the override. Not a v3 prop; the removed v2
     /// `radius` prop is prohibited and this is a per-component repository
     /// extension.
@@ -1068,7 +1068,7 @@ impl ComboBox {
         // One binding feeds every panel surface below: the painted panel and
         // the entry zoom that animates it. The trigger's own box is the held
         // field's, and the shared field chrome paints that one.
-        let container_radius = self.radius.unwrap_or_else(|| util::container_radius(cx));
+        let container_radius = self.radius.unwrap_or_else(|| util::picker_radius(cx));
         let close_open = util::shared({
             let own = open_own.clone();
             let callback = self.on_open_change.clone();

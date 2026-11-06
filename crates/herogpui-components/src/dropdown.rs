@@ -895,9 +895,13 @@ impl RenderOnce for Menu {
         let dropdown_composition = self.dropdown_composition;
         // The panel's entry zoom interpolates the panel's own radius, so one
         // binding feeds both the painted shape and the animation.
-        let radius = self
-            .radius
-            .unwrap_or_else(|| crate::util::container_radius(cx));
+        let radius = self.radius.unwrap_or_else(|| {
+            if dropdown_composition {
+                crate::util::picker_radius(cx)
+            } else {
+                crate::util::container_radius(cx)
+            }
+        });
 
         let row_height = self.row_height.unwrap_or(px(36.));
         let row_padding_x = self.row_padding_x.unwrap_or(if dropdown_composition {
@@ -914,18 +918,20 @@ impl RenderOnce for Menu {
         let panel_padding =
             self.panel_padding
                 .unwrap_or(if dropdown_composition { px(6.) } else { px(4.) });
+        let viewport_width = (window.viewport_size().width - px(32.)).max(px(0.));
         let panel = gpui::div()
             .relative()
             .flex()
             .flex_col()
-            // `.dropdown__popover` is `md:min-w-55` (220px) and the menu inside
+            // `.dropdown__popover` is `min(220px, 100%, 100svw - 2rem)` and the menu inside
             // it is `gap-0.5 p-1` -- `.dropdown__menu` overrides `.menu`'s
             // `gap-1` with half a step.
-            .min_w(self.panel_min_width.unwrap_or(px(220.)))
-            // `max-w-[48svw]`. Without a ceiling a described row's copy set
-            // the menu's width outright, so a long description could widen the
-            // popover across half the window.
-            .max_w(self.panel_max_width.unwrap_or(window.viewport_size().width * 0.48))
+            .min_w(self.panel_min_width.unwrap_or(if dropdown_composition {
+                px(220.).min(viewport_width)
+            } else { px(220.) }))
+            // v3.2.7 keeps 16px on each viewport edge; narrow windows must
+            // preserve the normal minimum instead of collapsing to 48svw.
+            .max_w(self.panel_max_width.unwrap_or(if dropdown_composition { viewport_width } else { window.viewport_size().width * 0.48 }))
             .gap(self.panel_gap.unwrap_or(px(2.)))
             .p(panel_padding)
             .bg(colors.overlay.background)

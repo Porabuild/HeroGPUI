@@ -23,6 +23,7 @@ herogpui-theme.workspace = true
 icu_calendar.workspace = true
 icu_datetime.workspace = true
 icu_locale_core.workspace = true
+icu_locale.workspace = true
 # Local-timezone civil dates for `Date::today` (v3's `today(getLocalTimeZone())`).
 jiff.workspace = true
 web-time.workspace = true

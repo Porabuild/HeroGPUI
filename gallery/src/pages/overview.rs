@@ -1019,6 +1019,7 @@ fn preview_kind(page: Page) -> PreviewKind {
         | Page::Tabs => PreviewKind::Navigation,
         Page::AlertDialog
         | Page::Drawer
+        | Page::Sheet
         | Page::Modal
         | Page::Popover
         | Page::Toast

@@ -19,14 +19,14 @@ class InventoryTests(unittest.TestCase):
         self.root = Path(self.temp.name)
         self.examples = {'button': [{'heading': 'Usage', 'code': 'Button::new("a")', 'description': 'One'}]}
         for path, data in ((inventory.EXAMPLES, self.examples),
-                           (inventory.REFERENCE, {'button': {'version': '3.2.6'}}),
+                           (inventory.REFERENCE, {'button': {'version': '3.2.7'}}),
                            (inventory.CATALOG, {'components': {'button': {}}})):
             self.write_json(path, data)
         self.snapshot = {'sha256': 'initial', 'files': {'button.rs': 'first'}}
         self.mock = patch.object(inventory, 'source_snapshot', side_effect=lambda root: deepcopy(self.snapshot))
         self.mock.start()
         self.addCleanup(self.mock.stop)
-        self.old = {'schema_version': 1, 'gallery_sections': {}, 'upstream': {'target_tag': 'v3.2.6'}}
+        self.old = {'schema_version': 1, 'gallery_sections': {}, 'upstream': {'target_tag': 'v3.2.7'}}
 
     def write_json(self, path, data):
         path = self.root / path
@@ -199,7 +199,7 @@ class InventoryTests(unittest.TestCase):
 
     def upstream_fixture(self):
         directories = [self.root / name for name in ('target', 'baseline')]
-        for directory, version in zip(directories, ('3.2.6', '3.2.5')):
+        for directory, version in zip(directories, ('3.2.7', '3.2.5')):
             package = directory / 'packages/react/package.json'
             package.parent.mkdir(parents=True)
             package.write_text(json.dumps({'version': version}))

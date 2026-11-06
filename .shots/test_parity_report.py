@@ -68,7 +68,7 @@ class ReportTests(unittest.TestCase):
 
     def test_fallback_demo_sources_are_pinned_and_use_distinct_cache_keys(self):
         moving = 'https://raw.githubusercontent.com/heroui-inc/heroui/v3/apps/docs/src/demos/en/tabs/basic.tsx'
-        pinned = moving.replace('/v3/', '/v3.2.6/')
+        pinned = moving.replace('/v3/', '/v3.2.7/')
         self.assertEqual(demo_audit.pinned_source_url(moving), pinned)
         self.assertEqual(demo_audit.pinned_source_url(pinned), pinned)
         self.assertEqual(demo_audit.preview_cache_path(moving), demo_audit.preview_cache_path(pinned))
@@ -78,7 +78,7 @@ class ReportTests(unittest.TestCase):
             source = re.search(r'^\*\*Source\*\*: (https://\S+)', demo_audit.bundle_page(page), re.M)
             self.assertIsNotNone(source, page)
             url = demo_audit.pinned_source_url(source.group(1))
-            self.assertIn('/heroui-inc/heroui/v3.2.6/', url)
+            self.assertIn('/heroui-inc/heroui/v3.2.7/', url)
             self.assertNotIn('/refs/heads/', url)
 
     def test_stale_reason_and_nonzero_exit_fail(self):
@@ -143,14 +143,14 @@ class ReportTests(unittest.TestCase):
 
 
 class DemoSourceTests(unittest.TestCase):
-    URL = ('https://raw.githubusercontent.com/heroui-inc/heroui/v3.2.6'
+    URL = ('https://raw.githubusercontent.com/heroui-inc/heroui/v3.2.7'
            '/apps/docs/src/demos/en/link/render-function.tsx')
 
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
         self.addCleanup(self.temp.cleanup)
         root = Path(self.temp.name)
-        self.archive = root / 'heroui-demos-v3.2.6.tar.gz'
+        self.archive = root / 'heroui-demos-v3.2.7.tar.gz'
         self.cache = root / 'cache'
         self.env = patch.multiple(
             demo_audit,

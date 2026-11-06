@@ -49,6 +49,12 @@ ignore = [
   { id = "RUSTSEC-2026-0192", reason = "ttf-parser is unmaintained but only reachable transitively via gpui-pre 0.3.5 / usvg / fontdue; no safe upgrade exists" },
   { id = "RUSTSEC-2026-0206", reason = "rustybuzz is unmaintained but only reachable transitively via gpui-pre 0.3.5 / cosmic-text / usvg; no safe upgrade exists" },
   { id = "RUSTSEC-2024-0436", reason = "paste is unmaintained but only reachable transitively via gpui-pre 0.3.5; no safe upgrade exists" },
+  # These standalone crates moved into zbus 6. Migrating the Linux D-Bus
+  # consumers requires an upstream GPUI dependency update; the pinned 0.3.5
+  # backend still uses zbus 5 through AccessKit/AT-SPI, ashpd, oo7 and notify-rust.
+  { id = "RUSTSEC-2026-0370", reason = "zvariant is unmaintained after merging into zbus 6; reachable only through gpui-pre-linux 0.3.5's D-Bus dependencies, which require the incompatible zbus 5 API" },
+  { id = "RUSTSEC-2026-0371", reason = "zbus_names is unmaintained after merging into zbus 6; reachable only through gpui-pre-linux 0.3.5's D-Bus dependencies, which require the incompatible zbus 5 API" },
+  { id = "RUSTSEC-2026-0372", reason = "zvariant_derive is unmaintained after merging into zbus 6; reachable only through gpui-pre-linux 0.3.5's D-Bus dependencies, which require the incompatible zbus 5 API" },
 ]
 
 [bans]

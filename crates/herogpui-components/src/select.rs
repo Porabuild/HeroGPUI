@@ -262,7 +262,7 @@ pub struct Select {
     /// The trigger text's family; unset keeps the inherited family.
     font_family: Option<SharedString>,
     /// The corner radius of the detached panel, in place of the owning
-    /// `container_radius` helper.
+    /// `picker_radius` helper.
     radius: Option<Pixels>,
     /// `ListBox.Section` — the heading that precedes an option, by item key.
     sections: Vec<(SharedString, SharedString)>,
@@ -542,7 +542,7 @@ impl Select {
     }
 
     /// The corner radius of the detached panel, in place of the owning
-    /// `container_radius` helper. The panel's entry zoom interpolates the same
+    /// `picker_radius` helper. The panel's entry zoom interpolates the same
     /// value, so both follow the override. Not a v3 prop; the removed v2
     /// `radius` prop is prohibited and this is a per-component repository
     /// extension.
@@ -2032,7 +2032,7 @@ impl Select {
         let panel_interactive = overlay_phase == util::OverlayPhase::Open;
         // The entry zoom interpolates the panel's own radius, so one
         // binding feeds both the painted shape and the animation.
-        let radius = self.radius.unwrap_or_else(|| util::container_radius(cx));
+        let radius = self.radius.unwrap_or_else(|| util::picker_radius(cx));
         let panel = self.panel_surface(&base, &base_id, radius, &panel_scroll_now, colors, layout);
 
         // React Aria dismisses the list on a press outside it. Escape is
