@@ -11,7 +11,7 @@
 //!
 //! The scroll mechanic, learned from gpui 0.2.2's own sources:
 //!
-//! - A scroll is `cx.simulate_event(ScrollWheelEvent { position, delta, .. })`.
+//! - A scroll is `cx.simulate_event(ScrollEvent { position, delta, .. })`.
 //!   The event hit-tests the **last rendered frame** (`dispatch_mouse_event`
 //!   reads `rendered_frame`), so every state change must be followed by a
 //!   redraw (`window.refresh()` inside an update) before the next event.
@@ -51,7 +51,7 @@ use std::rc::Rc;
 use std::time::Duration;
 
 use gpui::{
-    point, prelude::*, px, ScrollDelta, ScrollWheelEvent, SharedString, TestAppContext,
+    point, prelude::*, px, ScrollDelta, ScrollEvent, SharedString, TestAppContext,
     VisualTestContext,
 };
 
@@ -64,7 +64,7 @@ use herogpui_components::{
 
 /// Pins the toast card layout by enabling reduced motion **before** the first
 /// frame. A toast wraps itself in `entering_zoom`, whose animation runs on
-/// wall time the test clock does not drive, so without this the card would sit
+/// the executor clock this suite does not advance, so without this the card would sit
 /// at its t=0 pose for the whole test. The harness applies the preference
 /// before opening the host window — exactly the rule the overlay suite learned
 /// the hard way.
@@ -209,7 +209,7 @@ fn variable_height_virtual_table_carries_tree_metadata(cx: &mut TestAppContext) 
 /// height enters the arithmetic. Followed by a redraw so the next event sees
 /// the frame the scroll produced.
 fn wheel(cx: &mut VisualTestContext, x: f32, y: f32, dy: f32) {
-    cx.simulate_event(ScrollWheelEvent {
+    cx.simulate_event(ScrollEvent {
         position: point(px(x), px(y)),
         delta: ScrollDelta::Pixels(point(px(0.), px(dy))),
         ..Default::default()
@@ -1532,7 +1532,7 @@ fn scroll_shadow_reports_visibility_as_it_scrolls(cx: &mut TestAppContext) {
         "at the top of a scrollable box only the bottom edge shades"
     );
 
-    cx.simulate_event(ScrollWheelEvent {
+    cx.simulate_event(ScrollEvent {
         position: point(px(100.), px(80.)),
         delta: ScrollDelta::Pixels(point(px(-80.), px(0.))),
         ..Default::default()

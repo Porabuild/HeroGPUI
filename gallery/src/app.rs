@@ -262,7 +262,7 @@ impl Gallery {
         _: &mut Window,
         cx: &mut Context<'_, Self>,
     ) {
-        if h::is_command_palette_shortcut(&event.keystroke) {
+        if h::is_command_palette_shortcut(&event.keystroke, cx) {
             self.command_palette_open = !self.command_palette_open;
             cx.stop_propagation();
             cx.notify();

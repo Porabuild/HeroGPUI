@@ -19,7 +19,7 @@ members = [
 [workspace.package]
 version = "0.14.0"
 edition = "2024"
-rust-version = "1.98"
+rust-version = "1.99"
 license = "Apache-2.0"
 readme = "README.md"
 repository = "https://github.com/Porabuild/HeroGPUI"
@@ -28,8 +28,8 @@ categories = ["gui"]
 
 [workspace.dependencies]
 # GPUI comes from `gpui-pre`, a prerelease publish of the Zed GPUI sources by
-# crates.io user huacnlee (Jason Lee, the gpui-kit maintainer); `0.3.5`
-# snapshots `zed@d89e9c2`. Zed does not publish `gpui`
+# crates.io user huacnlee (Jason Lee, the gpui-kit maintainer); `0.3.11`
+# snapshots `zed@f816e1f`. Zed does not publish `gpui`
 # under that name from its release branch, and a crate with a git dependency
 # can never be published to crates.io, so a Zed git rev would make `herogpui`
 # structurally unpublishable. `gpui-pre` is a registry publish of the same
@@ -44,18 +44,20 @@ categories = ["gui"]
 # workarounds plus upstream PRs instead. A downstream application therefore
 # needs nothing but `herogpui` itself: no materialization step, no hooks.
 #
-# `gpui_web` is deliberately absent. It reaches the graph only as
-# `gpui_platform`'s wasm32 dependency, which enables its default features; a
-# second, `default-features = false` edge from this workspace would be unioned
-# with that one and change nothing. The wasm gallery therefore builds with
-# upstream's default web platform (see `docs/upstream/gpui-web-scroll-and-ime.md`
-# for the known limitations this accepts).
-gpui = { package = "gpui-pre", version = "=0.3.5" }
-gpui_platform = { package = "gpui-pre-platform", version = "=0.3.5", features = ["font-kit", "x11", "wayland", "runtime_shaders"] }
-icu_calendar = { version = "=2.2.1", default-features = false, features = ["compiled_data"] }
-icu_datetime = { version = "=2.2.0", default-features = false, features = ["compiled_data"] }
-icu_locale_core = "=2.2.0"
-icu_locale = "=2.2.0"
+# `gpui_web` is deliberately absent. It still reaches the graph only as
+# `gpui_platform`'s wasm32 dependency, but since 0.3.10 `gpui_platform`
+# forwards `gpui_web`'s `multithreaded` default instead of forcing it
+# (zed#65289). This workspace turns `gpui_platform`'s defaults off, so the
+# wasm32 build has no `wasm_thread` (`#![feature]`) and builds on the pinned
+# stable toolchain; the multi-threaded web platform is the facade's opt-in
+# `multithreaded` feature. See `docs/upstream/gpui-web-scroll-and-ime.md`
+# for the known limitations the single-threaded platform accepts.
+gpui = { package = "gpui-pre", version = "=0.3.11" }
+gpui_platform = { package = "gpui-pre-platform", version = "=0.3.11", default-features = false, features = ["font-kit", "x11", "wayland", "runtime_shaders"] }
+icu_calendar = { version = "=2.4.0", default-features = false, features = ["compiled_data"] }
+icu_datetime = { version = "=2.4.0", default-features = false, features = ["compiled_data"] }
+icu_locale_core = "=2.4.0"
+icu_locale = "=2.4.0"
 # "js" is required on wasm32-unknown-unknown: without it, any current-time
 # lookup (`jiff::Zoned::now()` and friends, used by Calendar, DatePicker and
 # TimeField) panics at runtime with "getting the current time in
@@ -78,8 +80,8 @@ web-time = "=1.1.0"
 # text fields, so Backspace never splits an emoji or a combining sequence.
 # Already in the graph through GPUI; MIT OR Apache-2.0.
 unicode-segmentation = "1.13"
-prettyplease = "0.2.37"
-syn = { version = "2.0.119", features = ["full", "parsing"] }
+prettyplease = "0.3.0"
+syn = { version = "3.0.9", features = ["full", "parsing"] }
 herogpui-core = { version = "0.14.0", path = "crates/herogpui-core" }
 herogpui-theme = { version = "0.14.0", path = "crates/herogpui-theme" }
 herogpui-components = { version = "0.14.0", path = "crates/herogpui-components" }

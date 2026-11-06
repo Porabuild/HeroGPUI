@@ -19,7 +19,7 @@ Freeze the execution baseline to:
 
 - HeroUI tag `v3.2.6`, commit `e385ac202b2cdb94b1bf6fa76d32c31c8259cc5e`.
 - React Aria `3.52.1`, React Stately `3.50.0`, React Aria Components `1.21.1`, with additional inherited packages resolved from that tag's lockfile.
-- Rust and the entire `gpui-pre` family as pinned by this workspace; currently Rust 1.98 and `gpui-pre 0.3.5` (caret, registry-vanilla with no forks).
+- Rust and the entire `gpui-pre` family as pinned by this workspace; currently Rust 1.99 and `gpui-pre 0.3.11` (caret, registry-vanilla with no forks).
 - HeroUI **React** as the design reference. HeroUI Native, HeroUI Pro, v2 examples, and unreleased main-branch changes do not define this contract.
 
 At execution start, check the release index again. If a newer stable release exists, first make a release-delta worksheet and deliberately refresh all affected pins, source archives, metadata, and inherited behavior references as one baseline change. Do not silently mix releases or chase new releases halfway through a component batch. The user's request for the latest HeroUI permits planning that migration; it does not make an unreviewed moving target useful evidence.
@@ -70,7 +70,7 @@ Maintain these constraints:
 
 - Preserve unrelated changes; start and finish each slice with `git status --short` and the relevant diff.
 - Read implementation, callers, tests, tagged HeroUI source, and exact dependency behavior before editing.
-- Use unpacked `~/.cargo/registry/src/index.crates.io-*/gpui-pre-0.3.5/` as GPUI API evidence. Historical references to a Zed checkout or `gpui` 0.2.2 are not current evidence.
+- Use unpacked `~/.cargo/registry/src/index.crates.io-*/gpui-pre-0.3.11/` as GPUI API evidence. Historical references to a Zed checkout or `gpui` 0.2.2 are not current evidence.
 - Keep controlled values caller-owned, uncontrolled seeds stable, per-instance state keyed, ids unique, and callbacks exact-once.
 - Preserve the recorded focus decision: Escape does not itself enable focus rings; keyboard-control modality enables them, pointer input clears them. Document this intentional deviation when comparing React Aria.
 - Preserve supported native customization. Do not remove `sx`, radius, or size extensions merely because they are not upstream props. Keep them separately documented and owner-scoped in `extra_audit.py`; the default specimen must still match upstream.
@@ -367,7 +367,7 @@ Test IME, composed characters, clipboard, selection, pointer/wheel and focus tra
 
 Regenerate `reference.json` and `rust-examples.json` with `pnpm run extract`; never hand-edit generated JSON. Regenerate catalog data when routes/categories/imports change and public shots when their source captures change, using the existing extractors. Run `pnpm run extract:check`.
 
-After any Rust component or gallery change that affects the shipped runtime, rebuild `herogpui-web` on nightly (see the root guide), run the matching `wasm-bindgen`, regenerate `wasm-sections.json` and `wasm-parity.json`, and verify the live preview against its displayed code. Do not regenerate hashes around an old binary to make checks pass.
+After any Rust component or gallery change that affects the shipped runtime, rebuild `herogpui-web` on the pinned toolchain (see the root guide), run the matching `wasm-bindgen`, regenerate `wasm-sections.json` and `wasm-parity.json`, and verify the live preview against its displayed code. Do not regenerate hashes around an old binary to make checks pass.
 
 Measure preview cold start, warm navigation, WASM transfer/parse, input responsiveness, long-list scrolling and memory before and after work. Set budgets from that baseline and investigate regressions. Preserve lazy boot and browser caching; repeated example switching should not leak canvases, applications, handlers or timers. Do not claim performance numbers without the device/browser and procedure.
 
@@ -414,7 +414,7 @@ section 6). To check a change in the browser locally, build it from the
 repository root:
 
 ```sh
-bash .shots/build-wasm.sh   # nightly wasm32 build, wasm-bindgen, wasm-opt -> web/public/gallery/
+bash .shots/build-wasm.sh   # wasm32 build on the pinned stable toolchain, wasm-bindgen, wasm-opt -> web/public/gallery/
 ```
 
 The `wasm-bindgen` CLI must match `Cargo.lock` and binaryen's `wasm-opt`

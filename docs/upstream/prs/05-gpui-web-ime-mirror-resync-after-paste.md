@@ -14,7 +14,9 @@ calls `event.prevent_default()` and routes the clipboard through
 `schedule_ime_mirror_sync()` nor `ImeMirror::schedule_sync`. Every other
 prevented edit in the file resyncs: keydown (`:742`, `:764`), pointer up
 (`:368`, `:391`), rejected selection import (`:987`), `beforeinput` line
-breaks (`:1019`), composition end (`:1158`).
+breaks (`:1019`), composition end (`:1158`). Re-checked at `gpui-pre` 0.3.11
+(`zed@f816e1f`): neither `register_paste` path schedules an IME-mirror sync
+(`events.rs:1055-1128`).
 
 Re-verified against 0.3.5's rewritten `ime_mirror.rs`. The retired 0.3.3
 note predates it. Two things are new:

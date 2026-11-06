@@ -423,6 +423,11 @@ impl RenderOnce for Sheet {
             .snap_points
             .first()
             .map_or(full, |point| snap_value(point, full).min(full));
+        // The transition clock is the background executor's, matching the
+        // completion timer below (and gpui's own `Animation` since 0.3.11):
+        // one clock, so the painted interpolation and `on_animation_end`
+        // cannot disagree, and tests step both deterministically.
+        let now = cx.background_executor().now();
         let state = window.use_keyed_state(element_id::scoped(&self.id, "position"), cx, |_, _| {
             Position {
                 rest: initial,
@@ -431,7 +436,7 @@ impl RenderOnce for Sheet {
                 was_open: false,
                 generation: 0,
                 from: initial,
-                started_at: Instant::now(),
+                started_at: now,
                 painted: Rc::new(Cell::new(initial)),
             }
         });
@@ -453,7 +458,7 @@ impl RenderOnce for Sheet {
                 state.rest = next;
                 state.from = next;
                 state.painted.set(next);
-                state.started_at = Instant::now();
+                state.started_at = now;
                 state.generation = state.generation.wrapping_add(1);
                 state.points = points.clone();
             });
@@ -463,7 +468,7 @@ impl RenderOnce for Sheet {
             state.update(cx, |state, _| {
                 state.was_open = open;
                 state.generation = state.generation.wrapping_add(1);
-                state.started_at = Instant::now();
+                state.started_at = now;
                 state.drag = None;
                 if open {
                     state.rest = initial;
@@ -531,7 +536,8 @@ impl RenderOnce for Sheet {
             current.rest.min(full)
         };
         // Interpolate the inset without changing the descendant element-id path.
-        let elapsed = current.started_at.elapsed().as_secs_f32() * 1000. / SHEET_RELEASE_MS as f32;
+        let elapsed = (cx.background_executor().now() - current.started_at).as_secs_f32() * 1000.
+            / SHEET_RELEASE_MS as f32;
         let visible = if current.drag.is_none() && !reduce && elapsed < 1. {
             let next =
                 current.from + (target - current.from) * crate::anim::Curve::OutFluid.at(elapsed);
@@ -769,7 +775,7 @@ impl RenderOnce for Sheet {
                                 held_move.update(cx, |state, cx| {
                                     state.from = state.rest;
                                     state.rest = drag.rest;
-                                    state.started_at = Instant::now();
+                                    state.started_at = cx.background_executor().now();
                                     state.generation = state.generation.wrapping_add(1);
                                     state.drag = None;
                                     cx.notify();
@@ -814,7 +820,7 @@ impl RenderOnce for Sheet {
                                 );
                                 held_up.update(cx, |state, cx| {
                                     state.from = state.rest;
-                                    state.started_at = Instant::now();
+                                    state.started_at = cx.background_executor().now();
                                     state.rest = if target == 0. {
                                         targets.iter().copied().fold(full, f32::min)
                                     } else {

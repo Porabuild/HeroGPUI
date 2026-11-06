@@ -8,7 +8,9 @@ Base: `zed@d89e9c2`. File: `crates/gpui_web/src/events.rs` (+11/-5).
 passes. `rustfmt --check` is clean.
 
 Still needed at d89e9c2: yes. `register_wheel` builds `ScrollDelta` from the
-raw `deltaX`/`deltaY` whatever the modifiers.
+raw `deltaX`/`deltaY` whatever the modifiers. Re-checked at `gpui-pre` 0.3.11
+(`zed@f816e1f`): `register_wheel` still forwards the raw axes
+(`events.rs:652-659`).
 
 ---
 

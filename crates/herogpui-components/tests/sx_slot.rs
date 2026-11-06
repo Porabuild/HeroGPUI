@@ -180,7 +180,7 @@ fn accordion_surface_triggers_rest_on_the_stock_card_fill(cx: &mut TestAppContex
 /// surface over it — at rest, hovered, or while its fade runs back out.
 #[gpui::test]
 fn accordion_surface_triggers_rest_on_the_sx_card_fill(cx: &mut TestAppContext) {
-    use harness::{has_color, painted, wait_real};
+    use harness::{has_color, painted, wait_ms};
     use herogpui_theme::ActiveTheme;
 
     let card = gpui::hsla(0.33, 0.6, 0.45, 1.0);
@@ -200,7 +200,7 @@ fn accordion_surface_triggers_rest_on_the_sx_card_fill(cx: &mut TestAppContext) 
 
     // The first trigger is 52px tall at the origin.
     cx.simulate_mouse_move(point(px(60.), px(26.)), None, Modifiers::none());
-    wait_real(cx, 250);
+    wait_ms(cx, 250);
     let hovered = painted(cx);
     assert!(
         has_color(&hovered.solids(), wash),
@@ -209,7 +209,7 @@ fn accordion_surface_triggers_rest_on_the_sx_card_fill(cx: &mut TestAppContext) 
     assert!(hovered.filled(surface).is_empty());
 
     cx.simulate_mouse_move(point(px(-100.), px(-100.)), None, Modifiers::none());
-    wait_real(cx, 250);
+    wait_ms(cx, 250);
     let left = painted(cx);
     assert!(left.filled(surface).is_empty());
     assert!(left.filled(card).len() >= 3);

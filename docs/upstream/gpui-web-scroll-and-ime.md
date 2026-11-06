@@ -1,9 +1,14 @@
 > **Retired (2026-09-15):** the workspace builds on vanilla registry `gpui-pre`
-> 0.3.5 with no `[patch.crates-io]` overrides. This document now serves two
+> 0.3.11 with no `[patch.crates-io]` overrides. This document now serves two
 > purposes: the component-level replacements (`a11y.rs`,
 > `util::shift_wheel_scroll_x`, `util::inner_fill_radius`) and the upstream-PR
 > effort, whose source material is the 0.3.3 patch set under
-> `docs/upstream/retired-patches/`. Verified still missing from vanilla 0.3.5.
+> `docs/upstream/retired-patches/`. Verified still missing from vanilla 0.3.11
+> (re-checked at `zed@f816e1f`: `register_wheel` still forwards the raw axes
+> and `register_paste` still schedules no IME-mirror sync). Since 0.3.10 the
+> wasm32 build runs on the pinned stable toolchain — the workspace sets
+> `default-features = false` on `gpui_platform`, whose forwarded
+> `multithreaded` default would otherwise pull `wasm_thread` back in.
 > Procedural passages below that say to materialize, re-record, or rebase a
 > live fork describe the retired workflow, not current practice.
 >

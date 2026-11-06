@@ -6,9 +6,7 @@ use crate::harness;
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use gpui::{
-    point, prelude::*, px, ScrollDelta, ScrollWheelEvent, TestAppContext, VisualTestContext,
-};
+use gpui::{point, prelude::*, px, ScrollDelta, ScrollEvent, TestAppContext, VisualTestContext};
 
 use harness::open_host;
 use herogpui_components::{Orientation, ScrollShadow, ScrollShadowVisibility};
@@ -18,7 +16,7 @@ fn flush_frame(cx: &mut VisualTestContext) {
 }
 
 fn wheel_h(cx: &mut VisualTestContext, x: f32, y: f32, dx: f32) {
-    cx.simulate_event(ScrollWheelEvent {
+    cx.simulate_event(ScrollEvent {
         position: point(px(x), px(y)),
         delta: ScrollDelta::Pixels(point(px(dx), px(0.))),
         ..Default::default()

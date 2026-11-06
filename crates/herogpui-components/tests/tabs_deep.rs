@@ -207,7 +207,7 @@ fn assert_pointer_selection_timing(
         ["second", "third"],
         "dragging out must neither revert nor repeat the press-start selection"
     );
-    std::thread::sleep(Duration::from_millis(300));
+    cx.executor().advance_clock(Duration::from_millis(300));
     flush_frame(cx);
     let indicator = cx
         .debug_bounds(indicator_id)
@@ -645,7 +645,7 @@ fn tabs_indicator_moves_between_measured_tab_boxes(cx: &mut TestAppContext) {
         f32::from(moving.origin.x) < f32::from(first.origin.x + first.size.width) - 1.,
         "the indicator must animate rather than snap to the second tab"
     );
-    std::thread::sleep(Duration::from_millis(300));
+    cx.executor().advance_clock(Duration::from_millis(300));
     flush_frame(cx);
     let second = cx
         .debug_bounds("Name(\"tb-indicator-geometry\")-indicator")
@@ -1901,7 +1901,7 @@ fn tabs_icon_toolbar_fixed_segments_measure_slide_and_activate(cx: &mut TestAppC
         f32::from(moving.origin.x) < f32::from(first.origin.x + first.size.width) - 1.,
         "the indicator must animate rather than snap between fixed boxes"
     );
-    std::thread::sleep(Duration::from_millis(300));
+    cx.executor().advance_clock(Duration::from_millis(300));
     flush_frame(cx);
     let second = cx
         .debug_bounds("Name(\"tb-icon-toolbar\")-indicator")

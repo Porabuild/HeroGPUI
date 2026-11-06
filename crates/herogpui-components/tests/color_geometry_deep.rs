@@ -15,7 +15,7 @@ use std::{cell::RefCell, rc::Rc, sync::Arc};
 
 use gpui::{
     point, prelude::*, px, Modifiers, MouseButton, MouseDownEvent, MouseMoveEvent, MouseUpEvent,
-    ScrollDelta, ScrollWheelEvent, TestAppContext, VisualTestContext,
+    ScrollDelta, ScrollEvent, TestAppContext, VisualTestContext,
 };
 use herogpui_components::{
     Button, ColorArea, ColorAreaThumbState, ColorChannel, ColorField, ColorSlider,
@@ -97,7 +97,7 @@ fn click_with_modifiers(cx: &mut VisualTestContext, x: f32, y: f32, modifiers: M
 }
 
 fn wheel(cx: &mut VisualTestContext, x: f32, y: f32, dy: f32) {
-    cx.simulate_event(ScrollWheelEvent {
+    cx.simulate_event(ScrollEvent {
         position: point(px(x), px(y)),
         delta: ScrollDelta::Pixels(point(px(0.), px(dy))),
         ..Default::default()

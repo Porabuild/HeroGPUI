@@ -66,7 +66,7 @@ use std::rc::Rc;
 
 use gpui::{
     point, prelude::*, px, Modifiers, MouseButton, MouseDownEvent, MouseMoveEvent, MouseUpEvent,
-    ScrollDelta, ScrollWheelEvent, SharedString, TestAppContext, VisualTestContext,
+    ScrollDelta, ScrollEvent, SharedString, TestAppContext, VisualTestContext,
 };
 use herogpui_components::{
     ColorArea, ColorChannel, ColorSlider, ColorSwatchPicker, PickerColor, SelectionMode, Slider,
@@ -160,7 +160,7 @@ fn drag(cx: &mut VisualTestContext, from: (f32, f32), to: (f32, f32)) {
 }
 
 fn wheel_v(cx: &mut VisualTestContext, x: f32, y: f32, dy: f32) {
-    cx.simulate_event(ScrollWheelEvent {
+    cx.simulate_event(ScrollEvent {
         position: point(px(x), px(y)),
         delta: ScrollDelta::Pixels(point(px(0.), px(dy))),
         ..Default::default()
@@ -437,6 +437,65 @@ fn table_ctrl_a_selects_every_enabled_row(cx: &mut TestAppContext) {
         ["alpha,gamma"],
         "a second Ctrl+A must not clear or re-report an already complete selection"
     );
+}
+
+/// The Mod+A chord follows the runtime platform identity, not the
+/// compile-time host: `os: Mac` makes Cmd+A the chord even for a Web
+/// target, and `os: Windows` makes Ctrl+A the chord even on a Mac host --
+/// while the other convention's chord stays inert in each.
+#[gpui::test]
+fn table_mod_a_follows_the_runtime_platform(cx: &mut TestAppContext) {
+    for (os, target, select_chord, other_chord) in [
+        (
+            gpui::OperatingSystem::Mac,
+            gpui::PlatformTarget::Web,
+            "cmd-a",
+            "ctrl-a",
+        ),
+        (
+            gpui::OperatingSystem::Windows,
+            gpui::PlatformTarget::Native,
+            "ctrl-a",
+            "cmd-a",
+        ),
+    ] {
+        cx.set_platform_info(gpui::PlatformInfo { os, target });
+        let recorded = events();
+        let for_view = recorded.clone();
+        let vcx = open_host(cx, move || {
+            let recorded = for_view.clone();
+            Table::new(vec![])
+                .id("tbl-mod-a-runtime")
+                .columns(vec![TableColumn::new("Name").default_width(px(160.))])
+                .selection_mode(SelectionMode::Multiple)
+                .keyed_row("alpha", vec![tall_cell("Alpha")])
+                .keyed_row("beta", vec![tall_cell("Beta")])
+                .keyed_row("gamma", vec![tall_cell("Gamma")])
+                .disabled_keys(["beta"])
+                .on_selection_change(move |keys, _, _| {
+                    recorded.borrow_mut().push(
+                        keys.iter()
+                            .map(ToString::to_string)
+                            .collect::<Vec<_>>()
+                            .join(","),
+                    );
+                })
+                .into_any_element()
+        });
+
+        press(vcx, "tab");
+        press(vcx, other_chord);
+        assert!(
+            recorded.borrow().is_empty(),
+            "{os:?}/{target:?}: {other_chord} must not select all"
+        );
+        press(vcx, select_chord);
+        assert_eq!(
+            recorded.borrow().as_slice(),
+            ["alpha,gamma"],
+            "{os:?}/{target:?}: {select_chord} must select every enabled row"
+        );
+    }
 }
 
 #[gpui::test]

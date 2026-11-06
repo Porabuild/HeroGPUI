@@ -8,7 +8,7 @@ Updated 2026-09-14. The [plan](ui-design-plan.md) and
 ## Current frontier
 
 2026-09-15: the GPUI forks are retired and the workspace builds on vanilla
-registry `gpui-pre` 0.3.5, so a downstream crate needs only `herogpui` and a
+registry `gpui-pre` 0.3.11, so a downstream crate needs only `herogpui` and a
 fresh clone runs `cargo` with no setup step. The 0.3.3 patches live under
 `docs/upstream/retired-patches/` as upstream-PR material only. Replacements:
 `aria-current` is a documented omission (`a11y.rs`, kept as a no-op anchor
@@ -98,9 +98,11 @@ residuals: focus-ring spread (~0.6px at the
 corner diagonal, centralized in `focus_ring_shadows`), and the Table's
 anonymous x-scroller plus the IME-mirror resync on web. The fork-only test
 binaries (`rounded_clip_*`, `rounded_content_mask`) are deleted; `color_geometry_deep`
-is vanilla-clean and stays. The `wasm` CI job builds on nightly
-(`wasm_thread` rides upstream's `multithreaded` default); everything native
-stays on pinned stable. Entries below describing the fork as live are
+is vanilla-clean and stays. The `wasm` CI job builds on the pinned stable
+toolchain like everything else: since `gpui-pre` 0.3.10 the workspace sets
+`default-features = false` on `gpui_platform`, whose forwarded
+`multithreaded` default would otherwise pull `wasm_thread` into the wasm32
+graph. Entries below describing the fork as live are
 history; this paragraph is the current state. Theming also gained HeroUI's
 opt-in vibrant palette (`[data-vibrant-palette="true"]`, variables.css:317-330)
 as `ThemeBuilder::vibrant_palette` and the `"vibrant_palette"` `ThemeDocument`

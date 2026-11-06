@@ -16,7 +16,7 @@
 //!
 //! v3's default clip mode cuts a transparent crescent out of every avatar
 //! except the last with a CSS `mask-image: radial-gradient(...)`. The pinned
-//! `gpui-pre` 0.3.5 has no alpha or shape mask: `ContentMask` is a
+//! `gpui-pre` 0.3.11 has no alpha or shape mask: `ContentMask` is a
 //! rectangle (`window.rs`, `pub struct ContentMask { bounds }`) and the scene
 //! offers only quads, shadows, paths and sprites. The port therefore paints
 //! the crescent instead of cutting it: every stacked avatar after the first

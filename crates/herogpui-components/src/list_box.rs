@@ -748,12 +748,13 @@ impl RenderOnce for ListBox {
                     .filter(|index| stops_for_keys.contains(index))
                     .or(entry_at.filter(|index| stops_for_keys.contains(index)));
                 let key_name = event.keystroke.key.as_str();
+                let is_mac = cx.platform_info().is_mac();
                 if key_name == "a"
-                    && event.keystroke.modifiers.secondary()
+                    && event.keystroke.modifiers.secondary(cx)
                     && !event.keystroke.modifiers.shift
                     && !event.keystroke.modifiers.alt
                     && !event.keystroke.modifiers.function
-                    && if cfg!(target_os = "macos") {
+                    && if is_mac {
                         !event.keystroke.modifiers.control
                     } else {
                         !event.keystroke.modifiers.platform
@@ -950,11 +951,11 @@ impl RenderOnce for ListBox {
                         // elsewhere -- so the whole event stays inert: no
                         // focus move, no selection, no preventDefault.
                         if matches!(key_name, "home" | "end")
-                            && !home_end_registered(modifiers, cfg!(target_os = "macos"))
+                            && !home_end_registered(modifiers, is_mac)
                         {
                             return;
                         }
-                        let exact_shift_navigation = if cfg!(target_os = "macos") {
+                        let exact_shift_navigation = if is_mac {
                             !modifiers.control && !modifiers.platform && !modifiers.function
                         } else {
                             !modifiers.alt && !modifiers.platform && !modifiers.function
@@ -962,11 +963,7 @@ impl RenderOnce for ListBox {
                         let extends_selection = modifiers.shift
                             && mode == SelectionMode::Multiple
                             && exact_shift_navigation
-                            && shift_home_end_extends(
-                                key_name,
-                                modifiers.control,
-                                cfg!(target_os = "macos"),
-                            )
+                            && shift_home_end_extends(key_name, modifiers.control, is_mac)
                             && Some(next) != from;
                         if extends_selection {
                             if let Some(target) = keys.get(next) {

@@ -185,7 +185,7 @@ pub fn inner_fill_radius(outer: Pixels, border: Pixels) -> Pixels {
 /// horizontally scrollable region — the `Tabs` strip, a wide `Table` — cannot
 /// be wheel-scrolled there at all, with no fallback. Until the platform fix
 /// lands upstream (see `docs/upstream/retired-patches/`), horizontal
-/// scrollers call this from `on_scroll_wheel`: when shift is held and the
+/// scrollers call this from `on_scroll`: when shift is held and the
 /// event carries no horizontal component, the vertical delta drives the
 /// handle's x offset instead, matching the platform sign convention (offsets
 /// go negative as content scrolls down/right).
@@ -193,7 +193,7 @@ pub fn inner_fill_radius(outer: Pixels, border: Pixels) -> Pixels {
 /// Web-only by construction (`cfg(target_family = "wasm")`): native platforms
 /// already translate, so their events keep flowing through `track_scroll`
 /// untouched. A `Lines` delta (Firefox mouse wheels) converts at 16px/line.
-pub fn shift_wheel_scroll_x(handle: &gpui::ScrollHandle, event: &gpui::ScrollWheelEvent) {
+pub fn shift_wheel_scroll_x(handle: &gpui::ScrollHandle, event: &gpui::ScrollEvent) {
     #[cfg(target_family = "wasm")]
     {
         if !event.modifiers.shift {

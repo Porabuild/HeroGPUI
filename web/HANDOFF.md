@@ -7,7 +7,7 @@ State as of 2026-09-05. Read `ARCHITECTURE.md`, `DESIGN-NOTES.md` and
 ## What is finished and verified
 
 The site is at `E:\work\HeroGPUI\web`. Next.js 16.3.3, React 19.2.8,
-`@heroui/react` 3.2.4, Tailwind 4.3.3, **pnpm — never npm**.
+`@heroui/react` 3.2.7, Tailwind 4.3.3, **pnpm — never npm**.
 
 | | |
 |---|---|
@@ -39,7 +39,7 @@ shell. The frame no longer takes keyboard focus on load (Cmd/Ctrl+K keeps
 working), and forwards Cmd/Ctrl+K to the page once the reader is inside it.
 
 Since 0.13 the artifact is **not committed**: CI's `wasm` job builds it
-(nightly, `wasm-bindgen`, `wasm-opt -O1`) and `wasm-publish` uploads it to
+(`wasm-bindgen`, `wasm-opt -O1`, on the pinned stable toolchain) and `wasm-publish` uploads it to
 its own `gallery-<key16>` GitHub prerelease, keyed by the hash of every wasm
 build input; `pnpm run build` downloads the one for its checkout and verifies
 it (`scripts/gallery-artifact.mjs`), and a local `.shots/build-wasm.sh` build

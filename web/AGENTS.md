@@ -51,7 +51,7 @@ committed**: CI builds it and publishes it as a `gallery-<key16>`
 prerelease keyed by the wasm build inputs, and `pnpm run build` downloads and
 verifies the one for the checkout (`scripts/gallery-artifact.mjs`; design and
 fallbacks in `DEPLOYMENT.md` section 6). A local `bash .shots/build-wasm.sh`
-(nightly, no `RUSTFLAGS`) writes it here instead and is never replaced.
+(no `RUSTFLAGS`) writes it here instead and is never replaced.
 
 After a Rust change, regenerate `src/data/wasm-sections.json` and
 `src/data/wasm-parity.json` with `pnpm run wasm:manifest` in the same change

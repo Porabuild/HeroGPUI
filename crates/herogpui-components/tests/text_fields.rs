@@ -2888,7 +2888,7 @@ fn color_field_static_group_uses_the_pinned_hover_transition(cx: &mut TestAppCon
             .unwrap_or_else(|| panic!("{name}: the group must paint\n{}", resting.describe()));
         let before = fills_over(&resting, group);
         cx.simulate_mouse_move(group.center(), None, Modifiers::none());
-        harness::wait_real(cx, 400);
+        harness::wait_ms(cx, 400);
         let scene = harness::painted(cx);
         let after = fills_over(&scene, group);
         let endpoint = cx.update(|_, cx| {

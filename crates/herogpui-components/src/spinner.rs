@@ -189,7 +189,7 @@ fn spin_fraction(delta: f32) -> f32 {
 /// Rotates the caller's svg glyph to `t` of a full turn. gpui can transform
 /// only svgs (`Svg::with_transformation` is an inherent method), so any other
 /// glyph is returned unchanged and the animation keeps scheduling its frames
-/// on wall time exactly as for the arc.
+/// on the executor clock exactly as for the arc.
 fn rotate_glyph(glyph: AnyElement, t: f32) -> AnyElement {
     let mut glyph = glyph;
     let Some(shell) = glyph.downcast_mut::<Svg>() else {
@@ -284,7 +284,7 @@ impl RenderOnce for Spinner {
         // `Stateful<Svg>` no longer exposes, so an id on the glyph and the
         // animation cannot both survive. The `aria-hidden` half needs no
         // builder — the glyph has no id, and an element with no id and no role
-        // produces no AccessKit node at all (`gpui-pre-0.3.3`'s
+        // produces no AccessKit node at all (`gpui-pre`'s
         // `window/a11y.rs`), which is the stronger form of the same thing.
         //
         // Stated after the layout chain, not spliced into it:

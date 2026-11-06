@@ -41,6 +41,13 @@ serde = ["theme", "herogpui-theme/serde"]
 # directory and re-registers changed files. For a native development
 # workflow; off by default and meant to stay off on wasm32.
 watch = ["serde", "herogpui-theme/watch"]
+# GPUI's multi-threaded web platform (wasm32 only): `herogpui::application()`
+# / `web::application_with_web_backend` then run its web workers over shared
+# wasm memory. That needs a nightly toolchain (`wasm_thread` opens with
+# `#![feature]`, with atomics/bulk-memory target features under build-std)
+# and a cross-origin-isolated page; inert on native. Off by default —
+# `herogpui-web` starts `single_threaded_web()`.
+multithreaded = ["gpui_platform/multithreaded"]
 
 [dependencies]
 gpui.workspace = true

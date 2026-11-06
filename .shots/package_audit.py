@@ -39,7 +39,7 @@ def main():
     shared = workspace["workspace"]["package"]
     expected = {
         "edition": "2024",
-        "rust-version": "1.98",
+        "rust-version": "1.99",
         "license": "Apache-2.0",
         "repository": "https://github.com/Porabuild/HeroGPUI",
     }

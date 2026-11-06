@@ -8,15 +8,17 @@ does not have its own focus handle.
 The section below describes the 0.12 baseline that motivated the design.
 
 **Conclusion: this can be done in HeroGPUI, with no upstream change.**
-`gpui-pre` 0.3.5 has no public "bounds of the focused
-element" API. It does expose everything needed to build one: a prepaint
+`gpui-pre` 0.3.11 has no public "bounds of the focused
+element" API (re-checked at `zed@f816e1f`; the 0.3.5 survey below still
+holds). It does expose everything needed to build one: a prepaint
 callback with window-space bounds, focus-handle identity comparison, and a
 per-app global. Participating HeroGPUI controls record their bounds while they
 holds focus. `ContextMenu` looks them up for `window.focused(cx)` and falls
 back to today's area anchor.
 
 All file:line references are to
-`~/.cargo/registry/src/index.crates.io-*/gpui-pre-0.3.5/src/`.
+`~/.cargo/registry/src/index.crates.io-*/gpui-pre-0.3.5/src/` — the 0.3.5
+survey; treat them as 0.3.5-era line numbers.
 
 ## 0.12 baseline behavior
 

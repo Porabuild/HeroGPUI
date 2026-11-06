@@ -876,20 +876,20 @@ EVIDENCE = {
     # gate, and the selectable-row set it reports.
     ('Table', 'select-all'): (
         'table.rs',
-        r'(?s)key_name == "a".*?modifiers\.secondary\(\).*?modifiers\.platform'
+        r'(?s)key_name == "a".*?modifiers\.secondary\(cx\).*?modifiers\.platform'
         r'.*?SelectionMode::Multiple'
         r'.*?selectable_collection_keys\.clone\(\)',
     ),
     ('ListBox', 'select-all'): (
         'list_box.rs',
-        r'(?s)key_name == "a".*?modifiers\.secondary\(\).*?modifiers\.platform'
+        r'(?s)key_name == "a".*?modifiers\.secondary\(cx\).*?modifiers\.platform'
         r'.*?mode == SelectionMode::Multiple.*?stops_for_keys.*?filter_map'
         r'.*?next\.iter\(\)\.all.*?selected_now\.contains.*?if !all_selected'
         r'.*?on_selection_change.*?stop_propagation\(\)',
     ),
     ('TagGroup', 'select-all'): (
         'tag_group.rs',
-        r'(?s)key_name == "a".*?modifiers\.secondary\(\).*?modifiers\.platform'
+        r'(?s)key_name == "a".*?modifiers\.secondary\(cx\).*?modifiers\.platform'
         r'.*?mode == SelectionMode::Multiple.*?selectable_keys.*?if !all_selected'
         r'.*?selection_own_for_keys.*?on_selection_change.*?stop_propagation\(\)',
     ),
@@ -927,10 +927,10 @@ EVIDENCE = {
         r'(?=.*&& mode == SelectionMode::Multiple)'
         r'(?=.*fn home_end_registered\(modifiers: gpui::Modifiers, macos: bool\) -> bool \{)'
         r'(?=.*if macos \{\s*\n\s*!modifiers\.control && !modifiers\.platform\s*\n\s*\} else \{\s*\n\s*!modifiers\.alt && !modifiers\.platform\s*\n\s*\})'
-        r'(?=.*matches!\(key, "home" \| "end"\)\s*\n\s*&& !home_end_registered\([^)]*cfg!\(target_os = "macos"\),?\s*\)\s*\{\s*\n\s*return;)'
+        r'(?=.*matches!\(key, "home" \| "end"\)\s*\n\s*&& !home_end_registered\([^)]*is_mac,?\s*\)\s*\{\s*\n\s*return;)'
         r'(?=.*fn shift_home_end_extends\(key_name: &str, control: bool, macos: bool\) -> bool \{)'
         r'(?=.*!matches!\(key_name, "home" \| "end"\) \|\| \(!macos && control\))'
-        r'(?=.*shift_home_end_extends\(\s*key_name,\s*modifiers\.control,\s*cfg!\(target_os = "macos"\),?\s*\))'
+        r'(?=.*shift_home_end_extends\(\s*key_name,\s*modifiers\.control,\s*is_mac,?\s*\))'
         r'(?=.*fn seat\(&mut self, target: SharedString\))(?=.*self\.is_all = false;)'
         r'(?=.*ev\.modifiers\(\)\.shift && mode == SelectionMode::Multiple)',
     ),
@@ -952,10 +952,10 @@ EVIDENCE = {
         r'(?=.*&& mode == SelectionMode::Multiple)'
         r'(?=.*fn home_end_registered\(modifiers: gpui::Modifiers, macos: bool\) -> bool \{)'
         r'(?=.*if macos \{\s*\n\s*!modifiers\.control && !modifiers\.platform\s*\n\s*\} else \{\s*\n\s*!modifiers\.alt && !modifiers\.platform\s*\n\s*\})'
-        r'(?=.*matches!\(key_name, "home" \| "end"\)\s*\n\s*&& !home_end_registered\([^)]*cfg!\(target_os = "macos"\),?\s*\)\s*\{\s*\n\s*return;)'
+        r'(?=.*matches!\(key_name, "home" \| "end"\)\s*\n\s*&& !home_end_registered\([^)]*is_mac,?\s*\)\s*\{\s*\n\s*return;)'
         r'(?=.*fn shift_home_end_extends\(key_name: &str, control: bool, macos: bool\) -> bool \{)'
         r'(?=.*!matches!\(key_name, "home" \| "end"\) \|\| \(!macos && control\))'
-        r'(?=.*shift_home_end_extends\(\s*key_name,\s*modifiers\.control,\s*cfg!\(target_os = "macos"\),?\s*\))'
+        r'(?=.*shift_home_end_extends\(\s*key_name,\s*modifiers\.control,\s*is_mac,?\s*\))'
         r'(?=.*range\.current = Some\(target\.clone\(\)\);)'
         r'(?=.*ev\.modifiers\(\)\.shift && mode == SelectionMode::Multiple)'
         r'(?=.*range\.anchor = Some\(key\.clone\(\)\);)'
@@ -980,11 +980,11 @@ EVIDENCE = {
         r'(?=.*&& mode == SelectionMode::Multiple)'
         r'(?=.*fn home_end_registered\(modifiers: gpui::Modifiers, macos: bool\) -> bool \{)'
         r'(?=.*if macos \{\s*\n\s*!modifiers\.control && !modifiers\.platform\s*\n\s*\} else \{\s*\n\s*!modifiers\.alt && !modifiers\.platform\s*\n\s*\})'
-        r'(?=.*matches!\(key_name, "home" \| "end"\)\s*\n\s*&& !home_end_registered\([^)]*cfg!\(target_os = "macos"\),?\s*\)\s*\{\s*\n\s*return;)'
+        r'(?=.*matches!\(key_name, "home" \| "end"\)\s*&& !home_end_registered\([^)]*is_mac,?\s*\)\s*\{\s*\n\s*return;)'
         r'(?=.*fn shift_home_end_extends\(key_name: &str, control: bool, macos: bool\) -> bool \{)'
         r'(?=.*!matches!\(key_name, "home" \| "end"\) \|\| \(!macos && control\))'
-        r'(?=.*shift_home_end_extends\(\s*key_name,\s*modifiers\.control,\s*cfg!\(target_os = "macos"\),?\s*\))'
-        r'(?=.*let initial_home_end_extends =\s*shift_home_end_extends\(\s*"home",\s*modifiers\.control,\s*cfg!\(target_os = "macos"\),?\s*\);)'
+        r'(?=.*shift_home_end_extends\(\s*key_name,\s*modifiers\.control,\s*is_mac,?\s*\))'
+        r'(?=.*let initial_home_end_extends =\s*shift_home_end_extends\(\s*"home",\s*modifiers\.control,\s*is_mac,?\s*\);)'
         r'(?=.*range\.current = Some\(target\.clone\(\)\);)'
         r'(?=.*range\.is_all = false;)'
         r'(?=.*ev\.modifiers\(\)\.shift && mode == SelectionMode::Multiple)',
@@ -1010,12 +1010,12 @@ EVIDENCE = {
         r'(?=.*let extends_selection = multiple\s*\n\s*&& modifiers\.shift)'
         r'(?=.*fn home_end_registered\(modifiers: gpui::Modifiers, macos: bool\) -> bool \{)'
         r'(?=.*if macos \{\s*\n\s*!modifiers\.control && !modifiers\.platform\s*\n\s*\} else \{\s*\n\s*!modifiers\.alt && !modifiers\.platform\s*\n\s*\})'
-        r'(?=.*if matches!\(key, "home" \| "end"\)\s*&& !home_end_registered\(modifiers, cfg!\(target_os = "macos"\)\)\s*\{\s*\n\s*return;)'
+        r'(?=.*if matches!\(key, "home" \| "end"\)\s*&& !home_end_registered\(modifiers, is_mac\)\s*\{\s*\n\s*return;)'
         r'(?=.*if matches!\(key, "home" \| "end"\)\s*&& modifiers\.shift\s*&& from\.is_none\(\)\s*\{\s*\n\s*return;)'
-        r'(?=.*let exact_shift_navigation =\s*\n\s*home_end_registered\(modifiers, cfg!\(target_os = "macos"\)\);)'
+        r'(?=.*let exact_shift_navigation =\s*home_end_registered\(modifiers, is_mac\);)'
         r'(?=.*fn shift_home_end_extends\(key_name: &str, control: bool, macos: bool\) -> bool \{)'
         r'(?=.*!matches!\(key_name, "home" \| "end"\) \|\| \(!macos && control\))'
-        r'(?=.*shift_home_end_extends\(\s*key,\s*modifiers\.control,\s*cfg!\(target_os = "macos"\),?\s*\))'
+        r'(?=.*shift_home_end_extends\(\s*key,\s*modifiers\.control,\s*is_mac,?\s*\))'
         r'(?=.*range\.current = Some\(next\);)'
         r'(?=.*range\.is_all = false;)'
         r'(?=.*let cursor_click = cursor_rows\.clone\(\);)'
@@ -1033,7 +1033,7 @@ EVIDENCE = {
     # branch, before or after the seat.
     ('Select', 'select-all'): (
         'select.rs',
-        r'(?s)key == "a"\s*\n\s*&& modifiers\.secondary\(\)'
+        r'(?s)key == "a"\s*\n\s*&& modifiers\.secondary\(cx\)'
         r'(?=(?:(?!&& multiple).)*&& multiple\s*\n\s*\{)'
         r'(?=.*stops\.iter\(\)\.map\(\|i\| row_keys\[\*i\]\.clone\(\)\)\.collect\(\))'
         r'(?:(?!on_select_all).){0,2500}?is_all: true'

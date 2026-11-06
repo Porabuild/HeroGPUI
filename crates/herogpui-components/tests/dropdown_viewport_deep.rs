@@ -30,7 +30,7 @@
 use crate::harness;
 
 use gpui::{
-    point, prelude::*, px, size, Pixels, ScrollDelta, ScrollWheelEvent, TestAppContext,
+    point, prelude::*, px, size, Pixels, ScrollDelta, ScrollEvent, TestAppContext,
     VisualTestContext,
 };
 use herogpui_components::{Button, Dropdown, MenuItem, Placement};
@@ -57,15 +57,14 @@ fn near(a: Pixels, b: f32) -> bool {
 /// vertical padding from 90% to 100% over 150ms (`anim::ZoomBox::panel`), so
 /// the menu is genuinely a different height on every frame while it runs.
 ///
-/// That would merely be noisy if the harness could step it, but it cannot:
-/// gpui drives a oneshot `Animation` from `scheduler::Instant` -- the real
-/// wall clock -- and neither `run_until_parked` nor
-/// `executor().advance_clock` moves it. [`settle`] therefore never settles the
-/// zoom; it just samples it wherever the wall clock happens to be, which is
-/// why the fixed-point assertions below used to depend on how fast the machine
-/// running them was. On this repository's `Tests (Cargo.toml profile)` runner
-/// one sample landed at 157px and the next at 158px, and the run went red on
-/// code that had not changed.
+/// That would merely be noisy if the harness could step it, but [`settle`]
+/// does not: it refreshes without advancing the executor clock gpui drives a
+/// oneshot `Animation` from (since gpui-pre 0.3.11; before that it read the
+/// wall clock, which no harness call could move, and the fixed-point
+/// assertions below depended on how fast the machine running them was --
+/// on this repository's `Tests (Cargo.toml profile)` runner one sample landed
+/// at 157px and the next at 158px, and the run went red on code that had not
+/// changed). Geometry assertions want the converged layout, so the zoom goes.
 ///
 /// `Dropdown` composes its `Menu` internally and never sets the instance flag,
 /// so the switch is the public `MenuStyle` theme default, which is exactly the
@@ -110,7 +109,7 @@ fn stop_entry_motion(cx: &mut VisualTestContext) {
 /// prove the position is stable rather than papering over a wobble.
 ///
 /// They can only prove it because [`open_menu_host`] took the entry zoom out:
-/// these frames cost no wall-clock time the animation would notice.
+/// these frames advance no executor-clock time the animation would notice.
 fn settle(cx: &mut VisualTestContext, width: f32, height: f32) {
     cx.simulate_resize(size(px(width), px(height)));
     for _ in 0..4 {
@@ -119,22 +118,23 @@ fn settle(cx: &mut VisualTestContext, width: f32, height: f32) {
     }
 }
 
-/// The real-time gap every fixed-point sample in this file is taken across.
+/// The executor-clock gap every fixed-point sample in this file is taken
+/// across.
 ///
-/// The gap is the whole point. gpui drives a oneshot `Animation` from
-/// `scheduler::Instant` -- the wall clock -- so a surface that is still
-/// animating reports a different geometry on every real millisecond, while
-/// three back-to-back frames of it can look perfectly stable because no
-/// measurable time passed between them. Sampling across a gap is what turns
-/// "nothing changed" into "nothing moves on its own", which is the property
-/// these assertions are actually for. 30ms is a tenth of the longest overlay
-/// entry in `anim::Motion`, so anything still running is well clear of a
-/// rounded pixel by the third sample.
+/// The gap is the whole point. gpui drives a oneshot `Animation` from the
+/// background executor's clock, so a surface that is still animating reports
+/// a different geometry at every clock position, while three back-to-back
+/// frames of it can look perfectly stable because no clock time passed
+/// between them. Sampling across a gap is what turns "nothing changed" into
+/// "nothing moves on its own", which is the property these assertions are
+/// actually for. 30ms is a tenth of the longest overlay entry in
+/// `anim::Motion`, so anything still running is well clear of a rounded
+/// pixel by the third sample.
 const FIXED_POINT_GAP: std::time::Duration = std::time::Duration::from_millis(30);
 
-/// One frame, taken `FIXED_POINT_GAP` of real time after the last one.
+/// One frame, taken `FIXED_POINT_GAP` of executor-clock time after the last.
 fn refresh_after_a_gap(cx: &mut VisualTestContext) {
-    std::thread::sleep(FIXED_POINT_GAP);
+    cx.executor().advance_clock(FIXED_POINT_GAP);
     cx.update(|window, _| window.refresh());
     cx.run_until_parked();
 }
@@ -158,7 +158,7 @@ fn wheel(cx: &mut VisualTestContext, x: f32, y: f32, dy: f32) {
     cx.simulate_mouse_move(point(px(x), px(y)), None, Modifiers::none());
     cx.update(|window, _| window.refresh());
     cx.run_until_parked();
-    cx.simulate_event(ScrollWheelEvent {
+    cx.simulate_event(ScrollEvent {
         position: point(px(x), px(y)),
         delta: ScrollDelta::Pixels(point(px(0.), px(dy))),
         ..Default::default()
@@ -413,7 +413,7 @@ fn the_entry_zoom_lands_on_the_motionless_layout(cx: &mut TestAppContext) {
     click(cx, 460., 18.);
     settle(cx, 1200., 600.);
 
-    std::thread::sleep(PAST_POPOVER_IN);
+    cx.executor().advance_clock(PAST_POPOVER_IN);
     cx.update(|window, _| window.refresh());
     cx.run_until_parked();
     let converged = cx
@@ -558,8 +558,13 @@ fn a_top_placed_menu_near_the_top_flips_below(cx: &mut TestAppContext) {
 /// right opens on the left, one gap clear, vertically centred on its trigger.
 #[gpui::test]
 fn a_right_placed_menu_near_the_right_edge_flips_left(cx: &mut TestAppContext) {
-    let width = 600.;
-    let cx = host_with_trigger_mid(cx, 420., Placement::Right);
+    // Wide margins on both sides of the flip decision: the menu's measured
+    // width follows the platform's font metrics (443px on macOS at
+    // gpui-pre 0.3.11), so the trigger sits where the right side cannot fit
+    // it under any plausible measurement and the left side fits it with the
+    // inset to spare.
+    let width = 800.;
+    let cx = host_with_trigger_mid(cx, 600., Placement::Right);
     settle(cx, width, 600.);
     let trigger = cx.debug_bounds("dd-trigger").unwrap();
     click(

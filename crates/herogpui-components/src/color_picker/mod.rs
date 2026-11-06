@@ -56,7 +56,7 @@ pub(super) const CHECKER_DARK: u32 = 0xf7f7f7;
 /// ```
 ///
 /// A multicolor SVG (one document, two grays, one clip) renders as a single
-/// silhouette instead -- verified against `gpui-pre` 0.3.5 sources -- so the
+/// silhouette instead -- verified against the pinned `gpui-pre` sources -- so the
 /// two layers are structural, not stylistic.
 pub(super) fn transparency_checker_cells(
     width: Pixels,

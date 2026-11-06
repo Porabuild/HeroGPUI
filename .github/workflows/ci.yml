@@ -39,18 +39,18 @@ jobs:
     name: Format, gallery sync & website
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       # There is no root package.json, so the action has to be told where the
       # pinned "packageManager" lives; without it the step fails outright
       # rather than defaulting to a version.
       - name: Install pnpm
-        uses: pnpm/action-setup@v4
+        uses: pnpm/action-setup@v6
         with:
           package_json_file: web/package.json
 
       - name: Install Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
           # Production (Vercel) runs Node 24.x; build on the same major.
           node-version: 24
@@ -101,11 +101,11 @@ jobs:
     name: HeroUI v3.2.7 parity audits
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v7
         with:
-          python-version: "3.12"
+          python-version: "3.15"
 
       - name: Parity reader regressions
         run: |
@@ -136,7 +136,7 @@ jobs:
 
       - name: Preserve parity report
         if: always()
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: parity-report
           path: ${{ runner.temp }}/parity-report.json
@@ -155,7 +155,7 @@ jobs:
       # guards a failure the compiler cannot see -- the embedded font files are
       # subsets keyed to the glyphs the sources actually use, and adding a new
       # string literal silently leaves a glyph with no outline to draw.
-      - uses: astral-sh/setup-uv@v5
+      - uses: astral-sh/setup-uv@v10.3.3
 
       - name: Web font subsets
         run: python .shots/subset-fonts.py --check
@@ -164,7 +164,7 @@ jobs:
     name: Lints & cargo-deny
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - uses: ./.github/actions/rust-env
 
@@ -247,7 +247,7 @@ jobs:
         os: [ubuntu-latest, macos-latest, windows-latest]
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - uses: ./.github/actions/rust-env
 
@@ -280,7 +280,7 @@ jobs:
     name: Rustdoc
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - uses: ./.github/actions/rust-env
 
@@ -301,7 +301,7 @@ jobs:
     name: Source install
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - uses: ./.github/actions/rust-env
 
@@ -326,7 +326,7 @@ jobs:
     outputs:
       build_config: ${{ steps.files.outputs.build_config }}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 2
 
@@ -379,7 +379,7 @@ jobs:
         os: [ubuntu-latest, macos-latest, windows-latest]
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - uses: ./.github/actions/rust-env
         with:
@@ -420,35 +420,31 @@ jobs:
       BINARYEN_VERSION: "133"
       BINARYEN_SHA256: 2dc9c7813f5375db93d96ead4b78222fcc3e2677bbb832297af4797782a37489
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           persist-credentials: false
 
-      # The one job that does not build on `rust-toolchain.toml`'s pinned
-      # stable: it installs the dated nightly with the wasm32 target below.
-      # This job is the one place a nightly toolchain is
-      # allowed, and the reason is upstream's, not ours: vanilla `gpui-pre-web` enables its
-      # `multithreaded` feature by default, which pulls in `wasm_thread`,
-      # whose lib.rs opens with `#![feature]` — so a stable build of this
-      # target fails outright with `error[E0554]`. The only stable-compatible
-      # switch would be a forked web-platform manifest (cargo unions feature
-      # sets, so no downstream edge can turn the default off), and the fork
-      # is retired — see `docs/upstream/retired-patches/`. Nothing in the
-      # gallery uses the multi-threaded platform: `crates/herogpui-web`
-      # starts the app with `single_threaded_web()`, and web workers need
-      # cross-origin isolation the site does not provide (evaluated in
-      # docs/upstream/gpui-web-multithreaded.md). If a future `gpui-pre-web`
-      # drops the default, move this job back to the pinned stable toolchain
-      # and delete the nightly switch in .shots/build-wasm.sh.
-      - name: Install nightly with the wasm32 target
+      # Like every other job, this one builds on `rust-toolchain.toml`'s
+      # pinned stable: `rustup toolchain install` reads that file when given
+      # no toolchain name. That became possible with gpui-pre 0.3.10: its
+      # `gpui_platform` forwards `gpui_web`'s `multithreaded` default instead
+      # of forcing it (zed#65289), and this workspace sets
+      # `default-features = false` on the `gpui_platform` edge, so
+      # `wasm_thread` — the `#![feature]` crate that made the wasm32 build
+      # nightly-only — stays out of the graph. The facade's opt-in
+      # `multithreaded` feature can still pull it back, but it also needs a
+      # nightly toolchain and cross-origin isolation (COOP/COEP) the site
+      # does not send, and nothing enables it here or in `herogpui-web`,
+      # which starts `single_threaded_web()` — see
+      # docs/upstream/gpui-web-multithreaded.md.
+      - name: Install the pinned toolchain's wasm32 target
         run: |
-          toolchain=$(cat .shots/wasm-toolchain.txt)
-          rustup toolchain install "$toolchain" --profile minimal --component rustc,cargo,rust-std -t wasm32-unknown-unknown
-          rustup target add wasm32-unknown-unknown --toolchain "$toolchain"
+          rustup toolchain install --profile minimal --component rustc,cargo,rust-std
+          rustup target add wasm32-unknown-unknown
 
       - uses: Swatinem/rust-cache@v2
         with:
-          key: wasm32-nightly-2026-08-30
+          key: wasm32
 
       # `wasm-bindgen` output is version-sensitive in both directions: the
       # crate compiled into the artifact and the CLI that post-processes it
@@ -476,7 +472,7 @@ jobs:
 
       # The stamp step (web/scripts/gallery-artifact.mjs) is plain Node with
       # no dependencies; the same major as the website build.
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: 24
 
@@ -485,12 +481,13 @@ jobs:
       # `RUSTFLAGS` environment variable *replaces* a config file's rustflags
       # rather than appending to them; .shots/build-wasm.sh refuses to run
       # with it set. The script is the same recipe a developer runs locally:
-      # nightly build, wasm-bindgen, wasm-opt, then build-info.json.
+      # wasm32 build on the pinned stable toolchain, wasm-bindgen, wasm-opt,
+      # then build-info.json.
       - name: Build, bind, optimise and stamp the web gallery
         run: bash .shots/build-wasm.sh --out "$RUNNER_TEMP/gallery" --source ci
 
       - name: Hand the artifact to wasm-publish on master
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: web-gallery
           path: ${{ runner.temp }}/gallery/
@@ -514,13 +511,13 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           persist-credentials: false
           sparse-checkout: .shots/publish-gallery.sh
           sparse-checkout-cone-mode: false
 
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           name: web-gallery
           path: ${{ runner.temp }}/gallery
@@ -553,7 +550,7 @@ jobs:
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       # Linux system libraries: the rustdoc JSON build of `herogpui` compiles
       # the GPUI platform crates' build scripts like any other build.
@@ -565,7 +562,7 @@ jobs:
       - name: Install cargo-semver-checks
         uses: taiki-e/install-action@v2
         with:
-          tool: cargo-semver-checks@0.50.0
+          tool: cargo-semver-checks@0.51.0
 
       - name: Public API against the latest crates.io release
         env:
@@ -591,7 +588,7 @@ jobs:
     name: No default features
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - uses: ./.github/actions/rust-env
 
@@ -607,8 +604,8 @@ jobs:
       - name: herogpui
         run: cargo check -p herogpui --no-default-features --locked
 
-  # No MSRV job, deliberately: `rust-version` (1.98) is the same release as
-  # `rust-toolchain.toml`'s pin (1.98.0), so every job above already builds
+  # No MSRV job, deliberately: `rust-version` (1.99) is the same release as
+  # `rust-toolchain.toml`'s pin (1.99.1), so every job above already builds
   # on the MSRV and a separate job would repeat `test`. `package_audit.py`
   # (in `parity`) fails if the two -- or clippy.toml's `msrv` -- ever differ,
   # which is the point at which a real MSRV job is needed.

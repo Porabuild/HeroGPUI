@@ -316,7 +316,7 @@ fn dragging_preserves_child_keyed_identity(cx: &mut TestAppContext) {
             )
             .into_any_element()
     });
-    harness::wait_real(cx, 550);
+    harness::wait_ms(cx, 550);
     let before = allocations.get();
     let handle = cx.debug_bounds("sheet-handle").unwrap().center();
     cx.simulate_mouse_down(handle, MouseButton::Left, Modifiers::none());
@@ -352,7 +352,7 @@ fn drag_start_cancels_the_pending_enter_completion(cx: &mut TestAppContext) {
             .on_animation_end(move |_, _, _| seen.set(seen.get() + 1))
             .into_any_element()
     });
-    harness::wait_real(cx, 100);
+    harness::wait_ms(cx, 100);
     let handle = cx.debug_bounds("sheet-handle").unwrap().center();
     cx.simulate_mouse_down(handle, MouseButton::Left, Modifiers::none());
     flush(cx);
@@ -506,7 +506,7 @@ fn exiting_content_cannot_receive_pointer_or_keyboard_actions(cx: &mut TestAppCo
     });
     click(cx, 20., 16.);
     flush(cx);
-    harness::wait_real(cx, 550);
+    harness::wait_ms(cx, 550);
     let body = cx.debug_bounds("exit-body-probe").unwrap().center();
     press(cx, "escape");
     flush(cx);

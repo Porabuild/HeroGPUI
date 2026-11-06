@@ -117,8 +117,8 @@ fn probe(id: impl Into<ElementId>, label: &'static str, recorded: Events) -> gpu
 
 /// Pins the layout by enabling reduced motion **before** the first frame:
 /// without it the panel sits at its t=0 pose (fully off-window) for the whole
-/// test, because entry animations run on wall time the test clock does not
-/// drive.
+/// test, because entry animations run on the executor clock this suite
+/// does not advance.
 fn still() {
     harness::still();
 }
@@ -4163,11 +4163,12 @@ fn select_panel_flips_above_and_keeps_every_row_reachable(cx: &mut TestAppContex
         .debug_bounds("select-trigger-Name(\"sel-vp\")")
         .expect("the trigger must be laid out");
     for _ in 0..3 {
-        cx.simulate_event(gpui::ScrollWheelEvent {
+        cx.simulate_event(gpui::ScrollEvent {
             position: panel.center(),
             delta: gpui::ScrollDelta::Pixels(point(px(0.), px(-1000.))),
             modifiers: Modifiers::none(),
             touch_phase: gpui::TouchPhase::Moved,
+            ..Default::default()
         });
         cx.update(|window, _| window.refresh());
         cx.run_until_parked();
@@ -4196,11 +4197,12 @@ fn select_panel_flips_above_and_keeps_every_row_reachable(cx: &mut TestAppContex
         "the page must not scroll under the open popup"
     );
     // Reaching the popup boundary must still contain the wheel.
-    cx.simulate_event(gpui::ScrollWheelEvent {
+    cx.simulate_event(gpui::ScrollEvent {
         position: panel.center(),
         delta: gpui::ScrollDelta::Pixels(point(px(0.), px(-1000.))),
         modifiers: Modifiers::none(),
         touch_phase: gpui::TouchPhase::Moved,
+        ..Default::default()
     });
     cx.update(|window, _| window.refresh());
     cx.run_until_parked();
@@ -4293,11 +4295,12 @@ fn select_virtual_panel_flips_caps_and_tracks_resize(cx: &mut TestAppContext) {
         .debug_bounds("select-trigger-Name(\"sel-vv\")")
         .expect("the trigger must be laid out");
     for _ in 0..10 {
-        cx.simulate_event(gpui::ScrollWheelEvent {
+        cx.simulate_event(gpui::ScrollEvent {
             position: panel.center(),
             delta: gpui::ScrollDelta::Pixels(point(px(0.), px(-1000.))),
             modifiers: Modifiers::none(),
             touch_phase: gpui::TouchPhase::Moved,
+            ..Default::default()
         });
         cx.update(|window, _| window.refresh());
         cx.run_until_parked();
@@ -4586,11 +4589,12 @@ fn combo_box_panel_flips_above_and_keeps_every_row_reachable(cx: &mut TestAppCon
         .debug_bounds(combo_probe(format!("combobox-field-{entity_id}")))
         .expect("the field must be laid out");
     for _ in 0..3 {
-        cx.simulate_event(gpui::ScrollWheelEvent {
+        cx.simulate_event(gpui::ScrollEvent {
             position: panel.center(),
             delta: gpui::ScrollDelta::Pixels(point(px(0.), px(-1000.))),
             modifiers: Modifiers::none(),
             touch_phase: gpui::TouchPhase::Moved,
+            ..Default::default()
         });
         cx.update(|window, _| window.refresh());
         cx.run_until_parked();
@@ -4619,11 +4623,12 @@ fn combo_box_panel_flips_above_and_keeps_every_row_reachable(cx: &mut TestAppCon
         "the page must not scroll under the open popup"
     );
     // Reaching the popup boundary must still contain the wheel.
-    cx.simulate_event(gpui::ScrollWheelEvent {
+    cx.simulate_event(gpui::ScrollEvent {
         position: panel.center(),
         delta: gpui::ScrollDelta::Pixels(point(px(0.), px(-1000.))),
         modifiers: Modifiers::none(),
         touch_phase: gpui::TouchPhase::Moved,
+        ..Default::default()
     });
     cx.update(|window, _| window.refresh());
     cx.run_until_parked();
@@ -4720,11 +4725,12 @@ fn combo_box_virtual_panel_flips_caps_and_tracks_resize(cx: &mut TestAppContext)
         .debug_bounds(combo_probe(format!("combobox-field-{entity_id}")))
         .expect("the field must be laid out");
     for _ in 0..10 {
-        cx.simulate_event(gpui::ScrollWheelEvent {
+        cx.simulate_event(gpui::ScrollEvent {
             position: panel.center(),
             delta: gpui::ScrollDelta::Pixels(point(px(0.), px(-1000.))),
             modifiers: Modifiers::none(),
             touch_phase: gpui::TouchPhase::Moved,
+            ..Default::default()
         });
         cx.update(|window, _| window.refresh());
         cx.run_until_parked();
@@ -5097,11 +5103,12 @@ fn autocomplete_panel_matches_trigger_width_with_8px_gap_and_320_list_cap(cx: &m
         "the last row must start out of view in a capped list: row={hidden:?} list={list:?}"
     );
     for _ in 0..3 {
-        cx.simulate_event(gpui::ScrollWheelEvent {
+        cx.simulate_event(gpui::ScrollEvent {
             position: list.center(),
             delta: gpui::ScrollDelta::Pixels(point(px(0.), px(-1000.))),
             modifiers: Modifiers::none(),
             touch_phase: gpui::TouchPhase::Moved,
+            ..Default::default()
         });
         cx.update(|window, _| window.refresh());
         cx.run_until_parked();
@@ -5264,11 +5271,12 @@ fn autocomplete_short_panel_flips_caps_and_keeps_header_visible(cx: &mut TestApp
         .debug_bounds(combo_probe(format!("{base}-search")))
         .expect("the search header must be laid out");
     for _ in 0..3 {
-        cx.simulate_event(gpui::ScrollWheelEvent {
+        cx.simulate_event(gpui::ScrollEvent {
             position: list.center(),
             delta: gpui::ScrollDelta::Pixels(point(px(0.), px(-1000.))),
             modifiers: Modifiers::none(),
             touch_phase: gpui::TouchPhase::Moved,
+            ..Default::default()
         });
         cx.update(|window, _| window.refresh());
         cx.run_until_parked();
@@ -5293,11 +5301,12 @@ fn autocomplete_short_panel_flips_caps_and_keeps_header_visible(cx: &mut TestApp
         "scrolling the popup must not move the page"
     );
     // Reaching the popup boundary must still contain the wheel.
-    cx.simulate_event(gpui::ScrollWheelEvent {
+    cx.simulate_event(gpui::ScrollEvent {
         position: panel.center(),
         delta: gpui::ScrollDelta::Pixels(point(px(0.), px(-1000.))),
         modifiers: Modifiers::none(),
         touch_phase: gpui::TouchPhase::Moved,
+        ..Default::default()
     });
     cx.update(|window, _| window.refresh());
     cx.run_until_parked();
@@ -5410,11 +5419,12 @@ fn autocomplete_virtual_panel_flips_caps_tracks_resize_and_answers_end(cx: &mut 
     // the popup must not move the page, and clicking the revealed row picks
     // it and closes the panel.
     for _ in 0..10 {
-        cx.simulate_event(gpui::ScrollWheelEvent {
+        cx.simulate_event(gpui::ScrollEvent {
             position: panel.center(),
             delta: gpui::ScrollDelta::Pixels(point(px(0.), px(-1000.))),
             modifiers: Modifiers::none(),
             touch_phase: gpui::TouchPhase::Moved,
+            ..Default::default()
         });
         cx.update(|window, _| window.refresh());
         cx.run_until_parked();

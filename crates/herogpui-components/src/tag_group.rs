@@ -860,14 +860,15 @@ impl RenderOnce for TagGroup {
                 let range_for_escape = selection_range.clone();
                 chip = chip.on_key_down(move |event, window, cx| {
                     let key_name = event.keystroke.key.as_str();
+                    let is_mac = cx.platform_info().is_mac();
                     // Pinned React Aria 3.51 routes TagGroup through
                     // `useSelectableCollection`, including Mod+A select-all.
                     if key_name == "a"
-                        && event.keystroke.modifiers.secondary()
+                        && event.keystroke.modifiers.secondary(cx)
                         && !event.keystroke.modifiers.shift
                         && !event.keystroke.modifiers.alt
                         && !event.keystroke.modifiers.function
-                        && if cfg!(target_os = "macos") {
+                        && if is_mac {
                             !event.keystroke.modifiers.control
                         } else {
                             !event.keystroke.modifiers.platform
@@ -945,10 +946,7 @@ impl RenderOnce for TagGroup {
                             // focus move, no selection, no preventDefault,
                             // and no consumption of the key either.
                             if matches!(key, "home" | "end")
-                                && !home_end_registered(
-                                    event.keystroke.modifiers,
-                                    cfg!(target_os = "macos"),
-                                )
+                                && !home_end_registered(event.keystroke.modifiers, is_mac)
                             {
                                 return;
                             }
@@ -977,7 +975,7 @@ impl RenderOnce for TagGroup {
                             // the unchanged-selection guard below is what
                             // keeps true no-ops silent.
                             let modifiers = event.keystroke.modifiers;
-                            let exact_shift_navigation = if cfg!(target_os = "macos") {
+                            let exact_shift_navigation = if is_mac {
                                 !modifiers.control && !modifiers.platform && !modifiers.function
                             } else {
                                 !modifiers.alt && !modifiers.platform && !modifiers.function
@@ -985,11 +983,7 @@ impl RenderOnce for TagGroup {
                             let extends_selection = modifiers.shift
                                 && mode == SelectionMode::Multiple
                                 && exact_shift_navigation
-                                && shift_home_end_extends(
-                                    key_name,
-                                    modifiers.control,
-                                    cfg!(target_os = "macos"),
-                                );
+                                && shift_home_end_extends(key_name, modifiers.control, is_mac);
                             if extends_selection {
                                 if let Some(target) = collection_for_keys.get(next) {
                                     let range = range_for_keys.read(cx).clone();

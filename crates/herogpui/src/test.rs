@@ -56,7 +56,7 @@ use std::collections::HashSet;
 
 use gpui::{
     point, px, Bounds, Context, KeyUpEvent, Keystroke, Modifiers, MouseButton, Pixels, Point,
-    Render, ScrollDelta, ScrollWheelEvent, TestAppContext, TouchPhase, VisualTestContext, Window,
+    Render, ScrollDelta, ScrollEvent, TestAppContext, TouchPhase, VisualTestContext, Window,
 };
 
 thread_local! {
@@ -156,7 +156,8 @@ impl TestWindowExt for VisualTestContext {
     fn press(&mut self, keys: &str) {
         self.simulate_keystrokes(keys);
         if let Some(last) = keys.split_whitespace().next_back() {
-            let keystroke = Keystroke::parse(last)
+            let os = self.cx.read(|app| app.platform_info().os);
+            let keystroke = Keystroke::parse_with_os(last, os)
                 .unwrap_or_else(|err| panic!("unparseable keystroke {last:?}: {err}"));
             self.simulate_event(KeyUpEvent { keystroke });
         }
@@ -171,11 +172,12 @@ impl TestWindowExt for VisualTestContext {
     fn scroll(&mut self, selector: &str, delta: Point<Pixels>) {
         let center = self.expect(selector).center();
         self.simulate_mouse_move(center, None, Modifiers::none());
-        self.simulate_event(ScrollWheelEvent {
+        self.simulate_event(ScrollEvent {
             position: center,
             delta: ScrollDelta::Pixels(delta),
             modifiers: Modifiers::none(),
             touch_phase: TouchPhase::Moved,
+            ..Default::default()
         });
         self.settle();
     }

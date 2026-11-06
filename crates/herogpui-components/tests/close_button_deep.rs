@@ -53,7 +53,8 @@ fn settle(cx: &mut VisualTestContext) {
         if pending_frames(cx) == 0 {
             return;
         }
-        std::thread::sleep(std::time::Duration::from_millis(10));
+        cx.executor()
+            .advance_clock(std::time::Duration::from_millis(10));
     }
     panic!("close button animations never settled");
 }
@@ -363,14 +364,14 @@ fn close_button_reads_the_hover_override_and_the_sx_background(cx: &mut TestAppC
         "the resting endpoint must be the sx background, painted {resting:?}"
     );
     cx.simulate_mouse_move(point(px(36.), px(36.)), None, Modifiers::none());
-    harness::wait_real(cx, 300);
+    harness::wait_ms(cx, 300);
     let hovered = harness::painted(cx).solids();
     assert!(
         harness::has_color(&hovered, over),
         "the hover endpoint must be the named override, painted {hovered:?}"
     );
     cx.simulate_mouse_move(point(px(600.), px(600.)), None, Modifiers::none());
-    harness::wait_real(cx, 300);
+    harness::wait_ms(cx, 300);
     let left = harness::painted(cx).solids();
     let stock = cx.update(|_, cx| {
         use herogpui_theme::ActiveTheme;

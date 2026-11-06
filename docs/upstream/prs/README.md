@@ -20,7 +20,7 @@ message: the submitter commits it under the identity that signs the Zed CLA.
 
 ## The patches
 
-| # | Patch | Crates | Size | Still needed at d89e9c2 |
+| # | Patch | Crates | Size | Still needed at d89e9c2 — re-checked at f816e1f (0.3.11) |
 |---|---|---|---|---|
 | 01 | [`01-gpui-aria-current`](01-gpui-aria-current.md) | gpui | 1 file, +23 | Yes: no `aria_current` setter, no node propagation |
 | 02 | [`02-gpui-spread-shadow-corner-radii`](02-gpui-spread-shadow-corner-radii.md) | gpui | 1 file, +59/-1 | Yes: `paint_drop_shadows` reuses the element radius |
@@ -55,8 +55,13 @@ keyboard-opened `ContextMenu` at the focused element, for the components agent.
   (`edition = "2024"`, `style_edition = "2024"`), and `rustfmt --check` passes
   on every touched file. One import the old reorder hunk had re-added
   (`use futures::FutureExt;`) was removed, because 0.3.5 no longer uses it.
-- **Nothing was obsoleted by 0.3.5.** All five changes are still missing at
-  `d89e9c2`. The 0.3.3-to-0.3.5 re-base was a three-way merge. It conflicted
+- **Nothing was obsoleted by 0.3.5 — or by 0.3.10 or 0.3.11.** All five changes are
+  still missing at `d89e9c2`, and re-checked against `gpui-pre` 0.3.11's
+  `zed@f816e1f` snapshot: no `aria_current` anywhere in `gpui-pre-0.3.11`,
+  `ContentMask` is still `{ bounds }` only, `paint_drop_shadows` still passes
+  the element's unchanged `corner_radii`, `register_wheel` still forwards the
+  raw axes, and neither `register_paste` path schedules an IME-mirror sync.
+  The 0.3.3-to-0.3.5 re-base was a three-way merge. It conflicted
   only in import blocks, in `gpui/src/elements/div.rs` and
   `gpui/src/window.rs`.
 

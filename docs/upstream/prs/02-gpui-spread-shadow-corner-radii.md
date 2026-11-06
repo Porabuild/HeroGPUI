@@ -10,7 +10,9 @@ alone on the base, and with the full series:
 
 Still needed at d89e9c2: yes. `Window::paint_drop_shadows` dilates the shadow
 bounds by `spread_radius`, but passes the element's unchanged
-`corner_radii`.
+`corner_radii`. Re-checked at `gpui-pre` 0.3.11 (`zed@f816e1f`):
+`paint_drop_shadows` still passes the element's unchanged `corner_radii`
+(`window.rs:4785-4816`).
 
 ---
 

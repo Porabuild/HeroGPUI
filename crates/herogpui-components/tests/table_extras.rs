@@ -506,7 +506,7 @@ fn frozen_host(cx: &mut TestAppContext, config: Frozen) -> (Events, &mut VisualT
 
 /// A horizontal wheel at `at`; negative `dx` scrolls the content left.
 fn wheel_x(cx: &mut VisualTestContext, at: gpui::Point<gpui::Pixels>, dx: f32) {
-    cx.simulate_event(gpui::ScrollWheelEvent {
+    cx.simulate_event(gpui::ScrollEvent {
         position: at,
         delta: gpui::ScrollDelta::Pixels(point(px(dx), px(0.))),
         ..Default::default()
@@ -818,7 +818,7 @@ fn frozen_virtual(cx: &mut TestAppContext, body: Body) {
     assert_eq!(cell(cx, 1, 2).left(), scrolled.left() - px(100.));
     // A vertical wheel still scrolls the virtual body, and the rows it
     // builds come in at the same horizontal offset.
-    cx.simulate_event(gpui::ScrollWheelEvent {
+    cx.simulate_event(gpui::ScrollEvent {
         position: scrolled.center(),
         delta: gpui::ScrollDelta::Pixels(point(px(0.), px(-300.))),
         ..Default::default()

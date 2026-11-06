@@ -836,7 +836,8 @@ fn settle(cx: &mut VisualTestContext) {
         if pending_frames(cx) == 0 {
             return;
         }
-        std::thread::sleep(std::time::Duration::from_millis(10));
+        cx.executor()
+            .advance_clock(std::time::Duration::from_millis(10));
     }
     panic!("field chrome animations never settled");
 }
@@ -844,8 +845,9 @@ fn settle(cx: &mut VisualTestContext) {
 /// Even the longest chrome track (150ms) is still running this far in.
 const MID_FLIGHT_MS: u64 = 60;
 
-fn sleep_mid_flight() {
-    std::thread::sleep(std::time::Duration::from_millis(MID_FLIGHT_MS));
+fn advance_mid_flight(cx: &mut VisualTestContext) {
+    cx.executor()
+        .advance_clock(std::time::Duration::from_millis(MID_FLIGHT_MS));
 }
 
 #[gpui::test]
@@ -878,7 +880,7 @@ fn number_field_chrome_mounts_settled_and_interpolates_focus(cx: &mut TestAppCon
     // settle until focus is gone.
     press(cx, "tab");
     flush_frame(cx);
-    sleep_mid_flight();
+    advance_mid_flight(cx);
     assert!(
         pending_frames(cx) > 0,
         "taking focus must animate the focus ring, not swap it in"
@@ -887,7 +889,7 @@ fn number_field_chrome_mounts_settled_and_interpolates_focus(cx: &mut TestAppCon
     // And blur: the caret stops with focus, and the ring eases back out.
     cx.update(|window, cx| window.blur(cx));
     flush_frame(cx);
-    sleep_mid_flight();
+    advance_mid_flight(cx);
     assert!(
         pending_frames(cx) > 0,
         "losing focus must animate the ring out, not swap it off"
@@ -936,7 +938,7 @@ fn number_field_invalid_chrome_interpolates(cx: &mut TestAppContext) {
     // transparent -> danger at the outline's width, over the pinned 150ms.
     invalid.set(true);
     flush_frame(cx);
-    sleep_mid_flight();
+    advance_mid_flight(cx);
     assert!(
         pending_frames(cx) > 0,
         "becoming invalid must animate the danger outline in"
@@ -946,7 +948,7 @@ fn number_field_invalid_chrome_interpolates(cx: &mut TestAppContext) {
     // And back: the same track fades the outline out again.
     invalid.set(false);
     flush_frame(cx);
-    sleep_mid_flight();
+    advance_mid_flight(cx);
     assert!(
         pending_frames(cx) > 0,
         "recovering from invalid must animate the danger outline out"
@@ -969,7 +971,7 @@ fn number_field_hover_interpolates_the_group_surface(cx: &mut TestAppContext) {
     // their shared 150ms smooth track.
     cx.simulate_mouse_move(point(px(110.), px(18.)), None, Modifiers::none());
     flush_frame(cx);
-    sleep_mid_flight();
+    advance_mid_flight(cx);
     assert!(
         pending_frames(cx) > 0,
         "hovering the group must ease the hover surface in"
@@ -979,7 +981,7 @@ fn number_field_hover_interpolates_the_group_surface(cx: &mut TestAppContext) {
     // Leaving eases the same tracks back to the resting endpoints.
     cx.simulate_mouse_move(point(px(-100.), px(-100.)), None, Modifiers::none());
     flush_frame(cx);
-    sleep_mid_flight();
+    advance_mid_flight(cx);
     assert!(
         pending_frames(cx) > 0,
         "leaving the group must ease the hover surface out"
@@ -1006,7 +1008,7 @@ fn input_otp_invalid_slots_interpolate_the_danger_outline(cx: &mut TestAppContex
     // border-color track.
     invalid.set(true);
     flush_frame(cx);
-    sleep_mid_flight();
+    advance_mid_flight(cx);
     assert!(
         pending_frames(cx) > 0,
         "becoming invalid must animate the slots' danger outlines in"
@@ -1015,7 +1017,7 @@ fn input_otp_invalid_slots_interpolate_the_danger_outline(cx: &mut TestAppContex
 
     invalid.set(false);
     flush_frame(cx);
-    sleep_mid_flight();
+    advance_mid_flight(cx);
     assert!(
         pending_frames(cx) > 0,
         "recovering from invalid must animate the slots' danger outlines out"
@@ -1039,7 +1041,7 @@ fn input_otp_hover_interpolates_the_slot_surface(cx: &mut TestAppContext) {
     // the chrome tracks alone.
     cx.simulate_mouse_move(point(px(27.), px(20.)), None, Modifiers::none());
     flush_frame(cx);
-    sleep_mid_flight();
+    advance_mid_flight(cx);
     assert!(
         pending_frames(cx) > 0,
         "hovering a slot must ease its hover chrome in"
@@ -1048,7 +1050,7 @@ fn input_otp_hover_interpolates_the_slot_surface(cx: &mut TestAppContext) {
 
     cx.simulate_mouse_move(point(px(-100.), px(-100.)), None, Modifiers::none());
     flush_frame(cx);
-    sleep_mid_flight();
+    advance_mid_flight(cx);
     assert!(
         pending_frames(cx) > 0,
         "leaving a slot must ease its hover chrome out"

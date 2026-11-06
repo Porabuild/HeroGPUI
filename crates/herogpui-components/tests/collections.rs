@@ -80,10 +80,10 @@ fn sorted_join(keys: &HashSet<gpui::SharedString>) -> String {
 }
 
 /// Drives the measured Accordion panel to its settled endpoint before the
-/// second header's coordinate is used. GPUI's animation phase uses wall time;
-/// the retained exit timer uses the test executor clock.
+/// second header's coordinate is used. Since gpui-pre 0.3.11 GPUI's animation
+/// phase and the retained exit timer both use the test executor clock.
 fn settle_collapsible(cx: &mut VisualTestContext) {
-    std::thread::sleep(Duration::from_millis(220));
+    cx.executor().advance_clock(Duration::from_millis(220));
     cx.update(|window, cx| {
         window.simulate_next_frame(cx);
     });
@@ -627,7 +627,7 @@ fn fills_over(scene: &harness::Painted, target: gpui::Bounds<gpui::Pixels>) -> V
 /// TagGroup's background transition is its stylesheet's own 100ms, not the
 /// theme's shared hover duration, and its fade layer shares the tag radius
 /// so a mid-transition frame cannot leak square corners. Observed on the
-/// real clock with the theme's shared duration stretched to a minute: after
+/// executor clock with the theme's shared duration stretched to a minute: after
 /// 300ms the tag's fade has settled (its layer paints the skin's endpoint),
 /// while a Button — which rides the theme duration — is still mid-fade.
 #[gpui::test]
@@ -676,7 +676,7 @@ fn tag_group_uses_the_pinned_smooth_hover_transition(cx: &mut TestAppContext) {
         .expect("the button must paint its skin");
 
     cx.simulate_mouse_move(chip.center(), None, Modifiers::none());
-    harness::wait_real(cx, 300);
+    harness::wait_ms(cx, 300);
     let scene = harness::painted(cx);
     let tag_fills = fills_over(&scene, chip);
     assert_eq!(
@@ -700,7 +700,7 @@ fn tag_group_uses_the_pinned_smooth_hover_transition(cx: &mut TestAppContext) {
     );
 
     cx.simulate_mouse_move(button.center(), None, Modifiers::none());
-    harness::wait_real(cx, 300);
+    harness::wait_ms(cx, 300);
     let scene = harness::painted(cx);
     let button_fills = fills_over(&scene, button);
     assert_eq!(

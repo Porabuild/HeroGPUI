@@ -46,8 +46,8 @@ use std::collections::HashSet;
 use std::{rc::Rc, time::Duration};
 
 use gpui::{
-    point, prelude::*, px, Font, FontFeatures, FontStyle, FontWeight, ScrollDelta,
-    ScrollWheelEvent, SharedString, TestAppContext, VisualTestContext,
+    point, prelude::*, px, Font, FontFeatures, FontStyle, FontWeight, ScrollDelta, ScrollEvent,
+    SharedString, TestAppContext, VisualTestContext,
 };
 use herogpui_components::{
     Accordion, AccordionItem, DisclosureGroup, Orientation, Pagination, SelectionMode,
@@ -147,12 +147,12 @@ fn flush_frame(cx: &mut VisualTestContext) {
     cx.update(|window, _| window.refresh());
 }
 
-/// Drives the shared 200ms measured panel transition to its endpoint. GPUI's
-/// animation phase uses wall time, while the retained exit timer uses the
-/// deterministic executor clock, so both are advanced here before a geometry
-/// assertion or a click below a panel.
+/// Drives the shared 200ms measured panel transition to its endpoint. Since
+/// gpui-pre 0.3.11 GPUI's animation phase uses the deterministic executor
+/// clock, as the retained exit timer does, so it is advanced here before a
+/// geometry assertion or a click below a panel.
 fn settle_collapsible(cx: &mut VisualTestContext) {
-    std::thread::sleep(Duration::from_millis(220));
+    cx.executor().advance_clock(Duration::from_millis(220));
     cx.update(|window, cx| {
         window.simulate_next_frame(cx);
     });
@@ -168,7 +168,7 @@ fn settle_collapsible(cx: &mut VisualTestContext) {
 /// `Lines`, so no line height enters the arithmetic. Followed by a redraw so
 /// the next event sees the frame the scroll produced.
 fn wheel_h(cx: &mut VisualTestContext, x: f32, y: f32, dx: f32) {
-    cx.simulate_event(ScrollWheelEvent {
+    cx.simulate_event(ScrollEvent {
         position: point(px(x), px(y)),
         delta: ScrollDelta::Pixels(point(px(dx), px(0.))),
         ..Default::default()
@@ -1102,8 +1102,8 @@ fn tabs_disabled_list_answers_no_key_or_click(cx: &mut TestAppContext) {
 // ---------------------------------------------------------------------------
 
 /// Accordion and Disclosure share `anim::collapsible_panel`: a toggled panel
-/// eases its height on the pinned 200ms `DISCLOSURE` motion (measured on the
-/// real clock, since gpui animations read wall time) instead of snapping, and
+/// eases its height on the pinned 200ms `DISCLOSURE` motion (measured on
+/// the executor clock gpui animations read) instead of snapping, and
 /// the collapsing body stays mounted until the motion ends. A probe below
 /// the component reads the height it takes up.
 #[gpui::test]
@@ -1146,7 +1146,7 @@ fn accordion_and_disclosure_panels_ease_open_and_closed(cx: &mut TestAppContext)
         let closed = below(cx);
         click(cx, 100., closed / 2.);
         let opening = below(cx);
-        harness::wait_real(cx, 400);
+        harness::wait_ms(cx, 400);
         let open = below(cx);
         assert!(
             open >= closed + 119.,
@@ -1164,7 +1164,7 @@ fn accordion_and_disclosure_panels_ease_open_and_closed(cx: &mut TestAppContext)
             "{name}: the collapsing body must stay mounted while it eases shut \
              ({open} -> {closing})"
         );
-        harness::wait_real(cx, 400);
+        harness::wait_ms(cx, 400);
         assert!(
             (below(cx) - closed).abs() < 0.5,
             "{name}: the closed panel must give its height back"
@@ -1389,7 +1389,7 @@ fn horizontal_components_keep_vertical_wheels_on_the_page(cx: &mut TestAppContex
         flush_frame(cx);
         let before = cx.debug_bounds(probe_name).expect("content paints");
         let y = if kind == 0 { 90. } else { 20. };
-        cx.simulate_event(ScrollWheelEvent {
+        cx.simulate_event(ScrollEvent {
             position: point(px(100.), px(y)),
             delta: ScrollDelta::Pixels(point(px(0.), px(-10.))),
             ..Default::default()

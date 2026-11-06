@@ -100,7 +100,7 @@ const AVATAR_API: &[ApiDoc] = &[
         prop: "alt",
         ty: "string",
         default: "—",
-        description: "Alternative text for the image. gpui-pre 0.3.3 has no accessibility tree to carry it.",
+        description: "Alternative text for the image. gpui-pre 0.3.11's `img` element has no accessibility role, so there is no tree node to carry it.",
         rust_owner: "Avatar",
         rust: "—",
         status: ImplementationStatus::Unavailable,
@@ -466,7 +466,7 @@ const AVATAR_GROUP_STYLING: &[StyleDoc] = &[
     StyleDoc {
         class_or_token: ".avatar-group--clip",
         value: "mask-image: radial-gradient(circle at <next avatar center>, transparent <r + seam>, #000 ...) on every avatar except the last",
-        description: "Platform-limited: gpui-pre 0.3.5 has only rectangular content masks, so the transparent crescent cannot be cut. The port paints it instead — a 2px `--background` seam around each avatar that follows another — which matches on a solid background but is opaque over images or gradients.",
+        description: "Platform-limited: gpui-pre 0.3.11 has only rectangular content masks, so the transparent crescent cannot be cut. The port paints it instead — a 2px `--background` seam around each avatar that follows another — which matches on a solid background but is opaque over images or gradients.",
         rust: "AvatarGroupOverlap::Clip => follows (BoxShadow seam in colors.background)",
         status: ImplementationStatus::Partial,
     },

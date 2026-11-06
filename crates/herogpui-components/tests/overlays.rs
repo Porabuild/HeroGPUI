@@ -15,7 +15,8 @@
 //! reads the painted panel through a body probe, because its whole point is
 //! the composition the pinned stylesheet and the matched captures agree on.
 //! The entry and
-//! exit animations run on wall time, which the test clock does not drive, so
+//! exit animations run on the executor clock, which this suite does not
+//! advance, so
 //! they are suppressed by [still] and the clock is still advanced past
 //! `EXITING_MS` (100ms) before a closed-proof probe — the exit phase is what
 //! keeps a dismissed panel on screen, and the probe must not land on that
@@ -54,8 +55,8 @@ use std::{
 };
 
 use gpui::{
-    point, prelude::*, px, size, Modifiers, MouseButton, ScrollDelta, ScrollWheelEvent,
-    TestAppContext, VisualTestContext,
+    point, prelude::*, px, size, Modifiers, MouseButton, ScrollDelta, ScrollEvent, TestAppContext,
+    VisualTestContext,
 };
 use harness::{click, events, open_host, press, tooltip_open_probe};
 use herogpui_components::{
@@ -66,8 +67,8 @@ use herogpui_components::{
 
 /// Pins the layout by enabling reduced motion **before** the first frame.
 ///
-/// gpui's enter/exit animations run on wall time, which the test clock does
-/// not drive, so an entry slide would sit at t=0 (fully off-window) for the
+/// gpui's enter/exit animations run on the executor clock, which this suite
+/// does not advance, so an entry slide would sit at t=0 (fully off-window) for the
 /// whole test otherwise. The preference must be in place before `open_host`:
 /// the host's opening paint is the one the first event dispatches against, and
 /// a mid-test flip changes the animated wrapper structure, which rebuilds the
@@ -93,7 +94,7 @@ fn let_exit_finish(cx: &mut VisualTestContext) {
 /// pixels: **negative moves down** (later content into view). Followed by a
 /// redraw so the next event sees the scrolled frame.
 fn wheel(cx: &mut VisualTestContext, x: f32, y: f32, dy: f32) {
-    cx.simulate_event(ScrollWheelEvent {
+    cx.simulate_event(ScrollEvent {
         position: point(px(x), px(y)),
         delta: ScrollDelta::Pixels(point(px(0.), px(dy))),
         ..Default::default()

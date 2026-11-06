@@ -17,7 +17,7 @@ jobs:
     outputs:
       version: ${{ steps.version.outputs.version }}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - id: version
         shell: bash
         run: |
@@ -53,12 +53,12 @@ jobs:
     needs: [plan]
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - uses: ./.github/actions/rust-env
       # Pinned with ci.yml's `semver` job; see the reason there.
       - uses: taiki-e/install-action@v2
         with:
-          tool: cargo-semver-checks@0.50.0
+          tool: cargo-semver-checks@0.51.0
       - run: cargo semver-checks -p herogpui-core -p herogpui-theme -p herogpui-components -p herogpui
 
   build-gallery:
@@ -81,7 +81,7 @@ jobs:
             asset: aarch64-unknown-linux-gnu
     runs-on: ${{ matrix.runner }}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - name: Install Linux build dependencies
         if: runner.os == 'Linux'
         run: |
@@ -111,7 +111,7 @@ jobs:
           mkdir -p dist
           cp "${{ matrix.source }}" "dist/herogpui-${{ needs.plan.outputs.version }}-${{ matrix.asset }}"
           if [ "${{ runner.os }}" != "Windows" ]; then chmod 755 dist/herogpui-*; fi
-      - uses: actions/upload-artifact@v6
+      - uses: actions/upload-artifact@v7
         with:
           name: gallery-${{ matrix.asset }}
           path: dist/*
@@ -125,8 +125,8 @@ jobs:
       id-token: write
       attestations: write
     steps:
-      - uses: actions/checkout@v6
-      - uses: actions/download-artifact@v6
+      - uses: actions/checkout@v7
+      - uses: actions/download-artifact@v8
         with:
           pattern: gallery-*
           path: dist
@@ -134,7 +134,7 @@ jobs:
       - uses: actions/attest@v4
         with:
           subject-path: dist/*
-      - uses: actions/upload-artifact@v6
+      - uses: actions/upload-artifact@v7
         with:
           name: release-bundle
           path: |
@@ -148,8 +148,8 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/checkout@v6
-      - uses: actions/download-artifact@v6
+      - uses: actions/checkout@v7
+      - uses: actions/download-artifact@v8
         with:
           name: release-bundle
           path: release
@@ -177,7 +177,7 @@ jobs:
       id-token: write
       contents: read
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - name: Install Linux build dependencies
         run: |
           sudo apt-get update

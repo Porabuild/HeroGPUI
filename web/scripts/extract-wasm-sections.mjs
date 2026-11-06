@@ -18,8 +18,7 @@
 //
 //   * every wasm build input (`inputsSha256`): the component, theme, core,
 //     facade, web-entry and gallery sources plus the workspace manifests,
-//     lockfile, dated wasm toolchain and CI build recipe -- the artifact key;
-//     and
+//     lockfile and CI build recipe -- the artifact key; and
 //   * every example body (`examples`), so a change to what the page's code
 //     block shows is visible in review next to the key it moves.
 //
@@ -51,7 +50,6 @@ const INPUT_FILES = [
   "Cargo.lock",
   "rust-toolchain.toml",
   ".cargo/config.toml",
-  ".shots/wasm-toolchain.txt",
   ".shots/build-wasm.sh",
   ".github/workflows/ci.yml",
 ];

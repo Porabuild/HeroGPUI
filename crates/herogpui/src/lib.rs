@@ -29,6 +29,7 @@
 //! | `profiler`     | `gpui/profiler`                                      |
 //! | `serde`        | `herogpui-theme/serde` (`ThemeDocument`, theme files) |
 //! | `watch`        | `herogpui-theme/watch` (`watch_themes_dir`, theme hot reload; implies `serde`) |
+//! | `multithreaded` | `gpui_platform/multithreaded` (GPUI's multi-threaded web platform; wasm32 only, needs nightly + cross-origin isolation) |
 //!
 //! There is no separate assets or icons feature: the SVG icons HeroGPUI's own
 //! component chrome draws (the [`components::icons`] paths) and the public
@@ -220,6 +221,11 @@ pub use ::herogpui_theme::{watch_themes_dir, ThemeReload, ThemeWatcher, THEME_WA
 /// pulls in GPUI's web backend itself, so this module is a rename rather than
 /// a dependency of its own — it is inert on every native target, and it does
 /// not depend on the in-progress `herogpui-web` browser entry crate.
+///
+/// The multi-threaded platform — `application_with_web_backend`'s web workers
+/// over shared wasm memory — is compiled only with the `multithreaded`
+/// feature, which needs a nightly toolchain and a cross-origin-isolated page;
+/// `herogpui-web` starts `single_threaded_web()` regardless.
 #[cfg(target_family = "wasm")]
 pub mod web {
     pub use ::gpui_platform::{

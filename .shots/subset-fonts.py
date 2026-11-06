@@ -62,7 +62,7 @@ a locally installed FontTools is used only when it matches that pin.
 
 What a developer needs installed: nothing, if `uv`/`uvx` is on PATH -- FontTools
 is fetched into uvx's own cache at the pinned version. Otherwise install that
-exact version (`pip install 'fonttools[woff]==4.63.0'`). `HEROGPUI_PYFTSUBSET`
+exact version (`pip install 'fonttools[woff]==4.68.0'`). `HEROGPUI_PYFTSUBSET`
 overrides the command outright for an unusual environment.
 
 Usage:
@@ -91,7 +91,7 @@ FONTS = os.path.join(ROOT, 'crates', 'herogpui-web', 'fonts')
 
 # Pinned so `--check` compares against the same compiler that produced the
 # committed bytes. Bump this and the subsets in one commit.
-FONTTOOLS = '4.63.0'
+FONTTOOLS = '4.68.0'
 
 # The wasm payload is the gallery, so the gallery's own sources are as much a
 # glyph source as the components they demonstrate.

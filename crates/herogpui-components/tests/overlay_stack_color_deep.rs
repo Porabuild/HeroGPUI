@@ -130,11 +130,12 @@ fn color_picker_scrolls_to_alpha_in_a_short_viewport(cx: &mut TestAppContext) {
         hidden_alpha.top() >= panel.bottom(),
         "returning to the area must reveal its beginning"
     );
-    cx.simulate_event(gpui::ScrollWheelEvent {
+    cx.simulate_event(gpui::ScrollEvent {
         position: panel.center(),
         delta: gpui::ScrollDelta::Pixels(point(px(0.), px(-1000.))),
         modifiers: Modifiers::none(),
         touch_phase: gpui::TouchPhase::Moved,
+        ..Default::default()
     });
     cx.update(|window, _| window.refresh());
     cx.run_until_parked();
@@ -143,11 +144,12 @@ fn color_picker_scrolls_to_alpha_in_a_short_viewport(cx: &mut TestAppContext) {
         alpha.top() >= panel.top() && alpha.bottom() <= panel.bottom(),
         "{alpha:?} outside {panel:?}"
     );
-    cx.simulate_event(gpui::ScrollWheelEvent {
+    cx.simulate_event(gpui::ScrollEvent {
         position: panel.center(),
         delta: gpui::ScrollDelta::Pixels(point(px(0.), px(-1000.))),
         modifiers: Modifiers::none(),
         touch_phase: gpui::TouchPhase::Moved,
+        ..Default::default()
     });
     cx.update(|window, _| window.refresh());
     cx.run_until_parked();
@@ -199,11 +201,12 @@ fn color_picker_reopen_starts_at_area_after_full_close(cx: &mut TestAppContext) 
     assert_eq!(panel.bottom(), px(288.));
 
     // Scroll to the bottom so the alpha slider is visible.
-    cx.simulate_event(gpui::ScrollWheelEvent {
+    cx.simulate_event(gpui::ScrollEvent {
         position: panel.center(),
         delta: gpui::ScrollDelta::Pixels(point(px(0.), px(-1000.))),
         modifiers: Modifiers::none(),
         touch_phase: gpui::TouchPhase::Moved,
+        ..Default::default()
     });
     cx.update(|window, _| window.refresh());
     cx.run_until_parked();

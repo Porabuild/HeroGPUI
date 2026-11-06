@@ -6,7 +6,7 @@
 //! for the window (`Window::draw` gates the whole thing on
 //! `A11y::is_active()`), and the only thing that flips that flag is the
 //! platform adapter calling the activation callback gpui hands it in
-//! `PlatformWindow::a11y_init`. `gpui-pre-0.3.3/src/platform.rs` defines
+//! `PlatformWindow::a11y_init`. `gpui-pre-0.3.11/src/platform.rs` defines
 //! `a11y_init` as an empty default method and the test platform does not
 //! override it, so on the headless platform the flag is never set, no
 //! `TreeUpdate` is ever produced, and `Window::debug_a11y_tree_json` — the one
