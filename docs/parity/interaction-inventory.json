@@ -24002,14 +24002,14 @@
   ],
   "reference_source": {
     "path": "web/src/data/reference.json",
-    "sha256": "dcb945a338cdf1020e7898734c0f35e93091a2f69ca9555950fb648ed113a0e5"
+    "sha256": "2e3f0a8122488225bc764e16f72c764fe85cd9a8d8aca393547fd0c7d3a83a11"
   },
   "catalog_source": {
     "path": "web/src/data/catalog.json",
     "sha256": "96edac2e9b1f99e334c92dab978668422ee3467eade3fdeff1cd58a4ca314e73"
   },
   "source_snapshot": {
-    "sha256": "46d86c91ce48eb946293f5ade9bc739de08c3381bb9572d69769fe13a3993e5b",
+    "sha256": "97d7d14f09c4fbd2bfba06244282986850f3b53a3dd5cd9a682f7018b431dc6b",
     "files": {
       ".cargo/config.toml": "6ce2a269fd46b2570763e8e446ac93e9d04614416af21134877cf7b388e776f9",
       ".gitattributes": "13aede5d4eaee3f19ecad6be9d4941dafe8bc4d596e83a2083f4143fb6e0f434",
@@ -24171,7 +24171,7 @@
       "crates/herogpui-components/src/traits.rs": "f006b26dc4613ddaff688baef7a157af089386fd9bd03ce296adac71c0bb0dc5",
       "crates/herogpui-components/src/tree_view.rs": "5022ca7d618c7bbb5dfc03bf9422da4a2398f825c6afaf49f01a0adef5093ca1",
       "crates/herogpui-components/src/typography.rs": "d9cd05830709531e4421294e95f80a76773f1b750333acd3350203204e73e0ec",
-      "crates/herogpui-components/src/util.rs": "328114be84b1d71ee13ec0e23f0fa952563359be6bc5f00cbc54155d35fb3ad0",
+      "crates/herogpui-components/src/util.rs": "e028e121813a3f4a03c2247070dbc6790589aa1194ba62bac8dacc7b2e69a045",
       "crates/herogpui-components/src/validation.rs": "8a4e32caf189e848b4557b31e366691c72e858b1569a8476d883d81a0aa6bccc",
       "crates/herogpui-components/src/virtual_list.rs": "3a2e520fdc1a0cd4b1b00c20037764c963c5deef6439190a6d1ce721305ff7e5",
       "crates/herogpui-components/tests/a11y_collections_deep.rs": "bf499bfa257d2c1d3e7848e324037ff52b95e9f88d277bd91c467ca157f77423",
@@ -24406,7 +24406,7 @@
       "gallery/src/pages/mod.rs": "88f554be153e8467c4941d3dec4907367d5d2318698cfc2bfbdc0af316725e83",
       "gallery/src/pages/overview.rs": "2ac7b18bc7495e1c62749b35708f3c8bee5ed72d18646a9a5708574df0cce588",
       "gallery/src/pages/reference.rs": "c80e4066922d92668c492ab5892c1cae1ad8654ef18218629b54971f1175bccc",
-      "gallery/src/pages/reference_metadata/buttons.rs": "0c133f3b220b9cba3cc1f4661a64e81734d716e5a9ef8117d74c230779dff791",
+      "gallery/src/pages/reference_metadata/buttons.rs": "0d09a609b569d53ff695835028078b15469cba161eb916f9dd67c7925f959587",
       "gallery/src/pages/reference_metadata/collections.rs": "99656c0a74a2095b57828ce7c6a3a6e70dfdf7d38d913305fb73bb155db6dbea",
       "gallery/src/pages/reference_metadata/colors.rs": "5ca834a7c060db223a585248599eba662bbb0736a245006f42150ec22dafd439",
       "gallery/src/pages/reference_metadata/controls.rs": "55ce386bc3d01d3993873d38dde8f6819a2c309b4d50c841c6e43b41c1fb2ca9",
@@ -24523,10 +24523,10 @@
       "web/src/components/ui/static-table.tsx": "e863e7b9ea6d94ab1a89169e9f03959d3e1dd5ac9649e8d6ec686a043e1f1b25",
       "web/src/components/ui/status-chip.tsx": "c64a34146c0e9a5889f3c3d766b595d7099bcc705ba42b588b79532acb5a3c25",
       "web/src/data/catalog.json": "96edac2e9b1f99e334c92dab978668422ee3467eade3fdeff1cd58a4ca314e73",
-      "web/src/data/reference.json": "dcb945a338cdf1020e7898734c0f35e93091a2f69ca9555950fb648ed113a0e5",
+      "web/src/data/reference.json": "2e3f0a8122488225bc764e16f72c764fe85cd9a8d8aca393547fd0c7d3a83a11",
       "web/src/data/releases.json": "22a8358a523c9993bde2657a6686b45ad0842fac08a2dd2c9dbc7defa641bbd3",
       "web/src/data/rust-examples.json": "82a3cfec77d2c395a9bb745b50409f007f3282442d226098f447ce658f4aa9eb",
-      "web/src/data/wasm-parity.json": "1b24222d8f50f6ed6be73f5a57183eb4e282c22139de3505c77a2f8eaeeef148",
+      "web/src/data/wasm-parity.json": "9bdb714d306847a2e6d811d476ce258515fa49731766f0b21143fd34c04b5e7f",
       "web/src/data/wasm-sections.json": "e6b201eee5a98ebfe31de104849d24862b8af7a834c2aea371c2c4ab263312a6",
       "web/src/lib/catalog.ts": "79681a0e1e0e12c9352ddc9eec0d6fe428906ceca07bfefb89623639396f81cf",
       "web/src/lib/docs-nav.ts": "ffb0d7fdaa0261395306f0bfa4e09c5ef88043c702c962f847983b05be67f55a",
@@ -140150,7 +140150,7 @@
       ]
     }
   ],
-  "verification_sha256": "c9a11ee51f636c81619d37406daec6daa0b174e40faab910b35af9eb5acf9e61",
+  "verification_sha256": "1a9e221fcc43c598027dcc2729ef871c69135cc9d40c21dc4b2a353aada9b414",
   "retired_source_changes": [
     {
       "path": "packages/react/src/components/autocomplete/autocomplete.stories.tsx",

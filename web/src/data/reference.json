@@ -5464,8 +5464,8 @@
       {
         "state": "Focus visible",
         "selector": ".button:focus-visible / [data-focus-visible=\"true\"]",
-        "description": "Keyboard focus displays the status-focused ring.",
-        "rust": "tab_stop_handle + ring_if_focused",
+        "description": "Keyboard focus displays the status-focused ring. Uniform rounded buttons keep its circular corners concentric with the fitted control outline.",
+        "rust": "tab_stop_handle + ring_overlay_if_focused / ring_if_focused",
         "status": "implemented"
       },
       {

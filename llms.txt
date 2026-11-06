@@ -111,7 +111,7 @@ component chrome and every Lucide `IconName` (`herogpui/icons/lucide/*.svg`).
 Use `HeroGpuiAssets::with_fallback(MyAppAssets)` when the app
 also has assets. Wrap the window's root element with
 `app_focus_root(root, window, cx)` to enable Tab traversal, focus-visible state,
-and root capture handlers. The root takes the focus only while nothing in the window holds it (or the focused element has left the tree), so a view may focus its own handle while its window opens. Tab traversal consumes the browser default so DOM focus stays in the GPUI input surface. Focus rings appear only after a keyboard-control key (Tab, arrows, Enter/Space, typeahead, editing). A pointer press hides them, and Escape does not turn them on — closing a mouse-opened menu must not ring its trigger.
+and root capture handlers. The root takes the focus only while nothing in the window holds it (or the focused element has left the tree), so a view may focus its own handle while its window opens. Tab traversal consumes the browser default so DOM focus stays in the GPUI input surface. Focus rings appear only after a keyboard-control key (Tab, arrows, Enter/Space, typeahead, editing). A pointer press hides them, and Escape does not turn them on — closing a mouse-opened menu must not ring its trigger. Uniform overlay rings fit the control’s circular corner radius, including pill shapes, so the offset and glow stay even around the perimeter.
 
 Set root bg/fg via tokens:
 

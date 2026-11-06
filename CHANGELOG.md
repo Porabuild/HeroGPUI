@@ -31,6 +31,12 @@ version covers `herogpui`, `herogpui-core`, `herogpui-theme`,
 - Overlay motion audits read HeroUI's named CSS animations. Drawer recovers
   when a pointer drag loses its button state.
 
+### Fixed
+
+- Focus rings on pill controls clamp their SVG corners to the fitted circular
+  radius, keeping the glow and gap even around the control instead of stretching
+  the corner arcs into ellipses.
+
 ## [0.14.0] - 2026-09-29
 
 ### Added

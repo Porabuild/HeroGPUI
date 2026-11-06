@@ -1797,6 +1797,15 @@ const RING_BLUR_SIGMA: f32 = 0.7;
 /// strength, as the fork's did.
 const RING_UNDERLAP: f32 = 1.5;
 
+fn ring_overlay_radius(width: f32, height: f32, radius: f32) -> f32 {
+    let inset = f32::from(RING_WIDTH + RING_BLUR_REACH);
+    // SVG clamps rx and ry independently. Resolve the shared circular radius
+    // first, like CSS/GPUI, so a pill never acquires elliptical ring corners.
+    radius
+        .min((width - 2. * inset).max(0.) / 2.)
+        .min((height - 2. * inset).max(0.) / 2.)
+}
+
 /// The accent band: v3's `ring-2`, `gap` outside the control.
 ///
 /// v3's ring is a crisp `0 0 0 2px` box shadow; the retired fork drew it with
@@ -1824,7 +1833,7 @@ fn ring_overlay_band(radius: Pixels, gap: Pixels, color: Hsla) -> Div {
             }
             let ring = f32::from(RING_WIDTH);
             let inner = f32::from(reach);
-            let rg = f32::from(corner);
+            let rg = ring_overlay_radius(w, h, f32::from(corner));
             let stroke_w = ring + RING_UNDERLAP;
             let stroke_at = f32::from(RING_BLUR_REACH) + stroke_w / 2.;
             let svg = format!(
@@ -2592,6 +2601,16 @@ mod focus_ring_overlay_tests {
 
     fn border(el: &mut Div) -> AbsoluteLength {
         el.style().border_widths.top.unwrap()
+    }
+
+    #[test]
+    fn pill_rings_use_one_radius_for_both_svg_axes() {
+        // A 200x36 control, with a 2px gap and 5px SVG reach on each edge.
+        // Its gap outline is a circle of radius 18+2, on either orientation.
+        for (width, height) in [(214., 50.), (50., 214.), (50., 50.)] {
+            assert!((ring_overlay_radius(width, height, 26.) - 20.).abs() < f32::EPSILON);
+        }
+        assert!((ring_overlay_radius(214., 50., 10.) - 10.).abs() < f32::EPSILON);
     }
 
     /// Without the offset the carrier is the control's own box: the blurred
