@@ -55,6 +55,7 @@ gpui_platform = { package = "gpui-pre-platform", version = "=0.3.5", features = 
 icu_calendar = { version = "=2.2.1", default-features = false, features = ["compiled_data"] }
 icu_datetime = { version = "=2.2.0", default-features = false, features = ["compiled_data"] }
 icu_locale_core = "=2.2.0"
+icu_locale = "=2.2.0"
 # "js" is required on wasm32-unknown-unknown: without it, any current-time
 # lookup (`jiff::Zoned::now()` and friends, used by Calendar, DatePicker and
 # TimeField) panics at runtime with "getting the current time in

@@ -31,7 +31,7 @@ from component_source import list_modules, module_exists, read_module, read_path
 from bundle import resolve as _resolve_bundle
 from design_audit import mask_literals, strip_cfg_test
 
-# The pinned v3.2.6 bundle. See .shots/bundle.py: reading upstream live would
+# The pinned v3.2.7 bundle. See .shots/bundle.py: reading upstream live would
 # measure this port against whatever HeroUI shipped most recently.
 BUNDLE = _resolve_bundle()
 SRC = 'crates/herogpui-components/src/'
@@ -404,6 +404,8 @@ RECORD_IDENTITY = (
 # The pattern names the code that implements the behaviour, so a rewrite that
 # drops it fails here rather than silently.
 EVIDENCE = {
+    # Sheet's CloseTrigger composes the real CloseButton, including its keyboard activation.
+    ('Sheet', 'activation'): ('close_button.rs', r'tab_stop_handle'),
     ('Dropdown', 'arrows'): ('dropdown.rs', r'list_nav::resolve'),
     ('Dropdown', 'home-end'): ('dropdown.rs', r'list_nav::resolve'),
     ('Dropdown', 'typeahead'): ('dropdown.rs', r'list_nav::typeahead'),

@@ -39,8 +39,8 @@ INPUT_FILES = (
     # by the wasm build inputs, which the Rust sources above already are);
     # its hosting page is.
     'web/public/gallery/index.html', 'crates/herogpui-web/index.html',
-    '.shots/heroui-bundle.txt.gz', '.shots/heroui-css-v3.2.6.tar.gz',
-    '.shots/heroui-demos-v3.2.6.tar.gz',
+    '.shots/heroui-bundle.txt.gz', '.shots/heroui-css-v3.2.7.tar.gz',
+    '.shots/heroui-demos-v3.2.7.tar.gz',
 )
 
 

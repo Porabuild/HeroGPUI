@@ -394,6 +394,16 @@ impl Button {
     }
 }
 
+impl Button {
+    pub(crate) fn then_press(
+        mut self,
+        callback: impl Fn(&ClickEvent, &mut Window, &mut App) + 'static,
+    ) -> Self {
+        util::chain_press(&mut self.on_press, callback);
+        self
+    }
+}
+
 impl ParentElement for Button {
     fn extend(&mut self, elements: impl IntoIterator<Item = AnyElement>) {
         self.children.extend(elements);

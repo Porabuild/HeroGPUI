@@ -15,7 +15,7 @@ changed. See CONTRIBUTING.md.
 
 ## Parity
 
-<!-- HeroUI v3.2.6 source this follows, or "HeroGPUI extension" with the audit entries it adds. -->
+<!-- HeroUI v3.2.7 source this follows, or "HeroGPUI extension" with the audit entries it adds. -->
 
 ## Verification
 

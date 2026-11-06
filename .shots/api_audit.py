@@ -19,13 +19,14 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from component_source import list_modules, read_module, read_path
 from bundle import resolve as _resolve_bundle
 
-# The pinned v3.2.6 bundle. See .shots/bundle.py: reading upstream live would
+# The pinned v3.2.7 bundle. See .shots/bundle.py: reading upstream live would
 # measure this port against whatever HeroUI shipped most recently.
 BUNDLE = _resolve_bundle()
 SRC = 'crates/herogpui-components/src/'
 
 # React prop -> our builder name, where they legitimately differ.
 ALIAS = {
+    'Sheet.variant': 'backdrop',
     # A NumberField's children-as-a-function receives the full pinned render
     # state. Keep these fold-scoped so root props such as `isDisabled` and
     # `value` must still be answered by their own state/builders.
@@ -144,6 +145,7 @@ ALIAS = {
     'ComboBox.defaultFilter': 'filter',
     # Slider's value/defaultValue are number | number[]; the plural builder
     # proves the multi-thumb form rather than only the scalar.
+    'Slider.Mark.value': 'new',
     'Slider.defaultValue': 'default_values',
     # `Calendar.Cell Render Props` documents `isDisabled` ("whether the cell is
     # disabled") as a value handed *into* the cell render function, and
@@ -343,6 +345,10 @@ SKIP = {
 # Deliberately not ported, with the reason. These are reported separately so
 # the "real gap" number stays meaningful.
 WONT_PORT = {
+    # Vanilla GPUI cannot retain a painted subtree while removing its hitboxes/tab stops.
+    'Sheet.isExiting': 'no-inert-subtree',
+    # AccessKit has no separator role: every native Separator is already decorative.
+    'Separator.isDecorative': 'no-separator-role',
     # HeroUI documents this value, but v3.2.4 passes the raw
     # react-aria-components 1.20.0 MenuItemRenderProps to the indicator. That
     # state has no `isIndeterminate` member, so the value is always absent.
@@ -566,6 +572,9 @@ COMPANIONS = {
 # suffix dropped: the heading `### Calendar.Cell Render Props` is the part
 # `Calendar.Cell`.
 PART_STRUCTS = {
+    'Sheet.Backdrop': ['Sheet'],
+    'Sheet.Dialog': ['Sheet'],
+    'Sheet.CloseTrigger': ['CloseButton'],
     'Accordion.Item': ['AccordionItem'],
     'Accordion.Trigger': ['AccordionItem'],
     'AlertDialog.Backdrop': ['AlertDialog'],
@@ -625,6 +634,7 @@ PART_STRUCTS = {
     'Select.ClearButton': ['SelectClearButton'],
     'Select.Popover': ['Select'],
     'Slider.Thumb': [],
+    'Slider.Mark': ['SliderMark'],
     'Table.Body': ['Table'],
     'Table.Collection': ['Table'],
     'Table.Column': ['TableColumn'],
@@ -702,7 +712,7 @@ FILES = {
     'Breadcrumbs': 'breadcrumbs.rs', 'Disclosure': 'disclosure.rs',
     'DisclosureGroup': 'disclosure.rs', 'Link': 'link.rs',
     'Pagination': 'pagination.rs', 'Tabs': 'tabs.rs', 'AlertDialog': 'alert_dialog.rs',
-    'Drawer': 'drawer.rs', 'Modal': 'modal.rs', 'Popover': 'popover.rs',
+    'Sheet': 'sheet.rs', 'Drawer': 'drawer.rs', 'Modal': 'modal.rs', 'Popover': 'popover.rs',
     'Toast': 'toast.rs', 'Tooltip': 'tooltip.rs', 'Autocomplete': 'autocomplete.rs',
     'ComboBox': 'combo_box.rs', 'Select': 'select.rs', 'Kbd': 'kbd.rs',
     'Typography': 'typography.rs', 'ScrollShadow': 'scroll_shadow.rs',
@@ -843,7 +853,7 @@ def props_for_state(component):
     for i, (at, heading) in enumerate(heads):
         body = owners[0][at:heads[i + 1][0]] if i + 1 < len(heads) else owners[0][at:]
         chunk_props = prop_rows(body)
-        if heading == component:
+        if heading == component or heading == f'{component} / {component}.Root / {component}.NestedRoot':
             root |= chunk_props
         elif heading.startswith(component + '.'):
             part = heading[len(component) + 1:]

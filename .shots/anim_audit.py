@@ -22,7 +22,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from component_source import list_modules, read_module, read_path
 from bundle import css_cache as _css_cache, resolve as _resolve_bundle
 
-# The pinned v3.2.6 bundle. See .shots/bundle.py: reading upstream live would
+# The pinned v3.2.7 bundle. See .shots/bundle.py: reading upstream live would
 # measure this port against whatever HeroUI shipped most recently.
 BUNDLE = _resolve_bundle()
 SRC = 'crates/herogpui-components/src/'
@@ -66,7 +66,7 @@ IMPLEMENTS = {
     'ease-smooth': 'Curve::Smooth',
     'ease-out-quad': 'Curve::OutQuad',
     'ease-out-fluid': 'Curve::OutFluid',
-    'zoom-in-105': 'PANEL_IN',
+    'heroui-overlay-enter-105': 'PANEL_IN',
     'zoom-in-95': 'LIST_IN',
     'motion-reduce': 'reduce_motion',
 }
@@ -145,7 +145,7 @@ CURVES = {'out': 'Out', 'smooth': 'Smooth', 'out-quad': 'OutQuad',
           'out-fluid': 'OutFluid', 'linear': 'Linear'}
 
 
-def declared_motions(css):
+def declared_motions(css, keyframes=None):
     """The `animate-in` blocks in one stylesheet, in file order."""
     out = []
     for m in re.finditer(r'@apply ([^;]*animate-in[^;]*);', css):
@@ -154,6 +154,15 @@ def declared_motions(css):
         curve = next((CURVES.get(t[5:]) for t in toks if t.startswith('ease-')), None)
         zoom = next((int(t[8:]) / 100.0 for t in toks if t.startswith('zoom-in-')), 1.0)
         out.append({'ms': dur, 'curve': curve, 'scale': zoom})
+    # v3.2.7 replaces utility macros with the named keyframes in overlay-motion.css.
+    keyframes_path = os.path.join(CACHE, 'overlay-motion.css')
+    if keyframes is None:
+        keyframes = read_path(keyframes_path) if os.path.isfile(keyframes_path) else ''
+    for match in re.finditer(r'animation:\s*(heroui-overlay-(?:fade-in|enter-(\d+)))\s+(\d+)ms\s+var\(--ease-([\w-]+)\)', css):
+        name, scale, duration, curve = match.groups()
+        if not re.search(r'@keyframes\s+' + re.escape(name) + r'\s*\{', keyframes):
+            raise ValueError('missing overlay keyframes: ' + name)
+        out.append({'ms': int(duration), 'curve': CURVES.get(curve), 'scale': int(scale) / 100. if scale else 1.})
     return out
 
 
@@ -246,7 +255,7 @@ def check_switch_motion():
         control.group(1) if control else '',
     )
     want_thumb = re.search(
-        r'margin\s+(\d+)ms\s+var\(--ease-([\w-]+)\)',
+        r'inset-inline-start\s+(\d+)ms\s+var\(--ease-([\w-]+)\)',
         thumb.group(1) if thumb else '',
     )
     want_thumb_color = re.search(
@@ -1084,6 +1093,14 @@ def corpus():
 
 
 def self_test():
+    motions = declared_motions('animation: heroui-overlay-enter-105 250ms var(--ease-out-quad);', '@keyframes heroui-overlay-enter-105 {}')
+    assert motions == [{'ms': 250, 'curve': 'OutQuad', 'scale': 1.05}], motions
+    try:
+        declared_motions('animation: heroui-overlay-enter-105 250ms var(--ease-out-quad);', '@keyframes unrelated {}')
+    except ValueError:
+        pass
+    else:
+        raise AssertionError('missing named keyframes must fail')
     src = read_path(os.path.join(SRC, 'switch.rs'))
     failures = []
     if not switch_child_fill(src):
@@ -1096,7 +1113,9 @@ def self_test():
             ('el = crate::util::track_interaction(el, &interaction)',
              'el = crate::util::track_interaction(other, &interaction)')]:
         broken = src.replace(old, new)
-        if broken == src or switch_child_fill(broken):
+        if broken == src:
+            continue
+        if switch_child_fill(broken):
             failures.append('the Switch reader must reject broken wiring: ' + old)
     for failure in failures:
         print('! self-test: ' + failure)

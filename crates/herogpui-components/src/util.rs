@@ -150,6 +150,11 @@ pub fn container_radius(cx: &App) -> Pixels {
     layout.capped(layout.radius_3xl())
 }
 
+/// HeroUI v3.2.7 list popovers nest the row's 2xl radius plus its 6px inset.
+pub fn picker_radius(cx: &App) -> Pixels {
+    (cx.layout().radius_2xl() + gpui::px(6.)).min(gpui::px(32.))
+}
+
 /// Corner radius for a fill painted *inside* a rounded `overflow_hidden` clip
 /// parent on vanilla GPUI.
 ///
@@ -1083,6 +1088,22 @@ pub fn overlay_scope_with_exit(
             window_id,
         },
     )
+}
+
+/// Compose a pressable part's action without bypassing its disabled/focus semantics.
+pub(crate) fn chain_press(
+    handler: &mut Option<std::sync::Arc<dyn Fn(&gpui::ClickEvent, &mut gpui::Window, &mut App)>>,
+    next: impl Fn(&gpui::ClickEvent, &mut gpui::Window, &mut App) + 'static,
+) {
+    let previous = handler.take();
+    *handler = Some(shared(
+        move |event: &gpui::ClickEvent, window: &mut gpui::Window, cx: &mut App| {
+            if let Some(previous) = &previous {
+                previous(event, window, cx);
+            }
+            next(event, window, cx);
+        },
+    ));
 }
 
 /// Resolves `isOpen` into a phase that includes v3's `[data-exiting]`.

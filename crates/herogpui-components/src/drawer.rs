@@ -665,6 +665,14 @@ impl RenderOnce for Drawer {
                         let Some(state) = *held_move.read(cx) else {
                             return;
                         };
+                        // A cancelled/lost pointer release must not leave a stale drag.
+                        if ev.pressed_button != Some(gpui::MouseButton::Left) {
+                            held_move.update(cx, |value, cx| {
+                                *value = None;
+                                cx.notify();
+                            });
+                            return;
+                        }
                         let at = drag_axis_position(axis, ev.position);
                         let next = match axis {
                             DrawerPlacement::Left | DrawerPlacement::Top => state.start - at,

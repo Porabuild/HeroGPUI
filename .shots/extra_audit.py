@@ -470,6 +470,17 @@ EXTRA_OK = {
 
 # Scoped exceptions, when a bare name would excuse the wrong component.
 EXTRA_OK_SCOPED = {
+    'CloseButton.aria_label': 'accessible-name-override',
+    'Sheet.aria_label': 'accessible-name-override',
+    'Sheet.trigger': 'composition',
+    'Sheet.close_child': 'composition',
+    'Sheet.close_trigger': 'composition',
+    'Sheet.handle': 'composition',
+    'Sheet.nested_child': 'composition',
+    'Slider.marks': 'composition',
+    'Slider.show_steps': 'composition',
+
+
     # HeroGPUI exposes the shared field focus-ring switch as an additive
     # accessibility-safe styling seam; it hides only the visual ring while
     # preserving focus, editing and invalid feedback.
@@ -1041,7 +1052,9 @@ def main():
         for m in sorted(methods):
             if m in documented:
                 continue
-            if m in EXTRA_OK or ('%s.%s' % (comp, m)) in EXTRA_OK_SCOPED:
+            if m in EXTRA_OK or ('%s.%s' % (comp, m)) in EXTRA_OK_SCOPED or all(
+                    ('%s.%s' % (owner, m)) in EXTRA_OK_SCOPED
+                    for owner in owners if m in A.impl_methods.get(owner, set())):
                 continue
             if m in everywhere:
                 elsewhere.append((comp, m, sorted(everywhere[m])))

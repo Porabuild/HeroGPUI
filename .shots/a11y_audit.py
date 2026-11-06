@@ -155,11 +155,13 @@ WAVE = ('waves 1-5 — form controls, overlays and disclosure, '
 #
 # References name files under `web/node_modules`. The original role review
 # used react-aria 3.51.0, react-aria-components 1.20.0,
-# and @heroui/react 3.2.4. The active v3.2.6 target and dependency versions
+# and @heroui/react 3.2.4. The active v3.2.7 target and dependency versions
 # are in `docs/agents/parity.md`; these role mappings still require the
 # per-component inherited-behavior review during that migration.
 # --------------------------------------------------------------------------
 EXPOSES_A_ROLE = {
+    ('sheet.rs', 'Sheet'): 'Role::Dialog or Role::AlertDialog, named by the heading or literal aria_label; SheetContent in react-aria-components 1.22.1 delegates to useDialog.',
+
     ('button.rs', 'Button'):
         'Role::Button. `@heroui/react/dist/components/button/button.js` renders '
         'RAC `Button`, which is a native `<button>`; `react-aria/.../button/'
@@ -701,7 +703,7 @@ NO_NODE = {
         'writes a `role` or any `aria-*` anywhere. An avatar is a picture '
         'beside the name it belongs to, and the name is the node.',
     ('avatar_group.rs', 'AvatarGroup'):
-        '`avatar-group/avatar-group.tsx` (v3.2.6) renders `dom.div` with '
+        '`avatar-group/avatar-group.tsx` (v3.2.7) renders `dom.div` with '
         '`data-slot="avatar-group"` and no `role` or `aria-*`; its docs say '
         '"No default `role=\"group\"`" and leave `role`/`aria-label` to the '
         'caller as plain DOM props. The group is layout; each avatar keeps '

@@ -1,19 +1,19 @@
 {
   "schema_version": 1,
-  "target": "v3.2.6",
-  "target_commit": "e385ac202b2cdb94b1bf6fa76d32c31c8259cc5e",
-  "inventory_recorded_on": "2026-09-29",
-  "inventory_verification_sha256": "4faaf606376f32116476402083e4c2ba6b0ddd0230b5d13cfd5ace09d3fd31f6",
-  "source_snapshot_sha256": "bbd8a84495971c592b9940b53d4ab63b4e5d33a78c9989fa3108fa13dbe96ba3",
+  "target": "v3.2.7",
+  "target_commit": "7cb1642606c6f96f424dad78a961ccf45436be72",
+  "inventory_recorded_on": "2026-11-06",
+  "inventory_verification_sha256": "c9a11ee51f636c81619d37406daec6daa0b174e40faab910b35af9eb5acf9e61",
+  "source_snapshot_sha256": "46d86c91ce48eb946293f5ade9bc739de08c3381bb9572d69769fe13a3993e5b",
   "last_evidence_commit": null,
   "last_evidence_commit_recorded": false,
   "totals": {
-    "specimens": 771,
+    "specimens": 792,
     "verified": 0,
-    "outstanding": 771,
-    "unobserved": 771,
-    "components": 68,
-    "gallery_sections": 764
+    "outstanding": 792,
+    "unobserved": 792,
+    "components": 69,
+    "gallery_sections": 785
   },
   "status_counts": {
     "implemented-unverified": 7,
@@ -22,35 +22,35 @@
     "not-applicable": 0,
     "platform-limited": 0,
     "specified": 0,
-    "unreviewed": 764,
+    "unreviewed": 785,
     "verified": 0
   },
   "scope_counts": {
     "component-state": 4,
     "cross-component": 1,
-    "gallery-section": 764,
+    "gallery-section": 785,
     "platform-harness": 2
   },
   "evidence_counts": {
     "upstream": {
       "specimens_with_evidence": 5,
-      "specimens_missing_evidence": 766
+      "specimens_missing_evidence": 787
     },
     "native": {
       "specimens_with_evidence": 1,
-      "specimens_missing_evidence": 770
+      "specimens_missing_evidence": 791
     },
     "wasm": {
       "specimens_with_evidence": 1,
-      "specimens_missing_evidence": 770
+      "specimens_missing_evidence": 791
     },
     "tests": {
       "specimens_with_evidence": 5,
-      "specimens_missing_evidence": 766
+      "specimens_missing_evidence": 787
     },
     "all_surfaces": {
       "specimens_with_evidence": 1,
-      "specimens_missing_evidence": 770
+      "specimens_missing_evidence": 791
     }
   },
   "unobserved_statuses": [
@@ -4081,6 +4081,13 @@
       "state": "section-seed"
     },
     {
+      "id": "gallery/separator/decorative",
+      "component": "Separator",
+      "scope": "gallery-section",
+      "status": "unreviewed",
+      "state": "section-seed"
+    },
+    {
       "id": "gallery/separator/resizable-panels",
       "component": "Separator",
       "scope": "gallery-section",
@@ -4118,6 +4125,104 @@
     {
       "id": "gallery/separator/with-surface",
       "component": "Separator",
+      "scope": "gallery-section",
+      "status": "unreviewed",
+      "state": "section-seed"
+    },
+    {
+      "id": "gallery/sheet/backdrop-variants",
+      "component": "Sheet",
+      "scope": "gallery-section",
+      "status": "unreviewed",
+      "state": "section-seed"
+    },
+    {
+      "id": "gallery/sheet/controlled-state",
+      "component": "Sheet",
+      "scope": "gallery-section",
+      "status": "unreviewed",
+      "state": "section-seed"
+    },
+    {
+      "id": "gallery/sheet/detached",
+      "component": "Sheet",
+      "scope": "gallery-section",
+      "status": "unreviewed",
+      "state": "section-seed"
+    },
+    {
+      "id": "gallery/sheet/handle-only",
+      "component": "Sheet",
+      "scope": "gallery-section",
+      "status": "unreviewed",
+      "state": "section-seed"
+    },
+    {
+      "id": "gallery/sheet/nested-sheets",
+      "component": "Sheet",
+      "scope": "gallery-section",
+      "status": "unreviewed",
+      "state": "section-seed"
+    },
+    {
+      "id": "gallery/sheet/non-dismissable",
+      "component": "Sheet",
+      "scope": "gallery-section",
+      "status": "unreviewed",
+      "state": "section-seed"
+    },
+    {
+      "id": "gallery/sheet/placements",
+      "component": "Sheet",
+      "scope": "gallery-section",
+      "status": "unreviewed",
+      "state": "section-seed"
+    },
+    {
+      "id": "gallery/sheet/professions-picker",
+      "component": "Sheet",
+      "scope": "gallery-section",
+      "status": "unreviewed",
+      "state": "section-seed"
+    },
+    {
+      "id": "gallery/sheet/scrollable-content",
+      "component": "Sheet",
+      "scope": "gallery-section",
+      "status": "unreviewed",
+      "state": "section-seed"
+    },
+    {
+      "id": "gallery/sheet/snap-points",
+      "component": "Sheet",
+      "scope": "gallery-section",
+      "status": "unreviewed",
+      "state": "section-seed"
+    },
+    {
+      "id": "gallery/sheet/snap-points-custom-fade",
+      "component": "Sheet",
+      "scope": "gallery-section",
+      "status": "unreviewed",
+      "state": "section-seed"
+    },
+    {
+      "id": "gallery/sheet/snap-points-sequential",
+      "component": "Sheet",
+      "scope": "gallery-section",
+      "status": "unreviewed",
+      "state": "section-seed"
+    },
+    {
+      "id": "gallery/sheet/usage",
+      "component": "Sheet",
+      "scope": "gallery-section",
+      "status": "unreviewed",
+      "state": "section-seed"
+    },
+    {
+      "id": "gallery/sheet/with-form",
+      "component": "Sheet",
       "scope": "gallery-section",
       "status": "unreviewed",
       "state": "section-seed"
@@ -4235,6 +4340,13 @@
       "state": "section-seed"
     },
     {
+      "id": "gallery/slider/marks",
+      "component": "Slider",
+      "scope": "gallery-section",
+      "status": "unreviewed",
+      "state": "section-seed"
+    },
+    {
       "id": "gallery/slider/native-seeking",
       "component": "Slider",
       "scope": "gallery-section",
@@ -4263,6 +4375,13 @@
       "state": "section-seed"
     },
     {
+      "id": "gallery/slider/range-with-steps-and-marks",
+      "component": "Slider",
+      "scope": "gallery-section",
+      "status": "unreviewed",
+      "state": "section-seed"
+    },
+    {
       "id": "gallery/slider/sizes",
       "component": "Slider",
       "scope": "gallery-section",
@@ -4271,6 +4390,20 @@
     },
     {
       "id": "gallery/slider/step-disabled",
+      "component": "Slider",
+      "scope": "gallery-section",
+      "status": "unreviewed",
+      "state": "section-seed"
+    },
+    {
+      "id": "gallery/slider/steps",
+      "component": "Slider",
+      "scope": "gallery-section",
+      "status": "unreviewed",
+      "state": "section-seed"
+    },
+    {
+      "id": "gallery/slider/steps-and-marks",
       "component": "Slider",
       "scope": "gallery-section",
       "status": "unreviewed",
@@ -4292,6 +4425,13 @@
     },
     {
       "id": "gallery/slider/vertical-orientation",
+      "component": "Slider",
+      "scope": "gallery-section",
+      "status": "unreviewed",
+      "state": "section-seed"
+    },
+    {
+      "id": "gallery/slider/vertical-steps-and-marks",
       "component": "Slider",
       "scope": "gallery-section",
       "status": "unreviewed",
@@ -5153,6 +5293,13 @@
     },
     {
       "id": "gallery/toast/variants",
+      "component": "Toast",
+      "scope": "gallery-section",
+      "status": "unreviewed",
+      "state": "section-seed"
+    },
+    {
+      "id": "gallery/toast/with-action",
       "component": "Toast",
       "scope": "gallery-section",
       "status": "unreviewed",
@@ -6938,7 +7085,7 @@
     },
     {
       "component": "Separator",
-      "specimens": 7,
+      "specimens": 8,
       "statuses": {
         "implemented-unverified": 0,
         "intentional-deviation": 0,
@@ -6946,13 +7093,14 @@
         "not-applicable": 0,
         "platform-limited": 0,
         "specified": 0,
-        "unreviewed": 7,
+        "unreviewed": 8,
         "verified": 0
       },
       "verified": 0,
-      "outstanding": 7,
+      "outstanding": 8,
       "unresolved_ids": [
         "gallery/separator/collapsible-panels",
+        "gallery/separator/decorative",
         "gallery/separator/resizable-panels",
         "gallery/separator/usage",
         "gallery/separator/variants",
@@ -6978,6 +7126,38 @@
       "outstanding": 1,
       "unresolved_ids": [
         "shared/focus-modality/escape"
+      ]
+    },
+    {
+      "component": "Sheet",
+      "specimens": 14,
+      "statuses": {
+        "implemented-unverified": 0,
+        "intentional-deviation": 0,
+        "measured-gap": 0,
+        "not-applicable": 0,
+        "platform-limited": 0,
+        "specified": 0,
+        "unreviewed": 14,
+        "verified": 0
+      },
+      "verified": 0,
+      "outstanding": 14,
+      "unresolved_ids": [
+        "gallery/sheet/backdrop-variants",
+        "gallery/sheet/controlled-state",
+        "gallery/sheet/detached",
+        "gallery/sheet/handle-only",
+        "gallery/sheet/nested-sheets",
+        "gallery/sheet/non-dismissable",
+        "gallery/sheet/placements",
+        "gallery/sheet/professions-picker",
+        "gallery/sheet/scrollable-content",
+        "gallery/sheet/snap-points",
+        "gallery/sheet/snap-points-custom-fade",
+        "gallery/sheet/snap-points-sequential",
+        "gallery/sheet/usage",
+        "gallery/sheet/with-form"
       ]
     },
     {
@@ -7008,7 +7188,7 @@
     },
     {
       "component": "Slider",
-      "specimens": 17,
+      "specimens": 22,
       "statuses": {
         "implemented-unverified": 0,
         "intentional-deviation": 0,
@@ -7016,11 +7196,11 @@
         "not-applicable": 0,
         "platform-limited": 0,
         "specified": 0,
-        "unreviewed": 17,
+        "unreviewed": 22,
         "verified": 0
       },
       "verified": 0,
-      "outstanding": 17,
+      "outstanding": 22,
       "unresolved_ids": [
         "gallery/slider/basic-usage",
         "gallery/slider/controlled-value",
@@ -7030,15 +7210,20 @@
         "gallery/slider/disabled-thumb",
         "gallery/slider/form-example",
         "gallery/slider/format-options",
+        "gallery/slider/marks",
         "gallery/slider/native-seeking",
         "gallery/slider/range",
         "gallery/slider/range-slider",
         "gallery/slider/range-slider-anatomy",
+        "gallery/slider/range-with-steps-and-marks",
         "gallery/slider/sizes",
         "gallery/slider/step-disabled",
+        "gallery/slider/steps",
+        "gallery/slider/steps-and-marks",
         "gallery/slider/usage",
         "gallery/slider/vertical",
-        "gallery/slider/vertical-orientation"
+        "gallery/slider/vertical-orientation",
+        "gallery/slider/vertical-steps-and-marks"
       ]
     },
     {
@@ -7316,7 +7501,7 @@
     },
     {
       "component": "Toast",
-      "specimens": 14,
+      "specimens": 15,
       "statuses": {
         "implemented-unverified": 0,
         "intentional-deviation": 0,
@@ -7324,11 +7509,11 @@
         "not-applicable": 0,
         "platform-limited": 0,
         "specified": 0,
-        "unreviewed": 14,
+        "unreviewed": 15,
         "verified": 0
       },
       "verified": 0,
-      "outstanding": 14,
+      "outstanding": 15,
       "unresolved_ids": [
         "gallery/toast/callbacks",
         "gallery/toast/close-reveal",
@@ -7343,7 +7528,8 @@
         "gallery/toast/setup",
         "gallery/toast/simple-toasts",
         "gallery/toast/usage",
-        "gallery/toast/variants"
+        "gallery/toast/variants",
+        "gallery/toast/with-action"
       ]
     },
     {

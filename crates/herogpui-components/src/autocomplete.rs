@@ -162,7 +162,7 @@ pub struct Autocomplete {
     /// The trigger's and filter field's family; unset keeps the inherited one.
     font_family: Option<SharedString>,
     /// The corner radius of the detached panel, in place of the owning
-    /// `container_radius` helper.
+    /// `picker_radius` helper.
     radius: Option<Pixels>,
     label: Option<SharedString>,
     placeholder: Option<SharedString>,
@@ -580,7 +580,7 @@ impl Autocomplete {
     }
 
     /// The corner radius of the detached panel, in place of the owning
-    /// `container_radius` helper. The panel's entry zoom interpolates the same
+    /// `picker_radius` helper. The panel's entry zoom interpolates the same
     /// value, so both follow the override. Not a v3 prop; the removed v2
     /// `radius` prop is prohibited and this is a per-component repository
     /// extension.
@@ -1950,7 +1950,7 @@ impl Autocomplete {
     fn popover(&mut self, frame: AutoFrame, cx: &mut App) -> gpui::Deferred {
         // The entry zoom interpolates the panel's own radius, so one
         // binding feeds both the painted shape and the animation.
-        let radius = self.radius.unwrap_or_else(|| util::container_radius(cx));
+        let radius = self.radius.unwrap_or_else(|| util::picker_radius(cx));
         let panel = self.panel_surface(&frame.base, radius, &frame);
         let search = self.search_row(&frame);
         let AutoFrame {

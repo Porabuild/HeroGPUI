@@ -498,6 +498,9 @@ def main():
             continue
         source = read_path(source_path)
         methods = owner_methods(source)
+        # Sheet composes the public CloseButton rather than duplicating its API.
+        if module == "sheet":
+            methods.update(owner_methods(read_path(os.path.join(SOURCE_ROOT, "close_button.rs"))))
 
         refs = {}
         for name in ("api", "parts", "states", "styling", "required_parts"):
@@ -584,8 +587,8 @@ def main():
 
         for key in ("docs_source", "api_source", "style_source"):
             url = field(block, key) or ""
-            if "/blob/v3.2.6/" not in url:
-                errors.append(f"{page}: {key} is not pinned to v3.2.6")
+            if "/blob/v3.2.7/" not in url:
+                errors.append(f"{page}: {key} is not pinned to v3.2.7")
 
     for page, count in seen_pages.items():
         if count != 1:
@@ -604,7 +607,7 @@ def main():
             **totals
         )
     )
-    print("contract        : HeroUI v3.2.6, checked in; runtime network calls: 0")
+    print("contract        : HeroUI v3.2.7, checked in; runtime network calls: 0")
     if errors:
         print("FAIL")
         for error in errors:

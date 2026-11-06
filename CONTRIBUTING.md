@@ -1,6 +1,6 @@
 # Contributing to HeroGPUI
 
-HeroGPUI is a native Rust/GPUI port of HeroUI v3.2.6. Contributions are
+HeroGPUI is a native Rust/GPUI port of HeroUI v3.2.7. Contributions are
 welcome: bug reports, parity fixes, tests, documentation and clearly labelled
 extensions.
 
@@ -16,7 +16,7 @@ required `## Public API` section) are adapted from
   [components](docs/agents/components.md), [parity](docs/agents/parity.md)
   and [gallery](docs/agents/gallery.md). They apply to human contributors as
   much as to agents.
-- Parity work follows HeroUI **v3.2.6** and its pinned React Aria/Stately
+- Parity work follows HeroUI **v3.2.7** and its pinned React Aria/Stately
   versions, never HeroUI v2 or the latest docs.
 - GPUI claims must hold for the exact `gpui-pre` version in `Cargo.lock`.
   Read its unpacked registry sources, not a Zed checkout.

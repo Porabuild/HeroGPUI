@@ -1146,6 +1146,36 @@
       "code": "gpui::div()\n    .w(px(320.))\n    .child(\n        Slider::new(\"slider-main\", 30.)\n            .default_value(30.)\n            .label(\"Volume\")\n            .show_value(true),\n    )"
     },
     {
+      "heading": "Steps",
+      "imports": "use herogpui::prelude::Slider;\nuse herogpui::gpui::prelude::*;\nuse herogpui::gpui::px;\nuse herogpui::gpui;",
+      "context": "app",
+      "code": "gpui::div()\n    .w(px(320.))\n    .child(Slider::new(\"slider-indicators-0\", 40.).default_value(40.).label(\"Volume\").show_value(true).step(10.).show_steps(true))"
+    },
+    {
+      "heading": "Marks",
+      "imports": "use herogpui::prelude::{Slider, SliderMark};\nuse herogpui::gpui::prelude::*;\nuse herogpui::gpui::px;\nuse herogpui::gpui;",
+      "context": "app",
+      "code": "gpui::div()\n    .w(px(320.))\n    .child(Slider::new(\"slider-indicators-1\", 40.).default_value(40.).label(\"Volume\").show_value(true).marks([SliderMark::new(0.), SliderMark::new(35.).child(\"Low\"), SliderMark::new(100.)]))"
+    },
+    {
+      "heading": "Steps and Marks",
+      "imports": "use herogpui::prelude::{Slider, SliderMark};\nuse herogpui::gpui::prelude::*;\nuse herogpui::gpui::px;\nuse herogpui::gpui;",
+      "context": "app",
+      "code": "gpui::div()\n    .w(px(320.))\n    .child(Slider::new(\"slider-indicators-2\", 40.).default_value(40.).label(\"Volume\").show_value(true).step(10.).show_steps(true).marks([SliderMark::new(0.), SliderMark::new(50.), SliderMark::new(100.)]))"
+    },
+    {
+      "heading": "Range with Steps and Marks",
+      "imports": "use herogpui::prelude::{Slider, SliderMark};\nuse herogpui::gpui::prelude::*;\nuse herogpui::gpui::px;\nuse herogpui::gpui;",
+      "context": "app",
+      "code": "gpui::div()\n    .w(px(320.))\n    .child(Slider::new(\"slider-indicators-3\", 40.).default_value(40.).label(\"Volume\").show_value(true).default_values([20., 80.]).step(10.).show_steps(true).marks([SliderMark::new(0.), SliderMark::new(50.), SliderMark::new(100.)]))"
+    },
+    {
+      "heading": "Vertical Steps and Marks",
+      "imports": "use herogpui::prelude::{Orientation, Slider, SliderMark};\nuse herogpui::gpui::prelude::*;\nuse herogpui::gpui::px;\nuse herogpui::gpui;",
+      "context": "app",
+      "code": "gpui::div()\n    .w(px(320.))\n    .child(Slider::new(\"slider-indicators-4\", 40.).default_value(40.).label(\"Volume\").show_value(true).orientation(Orientation::Vertical).step(20.).show_steps(true).marks([SliderMark::new(0.), SliderMark::new(50.), SliderMark::new(100.)]))"
+    },
+    {
       "heading": "Format options",
       "imports": "use herogpui::prelude::{NumberFormat, Slider};\nuse herogpui::gpui::prelude::*;\nuse herogpui::gpui::px;\nuse herogpui::gpui;",
       "context": "view",
@@ -3462,6 +3492,13 @@
   ],
   "separator": [
     {
+      "heading": "Decorative",
+      "description": "Native separators are visual only: the pinned AccessKit version has no separator role.",
+      "imports": "use herogpui::prelude::Separator;",
+      "context": "app",
+      "code": "Separator::new()"
+    },
+    {
       "heading": "Usage",
       "imports": "use herogpui::prelude::Separator;\nuse herogpui::gpui::prelude::*;\nuse herogpui::gpui::px;\nuse herogpui::gpui;",
       "context": "app",
@@ -4335,6 +4372,13 @@
   ],
   "toast": [
     {
+      "heading": "With Action",
+      "description": "The action follows the text below 640px and sits beside it in larger windows. Undo replaces the notification with a visible result.",
+      "imports": "use herogpui::prelude::{Button, Toast, ToastViewport, Variant};\nuse herogpui::gpui::prelude::*;",
+      "context": "app",
+      "code": "Button::new(\"toast-action-demo\")\n    .label(\"Show actionable toast\")\n    .variant(Variant::Secondary)\n    .on_press(|_, _, cx| {\n        Toast::new(\"Item archived\")\n            .description(\"Undo restores the item.\")\n            .timeout(std::time::Duration::ZERO)\n            .action(\"Undo\", |cx| {\n                Toast::success(\"Restored\")\n                    .description(\"The action ran.\")\n                    .timeout(std::time::Duration::ZERO)\n                    .push(None, cx);\n            })\n            .push(None, cx);\n    })"
+    },
+    {
       "heading": "Usage",
       "imports": "use herogpui::prelude::{Button, Toast, ToastViewport, Variant};\nuse herogpui::gpui::prelude::*;",
       "context": "app",
@@ -5056,6 +5100,92 @@
       "context": "view",
       "code": "gpui::div()\n    .flex()\n    .flex_col()\n    .w(px(256.))\n    .gap(px(12.))\n    .children(vec![\n        Select::new(\"select-controlled\", language_items())\n            .label(\"Language (controlled)\")\n            .placeholder(\"Choose one\")\n            .value(self.select_lang_controlled.clone())\n            .on_change(cx.listener(\n                |this, key: &Option<SharedString>, _, cx| {\n                    this.select_lang_controlled = key.clone();\n                    cx.notify();\n                },\n            ))\n            .into_any_element(),\n        para(\n            &match self.select_lang_controlled.as_ref() {\n                Some(key) => format!(\n                    \"Selected: {}\",\n                    language_items()\n                        .iter()\n                        .find(|item| item.key() == key)\n                        .map(|item| item.label().to_string())\n                        .unwrap_or_default()\n                ),\n                None => \"Selected: none\".to_owned(),\n            },\n            cx,\n        ),\n    ])",
       "helpers": "fn languages() -> Vec<SharedString> {\n    vec![\n        \"Rust\".into(),\n        \"TypeScript\".into(),\n        \"Python\".into(),\n        \"Go\".into(),\n        \"Swift\".into(),\n        \"Kotlin\".into(),\n    ]\n}\n\n/// `languages()` as keyed items, for the Autocomplete and ComboBox demos: the\n/// slug is the stable key the selection, `disabledKeys` and the form value\n/// address, the display name the label the filtering, input text and\n/// rendering use.\nfn language_items() -> Vec<PickerItem> {\n    languages()\n        .into_iter()\n        .map(|label| PickerItem::new(label.to_lowercase(), label))\n        .collect()\n}\n\nfn para(text: &str, cx: &App) -> gpui::AnyElement {\n    let colors = cx.colors();\n    gpui::div()\n        .text_size(px(14.5))\n        .line_height(px(24.))\n        .text_color(colors.foreground)\n        .max_w(px(720.))\n        .child(text.to_owned())\n        .into_any_element()\n}"
+    }
+  ],
+  "sheet": [
+    {
+      "heading": "Usage",
+      "imports": "use herogpui::prelude::{Button, CloseButton, Sheet, SheetSnapPoint};\nuse herogpui::gpui::prelude::*;",
+      "context": "view",
+      "code": "Sheet::new(\"sheet-basic\")\n    .title(\"Usage\")\n    .default_open(self.demo_overlay(\"sheet-basic\"))\n    .trigger(Button::new(\"sheet-basic-trigger\").label(\"Open sheet\"))\n    .close_trigger(\n        CloseButton::new(\"sheet-basic-close\").aria_label(\"Dismiss details\")\n    )\n    .child(\"Drag the handle to expand, change snap position, or dismiss.\")\n    .close_child(Button::new(\"sheet-basic-done\").label(\"Done\"))"
+    },
+    {
+      "heading": "Placements",
+      "imports": "use herogpui::prelude::{Button, CloseButton, DrawerPlacement, Sheet, SheetSnapPoint};\nuse herogpui::gpui::prelude::*;\nuse herogpui::gpui::px;\nuse herogpui::gpui;",
+      "context": "view",
+      "code": "gpui::div()\n    .flex()\n    .flex_col()\n    .items_start()\n    .justify_center()\n    .gap(px(12.))\n    .children([\n        (\n            \"sheet-bottom\",\n            \"sheet-bottom-open\",\n            \"sheet-bottom-close\",\n            DrawerPlacement::Bottom\n        ),\n        (\n            \"sheet-top\",\n            \"sheet-top-open\",\n            \"sheet-top-close\",\n            DrawerPlacement::Top\n        ),\n        (\n            \"sheet-left\",\n            \"sheet-left-open\",\n            \"sheet-left-close\",\n            DrawerPlacement::Left\n        ),\n        (\n            \"sheet-right\",\n            \"sheet-right-open\",\n            \"sheet-right-close\",\n            DrawerPlacement::Right\n        ),\n    ]\n    .into_iter()\n    .map(|(key, trigger, close, placement)| Sheet::new(key)\n        .title(format!(\"{placement:?} sheet\"))\n        .placement(placement)\n        .default_open(self.demo_overlay(key))\n        .trigger(Button::new(trigger).label(format!(\"Open {placement:?}\")))\n        .close_trigger(CloseButton::new(close))\n        .child(\"Drag the handle or use the close control.\")\n        .into_any_element()))"
+    },
+    {
+      "heading": "Snap Points",
+      "imports": "use herogpui::prelude::{Button, CloseButton, Sheet, SheetSnapPoint};\nuse herogpui::gpui::prelude::*;",
+      "context": "view",
+      "code": "Sheet::new(\"sheet-snap\")\n    .title(\"Snap Points\")\n    .default_open(self.demo_overlay(\"sheet-snap\"))\n    .trigger(Button::new(\"sheet-snap-trigger\").label(\"Open sheet\"))\n    .close_trigger(CloseButton::new(\"sheet-snap-close\"))\n    .child(\"Drag the handle to expand, change snap position, or dismiss.\")\n    .close_child(Button::new(\"sheet-snap-done\").label(\"Done\"))\n    .snap_points([160., 320.])"
+    },
+    {
+      "heading": "Snap Points (Sequential)",
+      "imports": "use herogpui::prelude::{Button, CloseButton, Sheet, SheetSnapPoint};\nuse herogpui::gpui::prelude::*;",
+      "context": "view",
+      "code": "Sheet::new(\"sheet-sequential\")\n    .title(\"Snap Points (Sequential)\")\n    .default_open(self.demo_overlay(\"sheet-sequential\"))\n    .trigger(Button::new(\"sheet-sequential-trigger\").label(\"Open sheet\"))\n    .close_trigger(CloseButton::new(\"sheet-sequential-close\"))\n    .child(\"Drag the handle to expand, change snap position, or dismiss.\")\n    .close_child(Button::new(\"sheet-sequential-done\").label(\"Done\"))\n    .snap_points([140., 280., 420.])"
+    },
+    {
+      "heading": "Snap Points (Custom Fade)",
+      "imports": "use herogpui::prelude::{Button, CloseButton, Sheet, SheetSnapPoint};\nuse herogpui::gpui::prelude::*;",
+      "context": "view",
+      "code": "Sheet::new(\"sheet-fade\")\n    .title(\"Snap Points (Custom Fade)\")\n    .default_open(self.demo_overlay(\"sheet-fade\"))\n    .trigger(Button::new(\"sheet-fade-trigger\").label(\"Open sheet\"))\n    .close_trigger(CloseButton::new(\"sheet-fade-close\"))\n    .child(\"Drag the handle to expand, change snap position, or dismiss.\")\n    .close_child(Button::new(\"sheet-fade-done\").label(\"Done\"))\n    .snap_points([\n        SheetSnapPoint::Fraction(0.25),\n        SheetSnapPoint::Fraction(0.5)\n    ])"
+    },
+    {
+      "heading": "Backdrop Variants",
+      "imports": "use herogpui::prelude::{Backdrop, Button, CloseButton, Sheet, SheetSnapPoint};\nuse herogpui::gpui::prelude::*;\nuse herogpui::gpui::px;\nuse herogpui::gpui;",
+      "context": "view",
+      "code": "gpui::div()\n    .flex()\n    .flex_col()\n    .items_start()\n    .justify_center()\n    .gap(px(12.))\n    .children([\n        (\n            \"sheet-opaque\",\n            \"sheet-opaque-open\",\n            \"sheet-opaque-close\",\n            Backdrop::Opaque\n        ),\n        (\n            \"sheet-blur\",\n            \"sheet-blur-open\",\n            \"sheet-blur-close\",\n            Backdrop::Blur\n        ),\n        (\n            \"sheet-transparent\",\n            \"sheet-transparent-open\",\n            \"sheet-transparent-close\",\n            Backdrop::Transparent\n        ),\n    ]\n    .into_iter()\n    .map(|(key, trigger, close, backdrop)| Sheet::new(key)\n        .title(format!(\"{backdrop:?} backdrop\"))\n        .backdrop(backdrop)\n        .default_open(self.demo_overlay(key))\n        .trigger(Button::new(trigger).label(format!(\"Open {backdrop:?}\")))\n        .close_trigger(CloseButton::new(close))\n        .child(\"Backdrop appearance.\")\n        .into_any_element()))"
+    },
+    {
+      "heading": "Non-Dismissable",
+      "imports": "use herogpui::prelude::{Button, CloseButton, Sheet, SheetSnapPoint};\nuse herogpui::gpui::prelude::*;",
+      "context": "view",
+      "code": "Sheet::new(\"sheet-non-dismissable\")\n    .title(\"Non-Dismissable\")\n    .default_open(self.demo_overlay(\"sheet-non-dismissable\"))\n    .trigger(\n        Button::new(\"sheet-non-dismissable-trigger\").label(\"Open sheet\")\n    )\n    .close_trigger(CloseButton::new(\"sheet-non-dismissable-close\"))\n    .child(\"Drag the handle to expand, change snap position, or dismiss.\")\n    .close_child(Button::new(\"sheet-non-dismissable-done\").label(\"Done\"))\n    .is_dismissible(false)"
+    },
+    {
+      "heading": "Scrollable Content",
+      "imports": "use herogpui::prelude::{Button, CloseButton, Sheet, SheetSnapPoint};\nuse herogpui::gpui::prelude::*;\nuse herogpui::gpui::px;\nuse herogpui::gpui;",
+      "context": "view",
+      "code": "Sheet::new(\"sheet-scroll\")\n    .title(\"Scrollable Content\")\n    .default_open(self.demo_overlay(\"sheet-scroll\"))\n    .trigger(Button::new(\"sheet-scroll-trigger\").label(\"Open sheet\"))\n    .close_trigger(CloseButton::new(\"sheet-scroll-close\"))\n    .child(\"Drag the handle to expand, change snap position, or dismiss.\")\n    .close_child(Button::new(\"sheet-scroll-done\").label(\"Done\"))\n    .snap_points([200.])\n    .child(\n        gpui::div().flex().flex_col().children(\n            (0..40).map(|index| gpui::div()\n                .h(px(32.))\n                .child(format!(\"Row {index}\")))\n        )\n    )"
+    },
+    {
+      "heading": "With Form",
+      "imports": "use herogpui::prelude::{Button, CloseButton, FieldVariant, Sheet, SheetSnapPoint, TextField};\nuse herogpui::gpui::prelude::*;",
+      "context": "view",
+      "code": "Sheet::new(\"sheet-form\")\n    .title(\"With Form\")\n    .default_open(self.demo_overlay(\"sheet-form\"))\n    .trigger(Button::new(\"sheet-form-trigger\").label(\"Open sheet\"))\n    .close_trigger(CloseButton::new(\"sheet-form-close\"))\n    .child(\"Drag the handle to expand, change snap position, or dismiss.\")\n    .close_child(Button::new(\"sheet-form-done\").label(\"Done\"))\n    .child(\n        TextField::new(self.demo_text(\"sheet-name\", \"\", cx))\n            .label(\"Name\")\n            .variant(FieldVariant::Secondary)\n    )"
+    },
+    {
+      "heading": "Detached",
+      "imports": "use herogpui::prelude::{Button, CloseButton, Sheet, SheetSnapPoint};\nuse herogpui::gpui::prelude::*;",
+      "context": "view",
+      "code": "Sheet::new(\"sheet-detached\")\n    .title(\"Detached\")\n    .default_open(self.demo_overlay(\"sheet-detached\"))\n    .trigger(Button::new(\"sheet-detached-trigger\").label(\"Open sheet\"))\n    .close_trigger(CloseButton::new(\"sheet-detached-close\"))\n    .child(\"Drag the handle to expand, change snap position, or dismiss.\")\n    .close_child(Button::new(\"sheet-detached-done\").label(\"Done\"))\n    .is_detached(true)"
+    },
+    {
+      "heading": "Controlled State",
+      "imports": "use herogpui::prelude::{Button, CloseButton, Sheet, SheetSnapPoint};\nuse herogpui::gpui::prelude::*;",
+      "context": "view",
+      "code": "let controlled_open = self.demo_overlay(\"sheet-controlled\");\n\nSheet::new(\"sheet-controlled\")\n    .title(\"Controlled State\")\n    .default_open(self.demo_overlay(\"sheet-controlled\"))\n    .trigger(Button::new(\"sheet-controlled-trigger\").label(\"Open sheet\"))\n    .close_trigger(CloseButton::new(\"sheet-controlled-close\"))\n    .child(\"Drag the handle to expand, change snap position, or dismiss.\")\n    .close_child(Button::new(\"sheet-controlled-done\").label(\"Done\"))\n    .is_open(controlled_open)\n    .on_open_change(cx.listener(|this, open: &bool, _, cx| {\n        this.set_demo_flag(\"sheet-controlled\", *open);\n        cx.notify();\n    }))"
+    },
+    {
+      "heading": "Handle Only",
+      "imports": "use herogpui::prelude::{ActiveTheme, Button, CloseButton, Sheet, SheetSnapPoint};\nuse herogpui::gpui::prelude::*;\nuse herogpui::gpui::px;\nuse herogpui::gpui;",
+      "context": "view",
+      "code": "Sheet::new(\"sheet-handle\")\n    .title(\"Handle Only\")\n    .default_open(self.demo_overlay(\"sheet-handle\"))\n    .trigger(Button::new(\"sheet-handle-trigger\").label(\"Open sheet\"))\n    .close_trigger(CloseButton::new(\"sheet-handle-close\"))\n    .child(\"Drag the handle to expand, change snap position, or dismiss.\")\n    .close_child(Button::new(\"sheet-handle-done\").label(\"Done\"))\n    .snap_points([180.])\n    .handle(\n        gpui::div()\n            .h(px(4.8))\n            .w(px(32.))\n            .rounded_full()\n            .bg(cx.colors().muted)\n    )"
+    },
+    {
+      "heading": "Nested Sheets",
+      "imports": "use herogpui::prelude::{Button, CloseButton, Sheet, SheetSnapPoint};\nuse herogpui::gpui::prelude::*;",
+      "context": "view",
+      "code": "Sheet::new(\"sheet-nested\")\n    .title(\"Nested Sheets\")\n    .default_open(self.demo_overlay(\"sheet-nested\"))\n    .trigger(Button::new(\"sheet-nested-trigger\").label(\"Open sheet\"))\n    .close_trigger(CloseButton::new(\"sheet-nested-close\"))\n    .child(\"Drag the handle to expand, change snap position, or dismiss.\")\n    .close_child(Button::new(\"sheet-nested-done\").label(\"Done\"))\n    .nested_child(\n        Sheet::new(\"sheet-nested-child\")\n            .title(\"Nested sheet\")\n            .trigger(\n                Button::new(\"sheet-child-trigger\")\n                    .label(\"Open nested sheet\")\n            )\n            .close_trigger(CloseButton::new(\"sheet-child-close\"))\n            .child(\"Focus returns to the parent when this sheet closes.\")\n    )"
+    },
+    {
+      "heading": "Professions Picker",
+      "imports": "use herogpui::prelude::{Button, CloseButton, ListBox, ListBoxItem, SearchField, Sheet, SheetSnapPoint};\nuse herogpui::gpui::prelude::*;\nuse herogpui::gpui::{SharedString, px};",
+      "context": "view",
+      "code": "let profession_query = self.demo_text(\"sheet-profession-search\", \"\", cx);\nlet profession_filter = profession_query.read(cx).value().to_lowercase();\nlet professions: Vec<ListBoxItem> = [\n    \"Engineer\",\n    \"Designer\",\n    \"Teacher\",\n    \"Doctor\",\n    \"Architect\",\n    \"Scientist\",\n    \"Writer\",\n    \"Musician\",\n]\n.into_iter()\n.filter(|name| name.to_lowercase().contains(&profession_filter))\n.map(|name| ListBoxItem::new(name, name))\n.collect();\nlet selected_profession = self.demo_text_value(\"sheet-profession\");\n\nSheet::new(\"sheet-professions\")\n    .title(\"Professions Picker\")\n    .default_open(self.demo_overlay(\"sheet-professions\"))\n    .trigger(Button::new(\"sheet-professions-trigger\").label(\n        if selected_profession.is_empty() {\n            \"Choose profession\".to_owned()\n        } else {\n            selected_profession.clone()\n        }\n    ))\n    .is_open(self.demo_overlay(\"sheet-professions\"))\n    .on_open_change(cx.listener(|this, open: &bool, _, cx| {\n        this.set_demo_flag(\"sheet-professions\", *open);\n        cx.notify();\n    }))\n    .close_trigger(CloseButton::new(\"sheet-professions-close\"))\n    .child(\"Drag the handle to expand, change snap position, or dismiss.\")\n    .close_child(Button::new(\"sheet-professions-done\").label(\"Done\"))\n    .snap_points([355.])\n    .child(\n        SearchField::new(profession_query.clone())\n            .placeholder(\"Search professions\")\n    )\n    .child(\n        ListBox::new(\"sheet-profession-list\", professions.clone())\n            .row_height(px(36.))\n            .on_action(cx.listener(|this, key: &SharedString, _, cx| {\n                this.set_demo_text_value(\"sheet-profession\", key.to_string());\n                this.set_demo_flag(\"sheet-professions\", false);\n                cx.notify();\n            }))\n    )"
     }
   ],
   "kbd": [

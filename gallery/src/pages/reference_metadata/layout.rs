@@ -8,6 +8,8 @@ const SEPARATOR_REQUIRED_PARTS: &[&str] = &[
 ];
 
 const SEPARATOR_API: &[ApiDoc] = &[
+    ApiDoc { owner: "Separator", prop: "isDecorative", ty: "boolean", default: "false", description: "Native separators already produce no accessibility node: the pinned AccessKit has no Separator role.", rust_owner: "Separator", rust: "—", status: ImplementationStatus::Unavailable },
+
     ApiDoc {
         owner: "Separator",
         prop: "id",
@@ -73,7 +75,7 @@ const SEPARATOR_PARTS: &[PartDoc] = &[
 ];
 
 const SEPARATOR_STATES: &[StateDoc] = &[
-    // v3.2.6 documents no interactive states and its stylesheet declares no
+    // v3.2.7 documents no interactive states and its stylesheet declares no
     // state selectors for Separator.
 ];
 
@@ -126,10 +128,10 @@ pub(super) const SEPARATOR: ReferenceMetadata = ReferenceMetadata {
     page: "Separator",
     import_line: "use herogpui::components::separator::Separator;",
     source_module: "separator",
-    version: "3.2.6",
-    docs_source: "https://github.com/heroui-inc/heroui/blob/v3.2.6/apps/docs/content/docs/en/react/components/(layout)/separator.mdx",
-    api_source: "https://github.com/heroui-inc/heroui/blob/v3.2.6/packages/react/src/components/separator/separator.tsx + https://github.com/adobe/react-spectrum/blob/react-aria-components@1.21.1/packages/react-aria-components/src/Separator.tsx",
-    style_source: "https://github.com/heroui-inc/heroui/blob/v3.2.6/packages/styles/components/separator.css",
+    version: "3.2.7",
+    docs_source: "https://github.com/heroui-inc/heroui/blob/v3.2.7/apps/docs/content/docs/en/react/components/(layout)/separator.mdx",
+    api_source: "https://github.com/heroui-inc/heroui/blob/v3.2.7/packages/react/src/components/separator/separator.tsx + https://github.com/adobe/react-spectrum/blob/react-aria-components@1.22.1/packages/react-aria-components/src/Separator.tsx",
+    style_source: "https://github.com/heroui-inc/heroui/blob/v3.2.7/packages/styles/components/separator.css",
     required_parts: SEPARATOR_REQUIRED_PARTS,
     api: SEPARATOR_API,
     parts: SEPARATOR_PARTS,
@@ -230,7 +232,7 @@ const TOOLBAR_PARTS: &[PartDoc] = &[
 
 const TOOLBAR_STATES: &[StateDoc] = &[
     // The v3 page has no Accessibility prose; these are the states the pinned
-    // React Aria `useToolbar` (react-aria 3.52.1) defines on the children.
+    // React Aria `useToolbar` (react-aria 3.53.1) defines on the children.
     StateDoc { state: "Focused child", selector: ".toolbar :focus-visible", description: "Focus lands on the child controls, never the container; each child draws its own ring and the orientation-axis arrows walk the children.", rust: "child tab stops + child control focus ring", status: ImplementationStatus::Implemented },
     StateDoc { state: "Disabled child", selector: ".toolbar [aria-disabled=true]", description: "A disabled child is no tab stop: the arrows skip it in both directions and Tab walks past a toolbar with none enabled.", rust: "child control is_disabled", status: ImplementationStatus::Implemented },
     StateDoc { state: "Last focused child", selector: ".toolbar lastFocused", description: "The pinned hook records the child the focus left from and restores it when the focus re-enters from outside; the port keeps the record in keyed state and skips a recorded child whose element has left the frame, exactly as pinned's focus-capture does.", rust: "ToolbarFocusEdge.last_focused", status: ImplementationStatus::Implemented },
@@ -286,10 +288,10 @@ pub(super) const TOOLBAR: ReferenceMetadata = ReferenceMetadata {
     page: "Toolbar",
     import_line: "use herogpui::components::toolbar::Toolbar;",
     source_module: "toolbar",
-    version: "3.2.6",
-    docs_source: "https://github.com/heroui-inc/heroui/blob/v3.2.6/apps/docs/content/docs/en/react/components/(layout)/toolbar.mdx",
-    api_source: "https://github.com/heroui-inc/heroui/blob/v3.2.6/packages/react/src/components/toolbar/toolbar.tsx + https://github.com/adobe/react-spectrum/blob/react-aria@3.52.1/packages/react-aria/src/toolbar/useToolbar.ts",
-    style_source: "https://github.com/heroui-inc/heroui/blob/v3.2.6/packages/styles/components/toolbar.css",
+    version: "3.2.7",
+    docs_source: "https://github.com/heroui-inc/heroui/blob/v3.2.7/apps/docs/content/docs/en/react/components/(layout)/toolbar.mdx",
+    api_source: "https://github.com/heroui-inc/heroui/blob/v3.2.7/packages/react/src/components/toolbar/toolbar.tsx + https://github.com/adobe/react-spectrum/blob/react-aria@3.53.1/packages/react-aria/src/toolbar/useToolbar.ts",
+    style_source: "https://github.com/heroui-inc/heroui/blob/v3.2.7/packages/styles/components/toolbar.css",
     required_parts: TOOLBAR_REQUIRED_PARTS,
     api: TOOLBAR_API,
     parts: TOOLBAR_PARTS,
@@ -565,10 +567,10 @@ pub(super) const CARD: ReferenceMetadata = ReferenceMetadata {
     page: "Card",
     import_line: "use herogpui::components::card::{Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle};",
     source_module: "card",
-    version: "3.2.6",
-    docs_source: "https://github.com/heroui-inc/heroui/blob/v3.2.6/apps/docs/content/docs/en/react/components/(layout)/card.mdx",
-    api_source: "https://github.com/heroui-inc/heroui/blob/v3.2.6/packages/react/src/components/card/card.tsx",
-    style_source: "https://github.com/heroui-inc/heroui/blob/v3.2.6/packages/styles/components/card.css",
+    version: "3.2.7",
+    docs_source: "https://github.com/heroui-inc/heroui/blob/v3.2.7/apps/docs/content/docs/en/react/components/(layout)/card.mdx",
+    api_source: "https://github.com/heroui-inc/heroui/blob/v3.2.7/packages/react/src/components/card/card.tsx",
+    style_source: "https://github.com/heroui-inc/heroui/blob/v3.2.7/packages/styles/components/card.css",
     required_parts: CARD_REQUIRED_PARTS,
     api: CARD_API,
     parts: CARD_PARTS,
@@ -681,10 +683,10 @@ pub(super) const SURFACE: ReferenceMetadata = ReferenceMetadata {
     page: "Surface",
     import_line: "use herogpui::components::surface::Surface;",
     source_module: "surface",
-    version: "3.2.6",
-    docs_source: "https://github.com/heroui-inc/heroui/blob/v3.2.6/apps/docs/content/docs/en/react/components/(layout)/surface.mdx",
-    api_source: "https://github.com/heroui-inc/heroui/blob/v3.2.6/packages/react/src/components/surface/surface.tsx",
-    style_source: "https://github.com/heroui-inc/heroui/blob/v3.2.6/packages/styles/components/surface.css",
+    version: "3.2.7",
+    docs_source: "https://github.com/heroui-inc/heroui/blob/v3.2.7/apps/docs/content/docs/en/react/components/(layout)/surface.mdx",
+    api_source: "https://github.com/heroui-inc/heroui/blob/v3.2.7/packages/react/src/components/surface/surface.tsx",
+    style_source: "https://github.com/heroui-inc/heroui/blob/v3.2.7/packages/styles/components/surface.css",
     required_parts: SURFACE_REQUIRED_PARTS,
     api: SURFACE_API,
     parts: SURFACE_PARTS,

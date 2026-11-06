@@ -32,6 +32,7 @@ type OnPress = std::sync::Arc<dyn Fn(&ClickEvent, &mut Window, &mut App) + 'stat
 pub struct CloseButton {
     id: ElementId,
     is_disabled: bool,
+    aria_label: Option<gpui::SharedString>,
     /// Replaces the default close glyph (`children` in React).
     icon: Option<AnyElement>,
     /// v3's `children`-as-a-function: handed the interactive state and drawn in
@@ -55,6 +56,7 @@ impl CloseButton {
         Self {
             id: id.into(),
             is_disabled: false,
+            aria_label: None,
             icon: None,
             content: None,
             on_press: None,
@@ -62,6 +64,12 @@ impl CloseButton {
             hover_bg: None,
             radius: None,
         }
+    }
+
+    /// Accessible name, overriding the localized default close label.
+    pub fn aria_label(mut self, label: impl Into<gpui::SharedString>) -> Self {
+        self.aria_label = Some(label.into());
+        self
     }
 
     /// The one slot for caller-owned low-level styling: GPUI's styling methods
@@ -126,6 +134,14 @@ impl CloseButton {
         self.on_press = Some(std::sync::Arc::new(handler));
         self
     }
+
+    pub(crate) fn then_press(
+        mut self,
+        callback: impl Fn(&ClickEvent, &mut Window, &mut App) + 'static,
+    ) -> Self {
+        crate::util::chain_press(&mut self.on_press, callback);
+        self
+    }
 }
 
 impl RenderOnce for CloseButton {
@@ -164,9 +180,9 @@ impl RenderOnce for CloseButton {
 
         let mut el = div()
             .id(self.id.clone())
-            // `close-button.js` hard-codes `aria-label="Close"` on the RAC
-            // `Button`, because the default child is an icon with no text.
-            .a11y_named(a11y::Role::Button, &a11y::Name::labelled(crate::i18n::ui_string(crate::i18n::UiString::Close, cx)))
+            // The icon has no text: use the explicit accessible name, then
+            // the localized default, matching v3.2.7's label precedence.
+            .a11y_named(a11y::Role::Button, &a11y::Name::labelled(self.aria_label.clone().unwrap_or_else(|| crate::i18n::ui_string(crate::i18n::UiString::Close, cx))))
             .debug_selector({
                 let id = self.id.clone();
                 move || format!("{id:?}")

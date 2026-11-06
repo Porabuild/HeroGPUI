@@ -132,6 +132,28 @@ pub enum SliderSize {
     Md,
 }
 
+/// A label at a slider value. It does not affect snapping or pointer input.
+pub struct SliderMark {
+    value: f32,
+    children: Vec<gpui::AnyElement>,
+}
+
+impl SliderMark {
+    /// Position of this mark. Invalid and out-of-range values are omitted.
+    pub fn new(value: f32) -> Self {
+        Self {
+            value,
+            children: Vec::new(),
+        }
+    }
+}
+
+impl ParentElement for SliderMark {
+    fn extend(&mut self, elements: impl IntoIterator<Item = gpui::AnyElement>) {
+        self.children.extend(elements);
+    }
+}
+
 /// HeroUI Slider.
 #[must_use = "a component does nothing until it is rendered: add it as a child or return it from `render`"]
 #[derive(IntoElement)]
@@ -147,6 +169,8 @@ pub struct Slider {
     max: f32,
     step: f32,
     steps: Vec<f32>,
+    show_steps: bool,
+    marks: Vec<SliderMark>,
     on_drag_start: Option<DragCallback>,
     on_drag_end: Option<DragCallback>,
     is_disabled: bool,
@@ -218,6 +242,8 @@ impl Slider {
             max: 100.0,
             step: 1.0,
             steps: Vec::new(),
+            show_steps: false,
+            marks: Vec::new(),
             on_drag_start: None,
             on_drag_end: None,
             is_disabled: false,
@@ -424,6 +450,21 @@ impl Slider {
         self.steps.sort_by(f32::total_cmp);
         self.steps.dedup();
         self.step = 0.0;
+        self
+    }
+
+    /// `Slider.Steps`: decorative dots at the numeric step increments.
+    /// Invalid ranges and more than 1,000 dots produce no indicators.
+    /// This does not change the snapping configured by `step` or `steps`.
+    pub fn show_steps(mut self, show: bool) -> Self {
+        self.show_steps = show;
+        self
+    }
+
+    /// `Slider.Marks`: labels at arbitrary values, independent of snapping.
+    /// Empty labels use `format_options`, like the value output.
+    pub fn marks(mut self, marks: impl IntoIterator<Item = SliderMark>) -> Self {
+        self.marks = marks.into_iter().collect();
         self
     }
 
@@ -872,6 +913,8 @@ impl RenderOnce for Slider {
         // A vertical slider swaps the axis: the rail runs top to bottom and
         // the fill grows upward from the zero end.
         let vertical = !self.orientation.is_horizontal();
+        let locale = crate::i18n::locale(cx);
+        let rtl = !vertical && crate::i18n::is_rtl(&locale);
         let sx_radius = crate::util::sx_radius(&self.sx);
         let explicit_sx_corners = [
             sx_radius.top_left,
@@ -952,7 +995,7 @@ impl RenderOnce for Slider {
             if visible {
                 track = track.child(fill_cap(
                     vertical,
-                    at_start,
+                    if rtl { !at_start } else { at_start },
                     axis_inset,
                     track_cross,
                     track_radius,
@@ -997,19 +1040,22 @@ impl RenderOnce for Slider {
             .iter()
             .any(Option::is_some)
         {
-            if fill_start {
-                fill_corners.bottom_left = Some(px(0.));
-                if vertical {
+            if vertical {
+                if fill_start {
+                    fill_corners.bottom_left = Some(px(0.));
                     fill_corners.bottom_right = Some(px(0.));
-                } else {
-                    fill_corners.top_left = Some(px(0.));
                 }
-            }
-            if fill_end {
-                fill_corners.top_right = Some(px(0.));
-                if vertical {
+                if fill_end {
                     fill_corners.top_left = Some(px(0.));
-                } else {
+                    fill_corners.top_right = Some(px(0.));
+                }
+            } else {
+                if (fill_start && !rtl) || (fill_end && rtl) {
+                    fill_corners.top_left = Some(px(0.));
+                    fill_corners.bottom_left = Some(px(0.));
+                }
+                if (fill_end && !rtl) || (fill_start && rtl) {
+                    fill_corners.top_right = Some(px(0.));
                     fill_corners.bottom_right = Some(px(0.));
                 }
             }
@@ -1025,12 +1071,133 @@ impl RenderOnce for Slider {
                         .h(gpui::relative(fill_span))
                 })
                 .when(!vertical, |f| {
-                    f.left(gpui::relative(fill_from))
+                    f.left(gpui::relative(if rtl { 1. - fill_to } else { fill_from }))
                         .h_full()
                         .w(gpui::relative(fill_span))
                 })
                 .map(|f| crate::util::round_sx_corners(f, &fill_corners)),
         );
+
+        // `.slider__steps` holds decorative `.slider__step` dots above the fill.
+        if self.show_steps {
+            for (index, value) in step_values(self.min, self.max, self.step)
+                .into_iter()
+                .enumerate()
+            {
+                let fraction = to_fraction(value);
+                let filled = fraction >= fill_from && fraction <= fill_to;
+                content = content.child(
+                    gpui::div()
+                        .absolute()
+                        .size(px(3.))
+                        .rounded_full()
+                        .bg(if filled {
+                            sem.foreground.alpha(0.25)
+                        } else {
+                            colors.muted.alpha(0.25)
+                        })
+                        .debug_selector(move || format!("slider-step-{index}"))
+                        .when(vertical, |dot| {
+                            dot.bottom(gpui::relative(fraction))
+                                .mb(px(-1.5))
+                                .left(track_cross / 2. - px(1.5))
+                        })
+                        .when(!vertical, |dot| {
+                            dot.left(gpui::relative(if rtl { 1. - fraction } else { fraction }))
+                                .ml(px(-1.5))
+                                .top(track_cross / 2. - px(1.5))
+                        }),
+                );
+            }
+        }
+        // `.slider__marks` and `.slider__mark` follow the usable track bounds.
+        let mut marks = gpui::div()
+            .grid()
+            .grid_cols(1)
+            .relative()
+            .text_size(px(12.))
+            .line_height(px(16.))
+            .font_features(crate::util::tabular_font_features())
+            .when(self.is_disabled, |marks| {
+                marks.opacity(layout.disabled_opacity)
+            });
+        let has_marks = self
+            .marks
+            .iter()
+            .any(|mark| mark.value.is_finite() && mark.value >= self.min && mark.value <= self.max);
+        for (index, mark) in self.marks.into_iter().enumerate() {
+            if !mark.value.is_finite() || mark.value < self.min || mark.value > self.max {
+                continue;
+            }
+            let fraction = to_fraction(mark.value);
+            let filled = fraction >= fill_from && fraction <= fill_to;
+            let children = if mark.children.is_empty() {
+                vec![gpui::div()
+                    .child(format_value_labels(&[mark.value], self.format.as_ref()).remove(0))
+                    .into_any_element()]
+            } else {
+                mark.children
+            };
+            let mark = gpui::div()
+                .relative()
+                .col_start(1)
+                .row_start(1)
+                .flex()
+                .debug_selector(move || format!("slider-mark-{index}"))
+                .text_color(if filled {
+                    colors.foreground
+                } else {
+                    colors.muted
+                })
+                .when(vertical, |mark| {
+                    mark.top(gpui::relative(1. - fraction))
+                        .h(px(0.))
+                        .items_center()
+                })
+                .when(!vertical, |mark| {
+                    mark.left(gpui::relative(if rtl { 1. - fraction } else { fraction }))
+                        .w(px(0.))
+                        .justify_center()
+                })
+                .child(gpui::div().flex_shrink_0().children(children));
+            let mark_id = element_id::indexed(&self.id, "mark-color", index);
+            let target = if filled {
+                colors.foreground
+            } else {
+                colors.muted
+            };
+            let mut color = crate::anim::Tween::keyed(&mark_id, "color", target, window, cx);
+            let reduce = ActiveTheme::reduce_motion(cx);
+            color.snap_if_reduced(reduce);
+            marks = if color.animates(reduce) {
+                let from = color.from();
+                let live = color.value();
+                marks.child(
+                    mark.with_animation(
+                        element_id::indexed(&mark_id, "transition", color.generation()),
+                        gpui::Animation::new(std::time::Duration::from_millis(200))
+                            .with_easing(|t| crate::anim::Curve::Smooth.at(t)),
+                        move |mark, t| {
+                            let next = herogpui_core::mix_oklab(from, target, t);
+                            live.set(next);
+                            mark.text_color(next)
+                        },
+                    ),
+                )
+            } else {
+                color.settle();
+                marks.child(mark)
+            };
+        }
+        marks = if vertical {
+            marks
+                .grid_cols_max_content(1)
+                .h(px(160.) - axis_inset * 2.)
+                .min_w(px(32.))
+                .my(axis_inset)
+        } else {
+            marks.min_h(px(16.)).mx(axis_inset)
+        };
 
         // thumbs
         let dragging_at = dragging.read(cx).active;
@@ -1076,7 +1243,7 @@ impl RenderOnce for Slider {
                         .when(small, |t| t.left(-cross_overhang))
                 })
                 .when(!vertical, |t| {
-                    t.left(gpui::relative(f))
+                    t.left(gpui::relative(if rtl { 1. - f } else { f }))
                         .ml(-thumb_along / 2.)
                         .w(thumb_along)
                         .h(thumb_cross)
@@ -1172,6 +1339,11 @@ impl RenderOnce for Slider {
                 .key_context("Slider")
                 .on_key_down(move |event, window, cx| {
                     let key = event.keystroke.key.as_str();
+                    let key = match (rtl, key) {
+                        (true, "left") => "right",
+                        (true, "right") => "left",
+                        _ => key,
+                    };
                     let index = (*held_thumb.read(cx)).min(keys_thumbs.len().saturating_sub(1));
                     let current = keys_thumbs.get(index).copied().unwrap_or(min);
                     // Tab-like movement between the thumbs of a range slider:
@@ -1259,6 +1431,7 @@ impl RenderOnce for Slider {
                 });
 
             let target_down = DragTarget {
+                rtl,
                 min: self.min,
                 span: range_span,
                 step: self.step,
@@ -1331,6 +1504,7 @@ impl RenderOnce for Slider {
 
             let is_disabled_move = self.is_disabled;
             let target_move = DragTarget {
+                rtl,
                 min: self.min,
                 span: range_span,
                 step: self.step,
@@ -1429,7 +1603,11 @@ impl RenderOnce for Slider {
         if any_enabled {
             track = crate::util::record_focus_bounds(track, &focus_handle, window, cx);
         }
-        el = el.child(track);
+        el = if vertical && has_marks {
+            el.child(gpui::div().flex().gap(px(8.)).child(track).child(marks))
+        } else {
+            el.child(track).when(has_marks, |el| el.child(marks))
+        };
         el = crate::util::apply_sx(el, &self.sx);
         el
     }
@@ -1575,8 +1753,42 @@ fn normalize_values(values: &[f32], min: f32, max: f32, step: f32) -> Vec<f32> {
         .collect()
 }
 
+/// Compute decimal steps without cumulative addition drift or an off-step endpoint.
+fn step_values(min: f32, max: f32, step: f32) -> Vec<f32> {
+    if !min.is_finite() || !max.is_finite() || max < min || !step.is_finite() || step <= 0. {
+        return Vec::new();
+    }
+    let intervals = (max - min) / step;
+    let count = (intervals + f32::EPSILON * intervals.max(1.) * 4.).floor() + 1.;
+    if !(1. ..=1000.).contains(&count) {
+        return Vec::new();
+    }
+    let precision = decimal_places(min).max(decimal_places(step));
+    let scale = 10_f64.powi(precision);
+    (0..count as usize)
+        .map(|index| {
+            let raw = f64::from(min) + index as f64 * f64::from(step);
+            (((raw * scale).round() / scale) as f32).min(max)
+        })
+        .collect()
+}
+
+fn decimal_places(value: f32) -> i32 {
+    let value = value.to_string();
+    let (coefficient, exponent) = value
+        .split_once(['e', 'E'])
+        .map_or((value.as_str(), 0), |(coefficient, exponent)| {
+            (coefficient, exponent.parse::<i32>().unwrap_or(0))
+        });
+    let fraction = coefficient
+        .split_once('.')
+        .map_or(0, |(_, digits)| digits.len() as i32);
+    (fraction - exponent).max(0)
+}
+
 /// Everything a drag needs to turn a pointer position into a value.
 struct DragTarget {
+    rtl: bool,
     min: f32,
     span: f32,
     step: f32,
@@ -1674,6 +1886,7 @@ fn value_from_pointer(
         return None;
     }
     let frac = axis_fraction(pos, b, vertical);
+    let frac = if target.rtl { 1. - frac } else { frac };
     let raw = target.min + frac * target.span;
     Some(snap_value(
         raw,

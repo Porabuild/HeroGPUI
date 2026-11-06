@@ -95,6 +95,7 @@ implementation under `src/` instead, and are not listed here.
 | `overlay_stack_menus_deep` | Nested Dropdown and Tooltip overlay-stack contracts. | 3 |
 | `overlay_stack_pickers_deep` | Explicit overlay-stack coverage for the three picker surfaces (Select/DatePicker/ColorPicker family). | 10 |
 | `popover_stack_deep` | Deep focus-scope and nested-dismissal contracts for Popover. | 15 |
+| `sheet_deep` | Sheet state, dismissal, nesting, snap geometry, disabled parts and stable child state through motion, resize, exit safety and snap normalization. | 19 |
 | `drawer_deep` | Drawer anatomy: drag-to-dismiss, handle/header/footer, focus trap. | 15 |
 | `feedback` | Toast, Alert, Avatar, Badge, Progress, Meter, Spinner, Skeleton behaviour. | 35 |
 | `feedback_compose` | Three feedback/composition parity gaps (avatar load, alert composed button, badge default color). | 4 |
@@ -131,6 +132,7 @@ implementation under `src/` instead, and are not listed here.
 | `kbd_deep` | Kbd anatomy and geometry against pinned v3.2.4 `kbd.css`. | 5 |
 | `tag_geometry_deep` | Tag line boxes match v3.2.4 outside the gallery's default text root. | 4 |
 | `parts_thumbs` | `Slider.Thumb` and `ColorSwatchPicker.Item` per-part state. | 16 |
+| `slider_indicators` | Slider dots, mark layout, decimal bounds, RTL locale/input, decimal endpoint colors and painted corners. | 11 |
 | `slider_geometry_deep` | Slider paint geometry: the 12px start/end border inset. | 13 |
 
 ## Layout & surfaces

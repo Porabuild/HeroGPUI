@@ -10,6 +10,7 @@
 
 use crate::harness;
 
+use herogpui_theme::ActiveTheme;
 use std::rc::Rc;
 use std::time::Duration;
 
@@ -99,7 +100,7 @@ fn paint(cx: &mut TestAppContext, case: &Case, radius: Option<Pixels>) -> (Paint
     let value = vcx.update(|_, cx| {
         f32::from(helper(cx))
             + if ring {
-                f32::from(herogpui_theme::ActiveTheme::layout(cx).ring_offset_width)
+                f32::from(ActiveTheme::layout(cx).ring_offset_width)
             } else {
                 0.
             }
@@ -192,7 +193,7 @@ fn cases(cx: &mut TestAppContext) -> Vec<Case> {
         ),
         case(
             "Dropdown",
-            container_radius,
+            |cx| (cx.layout().radius_2xl() + px(6.)).min(px(32.)),
             Rc::new(|r| {
                 with(
                     Dropdown::new(
@@ -247,7 +248,7 @@ fn cases(cx: &mut TestAppContext) -> Vec<Case> {
         ),
         case(
             "Select (panel)",
-            container_radius,
+            |cx| (cx.layout().radius_2xl() + px(6.)).min(px(32.)),
             Rc::new(|r| {
                 with(
                     Select::new("sel", items()).default_open(true),
@@ -259,7 +260,7 @@ fn cases(cx: &mut TestAppContext) -> Vec<Case> {
         ),
         case(
             "ComboBox (panel)",
-            container_radius,
+            |cx| (cx.layout().radius_2xl() + px(6.)).min(px(32.)),
             Rc::new(move |r| {
                 with(
                     ComboBox::new(combo.clone(), items()).default_open(true),
@@ -271,7 +272,7 @@ fn cases(cx: &mut TestAppContext) -> Vec<Case> {
         ),
         case(
             "Autocomplete (panel)",
-            container_radius,
+            |cx| (cx.layout().radius_2xl() + px(6.)).min(px(32.)),
             Rc::new(move |r| {
                 with(
                     Autocomplete::new(auto.clone(), items()).default_open(true),

@@ -31,6 +31,11 @@ impl Gallery {
                         )
                         .into_any_element()]),
                 ),
+                ("Steps", col(vec![fixed_demo(320., h::Slider::new("sl-indicators-0", 40.).default_value(40.).label("Volume").show_value(true).step(10.).show_steps(true))])),
+                ("Marks", col(vec![fixed_demo(320., h::Slider::new("sl-indicators-1", 40.).default_value(40.).label("Volume").show_value(true).marks([h::SliderMark::new(0.), h::SliderMark::new(35.).child("Low"), h::SliderMark::new(100.)]))])),
+                ("Steps and Marks", col(vec![fixed_demo(320., h::Slider::new("sl-indicators-2", 40.).default_value(40.).label("Volume").show_value(true).step(10.).show_steps(true).marks([h::SliderMark::new(0.), h::SliderMark::new(50.), h::SliderMark::new(100.)]))])),
+                ("Range with Steps and Marks", col(vec![fixed_demo(320., h::Slider::new("sl-indicators-3", 40.).default_value(40.).label("Volume").show_value(true).default_values([20., 80.]).step(10.).show_steps(true).marks([h::SliderMark::new(0.), h::SliderMark::new(50.), h::SliderMark::new(100.)]))])),
+                ("Vertical Steps and Marks", col(vec![fixed_demo(320., h::Slider::new("sl-indicators-4", 40.).default_value(40.).label("Volume").show_value(true).orientation(Orientation::Vertical).step(20.).show_steps(true).marks([h::SliderMark::new(0.), h::SliderMark::new(50.), h::SliderMark::new(100.)]))])),
                 (
                     "Format options",
                     col(vec![fixed_demo(

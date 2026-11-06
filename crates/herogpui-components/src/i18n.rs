@@ -683,6 +683,41 @@ pub fn locale(cx: &App) -> SharedString {
         .unwrap_or_else(|| SharedString::new_static("en-US"))
 }
 
+/// Direction inherited by positioned controls, matching React Aria's script-first fallback.
+pub(crate) fn is_rtl(tag: &str) -> bool {
+    let Ok(mut locale) = tag.replace('_', "-").parse::<icu_locale_core::Locale>() else {
+        return false;
+    };
+    icu_locale::LocaleExpander::new_extended().maximize(&mut locale.id);
+    if let Some(script) = locale.id.script {
+        return matches!(
+            script.as_str(),
+            "Arab" | "Syrc" | "Samr" | "Mand" | "Thaa" | "Mend" | "Nkoo" | "Adlm" | "Rohg" | "Hebr"
+        );
+    }
+    matches!(
+        locale.id.language.as_str(),
+        "ae" | "ar"
+            | "arc"
+            | "bcc"
+            | "bqi"
+            | "ckb"
+            | "dv"
+            | "fa"
+            | "glk"
+            | "he"
+            | "ku"
+            | "mzn"
+            | "nqo"
+            | "pnb"
+            | "ps"
+            | "sd"
+            | "ug"
+            | "ur"
+            | "yi"
+    )
+}
+
 /// Overrides `key` for `locale`. An override keyed by a full tag (`"fr-CA"`)
 /// applies to that tag only; one keyed by a bare language (`"fr"`) applies to
 /// every locale of that language without an exact override. Use it to translate a string the built-in table

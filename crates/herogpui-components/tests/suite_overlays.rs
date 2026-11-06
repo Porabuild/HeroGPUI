@@ -43,3 +43,6 @@ mod placement;
 mod placement_extra;
 #[path = "popover_stack_deep.rs"]
 mod popover_stack_deep;
+
+#[path = "sheet_deep.rs"]
+mod sheet_deep;

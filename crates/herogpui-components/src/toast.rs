@@ -1678,6 +1678,7 @@ impl RenderOnce for ToastCardEl {
                 // notification grow naturally inside the width-constrained
                 // content column, just like the description beneath it.
                 .whitespace_normal()
+                .debug_selector(|| "toast-title".into())
                 .child(self.t.title.to_string()),
         );
         if let Some(desc) = &self.t.description {
@@ -1690,7 +1691,8 @@ impl RenderOnce for ToastCardEl {
                     .child(desc.to_string()),
             );
         }
-        card = card.child(text_col);
+        let narrow = window.viewport_size().width < px(640.);
+        let mut trailing_action = None;
 
         // `.toast__action` — the button v3 configures with `actionProps`.
         if let Some((label, on_press)) = self.t.action.clone() {
@@ -1707,6 +1709,18 @@ impl RenderOnce for ToastCardEl {
                     dismiss_toast(id, cx);
                 });
             }
+            let action = gpui::div()
+                .flex_shrink_0()
+                .debug_selector(|| "toast-action".into())
+                .child(action);
+            if narrow {
+                text_col = text_col.child(gpui::div().mt(px(8.)).self_start().child(action));
+            } else {
+                trailing_action = Some(action);
+            }
+        }
+        card = card.child(text_col);
+        if let Some(action) = trailing_action {
             card = card.child(action);
         }
 

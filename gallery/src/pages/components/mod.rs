@@ -571,6 +571,7 @@ mod media;
 mod navigation;
 mod overlays;
 mod pickers;
+mod sheet;
 mod typography;
 mod utilities;
 
@@ -844,7 +845,7 @@ mod example_quality {
             ("select", 26),
             ("autocomplete", 22),
             ("combo_box", 30),
-            ("slider", 17),
+            ("slider", 22),
             ("date_field", 15),
             ("alert_dialog", 12),
             ("dropdown", 25),

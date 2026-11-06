@@ -465,12 +465,10 @@ fn an_end_aligned_menu_at_the_left_edge_shifts_right(cx: &mut TestAppContext) {
     );
 }
 
-/// When the menu cannot fit at all, upstream's
-/// `Math.max(endTerm, startTerm)` resolves to the start term: the start edge
-/// wins and the overflow is left at the end, where a scroll or a clip is at
-/// least predictable. A window narrower than `min-w-55` forces that branch.
+/// v3.2.7 caps the default 220px floor to the viewport minus 32px.
+/// A narrow window must keep the menu wholly visible instead of forcing overflow.
 #[gpui::test]
-fn a_menu_wider_than_the_window_aligns_to_the_start_inset(cx: &mut TestAppContext) {
+fn a_narrow_window_caps_the_default_menu_floor(cx: &mut TestAppContext) {
     let cx = host_with_trigger_at(cx, 60., Placement::BottomStart);
     settle(cx, 180., 600.);
     click(cx, 100., 18.);
@@ -481,18 +479,13 @@ fn a_menu_wider_than_the_window_aligns_to_the_start_inset(cx: &mut TestAppContex
         .expect("the open menu must be laid out");
 
     assert!(
-        f32::from(menu.size.width) > 180. - 2. * INSET,
-        "this case is only meaningful while the menu is wider than the window \
-         can hold, got {menu:?}"
+        menu.size.width <= px(148.),
+        "menu must fit the new viewport cap: {menu:?}"
     );
-    assert!(
-        near(menu.origin.x, INSET),
-        "a menu that cannot fit aligns its start edge to the inset, got {menu:?}"
-    );
+    assert!(menu.origin.x >= px(INSET - 1.5));
+    assert!(menu.right() <= px(180. - INSET + 1.5));
 }
 
-/// The main-axis contract: a bottom-placed menu that cannot fit below its
-/// trigger opens above it when there is more room there, one gap clear.
 #[gpui::test]
 fn a_menu_near_the_bottom_edge_flips_above_its_trigger(cx: &mut TestAppContext) {
     let cx = host_with_trigger_low(cx, 480., Placement::BottomStart);

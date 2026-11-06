@@ -193,6 +193,11 @@
   ],
   "slider": [
     "Usage",
+    "Steps",
+    "Marks",
+    "Steps and Marks",
+    "Range with Steps and Marks",
+    "Vertical Steps and Marks",
     "Format options",
     "Range Slider Anatomy",
     "Controlled Value",
@@ -605,6 +610,7 @@
     "With Form"
   ],
   "separator": [
+    "Decorative",
     "Usage",
     "With Surface",
     "With Content",
@@ -760,6 +766,7 @@
     "Custom Styles"
   ],
   "toast": [
+    "With Action",
     "Usage",
     "Variants",
     "Placements",
@@ -868,6 +875,22 @@
     "Full Width",
     "Multiple Select",
     "Controlled"
+  ],
+  "sheet": [
+    "Usage",
+    "Placements",
+    "Snap Points",
+    "Snap Points (Sequential)",
+    "Snap Points (Custom Fade)",
+    "Backdrop Variants",
+    "Non-Dismissable",
+    "Scrollable Content",
+    "With Form",
+    "Detached",
+    "Controlled State",
+    "Handle Only",
+    "Nested Sheets",
+    "Professions Picker"
   ],
   "kbd": [
     "Navigation Keys",

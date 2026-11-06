@@ -1622,6 +1622,25 @@ impl Gallery {
             crate::pages::Page::Toast.import_line(),
             vec![
                 (
+                    "With Action", "The action follows the text below 640px and sits beside it in larger windows. Undo replaces the notification with a visible result.",
+                    row(vec![h::Button::new("toast-action-demo")
+                        .label("Show actionable toast")
+                        .variant(Variant::Secondary)
+                        .on_press(|_, _, cx| {
+                            h::Toast::new("Item archived")
+                                .description("Undo restores the item.")
+                                .timeout(std::time::Duration::ZERO)
+                                .action("Undo", |cx| {
+                                    h::Toast::success("Restored")
+                                        .description("The action ran.")
+                                        .timeout(std::time::Duration::ZERO)
+                                        .push(None, cx);
+                                })
+                                .push(None, cx);
+                        })
+                        .into_any_element()]),
+                ),
+                (
                     "Usage",
                     row(vec![h::Button::new("toast-usage")
                         .label("Show a toast")

@@ -45,7 +45,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from component_source import list_modules, module_exists, read_module, read_path
 from bundle import resolve as _resolve_bundle
 
-# The pinned v3.2.6 bundle. See .shots/bundle.py: reading upstream live would
+# The pinned v3.2.7 bundle. See .shots/bundle.py: reading upstream live would
 # measure this port against whatever HeroUI shipped most recently.
 BUNDLE = _resolve_bundle()
 SRC = 'crates/herogpui-components/src/'
@@ -74,6 +74,7 @@ MODULE = {
     'date-range-picker': 'date_picker.rs',
     'disclosure': 'disclosure.rs',
     'drawer': 'drawer.rs',
+    'sheet': 'sheet.rs',
     'dropdown': 'dropdown.rs',
     'input': 'input.rs',
     'input-group': 'input_group.rs',
@@ -131,6 +132,8 @@ EVIDENCE = {
 # overlay's `status-disabled` belongs to the close button inside it, and a
 # picker's popover rows are the list's.
 ELSEWHERE = {
+    ('sheet', 'status-disabled'): 'close_button.rs',
+    ('sheet', 'status-focused'): 'close_button.rs',
     ('modal', 'status-disabled'): 'close_button.rs',
     ('alert-dialog', 'status-disabled'): 'close_button.rs',
     ('drawer', 'status-disabled'): 'close_button.rs',

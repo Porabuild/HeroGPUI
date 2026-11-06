@@ -31,3 +31,6 @@ mod slider_form_deep;
 mod slider_geometry_deep;
 #[path = "slider_number_deep.rs"]
 mod slider_number_deep;
+
+#[path = "slider_indicators.rs"]
+mod slider_indicators;
