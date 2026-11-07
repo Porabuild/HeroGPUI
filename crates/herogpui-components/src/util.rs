@@ -443,6 +443,21 @@ pub fn field_ring_carrier(
     )
 }
 
+/// [`field_ring_carrier`] for a ring the caller already built — the chrome
+/// ramp's clip-escaping overlay, whose opacity its own tween drives — hung
+/// in the same non-clipping position after the shell.
+pub fn field_ring_carrier_overlay(
+    shell: impl gpui::IntoElement,
+    overlay: impl gpui::IntoElement,
+) -> Div {
+    gpui::div()
+        .relative()
+        .flex()
+        .flex_col()
+        .child(shell)
+        .child(overlay)
+}
+
 /// [`apply_field_chrome_with_focus_ring`] with the ring as an overlay child.
 ///
 /// Same chrome, except that the focused ring -- and the focused *invalid*
@@ -701,6 +716,28 @@ pub fn dismiss_on_press_outside_with_token<E: gpui::InteractiveElement>(
     close: impl Fn(&mut gpui::Window, &mut App) -> DismissResult + 'static,
 ) -> E {
     dismiss_on_press_outside_with_token_event(el, token, move |_, window, cx| close(window, cx))
+}
+
+/// The pass-through form of [`dismiss_on_press_outside_with_token`]: the
+/// surface still dismisses on an outside press, but the press is *not*
+/// consumed, so it also reaches the control under the pointer.
+///
+/// That is React Aria's `isNonModal` popover contract — no underlay div, so
+/// `useInteractOutside` lets the same press activate whatever it lands on.
+/// HeroUI's ComboBox is the non-modal surface (`ComboBox` passes
+/// `isNonModal: true` to its `Popover`); Select, MenuTrigger and the dialog
+/// popovers render the full-window underlay instead and keep the consuming
+/// form above.
+pub fn dismiss_on_press_outside_passthrough_with_token<E: gpui::InteractiveElement>(
+    el: E,
+    token: OverlayToken,
+    close: impl Fn(&mut gpui::Window, &mut App) -> DismissResult + 'static,
+) -> E {
+    el.on_mouse_down_out(move |_, window, cx| {
+        if is_topmost(&token, cx) {
+            close(window, cx);
+        }
+    })
 }
 
 /// The event-aware form of [`dismiss_on_press_outside_with_token`].
@@ -1573,9 +1610,9 @@ struct FocusRoot {
 /// - **Tab moves the focus.** In a browser the platform does this. Here the app
 ///   asks for it, and gpui walks the tab stops in tree order.
 /// - **The kind of input is recorded**, because a ring shows only after a
-///   keyboard-control key, never after a pointer press or Escape. The mouse
-///   half runs in the capture phase, before the press reaches whatever it
-///   landed on.
+///   keyboard-control key, never after a pointer press or Escape. Both halves
+///   run in the capture phase, before the event reaches whatever it landed
+///   on — a descendant that stops propagation cannot hide the modality.
 pub fn app_focus_root<T>(el: T, window: &mut gpui::Window, cx: &mut App) -> T
 where
     T: gpui::InteractiveElement,
@@ -1609,14 +1646,18 @@ where
     el.track_focus(&root)
         .capture_any_mouse_down(|_, _, cx| set_focus_visible(false, cx))
         .capture_key_down(|event, window, cx| {
+            // Keyboard modality is recorded in the capture phase, the way
+            // React Aria's document-level keydown listener does it: a
+            // descendant that stops propagation on this key still leaves the
+            // modality recorded, so its focus move shows the ring.
+            if key_enables_focus_visible(&event.keystroke.key) {
+                set_focus_visible(true, cx);
+            }
             if event.keystroke.key == "escape" && dismiss_captured_escape(window, cx) {
                 cx.stop_propagation();
             }
         })
         .on_key_down(|event, window, cx| {
-            if key_enables_focus_visible(&event.keystroke.key) {
-                set_focus_visible(true, cx);
-            }
             if event.keystroke.key == "tab" {
                 if event.keystroke.modifiers.shift {
                     window.focus_prev(cx);
@@ -1765,8 +1806,17 @@ pub fn focus_ring_shadows(offset: bool, cx: &App) -> Vec<gpui::BoxShadow> {
 /// cannot draw: a control whose four corners do not resolve to one radius --
 /// a grouped `Button` or `ToggleButton` `Start`/`End` member, or any member an
 /// `sx` refinement makes asymmetric -- since the overlay's bands are built
-/// from a scalar, plus the two rings that are interpolated frame by frame
-/// (`anim::field_chrome_ramp`'s tracked ring and the colour picker's thumb).
+/// from a scalar, plus the one ring that is interpolated frame by frame
+/// (`anim::field_chrome_ramp`'s tracked ring) — but only its in-flow form:
+/// a clip-escaping (`ring_escapes_clip`) shell cannot host the ring as a
+/// child at all, deferred or not, so the ramp hands the caller this same
+/// hollow overlay geometry — opacity-tweened — to hang on the non-clipping
+/// carrier instead, where a filled spread shadow would have covered the
+/// shell's interior.
+/// A ring whose opacity tweens --
+/// the colour picker's slider thumb, swatch items, and trigger -- still uses
+/// this overlay: the caller animates `.opacity(..)` on the returned child
+/// instead of shadow alpha.
 pub fn focus_ring_overlay(radius: Pixels, offset: bool, cx: &App) -> Div {
     ring_overlay_in(radius, offset, cx.colors().focus, cx)
 }

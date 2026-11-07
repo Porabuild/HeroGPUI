@@ -486,13 +486,6 @@ pub(super) fn toast_setup_block() -> &'static str {
     TOAST_SETUP
 }
 
-pub(super) fn overlay_min_h(mut frame: gpui::Div, open: bool, height: f32) -> gpui::Div {
-    if open {
-        frame = frame.min_h(px(height));
-    }
-    frame
-}
-
 pub(super) fn set_popover_open(
     usage: &mut bool,
     flags: &mut HashMap<&'static str, bool>,
@@ -508,11 +501,13 @@ pub(super) fn set_popover_open(
 
 /// One overlay demo: the trigger, and the panel it opens.
 ///
-/// An overlay needs a positioned ancestor and enough height to show the panel,
-/// and each demo owns its own open flag -- v3's pages show one variant per
-/// example, so a shared flag would open all of them at once.
+/// Every caller's panel is a window overlay — Modal, Drawer and AlertDialog
+/// anchor to the viewport and defer, so the panel is not `absolute inset-0`
+/// inside this frame and the frame needs no height reservation: an open
+/// panel never reflows the page. Each demo owns its own open flag -- v3's
+/// pages show one variant per example, so a shared flag would open all of
+/// them at once.
 pub(super) fn overlay_demo(
-    open: bool,
     key: &'static str,
     label: &str,
     panel: AnyElement,
@@ -521,31 +516,23 @@ pub(super) fn overlay_demo(
     if !crate::control::specimen_wanted(key, cx) {
         return gpui::div().into_any_element();
     }
-    // The panel is `absolute inset-0` inside this frame, and v3's body is
-    // `min-h-0 flex-1`, so a short frame squeezes the body to nothing.
-    // Reserve that height only while the panel is open; a closed trigger
-    // sitting in a 320px hole was the empty-card gap on overlay pages.
-    overlay_min_h(
-        gpui::div()
-            .relative()
-            .flex()
-            .flex_col()
-            .items_center()
-            .w_full(),
-        open,
-        320.,
-    )
-    .child(
-        h::Button::new(el_id(format!("{key}-open")))
-            .label(label.to_owned())
-            .variant(Variant::Secondary)
-            .on_press(cx.listener(move |this, _, _, cx| {
-                this.set_demo_flag(key, true);
-                cx.notify();
-            })),
-    )
-    .child(panel)
-    .into_any_element()
+    gpui::div()
+        .relative()
+        .flex()
+        .flex_col()
+        .items_center()
+        .w_full()
+        .child(
+            h::Button::new(el_id(format!("{key}-open")))
+                .label(label.to_owned())
+                .variant(Variant::Secondary)
+                .on_press(cx.listener(move |this, _, _, cx| {
+                    this.set_demo_flag(key, true);
+                    cx.notify();
+                })),
+        )
+        .child(panel)
+        .into_any_element()
 }
 
 /// The demo palette used by the color pages.
@@ -759,8 +746,8 @@ mod example_quality {
     fn disclosure_render_function_uses_live_component_state() {
         let page = page_fn(SRC, "disclosure");
         assert_eq!(
-            section_titles(page).get(1).map(String::as_str),
-            Some("Render Function")
+            &section_titles(page)[..3],
+            &["Usage", "Controlled", "Render Function"]
         );
         let render = section_body(page, "Render Function");
         assert!(render.contains("let render_expanded = self.demo_flag("));
@@ -1136,13 +1123,14 @@ mod example_quality {
 
         // Overlay frames stretch to the preview's width so an open panel can
         // fill it; a closed trigger must still sit centered, not top-left.
-        let overlay_frames = SRC
-            .split("fn overlay_min_h(")
+        let overlay_frame = SRC
+            .split("fn overlay_demo(")
             .nth(1)
-            .expect("overlay demo frames")
-            .replace(' ', "");
-        assert!(overlay_frames.contains(".items_center()\n.w_full(),"));
-        assert!(!overlay_frames.contains(".items_start()\n.w_full(),"));
+            .and_then(|rest| rest.split("fn palette(").next())
+            .expect("overlay demo frame");
+        assert!(overlay_frame.contains(".items_center()"));
+        assert!(overlay_frame.contains(".w_full()"));
+        assert!(!overlay_frame.contains(".items_start()"));
 
         let avatar = page_fn(SRC, "avatar");
         for caption in [
@@ -1179,20 +1167,29 @@ mod example_quality {
 
     #[test]
     fn overlay_height_is_gated_for_every_overlay_page() {
-        let helper = SRC
-            .split("fn overlay_min_h(")
-            .nth(1)
-            .and_then(|rest| rest.split("fn overlay_demo(").next())
-            .expect("overlay_min_h helper");
-        assert!(helper.contains("open: bool"));
-        assert!(helper.contains("if open"));
-        assert!(helper.contains("frame.min_h(px(height))"));
+        // Modal, Drawer, AlertDialog and Popover panels are deferred overlays
+        // anchored to the trigger or viewport: an open one must not reserve
+        // in-flow height and push the rest of the page down.
         for name in ["alert_dialog", "drawer", "modal", "popover"] {
+            let page = page_fn(SRC, name);
             assert!(
-                !page_fn(SRC, name).contains(".min_h(px("),
+                !page.contains("overlay_min_h("),
+                "page_{name} must not reserve overlay height"
+            );
+            assert!(
+                !page.contains(".min_h(px("),
                 "page_{name} has an unconditional overlay min-height"
             );
         }
+
+        // `overlay_demo` frames every window-overlay demo on those pages.
+        let demo = SRC
+            .split("fn overlay_demo(")
+            .nth(1)
+            .and_then(|rest| rest.split("fn palette(").next())
+            .expect("overlay_demo helper");
+        assert!(!demo.contains("overlay_min_h"));
+        assert!(!demo.contains("min_h"));
     }
 
     #[test]
@@ -1439,12 +1436,10 @@ mod example_quality {
     }
 
     #[test]
-    fn popover_live_slots_reserve_height_per_open_demo() {
+    fn popover_live_slots_track_each_demo_open_state() {
         let popover = page_fn(SRC, "popover");
         let usage = section_body(popover, "Usage");
-        assert!(usage.contains("overlay_min_h("));
         assert!(usage.contains("is_open"));
-        assert!(usage.contains("160."));
 
         let arrow = section_body(popover, "With Arrow");
         assert!(arrow.contains("po_arrow_open"));
@@ -1452,9 +1447,7 @@ mod example_quality {
         assert!(!arrow.contains("po_arrow_open || po_arrow_custom_open"));
 
         let interactive = section_body(popover, "Interactive Content");
-        assert!(interactive.contains("overlay_min_h("));
         assert!(interactive.contains("po_interactive_open"));
-        assert!(interactive.contains("220."));
 
         let placement = section_body(popover, "Placement");
         assert!(placement.contains("let open = self.demo_overlay(id)"));
@@ -1462,11 +1455,9 @@ mod example_quality {
 
         let render = section_body(popover, "Render Function");
         assert!(render.contains("po_render_open"));
-        assert!(render.contains("160."));
 
         let custom = section_body(popover, "Custom Styles");
         assert!(custom.contains("po_custom_styles_open"));
-        assert!(custom.contains("160."));
     }
 
     #[test]

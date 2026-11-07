@@ -217,8 +217,6 @@ impl Gallery {
             crate::pages::Page::Separator.description(),
             crate::pages::Page::Separator.import_line(),
             vec![
-                ("Decorative", "Native separators are visual only: the pinned AccessKit version has no separator role.", col(vec![h::Separator::new().into_any_element()])),
-
                 (
                     "Usage",
                     col(vec![gpui::div()
@@ -232,6 +230,22 @@ impl Gallery {
                         .into_any_element()]),
                 ),
                 (
+                    "Variants",
+                    col(h::SeparatorVariant::ALL
+                        .iter()
+                        .flat_map(|v| {
+                            vec![
+                                gpui::div()
+                                    .text_size(px(12.))
+                                    .text_color(cx.colors().muted)
+                                    .child(v.label())
+                                    .into_any_element(),
+                                h::Separator::new().variant(*v).into_any_element(),
+                            ]
+                        })
+                        .collect()),
+                ),
+                (
                     "With Surface",
                     col(vec![h::Surface::new()
                         .padding(px(20.))
@@ -239,6 +253,20 @@ impl Gallery {
                         .child(gpui::div().child("Notifications"))
                         .child(h::Separator::new())
                         .child(gpui::div().child("Privacy"))
+                        .into_any_element()]),
+                ),
+                (
+                    "Vertical",
+                    row(vec![gpui::div()
+                        .flex()
+                        .items_center()
+                        .gap(px(12.))
+                        .h(px(24.))
+                        .child("Docs")
+                        .child(h::Separator::new().orientation(Orientation::Vertical))
+                        .child("Blog")
+                        .child(h::Separator::new().orientation(Orientation::Vertical))
+                        .child("Support")
                         .into_any_element()]),
                 ),
                 (
@@ -282,36 +310,11 @@ impl Gallery {
                         )
                         .into_any_element()]),
                 ),
-                (
-                    "Variants",
-                    col(h::SeparatorVariant::ALL
-                        .iter()
-                        .flat_map(|v| {
-                            vec![
-                                gpui::div()
-                                    .text_size(px(12.))
-                                    .text_color(cx.colors().muted)
-                                    .child(v.label())
-                                    .into_any_element(),
-                                h::Separator::new().variant(*v).into_any_element(),
-                            ]
-                        })
-                        .collect()),
-                ),
-                (
-                    "Vertical",
-                    row(vec![gpui::div()
-                        .flex()
-                        .items_center()
-                        .gap(px(12.))
-                        .h(px(24.))
-                        .child("Docs")
-                        .child(h::Separator::new().orientation(Orientation::Vertical))
-                        .child("Blog")
-                        .child(h::Separator::new().orientation(Orientation::Vertical))
-                        .child("Support")
-                        .into_any_element()]),
-                ),
+                ("Decorative", "Native separators are visual only: the pinned AccessKit version has no separator role.", col(vec![gpui::div()
+                    .w(px(320.))
+                    .child(h::Separator::new())
+                    .into_any_element()])),
+
                 (
                     "Resizable Panels", "HeroGPUI extension, not a HeroUI v3 example: `ResizablePanelGroup` shares its space between `ResizablePanel`s by percentage, with a drag handle between each pair. Drag a handle, or Tab to it and use the arrow keys (Shift for a larger step, Home and End to the limits); each panel stays within its minimum and maximum. The right-hand panel holds a vertical group.",
                     specimen_body("sep-resizable", col(vec![
@@ -535,6 +538,18 @@ impl Gallery {
                         .into_any_element()]),
                 ),
                 (
+                    "Vertical",
+                    col(vec![
+                        bar("v", false, Orientation::Vertical).into_any_element()
+                    ]),
+                ),
+                (
+                    "Attached",
+                    col(vec![
+                        bar("attached", true, Orientation::Horizontal).into_any_element()
+                    ]),
+                ),
+                (
                     "With ButtonGroup",
                     col(vec![h::Toolbar::new()
                         .id("tb-button-group")
@@ -561,18 +576,6 @@ impl Gallery {
                     col(vec![bar("h", false, Orientation::Horizontal)
                         .full_width(true)
                         .into_any_element()]),
-                ),
-                (
-                    "Attached",
-                    col(vec![
-                        bar("attached", true, Orientation::Horizontal).into_any_element()
-                    ]),
-                ),
-                (
-                    "Vertical",
-                    col(vec![
-                        bar("v", false, Orientation::Vertical).into_any_element()
-                    ]),
                 ),
                 (
                     "Sized Controls", "HeroGPUI extension, not a HeroUI v3 example (after gpui-kit's toolbar): `Toolbar::size` reaches every control added with `sized_child`, whatever the order of the builder calls, so the whole bar is sized in one place; controls added with `child` keep their own size. `label` names the toolbar (or the group a nested toolbar becomes) for assistive technology.",

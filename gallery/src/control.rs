@@ -12,7 +12,16 @@
 //! preview=component
 //! motion=reduce
 //! specimen=btn-v-DangerSoft
+//! input=move:120,300 down:120,300 wait:200 up:120,300 key:tab type:hi exit
 //! ```
+//!
+//! `input` runs after the requested view draws: space-separated `move`,
+//! `drag` (move with the left button held), `down`, `up`, `click` (each
+//! `:x,y` in window points), `scroll:x,y,dy`, `key:<keystroke>`,
+//! `type:<text>` (`_` types a space), `exit` (pointer leaves the window) and
+//! `wait:<ms>`. They are dispatched through `Window::dispatch_event`, so
+//! hover, press and keyboard modality follow real input; the ack follows the
+//! frame drawn after the last step.
 //!
 //! `section`, `theme` and `overlays` default to all sections, light and closed.
 //! An absent `page`, `preview` or `motion` preserves that setting. `reset=1`
@@ -191,6 +200,159 @@ impl FrameAck {
     }
 }
 
+/// One synthetic input step of an `input=` request, in window coordinates.
+///
+/// The steps go through `Window::dispatch_event` -- the path platform input
+/// takes -- so hover, press, focus and keyboard modality behave as they do
+/// for real input, on hosts where no posted-input driver exists.
+#[derive(Debug, Clone, PartialEq)]
+enum Step {
+    Move(gpui::Point<gpui::Pixels>),
+    Drag(gpui::Point<gpui::Pixels>),
+    Down(gpui::Point<gpui::Pixels>),
+    Up(gpui::Point<gpui::Pixels>),
+    Click(gpui::Point<gpui::Pixels>),
+    Scroll(gpui::Point<gpui::Pixels>, f32),
+    Key(String),
+    Type(String),
+    Exit,
+    Wait(u64),
+}
+
+fn parse_point(value: &str) -> Result<gpui::Point<gpui::Pixels>, String> {
+    let (x, y) = value
+        .split_once(',')
+        .ok_or_else(|| format!("expected x,y: {value}"))?;
+    let coordinate = |raw: &str| {
+        raw.trim()
+            .parse::<f32>()
+            .map_err(|_| format!("bad coordinate: {raw}"))
+    };
+    Ok(gpui::point(
+        gpui::px(coordinate(x)?),
+        gpui::px(coordinate(y)?),
+    ))
+}
+
+fn parse_steps(raw: &str) -> Result<Vec<Step>, String> {
+    raw.split_whitespace()
+        .map(|token| {
+            let (verb, arg) = token.split_once(':').unwrap_or((token, ""));
+            Ok(match verb {
+                "move" => Step::Move(parse_point(arg)?),
+                "drag" => Step::Drag(parse_point(arg)?),
+                "down" => Step::Down(parse_point(arg)?),
+                "up" => Step::Up(parse_point(arg)?),
+                "click" => Step::Click(parse_point(arg)?),
+                "scroll" => {
+                    let (at, dy) = arg
+                        .rsplit_once(',')
+                        .ok_or_else(|| format!("expected x,y,dy: {arg}"))?;
+                    let dy = dy.parse().map_err(|_| format!("bad delta: {dy}"))?;
+                    Step::Scroll(parse_point(at)?, dy)
+                }
+                "key" if !arg.is_empty() => Step::Key(arg.to_owned()),
+                "type" if !arg.is_empty() => Step::Type(arg.replace('_', " ")),
+                "exit" => Step::Exit,
+                "wait" => Step::Wait(arg.parse().map_err(|_| format!("bad wait: {arg}"))?),
+                _ => return Err(format!("unknown input step: {token}")),
+            })
+        })
+        .collect()
+}
+
+fn dispatch_step(step: &Step, window: &mut Window, cx: &mut App) -> Result<(), String> {
+    use gpui::{
+        Keystroke, Modifiers, MouseButton, MouseDownEvent, MouseExitEvent, MouseMoveEvent,
+        MouseUpEvent, PlatformInput, ScrollDelta, ScrollEvent,
+    };
+    let modifiers = Modifiers::default();
+    let down = |position| {
+        PlatformInput::MouseDown(MouseDownEvent {
+            button: MouseButton::Left,
+            position,
+            modifiers,
+            click_count: 1,
+            first_mouse: false,
+        })
+    };
+    let up = |position| {
+        PlatformInput::MouseUp(MouseUpEvent {
+            button: MouseButton::Left,
+            position,
+            modifiers,
+            click_count: 1,
+        })
+    };
+    let moved = |position, pressed_button| {
+        PlatformInput::MouseMove(MouseMoveEvent {
+            position,
+            pressed_button,
+            modifiers,
+        })
+    };
+    match step {
+        Step::Move(at) => {
+            window.dispatch_event(moved(*at, None), cx);
+        }
+        Step::Drag(at) => {
+            window.dispatch_event(moved(*at, Some(MouseButton::Left)), cx);
+        }
+        Step::Down(at) => {
+            window.dispatch_event(down(*at), cx);
+        }
+        Step::Up(at) => {
+            window.dispatch_event(up(*at), cx);
+        }
+        Step::Click(at) => {
+            window.dispatch_event(moved(*at, None), cx);
+            window.dispatch_event(down(*at), cx);
+            window.dispatch_event(up(*at), cx);
+        }
+        Step::Scroll(at, dy) => {
+            window.dispatch_event(
+                PlatformInput::Scroll(ScrollEvent {
+                    position: *at,
+                    delta: ScrollDelta::Pixels(gpui::point(gpui::px(0.), gpui::px(*dy))),
+                    ..Default::default()
+                }),
+                cx,
+            );
+        }
+        Step::Key(key) => {
+            let keystroke = Keystroke::parse_with_os(key, cx.platform_info().os)
+                .map_err(|error| format!("bad key {key}: {error:?}"))?;
+            window.dispatch_keystroke(keystroke.clone(), cx);
+            window.dispatch_event(PlatformInput::KeyUp(gpui::KeyUpEvent { keystroke }), cx);
+        }
+        Step::Type(text) => {
+            for ch in text.chars() {
+                let key = if ch == ' ' {
+                    "space".to_owned()
+                } else {
+                    ch.to_string()
+                };
+                let mut keystroke = Keystroke::parse_with_os(&key, cx.platform_info().os)
+                    .map_err(|error| format!("bad character {ch}: {error:?}"))?;
+                keystroke.key_char = Some(ch.to_string());
+                window.dispatch_keystroke(keystroke, cx);
+            }
+        }
+        Step::Exit => {
+            window.dispatch_event(
+                PlatformInput::MouseExited(MouseExitEvent {
+                    position: window.mouse_position(),
+                    pressed_button: None,
+                    modifiers,
+                }),
+                cx,
+            );
+        }
+        Step::Wait(_) => {}
+    }
+    Ok(())
+}
+
 #[derive(Debug)]
 struct Request {
     seq: String,
@@ -202,6 +364,10 @@ struct Request {
     preview: Option<bool>,
     reduce_motion: Option<bool>,
     specimen: Option<String>,
+    input: Vec<Step>,
+    /// Only `seq` and `input`: the steps continue the current view (an open
+    /// menu, a typed value) instead of re-applying page, section and overlays.
+    input_only: bool,
 }
 
 impl Request {
@@ -216,6 +382,8 @@ impl Request {
             preview: None,
             reduce_motion: None,
             specimen: None,
+            input: Vec::new(),
+            input_only: false,
         };
         let mut seen = HashSet::new();
         for line in text.trim_start_matches('\u{feff}').lines() {
@@ -247,6 +415,7 @@ impl Request {
                     }
                     request.specimen = Some(value.to_owned());
                 }
+                "input" => request.input = parse_steps(value)?,
                 _ => return Err(format!("unknown key: {key}")),
             }
         }
@@ -256,6 +425,7 @@ impl Request {
         if request.specimen.is_some() && request.preview != Some(true) {
             return Err("specimen requires preview=component".to_owned());
         }
+        request.input_only = seen.iter().all(|key| matches!(*key, "seq" | "input"));
         Ok(request)
     }
 }
@@ -317,7 +487,7 @@ pub fn spawn(window: WindowHandle<Gallery>, cx: &mut App) {
     }
     cx.spawn(async move |cx: &mut AsyncApp| {
         let mut last = String::new();
-        let mut pending: Option<(String, FrameAck)> = None;
+        let mut pending: Option<(String, FrameAck, Vec<Step>)> = None;
         loop {
             cx.background_executor()
                 .timer(Duration::from_millis(120))
@@ -332,22 +502,70 @@ pub fn spawn(window: WindowHandle<Gallery>, cx: &mut App) {
                 last = text.clone();
                 pending = None;
                 match Request::parse(&text) {
-                    Ok(request) => {
+                    Ok(mut request) => {
                         let completion = FrameAck::default();
                         let seq = request.seq.clone();
-                        if !cx.update(|cx| apply(request, window, completion.clone(), cx)) {
+                        let input = std::mem::take(&mut request.input);
+                        if request.input_only {
+                            completion.0.set(Some(true));
+                        } else if !cx.update(|cx| apply(request, window, completion.clone(), cx)) {
                             break;
                         }
-                        pending = Some((seq, completion));
+                        pending = Some((seq, completion, input));
                     }
                     Err(message) => report_error(&error, &text, &message),
                 }
             }
-            if let Some((seq, completion)) = &pending {
+            if let Some((seq, completion, input)) = &mut pending {
                 if let Some(matched) = completion.0.get() {
                     if !matched {
                         report_error(&error, &text, "section did not match the requested page");
                         pending = None;
+                    } else if !input.is_empty() {
+                        // Each step gets its own frames, so a hover style or
+                        // a press animation is drawn between steps exactly as
+                        // it would be between two real events.
+                        let mut failed = None;
+                        for step in std::mem::take(input) {
+                            let pause = match step {
+                                Step::Wait(ms) => ms,
+                                _ => 48,
+                            };
+                            // `update_window`, not `WindowHandle::update`: the
+                            // latter leases the gallery root for the whole
+                            // dispatch, and any listener that updates it would
+                            // then panic on a double lease.
+                            let dispatched = gpui::AppContext::update_window(
+                                cx,
+                                window.into(),
+                                |_, window, cx| dispatch_step(&step, window, cx),
+                            );
+                            match dispatched {
+                                Ok(Ok(())) => {}
+                                Ok(Err(message)) => {
+                                    failed = Some(message);
+                                    break;
+                                }
+                                Err(_) => return,
+                            }
+                            cx.background_executor()
+                                .timer(Duration::from_millis(pause))
+                                .await;
+                        }
+                        if let Some(message) = failed {
+                            report_error(&error, &text, &message);
+                            pending = None;
+                            continue;
+                        }
+                        let after = FrameAck::default();
+                        let armed = window.update(cx, |gallery, _, cx| {
+                            gallery.control_frame = Some(after.clone());
+                            cx.notify();
+                        });
+                        if armed.is_err() {
+                            return;
+                        }
+                        *completion = after;
                     } else if let Err(error) = write_atomic(&ack, seq) {
                         eprintln!("gallery control could not acknowledge {seq}: {error}");
                     } else {

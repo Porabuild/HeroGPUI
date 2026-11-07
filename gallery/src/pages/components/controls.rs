@@ -37,17 +37,14 @@ impl Gallery {
                 ("Range with Steps and Marks", col(vec![fixed_demo(320., h::Slider::new("sl-indicators-3", 40.).default_value(40.).label("Volume").show_value(true).default_values([20., 80.]).step(10.).show_steps(true).marks([h::SliderMark::new(0.), h::SliderMark::new(50.), h::SliderMark::new(100.)]))])),
                 ("Vertical Steps and Marks", col(vec![fixed_demo(320., h::Slider::new("sl-indicators-4", 40.).default_value(40.).label("Volume").show_value(true).orientation(Orientation::Vertical).step(20.).show_steps(true).marks([h::SliderMark::new(0.), h::SliderMark::new(50.), h::SliderMark::new(100.)]))])),
                 (
-                    "Format options",
+                    "Disabled", "A disabled slider keeps its value readable but answers no drag, wheel, or keys.",
                     col(vec![fixed_demo(
                         320.,
-                        h::Slider::new("sl-fmt", value)
-                            .label("Budget")
+                        h::Slider::new("sl-disabled", 30.)
+                            .default_value(30.)
+                            .label("Volume")
                             .show_value(true)
-                            .format_options(h::NumberFormat::currency("EUR"))
-                            .on_change(cx.listener(|this, v: &f32, _, cx| {
-                                this.slider_value = *v;
-                                cx.notify();
-                            })),
+                            .is_disabled(true),
                     )]),
                 ),
                 (
@@ -84,6 +81,32 @@ impl Gallery {
                                 }),
                         ),
                     ]),
+                ),
+                (
+                    "Vertical",
+                    row(vec![h::Slider::new("sl-vert", value)
+                        .orientation(Orientation::Vertical)
+                        .on_change(cx.listener(|this, v: &f32, _, cx| {
+                            this.slider_value = *v;
+                            cx.notify();
+                        }))
+                        .into_any_element()]),
+                ),
+                (
+                    "Range",
+                    col(vec![fixed_demo(
+                        320.,
+                        h::Slider::new("sl-range", value)
+                            .label("Price range")
+                            // An empty controlled range falls back to one
+                            // thumb; keep that fallback interactive too.
+                            .default_value(value)
+                            .values(self.slider_range.clone())
+                            .on_change_all(cx.listener(|this, vs: &[f32], _, cx| {
+                                this.slider_range = vs.to_vec();
+                                cx.notify();
+                            })),
+                    )]),
                 ),
                 (
                     "Controlled Value",
@@ -129,6 +152,20 @@ impl Gallery {
                     ]),
                 ),
                 (
+                    "Format options",
+                    col(vec![fixed_demo(
+                        320.,
+                        h::Slider::new("sl-fmt", value)
+                            .label("Budget")
+                            .show_value(true)
+                            .format_options(h::NumberFormat::currency("EUR"))
+                            .on_change(cx.listener(|this, v: &f32, _, cx| {
+                                this.slider_value = *v;
+                                cx.notify();
+                            })),
+                    )]),
+                ),
+                (
                     "Custom Output Display", "The output closure receives every live value and its formatted thumb label.",
                     col(vec![
                         gpui::div()
@@ -157,22 +194,6 @@ impl Gallery {
                     ]),
                 ),
                 (
-                    "Range",
-                    col(vec![fixed_demo(
-                        320.,
-                        h::Slider::new("sl-range", value)
-                            .label("Price range")
-                            // An empty controlled range falls back to one
-                            // thumb; keep that fallback interactive too.
-                            .default_value(value)
-                            .values(self.slider_range.clone())
-                            .on_change_all(cx.listener(|this, vs: &[f32], _, cx| {
-                                this.slider_range = vs.to_vec();
-                                cx.notify();
-                            })),
-                    )]),
-                ),
-                (
                     "Range Slider", "An uncontrolled range specimen: two thumbs seeded at 100 and 500 over a 0-1000 span, stepping by 50 and formatted as US dollars.",
                     col(vec![fixed_demo(
                         320.,
@@ -196,17 +217,6 @@ impl Gallery {
                             .default_value(100.)
                             .label("Storage")
                             .show_value(true),
-                    )]),
-                ),
-                (
-                    "Disabled", "A disabled slider keeps its value readable but answers no drag, wheel, or keys.",
-                    col(vec![fixed_demo(
-                        320.,
-                        h::Slider::new("sl-disabled", 30.)
-                            .default_value(30.)
-                            .label("Volume")
-                            .show_value(true)
-                            .is_disabled(true),
                     )]),
                 ),
                 (
@@ -320,16 +330,6 @@ impl Gallery {
                     ]),
                 ),
                 (
-                    "Vertical",
-                    row(vec![h::Slider::new("sl-vert", value)
-                        .orientation(Orientation::Vertical)
-                        .on_change(cx.listener(|this, v: &f32, _, cx| {
-                            this.slider_value = *v;
-                            cx.notify();
-                        }))
-                        .into_any_element()]),
-                ),
-                (
                     "Step & disabled",
                     col(vec![
                         fixed_demo(
@@ -391,19 +391,6 @@ impl Gallery {
                     ]), cx),
                 ),
                 (
-                    "Label Size",
-                    "`text_size` replaces the label's `text-sm`; a 12/14/16px size takes v3's 16/20/24 leading. The track and thumb keep their size.",
-                    specimen_body(
-                        "sw-label-size",
-                        h::Switch::new("sw-label-size")
-                            .default_selected(true)
-                            .text_size(px(16.))
-                            .label("Larger label")
-                            .into_any_element(),
-                        cx,
-                    ),
-                ),
-                (
                     "Sizes",
                     row(Size::ALL
                         .iter()
@@ -434,6 +421,18 @@ impl Gallery {
                         specimen_body("sw-icon-unselected", h::Switch::new("sw-icon-2")
                             .thumb_icons(icon(h::icons::EYE_OFF, cx), icon(h::icons::EYE, cx))
                             .label(gpui::div().child("Show preview"))
+                            .into_any_element(), cx),
+                    ]),
+                ),
+                (
+                    "Disabled",
+                    row(vec![
+                        specimen_body("sw-disabled-off", h::Switch::new("sw-d-off")
+                            .is_disabled(true)
+                            .into_any_element(), cx),
+                        specimen_body("sw-disabled-on", h::Switch::new("sw-d-on")
+                            .is_selected(true)
+                            .is_disabled(true)
                             .into_any_element(), cx),
                     ]),
                 ),
@@ -623,16 +622,17 @@ impl Gallery {
                         .into_any_element()]), cx),
                 ),
                 (
-                    "Disabled",
-                    row(vec![
-                        specimen_body("sw-disabled-off", h::Switch::new("sw-d-off")
-                            .is_disabled(true)
-                            .into_any_element(), cx),
-                        specimen_body("sw-disabled-on", h::Switch::new("sw-d-on")
-                            .is_selected(true)
-                            .is_disabled(true)
-                            .into_any_element(), cx),
-                    ]),
+                    "Label Size",
+                    "`text_size` replaces the label's `text-sm`; a 12/14/16px size takes v3's 16/20/24 leading. The track and thumb keep their size.",
+                    specimen_body(
+                        "sw-label-size",
+                        h::Switch::new("sw-label-size")
+                            .default_selected(true)
+                            .text_size(px(16.))
+                            .label("Larger label")
+                            .into_any_element(),
+                        cx,
+                    ),
                 ),
             ],
             cx,

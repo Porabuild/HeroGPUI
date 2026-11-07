@@ -1588,7 +1588,10 @@ impl RenderOnce for DateField {
             if parsed.is_none() {
                 seg = seg.text_color(colors.muted);
             }
-            if focused == segment {
+            // `.date-input-group__segment:focus` only: the remembered segment
+            // is where focus lands next, not a focused segment while the
+            // field itself does not hold focus.
+            if focused == segment && focus_handle.is_focused(window) {
                 seg = seg
                     .bg(colors.accent.soft())
                     .text_color(colors.accent.soft_foreground(colors.foreground));
@@ -1638,12 +1641,18 @@ impl RenderOnce for DateField {
         }
 
         if let Some(suffix) = self.suffix {
+            // `.date-input-group__suffix` is `shrink-0 me-3`: pinned to the
+            // field's end, not trailing the last segment. `ml_auto` pushes it
+            // across the free space and the `pl` keeps the same minimum gap
+            // the old `ml(4)` plus the row's `gap(2)` gave (the group's `px`
+            // already supplies v3's `me-3` inset from the border).
             group = group.child(
                 gpui::div()
                     .flex()
                     .items_center()
                     .flex_shrink_0()
-                    .ml(px(4.))
+                    .ml_auto()
+                    .pl(px(4.))
                     .text_color(colors.field.placeholder)
                     .child(suffix),
             );

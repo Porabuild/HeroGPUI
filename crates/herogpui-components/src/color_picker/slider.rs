@@ -699,6 +699,7 @@ impl RenderOnce for ColorSlider {
                 })
                 .when_some(thumb_content, |thumb, content| thumb.child(content)),
             color_thumb_shadows(),
+            px(16.),
             true,
             cx,
         );

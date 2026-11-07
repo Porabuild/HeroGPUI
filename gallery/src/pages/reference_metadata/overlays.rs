@@ -366,8 +366,8 @@ const DRAWER_PARTS: &[PartDoc] = &[
     PartDoc {
         name: "Drawer.Handle",
         slot: "drawer-handle",
-        description: "Separator bar that starts the drag-to-dismiss gesture.",
-        rust_owner: "Drawer",
+        description: "Optional composed drag handle: the separator bar that starts the drag-to-dismiss gesture, mounted before the header on every placement except Top, where it follows the footer at the moving edge. With no dismissal wiring it still paints but cannot drag.",
+        rust_owner: "DrawerHandle",
         status: ImplementationStatus::Implemented,
     },
     PartDoc {
@@ -590,7 +590,7 @@ const DRAWER_STYLING: &[StyleDoc] = &[
 
 pub(super) const DRAWER: ReferenceMetadata = ReferenceMetadata {
     page: "Drawer",
-    import_line: "use herogpui::components::drawer::{Drawer, DrawerCloseTrigger, DrawerPlacement};",
+    import_line: "use herogpui::components::drawer::{Drawer, DrawerCloseTrigger, DrawerHandle, DrawerPlacement};",
     source_module: "drawer",
     version: "3.2.7",
     docs_source: "https://github.com/heroui-inc/heroui/blob/v3.2.7/apps/docs/content/docs/en/react/components/(overlays)/drawer.mdx",

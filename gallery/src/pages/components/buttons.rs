@@ -195,55 +195,6 @@ impl Gallery {
                         .into_any_element()]),
                 ),
                 (
-                    "Pixel Geometry", "`width`, `min_width`, `height` and `padding_x` set the box in place of the size ladder. An explicit pixel `width` beats `full_width`, and the pressed skin keeps the fixed box.",
-                    specimen_body("btn-pixel-geometry", row(vec![gpui::div()
-                        .flex()
-                        .items_start()
-                        .gap(px(12.))
-                        .child(
-                            h::Button::new("btn-geom-sized")
-                                .label("200 x 56")
-                                .width(px(200.))
-                                .height(px(56.)),
-                        )
-                        .child(
-                            h::Button::new("btn-geom-roomy")
-                                .label("Roomy")
-                                .padding_x(px(32.)),
-                        )
-                        .child(
-                            h::Button::new("btn-geom-min")
-                                .label("Min 160")
-                                .min_width(px(160.)),
-                        )
-                        .into_any_element()]), cx),
-                ),
-                (
-                    "Text Metrics", "`text_size` and `font_weight` restyle the label in place of the size step's `text-sm font-medium`; a Tailwind step keeps its paired leading.",
-                    specimen_body("btn-text-metrics", row(vec![
-                        h::Button::new("btn-metrics-large")
-                            .label("18px SemiBold")
-                            .text_size(px(18.))
-                            .font_weight(gpui::FontWeight::SEMIBOLD)
-                            .into_any_element(),
-                        h::Button::new("btn-metrics-small")
-                            .label("12px medium")
-                            .text_size(px(12.))
-                            .into_any_element(),
-                    ]), cx),
-                ),
-                (
-                    "Flex Fill", "`grow` is v3's `flex-1` plus `min-w-0`: the growing buttons share the row's free width and compress below their content width when the row is tight, while the fixed one keeps its own.",
-                    specimen_body("btn-flex-fill", row(vec![gpui::div()
-                        .flex()
-                        .w(px(400.))
-                        .gap(px(8.))
-                        .child(h::Button::new("btn-grow-fill").label("Fill").grow(true))
-                        .child(h::Button::new("btn-grow-share").label("Shares too").grow(true))
-                        .child(h::Button::new("btn-grow-fixed").label("Fixed"))
-                        .into_any_element()]), cx),
-                ),
-                (
                     "Disabled State",
                     row(Variant::ALL
                         .iter()
@@ -307,6 +258,55 @@ impl Gallery {
                                 .into_any_element(),
                         ]
                     }),
+                ),
+                (
+                    "Pixel Geometry", "`width`, `min_width`, `height` and `padding_x` set the box in place of the size ladder. An explicit pixel `width` beats `full_width`, and the pressed skin keeps the fixed box.",
+                    specimen_body("btn-pixel-geometry", row(vec![gpui::div()
+                        .flex()
+                        .items_start()
+                        .gap(px(12.))
+                        .child(
+                            h::Button::new("btn-geom-sized")
+                                .label("200 x 56")
+                                .width(px(200.))
+                                .height(px(56.)),
+                        )
+                        .child(
+                            h::Button::new("btn-geom-roomy")
+                                .label("Roomy")
+                                .padding_x(px(32.)),
+                        )
+                        .child(
+                            h::Button::new("btn-geom-min")
+                                .label("Min 160")
+                                .min_width(px(160.)),
+                        )
+                        .into_any_element()]), cx),
+                ),
+                (
+                    "Text Metrics", "`text_size` and `font_weight` restyle the label in place of the size step's `text-sm font-medium`; a Tailwind step keeps its paired leading.",
+                    specimen_body("btn-text-metrics", row(vec![
+                        h::Button::new("btn-metrics-large")
+                            .label("18px SemiBold")
+                            .text_size(px(18.))
+                            .font_weight(gpui::FontWeight::SEMIBOLD)
+                            .into_any_element(),
+                        h::Button::new("btn-metrics-small")
+                            .label("12px medium")
+                            .text_size(px(12.))
+                            .into_any_element(),
+                    ]), cx),
+                ),
+                (
+                    "Flex Fill", "`grow` is v3's `flex-1` plus `min-w-0`: the growing buttons share the row's free width and compress below their content width when the row is tight, while the fixed one keeps its own.",
+                    specimen_body("btn-flex-fill", row(vec![gpui::div()
+                        .flex()
+                        .w(px(400.))
+                        .gap(px(8.))
+                        .child(h::Button::new("btn-grow-fill").label("Fill").grow(true))
+                        .child(h::Button::new("btn-grow-share").label("Shares too").grow(true))
+                        .child(h::Button::new("btn-grow-fixed").label("Fixed"))
+                        .into_any_element()]), cx),
                 ),
                 (
                     "Press handler",
@@ -398,18 +398,24 @@ impl Gallery {
                     ),
                 ),
                 (
-                    "Merged",
-                    specimen_body(
-                        "bgroup-merged",
-                        row(vec![h::ButtonGroup::new()
-                            .variant(Variant::Secondary)
-                            .separators(true)
-                            .button(h::Button::new("bg-1").label("Day"))
-                            .button(h::Button::new("bg-2").label("Week"))
-                            .button(h::Button::new("bg-3").label("Month"))
-                            .into_any_element()]),
-                        cx
-                    ),
+                    "Variants",
+                    col(Variant::GROUP
+                        .iter()
+                        .filter_map(|v| {
+                            let key = format!("bgroup-v-{v:?}");
+                            crate::control::specimen_wanted(&key, cx).then(|| {
+                                h::ButtonGroup::new()
+                                    .variant(*v)
+                                    .separators(true)
+                                    .button(
+                                        h::Button::new(el_id(format!("bgv-{v:?}-1"))).label("One"),
+                                    )
+                                    .button(
+                                        h::Button::new(el_id(format!("bgv-{v:?}-2"))).label("Two"),
+                                    )
+                            })
+                        })
+                        .els()),
                 ),
                 (
                     "Sizes",
@@ -433,52 +439,6 @@ impl Gallery {
                                     .button(
                                         h::Button::new(el_id(format!("bgs-{sz:?}-3")))
                                             .label("Right"),
-                                    )
-                            })
-                        })
-                        .els()),
-                ),
-                (
-                    "With Icons",
-                    specimen_body(
-                        "bgroup-icons",
-                        row(vec![h::ButtonGroup::new()
-                            .variant(Variant::Tertiary)
-                            .separators(true)
-                            .button(
-                                h::Button::new("bgi-1")
-                                    .child(icon(h::icons::COPY, cx))
-                                    .child("Fork"),
-                            )
-                            .button(
-                                h::Button::new("bgi-2")
-                                    .child(icon(h::icons::PLUS, cx))
-                                    .child("Star"),
-                            )
-                            .button(
-                                h::Button::new("bgi-3")
-                                    .is_icon_only(true)
-                                    .child(icon(h::icons::ELLIPSIS, cx)),
-                            )
-                            .into_any_element()]),
-                        cx
-                    ),
-                ),
-                (
-                    "Variants",
-                    col(Variant::GROUP
-                        .iter()
-                        .filter_map(|v| {
-                            let key = format!("bgroup-v-{v:?}");
-                            crate::control::specimen_wanted(&key, cx).then(|| {
-                                h::ButtonGroup::new()
-                                    .variant(*v)
-                                    .separators(true)
-                                    .button(
-                                        h::Button::new(el_id(format!("bgv-{v:?}-1"))).label("One"),
-                                    )
-                                    .button(
-                                        h::Button::new(el_id(format!("bgv-{v:?}-2"))).label("Two"),
                                     )
                             })
                         })
@@ -513,6 +473,32 @@ impl Gallery {
                     ]),
                 ),
                 (
+                    "With Icons",
+                    specimen_body(
+                        "bgroup-icons",
+                        row(vec![h::ButtonGroup::new()
+                            .variant(Variant::Tertiary)
+                            .separators(true)
+                            .button(
+                                h::Button::new("bgi-1")
+                                    .child(icon(h::icons::COPY, cx))
+                                    .child("Fork"),
+                            )
+                            .button(
+                                h::Button::new("bgi-2")
+                                    .child(icon(h::icons::PLUS, cx))
+                                    .child("Star"),
+                            )
+                            .button(
+                                h::Button::new("bgi-3")
+                                    .is_icon_only(true)
+                                    .child(icon(h::icons::ELLIPSIS, cx)),
+                            )
+                            .into_any_element()]),
+                        cx
+                    ),
+                ),
+                (
                     "Full Width",
                     specimen_body(
                         "bgroup-full-width",
@@ -527,6 +513,20 @@ impl Gallery {
                                     .button(h::Button::new("bgf-2").label("Save draft"))
                                     .button(h::Button::new("bgf-3").label("Publish")),
                             )
+                            .into_any_element()]),
+                        cx
+                    ),
+                ),
+                (
+                    "Disabled State",
+                    specimen_body(
+                        "bgroup-disabled",
+                        row(vec![h::ButtonGroup::new()
+                            .variant(Variant::Secondary)
+                            .is_disabled(true)
+                            .separators(true)
+                            .button(h::Button::new("bgd2-1").label("One"))
+                            .button(h::Button::new("bgd2-2").label("Two"))
                             .into_any_element()]),
                         cx
                     ),
@@ -547,15 +547,15 @@ impl Gallery {
                     ),
                 ),
                 (
-                    "Disabled State",
+                    "Merged",
                     specimen_body(
-                        "bgroup-disabled",
+                        "bgroup-merged",
                         row(vec![h::ButtonGroup::new()
                             .variant(Variant::Secondary)
-                            .is_disabled(true)
                             .separators(true)
-                            .button(h::Button::new("bgd2-1").label("One"))
-                            .button(h::Button::new("bgd2-2").label("Two"))
+                            .button(h::Button::new("bg-1").label("Day"))
+                            .button(h::Button::new("bg-2").label("Week"))
+                            .button(h::Button::new("bg-3").label("Month"))
                             .into_any_element()]),
                         cx
                     ),
@@ -664,27 +664,18 @@ impl Gallery {
                         .into_any_element()]), cx),
                 ),
                 (
-                    "Hover Colour",
-                    "`hover_bg` follows the Button resting-endpoint contract: the fade runs from the resting background to the named hover fill.",
-                    specimen_body("toggle-hover-bg", row(vec![h::ToggleButton::new("tb-hover-bg")
-                        .label("Hover")
-                        .hover_bg(accent)
-                        .into_any_element()]), cx),
-                ),
-                (
-                    "Sizes",
-                    row(Size::ALL
-                        .iter()
-                        .filter_map(|sz| {
-                            let key = format!("toggle-size-{sz:?}");
-                            crate::control::specimen_wanted(&key, cx).then(|| {
-                                h::ToggleButton::new(el_id(format!("tb-sz-{sz:?}")))
-                                    .label(sz.label())
-                                    .size(*sz)
-                                    .default_selected(true)
-                            })
-                        })
-                        .els()),
+                    "Variants",
+                    specimen_body("toggle-variants", row(vec![
+                        h::ToggleButton::new("tb-v-default")
+                            .label("Default")
+                            .default_selected(true)
+                            .into_any_element(),
+                        h::ToggleButton::new("tb-v-ghost")
+                            .label("Ghost")
+                            .variant(h::ToggleVariant::Ghost)
+                            .default_selected(true)
+                            .into_any_element(),
+                    ]), cx),
                 ),
                 (
                     "Icon Only",
@@ -705,6 +696,52 @@ impl Gallery {
                     ]), cx),
                 ),
                 (
+                    "Sizes",
+                    row(Size::ALL
+                        .iter()
+                        .filter_map(|sz| {
+                            let key = format!("toggle-size-{sz:?}");
+                            crate::control::specimen_wanted(&key, cx).then(|| {
+                                h::ToggleButton::new(el_id(format!("tb-sz-{sz:?}")))
+                                    .label(sz.label())
+                                    .size(*sz)
+                                    .default_selected(true)
+                            })
+                        })
+                        .els()),
+                ),
+                (
+                    "Orientation",
+                    row(vec![specimen_body("toggle-orientation-horizontal", h::ToggleButtonGroup::new("toggle-orientation-horizontal")
+                            .separators(true)
+                            .child_toggle(h::ToggleButton::new("tbo-h-1").label("Day"))
+                            .child_toggle(h::ToggleButton::new("tbo-h-2").label("Week"))
+                            .child_toggle(h::ToggleButton::new("tbo-h-3").label("Month"))
+                            .into_any_element(), cx),
+                        specimen_body("toggle-orientation-vertical", h::ToggleButtonGroup::new("toggle-orientation-vertical")
+                            .orientation(Orientation::Vertical)
+                            .separators(true)
+                            .child_toggle(h::ToggleButton::new("tbo-v-1").label("Day"))
+                            .child_toggle(h::ToggleButton::new("tbo-v-2").label("Week"))
+                            .child_toggle(h::ToggleButton::new("tbo-v-3").label("Month"))
+                            .into_any_element(), cx),
+                    ]),
+                ),
+                (
+                    "Full Width",
+                    specimen_body("toggle-full-width", col(vec![gpui::div()
+                        .w_full()
+                        .child(
+                            h::ToggleButtonGroup::new("toggle-full-width")
+                                .full_width(true)
+                                .separators(true)
+                                .child_toggle(h::ToggleButton::new("tbf-1").label("Left"))
+                                .child_toggle(h::ToggleButton::new("tbf-2").label("Center"))
+                                .child_toggle(h::ToggleButton::new("tbf-3").label("Right")),
+                        )
+                        .into_any_element()]), cx),
+                ),
+                (
                     "Disabled",
                     specimen_body("toggle-disabled", row(vec![
                         h::ToggleButton::new("tb-dis-1")
@@ -715,6 +752,77 @@ impl Gallery {
                             .label("On")
                             .is_selected(true)
                             .is_disabled(true)
+                            .into_any_element(),
+                    ]), cx),
+                ),
+                (
+                    "Without Separator",
+                    specimen_body("toggle-without-separator", row(vec![h::ToggleButtonGroup::new("toggle-without-separator")
+                        // v3: omit the `<ToggleButtonGroup.Separator />` child
+                        // composition — the port's default draws no dividers.
+                        .child_toggle(h::ToggleButton::new("tbn-1").label("One"))
+                        .child_toggle(h::ToggleButton::new("tbn-2").label("Two"))
+                        .child_toggle(h::ToggleButton::new("tbn-3").label("Three"))
+                        .into_any_element()]), cx),
+                ),
+                (
+                    "Detached", "`is_detached` separates the buttons with gaps instead of connecting them; the attached icon group above the detached one shows the default for contrast.",
+                    specimen_body("toggle-detached", col(vec![
+                        h::ToggleButtonGroup::new("toggle-attached")
+                            .separators(true)
+                            .child_toggle(
+                                h::ToggleButton::new("tbatt-1")
+                                    .is_icon_only(true)
+                                    .child(icon(h::icons::HEART, cx)),
+                            )
+                            .child_toggle(
+                                h::ToggleButton::new("tbatt-2")
+                                    .is_icon_only(true)
+                                    .child(icon(h::icons::GEAR, cx)),
+                            )
+                            .child_toggle(
+                                h::ToggleButton::new("tbatt-3")
+                                    .is_icon_only(true)
+                                    .child(icon(h::icons::MAIL, cx)),
+                            )
+                            .into_any_element(),
+                        h::ToggleButtonGroup::new("toggle-detached")
+                            .is_detached(true)
+                            .child_toggle(
+                                h::ToggleButton::new("tbd-1")
+                                    .is_icon_only(true)
+                                    .child(icon(h::icons::HEART, cx)),
+                            )
+                            .child_toggle(
+                                h::ToggleButton::new("tbd-2")
+                                    .is_icon_only(true)
+                                    .child(icon(h::icons::GEAR, cx)),
+                            )
+                            .child_toggle(
+                                h::ToggleButton::new("tbd-3")
+                                    .is_icon_only(true)
+                                    .child(icon(h::icons::MAIL, cx)),
+                            )
+                            .into_any_element(),
+                    ]), cx),
+                ),
+                (
+                    "Selection Mode", "Single: exactly one member stays selected.",
+                    specimen_body("toggle-selection-mode", col(vec![
+                        h::ToggleButtonGroup::new("toggle-selection-single")
+                            .selection_mode(SelectionMode::Single)
+                            .separators(true)
+                            .child_toggle(h::ToggleButton::new("tbsm-s-1").key("a").label("A"))
+                            .child_toggle(h::ToggleButton::new("tbsm-s-2").key("b").label("B"))
+                            .child_toggle(h::ToggleButton::new("tbsm-s-3").key("c").label("C"))
+                            .into_any_element(),
+                        para("Multiple: any number of members can be selected.", cx),
+                        h::ToggleButtonGroup::new("toggle-selection-multiple")
+                            .selection_mode(SelectionMode::Multiple)
+                            .separators(true)
+                            .child_toggle(h::ToggleButton::new("tbsm-m-1").key("a").label("A"))
+                            .child_toggle(h::ToggleButton::new("tbsm-m-2").key("b").label("B"))
+                            .child_toggle(h::ToggleButton::new("tbsm-m-3").key("c").label("C"))
                             .into_any_element(),
                     ]), cx),
                 ),
@@ -746,6 +854,14 @@ impl Gallery {
                             cx,
                         ),
                     ]), cx),
+                ),
+                (
+                    "Hover Colour",
+                    "`hover_bg` follows the Button resting-endpoint contract: the fade runs from the resting background to the named hover fill.",
+                    specimen_body("toggle-hover-bg", row(vec![h::ToggleButton::new("tb-hover-bg")
+                        .label("Hover")
+                        .hover_bg(accent)
+                        .into_any_element()]), cx),
                 ),
                 (
                     "Single selection",
@@ -788,81 +904,6 @@ impl Gallery {
                             cx.notify();
                         }))
                         .into_any_element()]), cx),
-                ),
-                (
-                    "Variants",
-                    specimen_body("toggle-variants", row(vec![
-                        h::ToggleButton::new("tb-v-default")
-                            .label("Default")
-                            .default_selected(true)
-                            .into_any_element(),
-                        h::ToggleButton::new("tb-v-ghost")
-                            .label("Ghost")
-                            .variant(h::ToggleVariant::Ghost)
-                            .default_selected(true)
-                            .into_any_element(),
-                    ]), cx),
-                ),
-                (
-                    "Orientation",
-                    row(vec![specimen_body("toggle-orientation-horizontal", h::ToggleButtonGroup::new("toggle-orientation-horizontal")
-                            .separators(true)
-                            .child_toggle(h::ToggleButton::new("tbo-h-1").label("Day"))
-                            .child_toggle(h::ToggleButton::new("tbo-h-2").label("Week"))
-                            .child_toggle(h::ToggleButton::new("tbo-h-3").label("Month"))
-                            .into_any_element(), cx),
-                        specimen_body("toggle-orientation-vertical", h::ToggleButtonGroup::new("toggle-orientation-vertical")
-                            .orientation(Orientation::Vertical)
-                            .separators(true)
-                            .child_toggle(h::ToggleButton::new("tbo-v-1").label("Day"))
-                            .child_toggle(h::ToggleButton::new("tbo-v-2").label("Week"))
-                            .child_toggle(h::ToggleButton::new("tbo-v-3").label("Month"))
-                            .into_any_element(), cx),
-                    ]),
-                ),
-                (
-                    "Full Width",
-                    specimen_body("toggle-full-width", col(vec![gpui::div()
-                        .w_full()
-                        .child(
-                            h::ToggleButtonGroup::new("toggle-full-width")
-                                .full_width(true)
-                                .separators(true)
-                                .child_toggle(h::ToggleButton::new("tbf-1").label("Left"))
-                                .child_toggle(h::ToggleButton::new("tbf-2").label("Center"))
-                                .child_toggle(h::ToggleButton::new("tbf-3").label("Right")),
-                        )
-                        .into_any_element()]), cx),
-                ),
-                (
-                    "Without Separator",
-                    specimen_body("toggle-without-separator", row(vec![h::ToggleButtonGroup::new("toggle-without-separator")
-                        // v3: omit the `<ToggleButtonGroup.Separator />` child
-                        // composition — the port's default draws no dividers.
-                        .child_toggle(h::ToggleButton::new("tbn-1").label("One"))
-                        .child_toggle(h::ToggleButton::new("tbn-2").label("Two"))
-                        .child_toggle(h::ToggleButton::new("tbn-3").label("Three"))
-                        .into_any_element()]), cx),
-                ),
-                (
-                    "Selection Mode", "Single: exactly one member stays selected.",
-                    specimen_body("toggle-selection-mode", col(vec![
-                        h::ToggleButtonGroup::new("toggle-selection-single")
-                            .selection_mode(SelectionMode::Single)
-                            .separators(true)
-                            .child_toggle(h::ToggleButton::new("tbsm-s-1").key("a").label("A"))
-                            .child_toggle(h::ToggleButton::new("tbsm-s-2").key("b").label("B"))
-                            .child_toggle(h::ToggleButton::new("tbsm-s-3").key("c").label("C"))
-                            .into_any_element(),
-                        para("Multiple: any number of members can be selected.", cx),
-                        h::ToggleButtonGroup::new("toggle-selection-multiple")
-                            .selection_mode(SelectionMode::Multiple)
-                            .separators(true)
-                            .child_toggle(h::ToggleButton::new("tbsm-m-1").key("a").label("A"))
-                            .child_toggle(h::ToggleButton::new("tbsm-m-2").key("b").label("B"))
-                            .child_toggle(h::ToggleButton::new("tbsm-m-3").key("c").label("C"))
-                            .into_any_element(),
-                    ]), cx),
                 ),
                 (
                     "Default Selected Keys", "Uncontrolled: `defaultSelectedKeys` seeds the group's own selection, and the group keeps ownership from there — clicking a member still toggles it.",
@@ -914,47 +955,6 @@ impl Gallery {
                             .separators(true)
                             .child_toggle(h::ToggleButton::new("tbv-1").label("Top"))
                             .child_toggle(h::ToggleButton::new("tbv-2").label("Bottom"))
-                            .into_any_element(),
-                    ]), cx),
-                ),
-                (
-                    "Detached", "`is_detached` separates the buttons with gaps instead of connecting them; the attached icon group above the detached one shows the default for contrast.",
-                    specimen_body("toggle-detached", col(vec![
-                        h::ToggleButtonGroup::new("toggle-attached")
-                            .separators(true)
-                            .child_toggle(
-                                h::ToggleButton::new("tbatt-1")
-                                    .is_icon_only(true)
-                                    .child(icon(h::icons::HEART, cx)),
-                            )
-                            .child_toggle(
-                                h::ToggleButton::new("tbatt-2")
-                                    .is_icon_only(true)
-                                    .child(icon(h::icons::GEAR, cx)),
-                            )
-                            .child_toggle(
-                                h::ToggleButton::new("tbatt-3")
-                                    .is_icon_only(true)
-                                    .child(icon(h::icons::MAIL, cx)),
-                            )
-                            .into_any_element(),
-                        h::ToggleButtonGroup::new("toggle-detached")
-                            .is_detached(true)
-                            .child_toggle(
-                                h::ToggleButton::new("tbd-1")
-                                    .is_icon_only(true)
-                                    .child(icon(h::icons::HEART, cx)),
-                            )
-                            .child_toggle(
-                                h::ToggleButton::new("tbd-2")
-                                    .is_icon_only(true)
-                                    .child(icon(h::icons::GEAR, cx)),
-                            )
-                            .child_toggle(
-                                h::ToggleButton::new("tbd-3")
-                                    .is_icon_only(true)
-                                    .child(icon(h::icons::MAIL, cx)),
-                            )
                             .into_any_element(),
                     ]), cx),
                 ),

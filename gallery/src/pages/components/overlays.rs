@@ -17,17 +17,13 @@ impl Gallery {
                 (
                     "Usage",
                     stretch_col(vec![{
-                        overlay_min_h(
-                            gpui::div()
-                                .relative()
-                                .flex()
-                                .flex_col()
-                        .items_center()
-                        .w_full(),
-                            is_open,
-                            240.,
-                        )
-                        .child(
+                        gpui::div()
+                            .relative()
+                            .flex()
+                            .flex_col()
+                            .items_center()
+                            .w_full()
+                            .child(
                             h::Button::new("ad-open")
                                 .label("Delete project")
                                 .variant(Variant::Danger)
@@ -74,39 +70,6 @@ impl Gallery {
                     }]),
                 ),
                 (
-                    "Sizes",
-                    stretch_col([
-                        ("ad-size-xs", "Xs", h::AlertDialogSize::Xs),
-                        ("ad-size-sm", "Sm", h::AlertDialogSize::Sm),
-                        ("ad-size-md", "Md", h::AlertDialogSize::Md),
-                        ("ad-size-lg", "Lg", h::AlertDialogSize::Lg),
-                        ("ad-size-cover", "Cover", h::AlertDialogSize::Cover),
-                    ]
-                    .into_iter()
-                    .map(|(key, label, size)| {
-                        let open = self.demo_overlay(key);
-                        overlay_demo(
-                            open,
-                            key,
-                            label,
-                            h::AlertDialog::new(format!("Size: {label}")).id(key)
-                                .description("Every size shares one panel style.")
-                                .is_open(open)
-                                .size(size)
-                                .child(h::AlertDialogCloseTrigger::new())
-                                .on_open_change(cx.listener(
-                                    move |this, v: &bool, _, cx| {
-                                        this.set_demo_flag(key, *v);
-                                        cx.notify();
-                                    },
-                                ))
-                                .into_any_element(),
-                            cx,
-                        )
-                    })
-                    .collect()),
-                ),
-                (
                     "Statuses",
                     stretch_col([
                         ("ad-st-default", "Default", Color::Default),
@@ -119,7 +82,6 @@ impl Gallery {
                     .map(|(key, label, status)| {
                         let open = self.demo_overlay(key);
                         overlay_demo(
-                            open,
                             key,
                             label,
                             h::AlertDialog::new(format!("{label} status")).id(key)
@@ -151,7 +113,6 @@ impl Gallery {
                     .map(|(key, label, placement)| {
                         let open = self.demo_overlay(key);
                         overlay_demo(
-                            open,
                             key,
                             label,
                             h::AlertDialog::new(format!("Placement: {label}")).id(key)
@@ -172,41 +133,40 @@ impl Gallery {
                     .collect()),
                 ),
                 (
-                    "Backdrop Variants",
-                    stretch_col(herogpui_core::Backdrop::ALL
-                        .iter()
-                        .map(|backdrop| {
-                            let key: &'static str = match backdrop {
-                                herogpui_core::Backdrop::Opaque => "ad-bd-opaque",
-                                herogpui_core::Backdrop::Blur => "ad-bd-blur",
-                                herogpui_core::Backdrop::Transparent => "ad-bd-transparent",
-                            };
-                            let open = self.demo_overlay(key);
-                            overlay_demo(
-                                open,
-                                key,
-                                backdrop.label(),
-                                h::AlertDialog::new(format!("Backdrop: {}", backdrop.label())).id(key)
-                                    .description("The scrim behind the panel.")
-                                    .is_open(open)
-                                    .backdrop(*backdrop)
-                                    .child(h::AlertDialogCloseTrigger::new())
-                                    .on_open_change(cx.listener(
-                                        move |this, v: &bool, _, cx| {
-                                            this.set_demo_flag(key, *v);
-                                            cx.notify();
-                                        },
-                                    ))
-                                    .into_any_element(),
-                                cx,
-                            )
-                        })
-                        .collect()),
+                    "Sizes",
+                    stretch_col([
+                        ("ad-size-xs", "Xs", h::AlertDialogSize::Xs),
+                        ("ad-size-sm", "Sm", h::AlertDialogSize::Sm),
+                        ("ad-size-md", "Md", h::AlertDialogSize::Md),
+                        ("ad-size-lg", "Lg", h::AlertDialogSize::Lg),
+                        ("ad-size-cover", "Cover", h::AlertDialogSize::Cover),
+                    ]
+                    .into_iter()
+                    .map(|(key, label, size)| {
+                        let open = self.demo_overlay(key);
+                        overlay_demo(
+                            key,
+                            label,
+                            h::AlertDialog::new(format!("Size: {label}")).id(key)
+                                .description("Every size shares one panel style.")
+                                .is_open(open)
+                                .size(size)
+                                .child(h::AlertDialogCloseTrigger::new())
+                                .on_open_change(cx.listener(
+                                    move |this, v: &bool, _, cx| {
+                                        this.set_demo_flag(key, *v);
+                                        cx.notify();
+                                    },
+                                ))
+                                .into_any_element(),
+                            cx,
+                        )
+                    })
+                    .collect()),
                 ),
                 (
                     "Controlled State",
                     stretch_col(vec![overlay_demo(
-                        self.demo_overlay("ad-controlled"),
                         "ad-controlled",
                         "Open (controlled)",
                         h::AlertDialog::new("Controlled").id("ad-controlled")
@@ -224,7 +184,6 @@ impl Gallery {
                 (
                     "Custom Icon",
                     stretch_col(vec![overlay_demo(
-                        self.demo_overlay("ad-icon"),
                         "ad-icon",
                         "Open with a status icon",
                         h::AlertDialog::new("Heads up").id("ad-icon")
@@ -241,142 +200,16 @@ impl Gallery {
                     )]),
                 ),
                 (
-                    "Custom Backdrop",
-                    stretch_col(vec![overlay_demo(
-                        self.demo_overlay("ad-custom-bd"),
-                        "ad-custom-bd",
-                        "Open with a blurred backdrop",
-                        h::AlertDialog::new("Blurred").id("ad-custom-bd")
-                            .description("The page behind the panel is blurred.")
-                            .is_open(self.demo_overlay("ad-custom-bd"))
-                            .backdrop(herogpui_core::Backdrop::Blur)
-                            .child(h::AlertDialogCloseTrigger::new())
-                            .on_open_change(cx.listener(|this, v: &bool, _, cx| {
-                                this.set_demo_flag("ad-custom-bd", *v);
-                                cx.notify();
-                            }))
-                            .into_any_element(),
-                        cx,
-                    )]),
-                ),
-                (
-                    "Dismiss Behavior",
-                    stretch_col(vec![overlay_demo(
-                        self.demo_overlay("ad-dismiss"),
-                        "ad-dismiss",
-                        "Open a non-dismissable dialog",
-                        h::AlertDialog::new("Confirm first").id("ad-dismiss")
-                            .description("The backdrop and Escape are both inert; the composed X and the actions still close.")
-                            .is_open(self.demo_overlay("ad-dismiss"))
-                            .is_dismissible(false)
-                            .is_keyboard_dismiss_disabled(true)
-                            .child(h::AlertDialogCloseTrigger::new())
-                            .on_open_change(cx.listener(|this, v: &bool, _, cx| {
-                                this.set_demo_flag("ad-dismiss", *v);
-                                cx.notify();
-                            }))
-                            .into_any_element(),
-                        cx,
-                    )]),
-                ),
-                (
-                    "Close Methods",
-                    stretch_col(vec![
-                        overlay_demo(
-                            self.demo_overlay("ad-close"),
-                            "ad-close",
-                            "Open (destructive confirm)",
-                            h::AlertDialog::new("Delete for ever?").id("ad-close")
-                                .description("A composed footer retires the built-in pair: the danger confirm and the cancel are ordinary Buttons the caller wires to close. The X is not composed here, so the corner slot is bare.")
-                                .is_open(self.demo_overlay("ad-close"))
-                                .footer_child(
-                                    h::Button::new("ad-close-cancel")
-                                        .label("Keep")
-                                        .variant(Variant::Tertiary)
-                                        .on_press(cx.listener(|this, _, _, cx| {
-                                            this.set_demo_flag("ad-close", false);
-                                            cx.notify();
-                                        })),
-                                )
-                                .footer_child(
-                                    h::Button::new("ad-close-confirm")
-                                        .label("Delete")
-                                        .variant(Variant::Danger)
-                                        .on_press(cx.listener(|this, _, _, cx| {
-                                            this.set_demo_flag("ad-close", false);
-                                            cx.notify();
-                                        })),
-                                )
-                                .on_open_change(cx.listener(|this, v: &bool, _, cx| {
-                                    this.set_demo_flag("ad-close", *v);
-                                    cx.notify();
-                                }))
-                                .into_any_element(),
-                            cx,
-                        ),
-                        overlay_demo(
-                            self.demo_overlay("ad-pending"),
-                            "ad-pending",
-                            "Open (pending confirm)",
-                            h::AlertDialog::new("Deploying").id("ad-pending")
-                                .description("A composed footer Button carries the pending state: it shows a spinner and swallows the press while the action is in flight, so no close is reported; only the cancel closes.")
-                                .is_open(self.demo_overlay("ad-pending"))
-                                .footer_child(
-                                    h::Button::new("ad-pending-cancel")
-                                        .label("Cancel")
-                                        .variant(Variant::Tertiary)
-                                        .on_press(cx.listener(|this, _, _, cx| {
-                                            this.set_demo_flag("ad-pending", false);
-                                            cx.notify();
-                                        })),
-                                )
-                                .footer_child(
-                                    h::Button::new("ad-pending-confirm")
-                                        .label("Deploy")
-                                        .is_pending(true),
-                                )
-                                .on_open_change(cx.listener(|this, v: &bool, _, cx| {
-                                    this.set_demo_flag("ad-pending", *v);
-                                    cx.notify();
-                                }))
-                                .into_any_element(),
-                            cx,
-                        ),
-                    ]),
-                ),
-                (
-                    "Custom Animations",
-                    stretch_col(vec![overlay_demo(
-                        self.demo_overlay("ad-anim"),
-                        "ad-anim",
-                        "Open and watch the panel",
-                        h::AlertDialog::new("Animated").id("ad-anim")
-                            .description("The panel shrinks in from 105% over 250ms and leaves at 95% over 100ms.")
-                            .is_open(self.demo_overlay("ad-anim"))
-                            .child(h::AlertDialogCloseTrigger::new())
-                            .on_open_change(cx.listener(|this, v: &bool, _, cx| {
-                                this.set_demo_flag("ad-anim", *v);
-                                cx.notify();
-                            }))
-                            .into_any_element(),
-                        cx,
-                    )]),
-                ),
-                (
                     "Custom Trigger",
                     stretch_col(vec![{
                         let open = self.demo_overlay("ad-custom");
-                        overlay_min_h(
-                            gpui::div()
-                                .relative()
-                                .flex()
-                                .flex_col()
-                        .items_center()
-                        .w_full(),
-                            open,
-                            120.,
-                        )
-                        .child(
+                        gpui::div()
+                            .relative()
+                            .flex()
+                            .flex_col()
+                            .items_center()
+                            .w_full()
+                            .child(
                             gpui::div()
                                 .id("ad-custom-trigger")
                                 .cursor_pointer()
@@ -422,6 +255,154 @@ impl Gallery {
                         .into_any_element()
                     }]),
                 ),
+                (
+                    "Backdrop Variants",
+                    stretch_col(herogpui_core::Backdrop::ALL
+                        .iter()
+                        .map(|backdrop| {
+                            let key: &'static str = match backdrop {
+                                herogpui_core::Backdrop::Opaque => "ad-bd-opaque",
+                                herogpui_core::Backdrop::Blur => "ad-bd-blur",
+                                herogpui_core::Backdrop::Transparent => "ad-bd-transparent",
+                            };
+                            let open = self.demo_overlay(key);
+                            overlay_demo(
+                                key,
+                                backdrop.label(),
+                                h::AlertDialog::new(format!("Backdrop: {}", backdrop.label())).id(key)
+                                    .description("The scrim behind the panel.")
+                                    .is_open(open)
+                                    .backdrop(*backdrop)
+                                    .child(h::AlertDialogCloseTrigger::new())
+                                    .on_open_change(cx.listener(
+                                        move |this, v: &bool, _, cx| {
+                                            this.set_demo_flag(key, *v);
+                                            cx.notify();
+                                        },
+                                    ))
+                                    .into_any_element(),
+                                cx,
+                            )
+                        })
+                        .collect()),
+                ),
+                (
+                    "Custom Backdrop",
+                    stretch_col(vec![overlay_demo(
+                        "ad-custom-bd",
+                        "Open with a blurred backdrop",
+                        h::AlertDialog::new("Blurred").id("ad-custom-bd")
+                            .description("The page behind the panel is blurred.")
+                            .is_open(self.demo_overlay("ad-custom-bd"))
+                            .backdrop(herogpui_core::Backdrop::Blur)
+                            .child(h::AlertDialogCloseTrigger::new())
+                            .on_open_change(cx.listener(|this, v: &bool, _, cx| {
+                                this.set_demo_flag("ad-custom-bd", *v);
+                                cx.notify();
+                            }))
+                            .into_any_element(),
+                        cx,
+                    )]),
+                ),
+                (
+                    "Dismiss Behavior",
+                    stretch_col(vec![overlay_demo(
+                        "ad-dismiss",
+                        "Open a non-dismissable dialog",
+                        h::AlertDialog::new("Confirm first").id("ad-dismiss")
+                            .description("The backdrop and Escape are both inert; the composed X and the actions still close.")
+                            .is_open(self.demo_overlay("ad-dismiss"))
+                            .is_dismissible(false)
+                            .is_keyboard_dismiss_disabled(true)
+                            .child(h::AlertDialogCloseTrigger::new())
+                            .on_open_change(cx.listener(|this, v: &bool, _, cx| {
+                                this.set_demo_flag("ad-dismiss", *v);
+                                cx.notify();
+                            }))
+                            .into_any_element(),
+                        cx,
+                    )]),
+                ),
+                (
+                    "Close Methods",
+                    stretch_col(vec![
+                        overlay_demo(
+                            "ad-close",
+                            "Open (destructive confirm)",
+                            h::AlertDialog::new("Delete for ever?").id("ad-close")
+                                .description("A composed footer retires the built-in pair: the danger confirm and the cancel are ordinary Buttons the caller wires to close. The X is not composed here, so the corner slot is bare.")
+                                .is_open(self.demo_overlay("ad-close"))
+                                .footer_child(
+                                    h::Button::new("ad-close-cancel")
+                                        .label("Keep")
+                                        .variant(Variant::Tertiary)
+                                        .on_press(cx.listener(|this, _, _, cx| {
+                                            this.set_demo_flag("ad-close", false);
+                                            cx.notify();
+                                        })),
+                                )
+                                .footer_child(
+                                    h::Button::new("ad-close-confirm")
+                                        .label("Delete")
+                                        .variant(Variant::Danger)
+                                        .on_press(cx.listener(|this, _, _, cx| {
+                                            this.set_demo_flag("ad-close", false);
+                                            cx.notify();
+                                        })),
+                                )
+                                .on_open_change(cx.listener(|this, v: &bool, _, cx| {
+                                    this.set_demo_flag("ad-close", *v);
+                                    cx.notify();
+                                }))
+                                .into_any_element(),
+                            cx,
+                        ),
+                        overlay_demo(
+                            "ad-pending",
+                            "Open (pending confirm)",
+                            h::AlertDialog::new("Deploying").id("ad-pending")
+                                .description("A composed footer Button carries the pending state: it shows a spinner and swallows the press while the action is in flight, so no close is reported; only the cancel closes.")
+                                .is_open(self.demo_overlay("ad-pending"))
+                                .footer_child(
+                                    h::Button::new("ad-pending-cancel")
+                                        .label("Cancel")
+                                        .variant(Variant::Tertiary)
+                                        .on_press(cx.listener(|this, _, _, cx| {
+                                            this.set_demo_flag("ad-pending", false);
+                                            cx.notify();
+                                        })),
+                                )
+                                .footer_child(
+                                    h::Button::new("ad-pending-confirm")
+                                        .label("Deploy")
+                                        .is_pending(true),
+                                )
+                                .on_open_change(cx.listener(|this, v: &bool, _, cx| {
+                                    this.set_demo_flag("ad-pending", *v);
+                                    cx.notify();
+                                }))
+                                .into_any_element(),
+                            cx,
+                        ),
+                    ]),
+                ),
+                (
+                    "Custom Animations",
+                    stretch_col(vec![overlay_demo(
+                        "ad-anim",
+                        "Open and watch the panel",
+                        h::AlertDialog::new("Animated").id("ad-anim")
+                            .description("The panel shrinks in from 105% over 250ms and leaves at 95% over 100ms.")
+                            .is_open(self.demo_overlay("ad-anim"))
+                            .child(h::AlertDialogCloseTrigger::new())
+                            .on_open_change(cx.listener(|this, v: &bool, _, cx| {
+                                this.set_demo_flag("ad-anim", *v);
+                                cx.notify();
+                            }))
+                            .into_any_element(),
+                        cx,
+                    )]),
+                ),
             ],
             cx,
         )
@@ -435,6 +416,58 @@ impl Gallery {
             crate::pages::Page::Drawer.import_line(),
             vec![
                 (
+                    "Usage",
+                    stretch_col(vec![gpui::div()
+                        .relative()
+                        .flex()
+                        .flex_col()
+                        .items_center()
+                        .w_full()
+                        .child(
+                            h::Button::new("dr-open")
+                                .label("Open Drawer")
+                                .variant(Variant::Secondary)
+                                .on_press(cx.listener(|this, _, _, cx| {
+                                    this.drawer_open = true;
+                                    cx.notify();
+                                })),
+                        )
+                        .child(
+                            h::Drawer::new()
+                                .id("dr-usage")
+                                .is_open(is_open)
+                                .title("Drawer Title")
+                                .placement(h::DrawerPlacement::Right)
+                                .child(gpui::div().child(
+                                    "This is a bottom drawer built with React Aria's Modal \
+                                     component. It slides up from the bottom of the screen \
+                                     with a smooth CSS transition.",
+                                ))
+                                .footer_child(
+                                    h::Button::new("dr-cancel")
+                                        .label("Cancel")
+                                        .variant(Variant::Secondary)
+                                        .on_press(cx.listener(|this, _, _, cx| {
+                                            this.drawer_open = false;
+                                            cx.notify();
+                                        })),
+                                )
+                                .footer_child(
+                                    h::Button::new("dr-confirm").label("Confirm").on_press(
+                                        cx.listener(|this, _, _, cx| {
+                                            this.drawer_open = false;
+                                            cx.notify();
+                                        }),
+                                    )
+                                )
+                                .on_close(cx.listener(|this, _, _, cx| {
+                                    this.drawer_open = false;
+                                    cx.notify();
+                                })),
+                        )
+                        .into_any_element(),]),
+                ),
+                (
                     "Placement",
                     stretch_col(
                         [
@@ -446,18 +479,29 @@ impl Gallery {
                         .into_iter()
                         .map(|(key, label, placement)| {
                             let open = self.demo_overlay(key);
+                            let drawer = h::Drawer::new()
+                                .id(key)
+                                .is_open(open)
+                                .placement(placement)
+                                .title(format!("From the {label}"))
+                                .is_dismissible(true)
+                                .child(h::DrawerCloseTrigger::new())
+                                .child(gpui::div().child("The panel slides in along its edge."));
+                            // v3 composes the drag handle only on the vertical
+                            // sheets: Bottom before the header, Top after the
+                            // footer at the moving edge.
+                            let drawer = if matches!(
+                                placement,
+                                h::DrawerPlacement::Bottom | h::DrawerPlacement::Top
+                            ) {
+                                drawer.child(h::DrawerHandle::new())
+                            } else {
+                                drawer
+                            };
                             overlay_demo(
-                                open,
                                 key,
                                 label,
-                                h::Drawer::new()
-                                    .id(key)
-                                    .is_open(open)
-                                    .placement(placement)
-                                    .title(format!("From the {label}"))
-                                    .is_dismissible(true)
-                                    .child(h::DrawerCloseTrigger::new())
-                                    .child(gpui::div().child("The panel slides in along its edge."))
+                                drawer
                                     .on_open_change(cx.listener(move |this, v: &bool, _, cx| {
                                         this.set_demo_flag(key, *v);
                                         cx.notify();
@@ -472,7 +516,6 @@ impl Gallery {
                 (
                     "Non-Dismissable",
                     stretch_col(vec![overlay_demo(
-                        self.demo_overlay("dr-no-dismiss"),
                         "dr-no-dismiss",
                         "Open a non-dismissable drawer",
                         h::Drawer::new()
@@ -501,7 +544,6 @@ impl Gallery {
                 (
                     "Scrollable Content",
                     stretch_col(vec![overlay_demo(
-                        self.demo_overlay("dr-scroll"),
                         "dr-scroll",
                         "Open a long drawer",
                         h::Drawer::new()
@@ -509,6 +551,7 @@ impl Gallery {
                             .is_open(self.demo_overlay("dr-scroll"))
                             .title("Release notes")
                             .is_dismissible(true)
+                            .child(h::DrawerHandle::new())
                             .child(h::DrawerCloseTrigger::new())
                             .child(gpui::div().flex().flex_col().gap(px(8.)).children(
                                 (1..=20).map(|n| {
@@ -538,7 +581,6 @@ impl Gallery {
                             cx,
                         ),
                         overlay_demo(
-                            self.demo_overlay("dr-controlled"),
                             "dr-controlled",
                             "Open (controlled)",
                             h::Drawer::new()
@@ -560,7 +602,6 @@ impl Gallery {
                 (
                     "With Form",
                     stretch_col(vec![overlay_demo(
-                        self.demo_overlay("dr-form"),
                         "dr-form",
                         "Open a form drawer",
                         h::Drawer::new()
@@ -601,7 +642,6 @@ impl Gallery {
                 (
                     "Navigation Drawer",
                     stretch_col(vec![overlay_demo(
-                        self.demo_overlay("dr-nav"),
                         "dr-nav",
                         "Open the navigation",
                         h::Drawer::new()
@@ -642,7 +682,6 @@ impl Gallery {
                                 };
                                 let open = self.demo_overlay(key);
                                 overlay_demo(
-                                    open,
                                     key,
                                     backdrop.label(),
                                     h::Drawer::new()
@@ -666,47 +705,6 @@ impl Gallery {
                             .collect()
                     ),
                 ),
-                (
-                    "Usage",
-                    stretch_col(vec![overlay_min_h(
-                        gpui::div()
-                            .relative()
-                            .flex()
-                            .flex_col()
-                            .items_center()
-                            .w_full(),
-                        is_open,
-                        240.,
-                    )
-                    .child(
-                        h::Button::new("dr-open")
-                            .label("Open drawer")
-                            .on_press(cx.listener(|this, _, _, cx| {
-                                this.drawer_open = true;
-                                cx.notify();
-                            }),)
-                    )
-                    .child(
-                        h::Drawer::new()
-                            .id("dr-usage")
-                            .is_open(is_open)
-                            .title("Settings")
-                            .placement(h::DrawerPlacement::Right)
-                            .child(h::DrawerCloseTrigger::new())
-                            .child(gpui::div().child("Panel content goes here."))
-                            .footer_child(h::Button::new("dr-done").label("Done").on_press(
-                                cx.listener(|this, _, _, cx| {
-                                    this.drawer_open = false;
-                                    cx.notify();
-                                }),
-                            ))
-                            .on_close(cx.listener(|this, _, _, cx| {
-                                this.drawer_open = false;
-                                cx.notify();
-                            })),
-                    )
-                    .into_any_element(),]),
-                ),
             ],
             cx,
         )
@@ -727,6 +725,56 @@ impl Gallery {
             crate::pages::Page::Modal.import_line(),
             vec![
                 (
+                    "Usage",
+                    specimen_body("md-usage", stretch_col(vec![
+                        gpui::div()
+                            .relative()
+                            .flex()
+                            .flex_col()
+                            .items_center()
+                            .w_full()
+                            .child(
+                            h::Button::new("md-open")
+                                .label("Open modal")
+                                .on_press(cx.listener(|this, _, _, cx| {
+                                    this.modal_open = true;
+                                    cx.notify();
+                                })),
+                        )
+                        .child(
+                            h::Modal::new()
+                                .id("md-usage")
+                                .is_open(is_open)
+                                // `Modal.Icon` sits above the heading.
+                                .icon(h::icons::MAIL)
+                                .title("Create account")
+                                .is_dismissible(true)
+                                .child(h::ModalCloseTrigger::new())
+                                .child(gpui::div().child("Sign up to get started with HeroGPUI."))
+                                .footer_child(
+                                    h::Button::new("md-cancel")
+                                        .label("Cancel")
+                                        .variant(Variant::Tertiary)
+                                        .on_press(cx.listener(|this, _, _, cx| {
+                                            this.modal_open = false;
+                                            cx.notify();
+                                        })),
+                                )
+                                .footer_child(h::Button::new("md-ok").label("Sign up").on_press(
+                                    cx.listener(|this, _, _, cx| {
+                                        this.modal_open = false;
+                                        cx.notify();
+                                    }),
+                                ))
+                                .on_close(cx.listener(|this, _, _, cx| {
+                                    this.modal_open = false;
+                                    cx.notify();
+                                })),
+                        )
+                        .into_any_element(),
+                    ]), cx),
+                ),
+                (
                     "Sizes",
                     stretch_col([
                         ("md-size-xs", "Xs", h::ModalSize::Xs),
@@ -740,7 +788,6 @@ impl Gallery {
                     .map(|(key, label, size)| {
                         let open = self.demo_overlay(key);
                         overlay_demo(
-                            open,
                             key,
                             label,
                             h::Modal::new()
@@ -775,7 +822,6 @@ impl Gallery {
                     .map(|(key, label, placement)| {
                         let open = self.demo_overlay(key);
                         overlay_demo(
-                            open,
                             key,
                             label,
                             h::Modal::new()
@@ -808,7 +854,6 @@ impl Gallery {
                     .map(|(key, label, scroll)| {
                         let open = self.demo_overlay(key);
                         overlay_demo(
-                            open,
                             key,
                             label,
                             h::Modal::new()
@@ -846,7 +891,6 @@ impl Gallery {
                             cx,
                         ),
                         overlay_demo(
-                            self.demo_overlay("md-controlled"),
                             "md-controlled",
                             "Open (controlled)",
                             h::Modal::new()
@@ -869,7 +913,6 @@ impl Gallery {
                 (
                     "With Form",
                     stretch_col(vec![overlay_demo(
-                        self.demo_overlay("md-form"),
                         "md-form",
                         "Open form modal",
                         h::Modal::new()
@@ -911,16 +954,12 @@ impl Gallery {
                 ),
                 (
                     "Custom Trigger",
-                    stretch_col(vec![overlay_min_h(
-                        gpui::div()
-                            .relative()
-                            .flex()
-                            .flex_col()
-                            .items_center()
-                            .w_full(),
-                        md_custom,
-                        120.,
-                    )
+                    stretch_col(vec![gpui::div()
+                        .relative()
+                        .flex()
+                        .flex_col()
+                        .items_center()
+                        .w_full()
                         .child(
                             gpui::div()
                                 .id("md-custom-trigger")
@@ -958,7 +997,6 @@ impl Gallery {
                             };
                             let open = self.demo_overlay(key);
                             overlay_demo(
-                                open,
                                 key,
                                 backdrop.label(),
                                 h::Modal::new()
@@ -985,7 +1023,6 @@ impl Gallery {
                     "Custom Backdrop", "`Backdrop::Blur` is the strongest variant the token set has; anything past it is the caller's own scrim.",
                     stretch_col(vec![
                         overlay_demo(
-                            self.demo_overlay("md-bd-custom"),
                             "md-bd-custom",
                             "Open with a blurred backdrop",
                             h::Modal::new()
@@ -1009,7 +1046,6 @@ impl Gallery {
                     "Dismiss Behavior", "`isDismissible` decides whether the backdrop closes it; `isKeyboardDismissDisabled` decides whether Escape does.",
                     stretch_col(vec![
                         overlay_demo(
-                            self.demo_overlay("md-no-dismiss"),
                             "md-no-dismiss",
                             "Open a non-dismissable modal",
                             h::Modal::new()
@@ -1043,7 +1079,6 @@ impl Gallery {
                     "Close Methods", "The close affordance is spelled by composition: the `Close Methods` example closes through footer buttons and composes no close trigger, so the corner slot stays bare. Every other example composes the built-in close trigger for the corner X.",
                     stretch_col(vec![
                         overlay_demo(
-                            self.demo_overlay("md-close"),
                             "md-close",
                             "Open (no close trigger)",
                             h::Modal::new()
@@ -1077,7 +1112,6 @@ impl Gallery {
                     "Custom Animations", "The motion is the one the theme declares: the panel shrinks in from 105% over 250ms on `ease-out-quad` and leaves at 95% over 100ms. `Motion on` in the navbar switches it off, which is the `prefers-reduced-motion` path.",
                     stretch_col(vec![
                         overlay_demo(
-                            self.demo_overlay("md-anim"),
                             "md-anim",
                             "Open and watch the panel",
                             h::Modal::new()
@@ -1095,60 +1129,6 @@ impl Gallery {
                             cx,
                         ),
                     ]),
-                ),
-                (
-                    "Usage",
-                    specimen_body("md-usage", stretch_col(vec![
-                        overlay_min_h(
-                            gpui::div()
-                                .relative()
-                                .flex()
-                                .flex_col()
-                        .items_center()
-                        .w_full(),
-                            is_open,
-                            280.,
-                        )
-                        .child(
-                            h::Button::new("md-open")
-                                .label("Open modal")
-                                .on_press(cx.listener(|this, _, _, cx| {
-                                    this.modal_open = true;
-                                    cx.notify();
-                                })),
-                        )
-                        .child(
-                            h::Modal::new()
-                                .id("md-usage")
-                                .is_open(is_open)
-                                // `Modal.Icon` sits above the heading.
-                                .icon(h::icons::MAIL)
-                                .title("Create account")
-                                .is_dismissible(true)
-                                .child(h::ModalCloseTrigger::new())
-                                .child(gpui::div().child("Sign up to get started with HeroGPUI."))
-                                .footer_child(
-                                    h::Button::new("md-cancel")
-                                        .label("Cancel")
-                                        .variant(Variant::Tertiary)
-                                        .on_press(cx.listener(|this, _, _, cx| {
-                                            this.modal_open = false;
-                                            cx.notify();
-                                        })),
-                                )
-                                .footer_child(h::Button::new("md-ok").label("Sign up").on_press(
-                                    cx.listener(|this, _, _, cx| {
-                                        this.modal_open = false;
-                                        cx.notify();
-                                    }),
-                                ))
-                                .on_close(cx.listener(|this, _, _, cx| {
-                                    this.modal_open = false;
-                                    cx.notify();
-                                })),
-                        )
-                        .into_any_element(),
-                    ]), cx),
                 ),
                 (
                     "Command Palette", "HeroGPUI extension, not a HeroUI v3 example: `CommandPalette` is a modal command search on the same overlay stack as `Modal`. Press Cmd-K (Ctrl-K off macOS) anywhere in the gallery, or the button below: type to filter every page and two appearance commands (each query word must match a label, keyword or group), Up and Down move the highlight, Enter runs it and Escape closes. The shell binds the shortcut in a root `on_key_down` with `is_command_palette_shortcut`.",
@@ -1201,23 +1181,21 @@ impl Gallery {
                 (
                     "Usage",
                     "Panel text and headings use a 20px line height independently of surrounding text.",
-                    col(vec![overlay_min_h(usage_slot, is_open, 160.)
+                    col(vec![usage_slot
                         .child(
-                            h::Popover::new(
+                            h::Popover::new(h::Button::new("po-trigger").label("Click me"))
+                            .is_open(is_open)
+                            .title("Popover Title")
+                            .placement(h::PopoverPlacement::Bottom)
+                            .child(
                                 gpui::div()
-                                    .pr(px(96.))
+                                    .mt(px(8.))
+                                    .max_w(px(256.))
+                                    .text_color(colors.muted)
                                     .child(
-                                        h::Button::new("po-trigger")
-                                            .label("Open popover")
-                                            .variant(Variant::Secondary),
+                                        "This is the popover content. You can put any content here.",
                                     ),
                             )
-                            .is_open(is_open)
-                            .title("Quick note")
-                            .placement(h::PopoverPlacement::Bottom)
-                            .padding(px(18.))
-                            .radius(px(4.))
-                            .child(gpui::div().child("Popovers are anchored to their trigger."))
                             .on_open_change(cx.listener(|this, open: &bool, _, cx| {
                                 set_popover_open(
                                     &mut this.popover_open,
@@ -1241,15 +1219,11 @@ impl Gallery {
                             .gap(px(24.))
                             .pl(px(48.))
                             .child(
-                                overlay_min_h(
-                                    gpui::div()
+                                gpui::div()
                                         .relative()
                                         .flex()
                                         .flex_col()
-                                        .items_start(),
-                                    po_arrow_open,
-                                    160.,
-                                )
+                                        .items_start()
                                 .child(
                                 h::Popover::new(
                                     h::Button::new("po-arrow-trigger")
@@ -1274,15 +1248,11 @@ impl Gallery {
                             )
                             )
                             .child(
-                                overlay_min_h(
-                                    gpui::div()
+                                gpui::div()
                                         .relative()
                                         .flex()
                                         .flex_col()
-                                        .items_start(),
-                                    po_arrow_custom_open,
-                                    160.,
-                                )
+                                        .items_start()
                                 .child(
                                     h::Popover::new(
                                         h::Button::new("po-arrow-custom-trigger")
@@ -1324,7 +1294,7 @@ impl Gallery {
                             .flex()
                             .flex_col()
                             .items_start();
-                        overlay_min_h(interactive_slot, po_interactive_open, 220.)
+                        interactive_slot
                         .child(
                             h::Popover::new(
                                 gpui::div()
@@ -1393,25 +1363,17 @@ impl Gallery {
                             .into_iter()
                             .map(|(id, label, placement)| {
                                 let open = self.demo_overlay(id);
-                                let mut placement_slot = gpui::div()
+                                // The panel is a deferred overlay like v3's
+                                // portal: it must not pad the slot open or the
+                                // trigger jumps when the popover opens.
+                                let placement_slot = gpui::div()
                                     .relative()
                                     .flex()
                                     .flex_col()
                                     .items_start();
-                                if open && matches!(placement, h::PopoverPlacement::Top) {
-                                    placement_slot = placement_slot.pt(px(96.));
-                                }
-                                if open
-                                    && matches!(
-                                        placement,
-                                        h::PopoverPlacement::Top | h::PopoverPlacement::Left
-                                    )
-                                {
-                                    placement_slot = placement_slot.pl(px(104.));
-                                }
                                 specimen_body(
                                     id,
-                                    overlay_min_h(placement_slot, open, 260.)
+                                    placement_slot
                                         .child(
                                             h::Popover::new(
                                                 h::Button::new(el_id(format!("{id}-trigger")))
@@ -1446,15 +1408,11 @@ impl Gallery {
                 (
                     "Render Function", "The pinned Render Function replaces the Popover content's DOM element with a callback. This GPUI Popover has no content or state render callback, so the controlled panel records that limitation instead of faking an API.",
                     col(vec![
-                        overlay_min_h(
-                            gpui::div()
+                        gpui::div()
                                 .relative()
                                 .flex()
                                 .flex_col()
-                                .items_start(),
-                            po_render_open,
-                            160.,
-                        )
+                                .items_start()
                         .child(
                             h::Popover::new(
                                 gpui::div()
@@ -1502,15 +1460,11 @@ impl Gallery {
                 (
                     "Custom Styles", "The pinned DOM styling is expressed here with public GPUI builders: `w`, `overflow_hidden`, `rounded`, `border_color`, `bg`, `shadow`, spacing, and `font_family`, using the active theme tokens. GPUI 0.2.2 has no DOM class, ring, gradient, or backdrop-blur hooks, so the styling belongs to the composed content element.",
                     col(vec![
-                        overlay_min_h(
-                            gpui::div()
+                        gpui::div()
                                 .relative()
                                 .flex()
                                 .flex_col()
-                                .items_start(),
-                            po_custom_styles_open,
-                            160.,
-                        )
+                                .items_start()
                         .child(
                             h::Popover::new(
                                 gpui::div()
@@ -1622,25 +1576,6 @@ impl Gallery {
             crate::pages::Page::Toast.import_line(),
             vec![
                 (
-                    "With Action", "The action follows the text below 640px and sits beside it in larger windows. Undo replaces the notification with a visible result.",
-                    row(vec![h::Button::new("toast-action-demo")
-                        .label("Show actionable toast")
-                        .variant(Variant::Secondary)
-                        .on_press(|_, _, cx| {
-                            h::Toast::new("Item archived")
-                                .description("Undo restores the item.")
-                                .timeout(std::time::Duration::ZERO)
-                                .action("Undo", |cx| {
-                                    h::Toast::success("Restored")
-                                        .description("The action ran.")
-                                        .timeout(std::time::Duration::ZERO)
-                                        .push(None, cx);
-                                })
-                                .push(None, cx);
-                        })
-                        .into_any_element()]),
-                ),
-                (
                     "Usage",
                     row(vec![h::Button::new("toast-usage")
                         .label("Show a toast")
@@ -1707,6 +1642,44 @@ impl Gallery {
                     ]),
                 ),
                 (
+                    "Expanded Stack", "Hover or focus the stack to expand it. `isExpanded` keeps it open; timers still run unless the pointer or focus is inside.",
+                    specimen_body(
+                        "toast-expanded-stack",
+                        col(vec![
+                            row(vec![
+                                h::Button::new("toast-stack-push")
+                                    .label("Push three")
+                                    .variant(Variant::Secondary)
+                                    .size(Size::Sm)
+                                    .on_press(|_, _, cx| {
+                                        for n in 1..=3 {
+                                            h::Toast::new(format!("Stacked {n}"))
+                                                .description("Hover the stack to expand.")
+                                                .timeout(std::time::Duration::from_secs(8))
+                                                .push(None, cx);
+                                        }
+                                    })
+                                    .into_any_element(),
+                                h::Button::new("toast-stack-keep")
+                                    .label(if self.demo_flag("toast-expanded", false) {
+                                        "Stop forcing open"
+                                    } else {
+                                        "Keep expanded"
+                                    })
+                                    .variant(Variant::Tertiary)
+                                    .size(Size::Sm)
+                                    .on_press(cx.listener(|this, _, _, cx| {
+                                        let next = !this.demo_flag("toast-expanded", false);
+                                        this.set_demo_flag("toast-expanded", next);
+                                        cx.notify();
+                                    }))
+                                    .into_any_element(),
+                            ]),
+                        ]),
+                        cx,
+                    ),
+                ),
+                (
                     "Simple Toasts",
                     row(vec![h::Button::new("toast-simple")
                         .label("Title only")
@@ -1717,46 +1690,6 @@ impl Gallery {
                                 .push(Some(std::time::Duration::from_secs(3)), cx);
                         })
                         .into_any_element()]),
-                ),
-                (
-                    "Long Title & Card Geometry",
-                    "Toast titles remain readable when they need more than one line. The close affordance is positioned outside the content flow, so wrapping does not steal width from the message.",
-                    specimen_body(
-                        "toast-long-title",
-                        row(vec![h::Button::new("toast-long-title-push")
-                            .label("Push a long title")
-                            .variant(Variant::Secondary)
-                            .size(Size::Sm)
-                            .on_press(|_, _, cx| {
-                                h::Toast::new(
-                                    "A notification title that intentionally spans multiple lines so the Toast card keeps all content readable",
-                                )
-                                .description("The close button stays anchored to the card corner.")
-                                .push(Some(std::time::Duration::from_secs(8)), cx);
-                            })
-                            .into_any_element()]),
-                        cx,
-                    ),
-                ),
-                (
-                    "Close Reveal",
-                    "The close affordance stays out of the message flow, fades in when the frontmost card is hovered or keyboard-focused, and ignores pointer activation while hidden.",
-                    specimen_body(
-                        "toast-close-reveal",
-                        row(vec![h::Button::new("toast-close-reveal-push")
-                            .label("Push persistent toast")
-                            .variant(Variant::Secondary)
-                            .size(Size::Sm)
-                            .on_press(|_, _, cx| {
-                                h::Toast::new("Hover or tab to reveal close")
-                                    .description("The close control fades in at the card corner.")
-                                    .closable(true)
-                                    .timeout(std::time::Duration::ZERO)
-                                    .push(None, cx);
-                            })
-                            .into_any_element()]),
-                        cx,
-                    ),
                 ),
                 (
                     "Custom Indicators", "The variant picks the glyph — success shows a tick, danger a crossed circle. `indicator` overrides it with an asset path, `indicator_content` renders caller-owned GPUI content inside the same box, and `indicator(None)` removes the glyph entirely.",
@@ -1899,44 +1832,6 @@ impl Gallery {
                     ]),
                 ),
                 (
-                    "Expanded Stack", "Hover or focus the stack to expand it. `isExpanded` keeps it open; timers still run unless the pointer or focus is inside.",
-                    specimen_body(
-                        "toast-expanded-stack",
-                        col(vec![
-                            row(vec![
-                                h::Button::new("toast-stack-push")
-                                    .label("Push three")
-                                    .variant(Variant::Secondary)
-                                    .size(Size::Sm)
-                                    .on_press(|_, _, cx| {
-                                        for n in 1..=3 {
-                                            h::Toast::new(format!("Stacked {n}"))
-                                                .description("Hover the stack to expand.")
-                                                .timeout(std::time::Duration::from_secs(8))
-                                                .push(None, cx);
-                                        }
-                                    })
-                                    .into_any_element(),
-                                h::Button::new("toast-stack-keep")
-                                    .label(if self.demo_flag("toast-expanded", false) {
-                                        "Stop forcing open"
-                                    } else {
-                                        "Keep expanded"
-                                    })
-                                    .variant(Variant::Tertiary)
-                                    .size(Size::Sm)
-                                    .on_press(cx.listener(|this, _, _, cx| {
-                                        let next = !this.demo_flag("toast-expanded", false);
-                                        this.set_demo_flag("toast-expanded", next);
-                                        cx.notify();
-                                    }))
-                                    .into_any_element(),
-                            ]),
-                        ]),
-                        cx,
-                    ),
-                ),
-                (
                     "Custom Queues", "`maxVisibleToasts` caps visibility without dropping overflow: the ones past the cap wait their turn. Push four and watch one queue.",
                     col(vec![
                         row(vec![h::Button::new("toast-queue")
@@ -1958,6 +1853,65 @@ impl Gallery {
                     col(vec![
                         crate::pages::code_block(TOAST_SETUP, cx),
                     ]),
+                ),
+                (
+                    "With Action", "The action follows the text below 640px and sits beside it in larger windows. Undo replaces the notification with a visible result.",
+                    row(vec![h::Button::new("toast-action-demo")
+                        .label("Show actionable toast")
+                        .variant(Variant::Secondary)
+                        .on_press(|_, _, cx| {
+                            h::Toast::new("Item archived")
+                                .description("Undo restores the item.")
+                                .timeout(std::time::Duration::ZERO)
+                                .action("Undo", |cx| {
+                                    h::Toast::success("Restored")
+                                        .description("The action ran.")
+                                        .timeout(std::time::Duration::ZERO)
+                                        .push(None, cx);
+                                })
+                                .push(None, cx);
+                        })
+                        .into_any_element()]),
+                ),
+                (
+                    "Long Title & Card Geometry",
+                    "Toast titles remain readable when they need more than one line. The close affordance is positioned outside the content flow, so wrapping does not steal width from the message.",
+                    specimen_body(
+                        "toast-long-title",
+                        row(vec![h::Button::new("toast-long-title-push")
+                            .label("Push a long title")
+                            .variant(Variant::Secondary)
+                            .size(Size::Sm)
+                            .on_press(|_, _, cx| {
+                                h::Toast::new(
+                                    "A notification title that intentionally spans multiple lines so the Toast card keeps all content readable",
+                                )
+                                .description("The close button stays anchored to the card corner.")
+                                .push(Some(std::time::Duration::from_secs(8)), cx);
+                            })
+                            .into_any_element()]),
+                        cx,
+                    ),
+                ),
+                (
+                    "Close Reveal",
+                    "The close affordance stays out of the message flow, fades in when the frontmost card is hovered or keyboard-focused, and ignores pointer activation while hidden.",
+                    specimen_body(
+                        "toast-close-reveal",
+                        row(vec![h::Button::new("toast-close-reveal-push")
+                            .label("Push persistent toast")
+                            .variant(Variant::Secondary)
+                            .size(Size::Sm)
+                            .on_press(|_, _, cx| {
+                                h::Toast::new("Hover or tab to reveal close")
+                                    .description("The close control fades in at the card corner.")
+                                    .closable(true)
+                                    .timeout(std::time::Duration::ZERO)
+                                    .push(None, cx);
+                            })
+                            .into_any_element()]),
+                        cx,
+                    ),
                 ),
                 (
                     "Push a toast",
@@ -1990,99 +1944,6 @@ impl Gallery {
             crate::pages::Page::Tooltip.description(),
             crate::pages::Page::Tooltip.import_line(),
             vec![
-                (
-                    "With Arrow",
-                    row(vec![
-                        h::Tooltip::new("With an arrow")
-                            .show_arrow(true)
-                            // `offset` is the gap between trigger and panel.
-                            .offset(px(10.))
-                            .radius(px(4.))
-                            .child(
-                                h::Button::new("tt-arrow-on")
-                                    .label("Arrow")
-                                    .variant(Variant::Secondary),
-                            )
-                            .into_any_element(),
-                        h::Tooltip::new("Without one")
-                            .show_arrow(false)
-                            .child(
-                                h::Button::new("tt-arrow-off")
-                                    .label("No arrow")
-                                    .variant(Variant::Secondary),
-                            )
-                            .into_any_element(),
-                    ]),
-                ),
-                (
-                    "Rich Content", "`body` draws the tip yourself, in place of the measured single line. The string handed to `Tooltip::new` is still required: it stays the tip's accessible name, so a rich tip cannot ship unnamed.",
-                    row(vec![
-                        h::Tooltip::new("name is the identifier, kind is the token class, scope is where it resolves")
-                            .delay(0)
-                            .body(|_, cx| {
-                                let muted = cx.colors().muted;
-                                let row = |name: &str, meaning: &str| {
-                                    gpui::div()
-                                        .flex()
-                                        .gap(px(8.))
-                                        .child(gpui::div().w(px(44.)).child(name.to_owned()))
-                                        .child(
-                                            gpui::div()
-                                                .text_color(muted)
-                                                .child(meaning.to_owned()),
-                                        )
-                                };
-                                gpui::div()
-                                    .flex()
-                                    .flex_col()
-                                    .gap(px(2.))
-                                    .child(row("name", "the identifier"))
-                                    .child(row("kind", "the token class"))
-                                    .child(row("scope", "where it resolves"))
-                                    .into_any_element()
-                            })
-                            .child(
-                                h::Button::new("tt-rich")
-                                    .label("Naming tokens")
-                                    .variant(Variant::Secondary),
-                            )
-                            .into_any_element(),
-                    ]),
-                ),
-                (
-                    "Custom Triggers",
-                    row(vec![
-                        h::Tooltip::new("Jane Doe")
-                            .delay(0)
-                            .show_arrow(true)
-                            .child(h::Avatar::new("tt-avatar").name("Jane Doe").size(Size::Sm))
-                            .into_any_element(),
-                        h::Tooltip::new("Verified account")
-                            .delay(0)
-                            .child(
-                                h::Chip::new()
-                                    .color(Color::Success)
-                                    .variant(h::ChipVariant::Soft)
-                                    .child(h::ChipLabel::new().child("Verified")),
-                            )
-                            .into_any_element(),
-                        h::Tooltip::new("What is this?")
-                            .delay(0)
-                            .child(icon(h::icons::SEARCH, cx))
-                            .into_any_element(),
-                        h::Tooltip::new("Tab to me")
-                            .delay(0)
-                            // `trigger="focus"`: the pointer does nothing and
-                            // keyboard focus is what opens it.
-                            .trigger(h::TooltipTrigger::Focus)
-                            .child(
-                                h::Button::new("tt-focus-only")
-                                    .label("Focus only")
-                                    .variant(Variant::Secondary),
-                            )
-                            .into_any_element(),
-                    ]),
-                ),
                 (
                     "Usage",
                     row(vec![
@@ -2125,6 +1986,99 @@ impl Gallery {
                             .collect()),
                         cx,
                     ),
+                ),
+                (
+                    "With Arrow",
+                    row(vec![
+                        h::Tooltip::new("With an arrow")
+                            .show_arrow(true)
+                            // `offset` is the gap between trigger and panel.
+                            .offset(px(10.))
+                            .radius(px(4.))
+                            .child(
+                                h::Button::new("tt-arrow-on")
+                                    .label("Arrow")
+                                    .variant(Variant::Secondary),
+                            )
+                            .into_any_element(),
+                        h::Tooltip::new("Without one")
+                            .show_arrow(false)
+                            .child(
+                                h::Button::new("tt-arrow-off")
+                                    .label("No arrow")
+                                    .variant(Variant::Secondary),
+                            )
+                            .into_any_element(),
+                    ]),
+                ),
+                (
+                    "Custom Triggers",
+                    row(vec![
+                        h::Tooltip::new("Jane Doe")
+                            .delay(0)
+                            .show_arrow(true)
+                            .child(h::Avatar::new("tt-avatar").name("Jane Doe").size(Size::Sm))
+                            .into_any_element(),
+                        h::Tooltip::new("Verified account")
+                            .delay(0)
+                            .child(
+                                h::Chip::new()
+                                    .color(Color::Success)
+                                    .variant(h::ChipVariant::Soft)
+                                    .child(h::ChipLabel::new().child("Verified")),
+                            )
+                            .into_any_element(),
+                        h::Tooltip::new("What is this?")
+                            .delay(0)
+                            .child(icon(h::icons::SEARCH, cx))
+                            .into_any_element(),
+                        h::Tooltip::new("Tab to me")
+                            .delay(0)
+                            // `trigger="focus"`: the pointer does nothing and
+                            // keyboard focus is what opens it.
+                            .trigger(h::TooltipTrigger::Focus)
+                            .child(
+                                h::Button::new("tt-focus-only")
+                                    .label("Focus only")
+                                    .variant(Variant::Secondary),
+                            )
+                            .into_any_element(),
+                    ]),
+                ),
+                (
+                    "Rich Content", "`body` draws the tip yourself, in place of the measured single line. The string handed to `Tooltip::new` is still required: it stays the tip's accessible name, so a rich tip cannot ship unnamed.",
+                    row(vec![
+                        h::Tooltip::new("name is the identifier, kind is the token class, scope is where it resolves")
+                            .delay(0)
+                            .body(|_, cx| {
+                                let muted = cx.colors().muted;
+                                let row = |name: &str, meaning: &str| {
+                                    gpui::div()
+                                        .flex()
+                                        .gap(px(8.))
+                                        .child(gpui::div().w(px(44.)).child(name.to_owned()))
+                                        .child(
+                                            gpui::div()
+                                                .text_color(muted)
+                                                .child(meaning.to_owned()),
+                                        )
+                                };
+                                gpui::div()
+                                    .flex()
+                                    .flex_col()
+                                    .gap(px(2.))
+                                    .child(row("name", "the identifier"))
+                                    .child(row("kind", "the token class"))
+                                    .child(row("scope", "where it resolves"))
+                                    .into_any_element()
+                            })
+                            .child(
+                                h::Button::new("tt-rich")
+                                    .label("Naming tokens")
+                                    .variant(Variant::Secondary),
+                            )
+                            .into_any_element(),
+                    ]),
                 ),
                 (
                     "Long Content",
@@ -2176,6 +2130,8 @@ impl Gallery {
                                     .child(
                                         gpui::div()
                                             .flex()
+                                            .flex_1()
+                                            .min_w(px(0.))
                                             .flex_col()
                                             .gap(px(4.))
                                             .child(

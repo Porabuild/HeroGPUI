@@ -23,10 +23,14 @@
 use crate::harness;
 use crate::source_scan;
 
-use gpui::{point, prelude::*, px, AnyElement, Modifiers, TestAppContext, VisualTestContext};
-use herogpui_components::{
-    Autocomplete, Input, InputGroup, InputState, NumberField, NumberState, PickerItem, Select,
+use gpui::{
+    point, prelude::*, px, AnyElement, Modifiers, MouseButton, TestAppContext, VisualTestContext,
 };
+use herogpui_components::{
+    Autocomplete, Button, Input, InputGroup, InputState, NumberField, NumberState, Pagination,
+    PickerItem, Select, ToggleButton, Variant,
+};
+use herogpui_theme::ActiveTheme;
 use source_scan::{component_src, scope_contains};
 
 #[test]
@@ -365,4 +369,269 @@ fn input_group_group_hover_bg_is_the_group_hover_endpoint(cx: &mut TestAppContex
             .into_any_element()
     });
     assert!(hover_paints_override(cx, 20., 18.));
+}
+
+// ---------------------------------------------------------------------------
+// The hover fade's painted contract
+// ---------------------------------------------------------------------------
+//
+// `anim::hover_fade` mounts one absolutely-positioned fill that owns the
+// state colour; the element underneath stays transparent. These checks pin
+// the three ways that contract was once broken: a translucent endpoint
+// composited twice, a mid-flight reversal snapping to the far endpoint, and
+// a held press painting its colour under the fill instead of on it.
+
+/// The quads whose non-transparent solid fill is `color`, within
+/// [`harness::same_color`]'s float tolerance — `Painted::filled` compares
+/// exactly, and a fade that settles through `mix_oklab` can land a hair off
+/// the literal endpoint.
+fn fill_quads(scene: &harness::Painted, color: gpui::Hsla) -> Vec<&gpui::Quad> {
+    scene
+        .quads
+        .iter()
+        .filter(|q| {
+            q.background
+                .as_solid()
+                .is_some_and(|c| c.a > 0. && harness::same_color(c, color))
+        })
+        .collect()
+}
+
+/// DangerSoft's resting fill is translucent, so the element and the fill
+/// painting the same endpoint used to composite twice — the resting colour
+/// read darker forever after the first hover. Once the fill is mounted the
+/// element stays transparent and exactly one quad may carry `soft()`.
+#[gpui::test]
+fn danger_soft_rest_paints_the_soft_endpoint_exactly_once(cx: &mut TestAppContext) {
+    let cx = open(cx, || {
+        Button::new("fade-rest")
+            .label("Delete")
+            .variant(Variant::DangerSoft)
+            .into_any_element()
+    });
+    let (soft, soft_hover) =
+        cx.update(|_window, cx| (cx.colors().danger.soft(), cx.colors().danger.soft_hover()));
+    cx.simulate_mouse_move(point(px(20.), px(18.)), None, Modifiers::none());
+    harness::wait_ms(cx, 200);
+    cx.simulate_mouse_move(point(px(-100.), px(-100.)), None, Modifiers::none());
+    harness::wait_ms(cx, 200);
+    let scene = harness::painted(cx);
+    assert_eq!(
+        fill_quads(&scene, soft).len(),
+        1,
+        "the resting DangerSoft fill must be painted exactly once; painted {}",
+        scene.describe()
+    );
+    assert!(
+        fill_quads(&scene, soft_hover).is_empty(),
+        "no layer may still hold the hover endpoint after the pointer left; painted {}",
+        scene.describe()
+    );
+}
+
+/// A held press resolves to the pressed endpoint on the same single fill.
+/// DangerSoft's pressed colour *is* `soft_hover()`, and it must appear once —
+/// the variant's `.active` refinement and the press ramp's colour track used
+/// to paint it under the fill as well.
+#[gpui::test]
+fn danger_soft_held_press_paints_the_pressed_endpoint_exactly_once(cx: &mut TestAppContext) {
+    let cx = open(cx, || {
+        Button::new("fade-press")
+            .label("Delete")
+            .variant(Variant::DangerSoft)
+            .into_any_element()
+    });
+    let soft_hover = cx.update(|_window, cx| cx.colors().danger.soft_hover());
+    cx.simulate_mouse_move(point(px(20.), px(18.)), None, Modifiers::none());
+    cx.simulate_mouse_down(
+        point(px(20.), px(18.)),
+        MouseButton::Left,
+        Modifiers::none(),
+    );
+    harness::wait_ms(cx, 200);
+    let scene = harness::painted(cx);
+    assert_eq!(
+        fill_quads(&scene, soft_hover).len(),
+        1,
+        "the held press must paint the pressed endpoint exactly once; painted {}",
+        scene.describe()
+    );
+}
+
+/// Reversing mid-fade resumes from the colour on screen: hover part-way into
+/// the ease, leave, and the fill's next frame must still be the mid colour —
+/// deriving `from`/`to` from the hovered bit used to snap it to `soft_hover()`
+/// for a frame, the flash a pointer sweeping a row of buttons produced.
+#[gpui::test]
+fn a_mid_fade_reversal_resumes_from_the_painted_colour(cx: &mut TestAppContext) {
+    let cx = open(cx, || {
+        Button::new("fade-reverse")
+            .label("Delete")
+            .variant(Variant::DangerSoft)
+            .into_any_element()
+    });
+    let soft_hover = cx.update(|_window, cx| cx.colors().danger.soft_hover());
+    cx.simulate_mouse_move(point(px(20.), px(18.)), None, Modifiers::none());
+    harness::wait_ms(cx, 30);
+    cx.simulate_mouse_move(point(px(-100.), px(-100.)), None, Modifiers::none());
+    // The reversal's first frames, with the clock held: the fill must still
+    // show the mid-fade colour, not the far endpoint.
+    harness::settle(cx);
+    let scene = harness::painted(cx);
+    let fill_color = scene
+        .quads
+        .iter()
+        .filter_map(|q| q.background.as_solid())
+        .find(|c| c.a > 0.)
+        .expect("the fade's fill must be painting mid-reversal");
+    assert!(
+        !harness::same_color(fill_color, soft_hover),
+        "the reversal must resume from the painted mid-fade colour ({fill_color:?}), \
+         not snap to the far endpoint; painted {}",
+        scene.describe()
+    );
+}
+
+/// A keyboard press flips the same pressed bit a pointer press does, so the
+/// fill eases to the pressed endpoint even with the pointer elsewhere — the
+/// opaque idle fill the pointer left behind must not hide it.
+#[gpui::test]
+fn a_keyboard_press_reaches_the_painted_fill(cx: &mut TestAppContext) {
+    let cx = open(cx, || {
+        Button::new("fade-keyboard")
+            .label("Go")
+            .variant(Variant::Primary)
+            .into_any_element()
+    });
+    let (idle, pressed) =
+        cx.update(|_window, cx| (cx.colors().accent.color, cx.colors().accent.hover()));
+    // Hover in and back out first: the fill stays mounted, resting on the
+    // opaque idle colour — the layer that used to hide the pressed endpoint.
+    cx.simulate_mouse_move(point(px(20.), px(18.)), None, Modifiers::none());
+    harness::wait_ms(cx, 200);
+    cx.simulate_mouse_move(point(px(-100.), px(-100.)), None, Modifiers::none());
+    harness::wait_ms(cx, 200);
+    let resting = harness::painted(cx);
+    let fill = resting
+        .quads
+        .iter()
+        .find(|q| {
+            q.background
+                .as_solid()
+                .is_some_and(|c| harness::same_color(c, idle))
+        })
+        .expect("the resting fill must be mounted and painting the idle endpoint");
+    let centre = resting.bounds(fill).center();
+    let centre_bounds = gpui::Bounds {
+        origin: centre,
+        size: gpui::size(px(0.), px(0.)),
+    };
+    // Focus and hold Space: the key down begins the press and stays held.
+    harness::press(cx, "tab");
+    cx.simulate_keystrokes("space");
+    harness::wait_ms(cx, 200);
+    let scene = harness::painted(cx);
+    let topmost = scene
+        .around(centre_bounds)
+        .into_iter()
+        .rev()
+        .filter_map(|q| q.background.as_solid())
+        .find(|c| c.a > 0.)
+        .expect("the button must still paint a fill over its centre");
+    assert!(
+        harness::same_color(topmost, pressed),
+        "the topmost fill over the button must be the pressed endpoint \
+         ({pressed:?}), painted {topmost:?}; scene {}",
+        scene.describe()
+    );
+}
+
+/// A selected toggle's pressed endpoint is the translucent
+/// `accent.soft_hover()` — the press ramp's colour track used to paint it
+/// on the element under the fade fill as well, compositing twice while held.
+/// The fade owns the pressed endpoint now, so exactly one quad may carry it.
+#[gpui::test]
+fn a_selected_toggle_held_press_paints_the_pressed_fill_once(cx: &mut TestAppContext) {
+    let cx = open(cx, || {
+        ToggleButton::new("fade-toggle")
+            .label("Bold")
+            .is_selected(true)
+            .into_any_element()
+    });
+    let soft_hover = cx.update(|_window, cx| cx.colors().accent.soft_hover());
+    cx.simulate_mouse_move(point(px(20.), px(18.)), None, Modifiers::none());
+    cx.simulate_mouse_down(
+        point(px(20.), px(18.)),
+        MouseButton::Left,
+        Modifiers::none(),
+    );
+    harness::wait_ms(cx, 200);
+    let scene = harness::painted(cx);
+    assert_eq!(
+        fill_quads(&scene, soft_hover).len(),
+        1,
+        "the held press must paint the pressed endpoint exactly once; painted {}",
+        scene.describe()
+    );
+}
+
+/// `anim::hover_fade` appends its fill as the element's last child, so it
+/// paints over any child already present — a page number or nav chevron added
+/// before the fade call was hidden under the hover colour. The label now
+/// joins after the fill and paints on top of it; this pins the order on the
+/// painted scene through `Pagination.Link`'s render prop, which draws a
+/// solid quad text runs cannot.
+#[gpui::test]
+fn a_page_label_paints_over_the_hover_fill(cx: &mut TestAppContext) {
+    let cx = open(cx, || {
+        Pagination::new("fade-pages", 1, 3)
+            .link(|n, _| {
+                gpui::div()
+                    .size_full()
+                    .bg(gpui::Hsla {
+                        h: 0.,
+                        s: 1.,
+                        l: 0.5,
+                        a: 1.,
+                    })
+                    .child(n.to_string())
+                    .into_any_element()
+            })
+            .into_any_element()
+    });
+    let hover_bg = cx.update(|_window, cx| cx.colors().default.hover());
+    let red = gpui::Hsla {
+        h: 0.,
+        s: 1.,
+        l: 0.5,
+        a: 1.,
+    };
+    // Page 2's cell spans x 74..106 (see collections.rs), centre (90, 16).
+    cx.simulate_mouse_move(point(px(90.), px(16.)), None, Modifiers::none());
+    harness::wait_ms(cx, 200);
+    let scene = harness::painted(cx);
+    let probe = gpui::Bounds {
+        origin: point(px(90.), px(16.)),
+        size: gpui::size(px(1.), px(1.)),
+    };
+    let painted_at = |color: gpui::Hsla| {
+        scene
+            .quads
+            .iter()
+            .enumerate()
+            .find(|(_, q)| {
+                harness::contains(scene.bounds(q), probe)
+                    && q.background
+                        .as_solid()
+                        .is_some_and(|c| c.a > 0. && harness::same_color(c, color))
+            })
+            .map(|(index, _)| index)
+    };
+    let fill = painted_at(hover_bg).expect("the hover fill must paint the cell");
+    let label = painted_at(red).expect("the page label must paint its own fill");
+    assert!(
+        label > fill,
+        "the label must paint after — over — the fade's fill; scene {}",
+        scene.describe()
+    );
 }

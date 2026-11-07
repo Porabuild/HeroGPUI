@@ -784,6 +784,11 @@ impl RenderOnce for NumberField {
         // buttons, which is not a shape v3 has.
         let steppers = !self.hide_steppers;
         let group_radius = crate::util::field_radius(cx);
+        // v3 rounds only a stepper cell's outer corners (`rounded-s-field` /
+        // `rounded-e-field`): the press fill inside inherits the field
+        // radius shrunk by the shell's border, the way a CSS radius insets.
+        let stepper_corner =
+            crate::util::inner_fill_radius(group_radius, layout.field_border_width);
         // NumberField.Input keeps `px-3` even beside either button. Passing
         // false on both sides removes the standalone chrome without borrowing
         // InputGroup's addon-padding behavior. The group owns the row and its
@@ -804,8 +809,11 @@ impl RenderOnce for NumberField {
         let a11y_name =
             crate::a11y::Name::field(self.label.as_ref(), self.description.as_ref(), &validity);
         // The group's settled state ring, parked for the non-clipping carrier
-        // at the tail of this render; see the chrome call below.
+        // at the tail of this render; see the chrome call below. Once the
+        // ramp owns the ring it hands back the animated overlay element for
+        // the same carrier instead.
         let mut settled_ring = None;
+        let mut escaped_ring = None;
         let mut carries_ring = false;
         let mut group = gpui::div()
             .id(element_id::scoped(&base_id, "group"))
@@ -900,7 +908,8 @@ impl RenderOnce for NumberField {
                 }
             });
             let ramp_owns_ring;
-            (group, ramp_owns_ring) = crate::anim::field_chrome_ramp(
+            let ramp_ring;
+            (group, ramp_owns_ring, ramp_ring) = crate::anim::field_chrome_ramp(
                 group,
                 &element_id::scoped(&base_id, "group"),
                 idle,
@@ -910,9 +919,9 @@ impl RenderOnce for NumberField {
                     FieldVariant::Secondary => Vec::new(),
                 },
                 group_radius,
-                // The group is `overflow-hidden` — its own clip would cut an
-                // outset ring painted by a child, so the ring layer paints
-                // deferred instead.
+                // The group is `overflow-hidden` — no child, deferred or
+                // not, can paint the outset ring inside its clip, so the
+                // ramp hands the hollow overlay back for the carrier below.
                 true,
                 window,
                 cx,
@@ -922,6 +931,7 @@ impl RenderOnce for NumberField {
             if ramp_owns_ring {
                 settled_ring = None;
                 carries_ring = false;
+                escaped_ring = ramp_ring;
             }
         }
         if self.full_width {
@@ -974,6 +984,8 @@ impl RenderOnce for NumberField {
                         self.validate.clone(),
                         &colors,
                         layout.field_border_width,
+                        stepper_corner,
+                        StepperCorners::TopRight,
                         vertical_stepper_h,
                         px(24.),
                         increment_icon,
@@ -991,6 +1003,8 @@ impl RenderOnce for NumberField {
                         self.validate.clone(),
                         &colors,
                         layout.field_border_width,
+                        stepper_corner,
+                        StepperCorners::BottomRight,
                         vertical_stepper_h,
                         px(24.),
                         decrement_icon,
@@ -1012,6 +1026,8 @@ impl RenderOnce for NumberField {
                         self.validate.clone(),
                         &colors,
                         layout.field_border_width,
+                        stepper_corner,
+                        StepperCorners::Left,
                         h,
                         btn_px,
                         decrement_icon,
@@ -1034,6 +1050,8 @@ impl RenderOnce for NumberField {
                         self.validate.clone(),
                         &colors,
                         layout.field_border_width,
+                        stepper_corner,
+                        StepperCorners::Right,
                         h,
                         btn_px,
                         increment_icon,
@@ -1164,8 +1182,19 @@ impl RenderOnce for NumberField {
                     .is_disabled(self.is_disabled),
             );
         }
+        // The carrier must hug the group's box: it stretches with the field
+        // column, and an overlay ring anchored to a wider carrier would span
+        // the column instead of the group.
         el = el.child(if carries_ring {
             crate::util::field_ring_carrier(group, settled_ring, group_radius, cx)
+                .when(!self.full_width, |carrier| carrier.w(px(220.)))
+                .into_any_element()
+        } else if let Some(overlay) = escaped_ring {
+            // The ramp owns the ring past its first flip: its hollow overlay
+            // hangs on the same non-clipping carrier the settled ring uses,
+            // outside the group's `overflow-hidden`.
+            crate::util::field_ring_carrier_overlay(group, overlay)
+                .when(!self.full_width, |carrier| carrier.w(px(220.)))
                 .into_any_element()
         } else {
             group.into_any_element()
@@ -1184,6 +1213,21 @@ impl RenderOnce for NumberField {
     }
 }
 
+/// Which of the group's rounded corners a stepper cell's press fill owns:
+/// v3 rounds the outer edge (`rounded-s-field` / `rounded-e-field`) while
+/// the seam side and the interior edges stay square.
+#[derive(Clone, Copy)]
+enum StepperCorners {
+    /// Horizontal decrement: the group's left edge.
+    Left,
+    /// Horizontal increment: the group's right edge.
+    Right,
+    /// Vertical increment: the top of the right-hand column.
+    TopRight,
+    /// Vertical decrement: the bottom of the right-hand column.
+    BottomRight,
+}
+
 /// One stepper cell: `flex h-full w-10 items-center justify-center
 /// rounded-none bg-transparent`, pressed at `bg-field-foreground/10`.
 #[allow(clippy::too_many_arguments)]
@@ -1195,6 +1239,8 @@ fn stepper_btn(
     validate: Option<crate::validation::Validator<f64>>,
     colors: &herogpui_theme::ThemeColors,
     field_border_width: gpui::Pixels,
+    corner_radius: gpui::Pixels,
+    outer_corners: StepperCorners,
     h: gpui::Pixels,
     btn_px: gpui::Pixels,
     icon: gpui::AnyElement,
@@ -1273,6 +1319,12 @@ fn stepper_btn(
             gpui::MouseButton::Left,
             move |_: &MouseDownEvent, window, cx| {
                 window.focus(&focus_handle, cx);
+                // gpui's mouse-down default then focuses the nearest
+                // focusable ancestor and steals the handle back in the same
+                // dispatch. RAC's `useNumberField` keeps the input focused
+                // while stepping (`onButtonPressStart`), which is what makes
+                // the group focus-within and paints the state ring.
+                window.prevent_default();
                 let generation = press.update(cx, |press, _| {
                     press.active = true;
                     press.generation = press.generation.wrapping_add(1);
@@ -1341,6 +1393,23 @@ fn stepper_btn(
                     .detach();
             },
         );
+        // The press fill rounds only the cell's outer corners; the seam side
+        // and interior edges stay square. `pressed_corners` reads these off
+        // the skin and scales them with the press.
+        match outer_corners {
+            StepperCorners::Left => {
+                b = b.rounded_tl(corner_radius).rounded_bl(corner_radius);
+            }
+            StepperCorners::Right => {
+                b = b.rounded_tr(corner_radius).rounded_br(corner_radius);
+            }
+            StepperCorners::TopRight => {
+                b = b.rounded_tr(corner_radius);
+            }
+            StepperCorners::BottomRight => {
+                b = b.rounded_br(corner_radius);
+            }
+        }
         b = crate::anim::pressed_with_background(
             b,
             crate::anim::PressBox {

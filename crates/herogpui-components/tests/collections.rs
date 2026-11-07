@@ -694,8 +694,8 @@ fn tag_group_uses_the_pinned_smooth_hover_transition(cx: &mut TestAppContext) {
         })
         .collect::<Vec<_>>();
     assert!(
-        layers.len() >= 2 && layers.iter().all(|q| scene.is_uniform(q, radius)),
-        "the skin and its fade layer must both carry the tag radius\n{}",
+        !layers.is_empty() && layers.iter().all(|q| scene.is_uniform(q, radius)),
+        "the fade layer must carry the tag radius\n{}",
         scene.describe()
     );
 
@@ -705,9 +705,10 @@ fn tag_group_uses_the_pinned_smooth_hover_transition(cx: &mut TestAppContext) {
     let button_fills = fills_over(&scene, button);
     assert_eq!(
         button_fills.len(),
-        2,
+        1,
         "control: a Button on the theme's minute-long fade is still mid-way \
-         after 300ms, painted {button_fills:?}"
+         after 300ms — its single fade layer paints the mid colour, painted \
+         {button_fills:?}"
     );
 }
 

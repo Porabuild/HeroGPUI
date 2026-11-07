@@ -15437,7 +15437,7 @@
   },
   "drawer": {
     "page": "Drawer",
-    "importLine": "use herogpui::components::drawer::{Drawer, DrawerCloseTrigger, DrawerPlacement};",
+    "importLine": "use herogpui::components::drawer::{Drawer, DrawerCloseTrigger, DrawerHandle, DrawerPlacement};",
     "version": "3.2.7",
     "docsSource": "https://github.com/heroui-inc/heroui/blob/v3.2.7/apps/docs/content/docs/en/react/components/(overlays)/drawer.mdx",
     "apiSource": "https://github.com/heroui-inc/heroui/blob/v3.2.7/packages/react/src/components/drawer/drawer.tsx",
@@ -15804,8 +15804,8 @@
       {
         "name": "Drawer.Handle",
         "slot": "drawer-handle",
-        "description": "Separator bar that starts the drag-to-dismiss gesture.",
-        "rustOwner": "Drawer",
+        "description": "Optional composed drag handle: the separator bar that starts the drag-to-dismiss gesture, mounted before the header on every placement except Top, where it follows the footer at the moving edge. With no dismissal wiring it still paints but cannot drag.",
+        "rustOwner": "DrawerHandle",
         "status": "implemented"
       },
       {

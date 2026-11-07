@@ -1223,34 +1223,6 @@ impl RenderOnce for Tabs {
                         // `status-disabled` is `--disabled-opacity`.
                         .when(disabled, |t| t.opacity(cx.layout().disabled_opacity));
                     tab = tab.child(measure_tab(item.key.clone()));
-                    // `.tabs__separator` is the absolute `w-px h-1/2
-                    // rounded-sm` hairline inside the tab that carries it. It
-                    // turns into `h-px w-[90%]` in a vertical list and hides
-                    // beside the selected segment.
-                    if index > 0 && item.separator {
-                        let separator = gpui::div()
-                            .absolute()
-                            .rounded(crate::util::hairline_radius(cx))
-                            .bg(colors.muted.alpha(0.25));
-                        let separator = if vertical {
-                            separator
-                                .left(gpui::relative(0.05))
-                                .top(px(0.))
-                                .w(gpui::relative(0.9))
-                                .h(cx.layout().border_width)
-                        } else {
-                            separator
-                                .left(px(0.))
-                                .top(gpui::relative(0.25))
-                                .w(cx.layout().border_width)
-                                .h(gpui::relative(0.5))
-                        };
-                        let separator = separator_motions[index]
-                            .take()
-                            .expect("primary separators have motion state")
-                            .render(separator);
-                        tab = tab.child(separator);
-                    }
                     if active {
                         tab = tab
                             .text_color(colors.segment.foreground)
@@ -1383,13 +1355,6 @@ impl RenderOnce for Tabs {
                         Vec::new(),
                         cx,
                     );
-                    // The trigger element replaces the label text when one is
-                    // set; `label` keeps naming the tab through the
-                    // `a11y_named` restatement above either way.
-                    tab = match item.trigger.take() {
-                        Some(trigger) => tab.child(trigger),
-                        None => tab.child(tab_label(item.label.clone())),
-                    };
                     if !active && !disabled {
                         if hover_fill {
                             let radius = crate::util::control_radius(cx);
@@ -1407,6 +1372,45 @@ impl RenderOnce for Tabs {
                             tab = tab.hover(move |style| style.text_color(hover_fg));
                         }
                     }
+                    // `.tabs__separator` is the absolute `w-px h-1/2
+                    // rounded-sm` hairline inside the tab that carries it. It
+                    // turns into `h-px w-[90%]` in a vertical list and hides
+                    // beside the selected segment. It joins after the fade's
+                    // fill — the fill is appended and would paint over a
+                    // child already present.
+                    if index > 0 && item.separator {
+                        let separator = gpui::div()
+                            .absolute()
+                            .rounded(crate::util::hairline_radius(cx))
+                            .bg(colors.muted.alpha(0.25));
+                        let separator = if vertical {
+                            separator
+                                .left(gpui::relative(0.05))
+                                .top(px(0.))
+                                .w(gpui::relative(0.9))
+                                .h(cx.layout().border_width)
+                        } else {
+                            separator
+                                .left(px(0.))
+                                .top(gpui::relative(0.25))
+                                .w(cx.layout().border_width)
+                                .h(gpui::relative(0.5))
+                        };
+                        let separator = separator_motions[index]
+                            .take()
+                            .expect("primary separators have motion state")
+                            .render(separator);
+                        tab = tab.child(separator);
+                    }
+                    // The trigger element replaces the label text when one is
+                    // set; `label` keeps naming the tab through the
+                    // `a11y_named` restatement above either way. It joins
+                    // after the fade's fill — the fill is appended and would
+                    // paint over a child already present.
+                    tab = match item.trigger.take() {
+                        Some(trigger) => tab.child(trigger),
+                        None => tab.child(tab_label(item.label.clone())),
+                    };
                     if focused && !disabled {
                         tab = crate::util::record_focus_bounds(tab, &list_focus, window, cx);
                     }
@@ -1598,12 +1602,6 @@ impl RenderOnce for Tabs {
                         Vec::new(),
                         cx,
                     );
-                    // As in the primary branch: the trigger element replaces
-                    // the label text; `label` keeps naming the tab.
-                    tab = match item.trigger.take() {
-                        Some(trigger) => tab.child(trigger),
-                        None => tab.child(tab_label(item.label.clone())),
-                    };
                     if !active && !disabled {
                         if hover_fill {
                             let radius = crate::util::control_radius(cx);
@@ -1621,6 +1619,14 @@ impl RenderOnce for Tabs {
                             tab = tab.hover(move |style| style.text_color(hover_fg));
                         }
                     }
+                    // As in the primary branch: the trigger element replaces
+                    // the label text; `label` keeps naming the tab. It joins
+                    // after the fade's fill — the fill is appended and would
+                    // paint over a child already present.
+                    tab = match item.trigger.take() {
+                        Some(trigger) => tab.child(trigger),
+                        None => tab.child(tab_label(item.label.clone())),
+                    };
                     if focused && !disabled {
                         tab = crate::util::record_focus_bounds(tab, &list_focus, window, cx);
                     }
@@ -1677,12 +1683,6 @@ impl RenderOnce for Tabs {
                     .rounded_full()
                     .cursor(crate::util::interactive_cursor(cx))
                     .text_color(colors.foreground)
-                    .child(
-                        gpui::svg()
-                            .size(px(12.))
-                            .path(icon)
-                            .text_color(colors.foreground),
-                    )
                     .on_click(move |_, window, _| {
                         let at = handle.offset();
                         let viewport = handle.bounds().size;
@@ -1716,6 +1716,15 @@ impl RenderOnce for Tabs {
                     move |fill| fill.rounded_full(),
                     window,
                     cx,
+                );
+                // The chevron joins the skin after the fade's fill — the
+                // fill is appended and would paint over a child already
+                // present.
+                let arrow = arrow.child(
+                    gpui::svg()
+                        .size(px(12.))
+                        .path(icon)
+                        .text_color(colors.foreground),
                 );
                 // Keep the occlusion on the outer animated node as well as the
                 // inner control so the list tab underneath cannot win a hit test.

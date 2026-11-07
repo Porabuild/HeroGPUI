@@ -98,13 +98,13 @@ const INVENTORY: &[Part] = &[
     Part::wired(
         "button.rs",
         "fill and hover-fade endpoints",
-        "crate::anim::hover_fade(",
+        "crate::anim::hover_fade_with_press(",
         "util::sx_background",
     ),
     Part::wired(
         "toggle_button.rs",
         "fill and hover-fade endpoints",
-        "crate::anim::hover_fade(",
+        "crate::anim::hover_fade_with_press(",
         "util::sx_background",
     ),
     Part::wired(

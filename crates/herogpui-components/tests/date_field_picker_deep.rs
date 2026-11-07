@@ -13,7 +13,7 @@ use std::{
     rc::Rc,
 };
 
-use gpui::{prelude::*, TestAppContext, VisualTestContext};
+use gpui::{prelude::*, px, TestAppContext, VisualTestContext};
 use herogpui_components::{
     CalendarState, Date, DateField, DatePicker, DateRangePicker, DateRangeState, DateSegment,
     FieldSegment, Form, Granularity, HourCycle, InputState, TimeSegment, ValidationBehavior,
@@ -445,8 +445,8 @@ fn date_picker_segments_do_not_open_but_the_trigger_does(cx: &mut TestAppContext
         "a pointer press on an editable segment focuses it without opening the calendar"
     );
     // Three date segments occupy roughly 82px after the 12px inset; the
-    // separate 24px trigger follows them rather than stretching to the edge.
-    click(cx, 124., 18.);
+    // separate 24px trigger is pinned to the field's right edge.
+    click(cx, 295., 18.);
     assert_eq!(opened.borrow().as_slice(), ["true"]);
     press(cx, "escape");
     press(cx, "space");
@@ -685,11 +685,11 @@ fn date_picker_trigger_toggles_uncontrolled_without_duplicate_outside_close(
             .into_any_element()
     });
 
-    click(cx, 124., 18.);
-    click(cx, 124., 18.);
+    click(cx, 295., 18.);
+    click(cx, 295., 18.);
     assert_eq!(opened.borrow().as_slice(), ["true", "false"]);
 
-    click(cx, 124., 18.);
+    click(cx, 295., 18.);
     click(cx, 400., 18.);
     assert_eq!(
         opened.borrow().as_slice(),
@@ -719,9 +719,9 @@ fn date_picker_trigger_toggles_controlled_open_state(cx: &mut TestAppContext) {
             .into_any_element()
     });
 
-    click(cx, 124., 18.);
+    click(cx, 295., 18.);
     refresh(cx);
-    click(cx, 124., 18.);
+    click(cx, 295., 18.);
     assert_eq!(opened.borrow().as_slice(), ["true", "false"]);
 }
 
@@ -756,7 +756,7 @@ fn read_only_pickers_stay_navigable_but_do_not_edit_select_or_open(cx: &mut Test
     press(cx, "tab");
     press(cx, "home");
     press(cx, "alt-down");
-    click(cx, 124., 18.);
+    click(cx, 295., 18.);
     assert_eq!(
         cx.update(|_, cx| date_state.read(cx).selected),
         Some(Date::new(2025, 6, 15))
@@ -1660,5 +1660,57 @@ fn date_field_value_builder_seeds_once_and_never_clobbers_edits(cx: &mut TestApp
     assert!(
         recorded.borrow().is_empty(),
         "the incomplete segment edit defers onChange, which the re-render must not force"
+    );
+}
+
+/// `.date-input-group__suffix` is `shrink-0 me-3`: the suffix pins to the
+/// field's end, not trailing the last segment. The group's `px` supplies the
+/// inset, so on a wide field the suffix's right edge sits the padding (plus
+/// the border) inside the group's right edge.
+#[gpui::test]
+fn date_field_suffix_pins_to_the_fields_end(cx: &mut TestAppContext) {
+    let state = cx.new(|cx| InputState::with_value(cx, "2025-10-15"));
+    let cx = open_host(cx, move || {
+        gpui::div()
+            .w(px(400.))
+            .child(
+                DateField::new(state.clone())
+                    .full_width(true)
+                    .suffix(gpui::div().w(px(24.)).h(px(24.)).bg(gpui::red())),
+            )
+            .into_any_element()
+    });
+    harness::settle(cx);
+
+    let scene = harness::painted(cx);
+    let (field_bg, border) = cx.update(|_, cx| {
+        use herogpui_theme::ActiveTheme;
+        (
+            cx.colors().field.background,
+            f32::from(cx.layout().field_border_width),
+        )
+    });
+    // The group's fill quad is the only fill wider than the 320px cap; the
+    // suffix marker is the small red quad.
+    let group = scene
+        .filled(field_bg)
+        .into_iter()
+        .find(|q| f32::from(scene.bounds(q).size.width) > 300.)
+        .expect("the field group must paint its fill");
+    let suffix = scene
+        .filled(gpui::red())
+        .into_iter()
+        .next()
+        .expect("the suffix marker must paint");
+    let group_right =
+        f32::from(scene.bounds(group).origin.x) + f32::from(scene.bounds(group).size.width);
+    let suffix_right =
+        f32::from(scene.bounds(suffix).origin.x) + f32::from(scene.bounds(suffix).size.width);
+    let inset = group_right - suffix_right;
+    let expected = 12. + border;
+    assert!(
+        (inset - expected).abs() < 1.5,
+        "the suffix must sit at the field's end: inset {inset} vs expected {expected}\n{}",
+        scene.describe()
     );
 }

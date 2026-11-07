@@ -14,6 +14,21 @@ impl Gallery {
             crate::pages::Page::Kbd.import_line(),
             vec![
                 (
+                    "Usage",
+                    row(vec![
+                        h::Kbd::new().child("Ctrl").into_any_element(),
+                        h::Kbd::new().child("Shift").into_any_element(),
+                        h::Kbd::new().child("K").into_any_element(),
+                    ]),
+                ),
+                (
+                    "Variants",
+                    row(h::KbdVariant::ALL
+                        .iter()
+                        .map(|v| spec(v.label(), h::Kbd::new().variant(*v).child("Esc"), cx))
+                        .collect()),
+                ),
+                (
                     "Navigation Keys",
                     row(vec![
                         h::Kbd::new()
@@ -37,17 +52,6 @@ impl Gallery {
                             .child("Home")
                             .into_any_element(),
                         h::Kbd::new().radius(px(3.)).child("End").into_any_element(),
-                    ]),
-                ),
-                (
-                    "Special Keys",
-                    row(vec![
-                        h::Kbd::new().child("\u{21e7}").into_any_element(),
-                        h::Kbd::new().child("\u{2318}").into_any_element(),
-                        h::Kbd::new().child("\u{2325}").into_any_element(),
-                        h::Kbd::new().child("\u{21b5}").into_any_element(),
-                        h::Kbd::new().child("\u{232b}").into_any_element(),
-                        h::Kbd::new().child("Esc").into_any_element(),
                     ]),
                 ),
                 (
@@ -81,19 +85,15 @@ impl Gallery {
                         .into_any_element()]),
                 ),
                 (
-                    "Usage",
+                    "Special Keys",
                     row(vec![
-                        h::Kbd::new().child("Ctrl").into_any_element(),
-                        h::Kbd::new().child("Shift").into_any_element(),
-                        h::Kbd::new().child("K").into_any_element(),
+                        h::Kbd::new().child("\u{21e7}").into_any_element(),
+                        h::Kbd::new().child("\u{2318}").into_any_element(),
+                        h::Kbd::new().child("\u{2325}").into_any_element(),
+                        h::Kbd::new().child("\u{21b5}").into_any_element(),
+                        h::Kbd::new().child("\u{232b}").into_any_element(),
+                        h::Kbd::new().child("Esc").into_any_element(),
                     ]),
-                ),
-                (
-                    "Variants",
-                    row(h::KbdVariant::ALL
-                        .iter()
-                        .map(|v| spec(v.label(), h::Kbd::new().variant(*v).child("Esc"), cx))
-                        .collect()),
                 ),
             ],
             cx,
@@ -125,17 +125,6 @@ impl Gallery {
                         "Typography sets the size, weight and line height of a run of text.",
                     )
                     .into_any_element()]),
-                ),
-                (
-                    "Render Props", "`Prose` provides only the `text-foreground` color. GPUI has no per-tag CSS selectors, so the per-tag descendant styles of a typographic stylesheet — `h1`–`h6`, `p`, `code`, `a`, lists — cannot be inherited; children must already be semantic elements.",
-                    col(vec![
-                        h::Prose::new()
-                            .child(h::Typography::paragraph(
-                                h::ParagraphSize::Base,
-                                "A paragraph inside `Prose` carries its own body metrics.",
-                            ))
-                            .into_any_element(),
-                    ]),
                 ),
                 (
                     "Scale",
@@ -171,6 +160,43 @@ impl Gallery {
                                 )
                         })
                         .els()),
+                ),
+                (
+                    "Primitives",
+                    col(vec![
+                        h::Typography::heading(3, "Dashboard").into_any_element(),
+                        h::Typography::paragraph(
+                            h::ParagraphSize::Base,
+                            "Paragraph supports base, sm and xs sizes.",
+                        )
+                        .into_any_element(),
+                        // `radius(px)` rounds the `Code` chip alone; the other
+                        // kinds paint no box.
+                        h::Typography::code("cargo add herogpui")
+                            .radius(px(2.))
+                            .into_any_element(),
+                    ]),
+                ),
+                (
+                    "Prose",
+                    col(vec![h::Prose::new()
+                        .child(h::Typography::heading(4, "Body heading"))
+                        .child(h::Typography::paragraph(
+                            h::ParagraphSize::Base,
+                            "Prose applies the shared typographic rhythm to already-semantic children.",
+                        ))
+                        .into_any_element()]),
+                ),
+                (
+                    "Render Props", "`Prose` provides only the `text-foreground` color. GPUI has no per-tag CSS selectors, so the per-tag descendant styles of a typographic stylesheet — `h1`–`h6`, `p`, `code`, `a`, lists — cannot be inherited; children must already be semantic elements.",
+                    col(vec![
+                        h::Prose::new()
+                            .child(h::Typography::paragraph(
+                                h::ParagraphSize::Base,
+                                "A paragraph inside `Prose` carries its own body metrics.",
+                            ))
+                            .into_any_element(),
+                    ]),
                 ),
                 (
                     "Colors & weights",
@@ -215,32 +241,6 @@ impl Gallery {
                             )
                             .into_any_element(),
                     ]),
-                ),
-                (
-                    "Primitives",
-                    col(vec![
-                        h::Typography::heading(3, "Dashboard").into_any_element(),
-                        h::Typography::paragraph(
-                            h::ParagraphSize::Base,
-                            "Paragraph supports base, sm and xs sizes.",
-                        )
-                        .into_any_element(),
-                        // `radius(px)` rounds the `Code` chip alone; the other
-                        // kinds paint no box.
-                        h::Typography::code("cargo add herogpui")
-                            .radius(px(2.))
-                            .into_any_element(),
-                    ]),
-                ),
-                (
-                    "Prose",
-                    col(vec![h::Prose::new()
-                        .child(h::Typography::heading(4, "Body heading"))
-                        .child(h::Typography::paragraph(
-                            h::ParagraphSize::Base,
-                            "Prose applies the shared typographic rhythm to already-semantic children.",
-                        ))
-                        .into_any_element()]),
                 ),
             ],
             cx,

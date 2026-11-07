@@ -783,7 +783,7 @@
       "title": "Drawer",
       "description": "A slide-over panel anchored to a window edge.",
       "category": "Overlays",
-      "importLine": "use herogpui::components::drawer::{Drawer, DrawerCloseTrigger, DrawerPlacement};",
+      "importLine": "use herogpui::components::drawer::{Drawer, DrawerCloseTrigger, DrawerHandle, DrawerPlacement};",
       "tile": "/shots/drawer-tile-v3.png",
       "tileDark": "/shots/drawer-tile-dark-v3.png",
       "demos": [],

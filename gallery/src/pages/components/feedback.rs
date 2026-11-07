@@ -97,17 +97,6 @@ impl Gallery {
                         .into_any_element()]), cx),
                 ),
                 (
-                    "Colors",
-                    col(Color::ALL
-                        .iter()
-                        .enumerate()
-                        .map(|(index, c)| {
-                            let key = format!("meter-color-{c:?}");
-                            specimen_body(&key, fixed_demo(256., h::Meter::new(("meter-color", index), value).color(*c)), cx)
-                        })
-                        .els()),
-                ),
-                (
                     "Sizes",
                     col(Size::ALL
                         .iter()
@@ -115,6 +104,17 @@ impl Gallery {
                         .map(|(index, s)| {
                             let key = format!("meter-size-{s:?}");
                             specimen_body(&key, fixed_demo(256., h::Meter::new(("meter-size", index), value).size(*s)), cx)
+                        })
+                        .els()),
+                ),
+                (
+                    "Colors",
+                    col(Color::ALL
+                        .iter()
+                        .enumerate()
+                        .map(|(index, c)| {
+                            let key = format!("meter-color-{c:?}");
+                            specimen_body(&key, fixed_demo(256., h::Meter::new(("meter-color", index), value).color(*c)), cx)
                         })
                         .els()),
                 ),
@@ -162,22 +162,6 @@ impl Gallery {
                         .into_any_element()]), cx),
                 ),
                 (
-                    "Colors",
-                    col(Color::ALL
-                        .iter()
-                        .enumerate()
-                        .map(|(index, c)| {
-                            let key = format!("progress-color-{c:?}");
-                            specimen_body(&key, fixed_demo(
-                                256.,
-                                h::ProgressBar::new(("progress-color", index))
-                                    .value(65.0)
-                                    .color(*c),
-                            ), cx)
-                        })
-                        .els()),
-                ),
-                (
                     "Sizes",
                     col(vec![
                         specimen_body("progress-size-Sm", fixed_demo(
@@ -199,6 +183,22 @@ impl Gallery {
                                 .size(Size::Lg),
                         ), cx),
                     ]),
+                ),
+                (
+                    "Colors",
+                    col(Color::ALL
+                        .iter()
+                        .enumerate()
+                        .map(|(index, c)| {
+                            let key = format!("progress-color-{c:?}");
+                            specimen_body(&key, fixed_demo(
+                                256.,
+                                h::ProgressBar::new(("progress-color", index))
+                                    .value(65.0)
+                                    .color(*c),
+                            ), cx)
+                        })
+                        .els()),
                 ),
                 (
                     "Without Label",
@@ -247,23 +247,37 @@ impl Gallery {
                     specimen_body("progress-circle-main", row(vec![h::ProgressCircle::new().value(60.).into_any_element()]), cx),
                 ),
                 (
-                    "Value Transition",
-                    "Determinate value changes interpolate the retained arc over HeroUI's 300ms ease-out stroke transition; reduced motion settles directly.",
-                    specimen_body("progress-circle-transition", row(vec![
-                        h::ProgressCircle::new()
-                            .id("progress-circle-transition-ring")
-                            .value(circle_value)
-                            .into_any_element(),
-                        h::Button::new("progress-circle-transition-toggle")
-                            .label(if circle_transition { "Show 25%" } else { "Show 85%" })
+                    "Sizes",
+                    row(vec![
+                        specimen_body("progress-circle-size-Sm", h::ProgressCircle::new()
+                            .value(70.0)
                             .size(Size::Sm)
-                            .variant(Variant::Secondary)
-                            .on_press(cx.listener(move |this, _, _, cx| {
-                                this.set_demo_flag("progress-circle-transition", !circle_transition);
-                                cx.notify();
-                            }))
-                            .into_any_element(),
-                    ]), cx),
+                            .into_any_element(), cx),
+                        specimen_body("progress-circle-size-Md", h::ProgressCircle::new()
+                            .value(70.0)
+                            .size(Size::Md)
+                            .into_any_element(), cx),
+                        specimen_body("progress-circle-size-Lg", h::ProgressCircle::new()
+                            .value(70.0)
+                            .size(Size::Lg)
+                            .into_any_element(), cx),
+                    ]),
+                ),
+                (
+                    "Colors",
+                    row(Color::ALL
+                        .iter()
+                        .map(|c| {
+                                {
+                                    let key = format!("progress-circle-color-{c:?}");
+                                    specimen_body(&key, spec(
+                                        c.label(),
+                                        h::ProgressCircle::new().value(70.0).color(*c),
+                                        cx,
+                                    ), cx)
+                                }
+                        })
+                        .collect()),
                 ),
                 (
                     "Indeterminate",
@@ -300,37 +314,23 @@ impl Gallery {
                     ]),
                 ),
                 (
-                    "Colors",
-                    row(Color::ALL
-                        .iter()
-                        .map(|c| {
-                                {
-                                    let key = format!("progress-circle-color-{c:?}");
-                                    specimen_body(&key, spec(
-                                        c.label(),
-                                        h::ProgressCircle::new().value(70.0).color(*c),
-                                        cx,
-                                    ), cx)
-                                }
-                        })
-                        .collect()),
-                ),
-                (
-                    "Sizes",
-                    row(vec![
-                        specimen_body("progress-circle-size-Sm", h::ProgressCircle::new()
-                            .value(70.0)
+                    "Value Transition",
+                    "Determinate value changes interpolate the retained arc over HeroUI's 300ms ease-out stroke transition; reduced motion settles directly.",
+                    specimen_body("progress-circle-transition", row(vec![
+                        h::ProgressCircle::new()
+                            .id("progress-circle-transition-ring")
+                            .value(circle_value)
+                            .into_any_element(),
+                        h::Button::new("progress-circle-transition-toggle")
+                            .label(if circle_transition { "Show 25%" } else { "Show 85%" })
                             .size(Size::Sm)
-                            .into_any_element(), cx),
-                        specimen_body("progress-circle-size-Md", h::ProgressCircle::new()
-                            .value(70.0)
-                            .size(Size::Md)
-                            .into_any_element(), cx),
-                        specimen_body("progress-circle-size-Lg", h::ProgressCircle::new()
-                            .value(70.0)
-                            .size(Size::Lg)
-                            .into_any_element(), cx),
-                    ]),
+                            .variant(Variant::Secondary)
+                            .on_press(cx.listener(move |this, _, _, cx| {
+                                this.set_demo_flag("progress-circle-transition", !circle_transition);
+                                cx.notify();
+                            }))
+                            .into_any_element(),
+                    ]), cx),
                 ),
             ],
             cx,
@@ -505,14 +505,6 @@ impl Gallery {
                     specimen_body("spinner-main", row(vec![h::Spinner::new("sp-usage").into_any_element()]), cx),
                 ),
                 (
-                    "Speed",
-                    row(vec![
-                        specimen_body("spinner-speed-Slow", spec("Slow", h::Spinner::new("sp-slow").duration_ms(1500), cx), cx),
-                        specimen_body("spinner-speed-Default", spec("Default", h::Spinner::new("sp-default"), cx), cx),
-                        specimen_body("spinner-speed-Fast", spec("Fast", h::Spinner::new("sp-fast").duration_ms(500), cx), cx),
-                    ]),
-                ),
-                (
                     "Colors",
                     row(Color::ALL
                         .iter()
@@ -543,6 +535,14 @@ impl Gallery {
                             }
                         })
                         .collect()),
+                ),
+                (
+                    "Speed",
+                    row(vec![
+                        specimen_body("spinner-speed-Slow", spec("Slow", h::Spinner::new("sp-slow").duration_ms(1500), cx), cx),
+                        specimen_body("spinner-speed-Default", spec("Default", h::Spinner::new("sp-default"), cx), cx),
+                        specimen_body("spinner-speed-Fast", spec("Fast", h::Spinner::new("sp-fast").duration_ms(500), cx), cx),
+                    ]),
                 ),
                 (
                     "Pixel Sizes",

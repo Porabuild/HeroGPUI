@@ -1276,9 +1276,15 @@ impl RenderOnce for ToastViewport {
                     region
                 }
             }
-            // Centred placements stretch and centre their children.
+            // Centred placements size the region to the clamped toast width
+            // and centre it on the viewport — v3's `.toast-region--bottom`
+            // is `left-1/2 -translate-x-1/2` around a region only as wide as
+            // the toasts, so hover counts only over the stack, not the whole
+            // window. `items_center` still centres the cards in the flex
+            // fallback path; the absolute slots centre them inside `width`.
             ToastPlacement::Top | ToastPlacement::Bottom => {
-                region.left_0().right_0().items_center()
+                let centre = px((f32::from(window.viewport_size().width) - f32::from(width)) / 2.);
+                region.w(width).left(centre).items_center()
             }
         };
 

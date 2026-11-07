@@ -1611,7 +1611,10 @@ impl RenderOnce for TimeField {
                     None => segment_text(segment).into_any_element(),
                 });
 
-            if focused == segment && navigable {
+            // v3 fills a segment on `:focus` only: the remembered segment
+            // is where focus lands next, not a focused segment while the
+            // field itself does not hold focus.
+            if focused == segment && navigable && focus_handle.is_focused(window) {
                 seg = seg
                     .bg(colors.accent.soft())
                     .text_color(colors.accent.soft_foreground(colors.foreground));

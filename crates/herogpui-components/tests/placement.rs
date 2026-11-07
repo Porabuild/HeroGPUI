@@ -37,8 +37,8 @@ use gpui::{
 };
 use harness::{click, events, open_host, press, Events};
 use herogpui_components::{
-    Button, Drawer, DrawerPlacement, Modal, ModalPlacement, ModalScroll, ModalSize, Placement,
-    Popover, PopoverArrow,
+    Button, Drawer, DrawerHandle, DrawerPlacement, Modal, ModalPlacement, ModalScroll, ModalSize,
+    Placement, Popover, PopoverArrow,
 };
 
 /// Pins the layout by enabling reduced motion **before** the first frame.
@@ -135,11 +135,11 @@ fn probe(id: impl Into<ElementId>, label: &'static str, recorded: Events) -> gpu
 // - Side panels are anchored to one edge and run the full height: Right
 //   x [1536..1920], Left x [0..384]. Top/bottom sheets size to their content
 //   and cap at 85vh.
-// - The drag surface is the title row. The panel's first child is the handle
-//   bar (`h-1` 4px + `pb-2`/`pt-2` 8px = 12px at y 24..36), then the 24px
-//   title line (16px text at `leading-6`), so the title row is y [36..60]
-//   measured from the panel's near edge — the Top drawer's row starts 36px
-//   below the window top, the Bottom drawer's 36px below y = 760.
+// - The drag surface is the title row. Every test composes `DrawerHandle`,
+//   which mounts before the header on Left/Right/Bottom (the 4px bar +
+//   `pb-2` 8px = 12px strip at y 24..36) and after the footer on Top, so the
+//   Top title row starts at the 24px inset while the others start at y
+//   [36..60] measured from the panel's near edge.
 // - Dragging *toward the edge* accumulates a positive offset; the release
 //   dismisses past 30% of the measured panel or on a fast flick.
 // - Each test's landing probe sits after the title row: panel padding 24 +
@@ -168,6 +168,7 @@ fn drawer_right_placement_lands_on_edge_and_drags_shut(cx: &mut TestAppContext) 
             .is_open(is_open)
             .placement(DrawerPlacement::Right)
             .title("Drag me shut")
+            .child(DrawerHandle::new())
             .child(probe("pl-drawer-right-probe", "hit", hits))
             .on_open_change({
                 let open_flag = open_flag.clone();
@@ -266,6 +267,7 @@ fn drawer_left_placement_lands_on_edge_and_drags_shut(cx: &mut TestAppContext) {
             .is_open(is_open)
             .placement(DrawerPlacement::Left)
             .title("Drag me shut")
+            .child(DrawerHandle::new())
             .child(probe("pl-drawer-left-probe", "hit", hits))
             .on_open_change({
                 let open_flag = open_flag.clone();
@@ -355,15 +357,17 @@ fn drawer_top_placement_lands_on_edge_and_maximal_pull_dismisses(cx: &mut TestAp
         let rec = rec.clone();
         let hits = hits.clone();
         let is_open = *open_flag.borrow();
-        // Top drawer is intrinsic-height and full width. Handle at pt(8):
-        // y [24..36];
-        // title row (the drag surface) y [36..60], centre (960, 48). Body
-        // probe centre (44, 86).
+        // Top drawer is intrinsic-height and full width. v3 mounts the
+        // composed handle after the footer — this sheet has none, so the bar
+        // sits at the content end — and the title row (the drag surface)
+        // starts at the 24px inset: y [24..48], centre (960, 36). Body probe
+        // centre (44, 86) still lands inside the 40px probe.
         Drawer::new()
             .id("pl-drawer-top")
             .is_open(is_open)
             .placement(DrawerPlacement::Top)
             .title("Drag me shut")
+            .child(DrawerHandle::new())
             .child(probe("pl-drawer-top-probe", "hit", hits))
             .on_open_change({
                 let open_flag = open_flag.clone();
@@ -402,11 +406,11 @@ fn drawer_top_placement_lands_on_edge_and_maximal_pull_dismisses(cx: &mut TestAp
     );
 
     // Window-level capture preserves the gesture to the top edge. This one
-    // simulated move is a fast flick and dismisses even if 48px is below 30%
+    // simulated move is a fast flick and dismisses even if 36px is below 30%
     // of the measured intrinsic sheet.
     *open.borrow_mut() = true;
     flush_frame(cx);
-    drag(cx, (960., 48.), (960., 0.));
+    drag(cx, (960., 36.), (960., 0.));
     assert_eq!(
         recorded.borrow().as_slice(),
         ["open:false", "open:false"],
@@ -444,6 +448,7 @@ fn drawer_bottom_placement_lands_on_edge_and_drags_shut(cx: &mut TestAppContext)
             .is_open(is_open)
             .placement(DrawerPlacement::Bottom)
             .title("Drag me shut")
+            .child(DrawerHandle::new())
             .child(probe("pl-drawer-bottom-probe", "hit", hits))
             .on_open_change({
                 let open_flag = open_flag.clone();

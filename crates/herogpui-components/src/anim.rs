@@ -1390,10 +1390,11 @@ where
 /// of switching on the frame the pointer arrives.
 ///
 /// gpui has no property transitions — `hover` swaps the style outright — so the
-/// element keeps its own hover flag and a generation counter, and each change
-/// starts a fresh animation that interpolates in OKLab. `colors` is the
-/// `(idle, hovered)` pair — the two ends; everything else about the element is
-/// untouched.
+/// element keeps its own hover flag and a keyed colour tween, and each target
+/// change starts a fresh animation that interpolates in OKLab, resuming from
+/// the value on screen when the pointer turns around mid-flight. `colors` is
+/// the `(idle, hovered)` pair — the two ends; everything else about the element
+/// is untouched.
 ///
 /// `interaction` is the hover source when the element already records one: a
 /// `content` closure's `isHovered` needs the same enter/leave that drives this
@@ -1413,8 +1414,14 @@ where
 /// lose. `round_corners` shapes the fill like the element itself (a group
 /// member's corners are partial).
 ///
-/// Returns the element with a plain `hover` swap under reduced motion, so the
-/// state is still visible without motion.
+/// **Call it before adding any children.** The fill is appended as the last
+/// child, so it paints over anything already on the element — a label, icon
+/// or indicator added beforehand is hidden under the hover colour. Children
+/// added after the call paint on top of the fill, which is the order every
+/// caller wants: fill first, content over it.
+///
+/// Returns the element with the endpoint painted outright under reduced
+/// motion, so the state is still visible without motion.
 #[allow(clippy::too_many_arguments)] // one parameter per endpoint the fade owns
 pub fn hover_fade(
     el: gpui::Stateful<gpui::Div>,
@@ -1490,6 +1497,7 @@ pub(crate) fn hover_fade_with_duration_and_easing(
         el,
         id,
         colors,
+        None,
         interaction,
         hover_border,
         false,
@@ -1501,15 +1509,53 @@ pub(crate) fn hover_fade_with_duration_and_easing(
     )
 }
 
+/// `hover_fade` for a control whose held press is a third colour endpoint.
+/// While the interaction slot's pressed bit is set the fill eases to `pressed`
+/// — v3's `[data-pressed]` background — instead of the hover colour, so a
+/// held press never paints a second layer under the fill. The caller always
+/// has the slot: `util::track_interaction` keeps it current for the whole
+/// press, pointer- or keyboard-driven.
+#[allow(clippy::too_many_arguments)] // one parameter per endpoint the fade owns
+pub(crate) fn hover_fade_with_press(
+    el: gpui::Stateful<gpui::Div>,
+    id: impl Into<ElementId>,
+    colors: (gpui::Hsla, gpui::Hsla),
+    pressed: gpui::Hsla,
+    interaction: &crate::util::Interaction,
+    round_corners: impl Fn(gpui::Div) -> gpui::Div,
+    window: &mut Window,
+    cx: &mut App,
+) -> gpui::Stateful<gpui::Div> {
+    hover_fade_with_duration_and_easing_suppressed(
+        el,
+        id,
+        colors,
+        Some(pressed),
+        Some(interaction),
+        None,
+        false,
+        round_corners,
+        None,
+        HoverFadeEasing::EaseOut,
+        window,
+        cx,
+    )
+}
+
 /// `hover_fade_with_duration_and_easing` with a render-time suppression flag.
 /// Composite triggers use this when a nested affordance owns the pointer: the
 /// parent fill eases back to its resting endpoint while the nested control is
 /// hovered, then resumes the normal target when the pointer leaves it.
+///
+/// `pressed` is the third endpoint a held press resolves to, ahead of the
+/// hover colour: it needs the interaction slot, whose pressed bit is what a
+/// keyboard press flips as well as a pointer one.
 #[allow(clippy::too_many_arguments)] // the seam adds one parameter to the stock fade
 pub(crate) fn hover_fade_with_duration_and_easing_suppressed(
     el: gpui::Stateful<gpui::Div>,
     id: impl Into<ElementId>,
     colors: (gpui::Hsla, gpui::Hsla),
+    pressed: Option<gpui::Hsla>,
     interaction: Option<&crate::util::Interaction>,
     hover_border: Option<gpui::Hsla>,
     suppressed: bool,
@@ -1530,16 +1576,12 @@ pub(crate) fn hover_fade_with_duration_and_easing_suppressed(
 
     // One hover listener for the whole element. `util::track_interaction` owns
     // `on_hover` when the interaction slot exists; the fade then reads the
-    // hover bit it keeps and only has to notice when the bit *changed*, which
-    // is the same generation bump the listener used to perform itself.
-    // `relative()` makes the element the containing block the fill stretches
-    // across; the resting colour is the element's own, and the fill overlays it
-    // between generations.
+    // hover bit it keeps. `relative()` makes the element the containing block
+    // the fill stretches across.
     let mut el = el;
     if duration.is_some() {
         el = el.relative();
     }
-    el = el.bg(if current.hovered { hovered } else { idle });
     el = match interaction {
         Some(slot) => {
             debug_assert!(
@@ -1547,14 +1589,12 @@ pub(crate) fn hover_fade_with_duration_and_easing_suppressed(
                 "the interaction slot's owner keeps its own gpui hover style; \
                  `hover_border` is only read by the listener-owned branch"
             );
-            let hovered_now = slot.read(cx).0 && !suppressed;
+            // The slot is the hover source; `suppressed` is a render-time
+            // flag, applied where the target is resolved below rather than
+            // stored.
+            let hovered_now = slot.read(cx).0;
             if hovered_now != current.hovered {
                 current.hovered = hovered_now;
-                current.generation = current.generation.wrapping_add(1);
-                // The refresh that repaints this frame was already requested by
-                // `track_interaction`'s handler; the new animation id starts
-                // the transition here, and `with_animation` keeps its own
-                // frames coming until it settles.
                 state.update(cx, |s, _| *s = current);
             }
             el
@@ -1572,51 +1612,91 @@ pub(crate) fn hover_fade_with_duration_and_easing_suppressed(
             });
             let held = state.clone();
             el.on_hover(move |over: &bool, _, cx| {
-                let over = *over && !suppressed;
+                // The raw pointer bit, stored without `suppressed` (a
+                // render-time flag) and without `cx.notify()` -- see the
+                // hover-slot note in the module documentation above.
+                let over = *over;
                 held.update(cx, |s, _| {
                     if s.hovered != over {
                         s.hovered = over;
-                        // A new generation gives the fill's animation a new id,
-                        // which is what restarts it mid-flight when the pointer
-                        // turns around.
-                        s.generation = s.generation.wrapping_add(1);
-                        // Recording the pointer must not itself ask for a
-                        // frame -- see the hover-slot note in the module
-                        // documentation above.
                     }
                 });
             })
         }
     };
 
-    // Reduced motion and a zero-duration theme still need an immediate hover
+    // A held press outranks the hover wash: v3's `:active` background is the
+    // stronger state, so the fill eases to the pressed endpoint while the
+    // interaction slot's pressed bit is set.
+    let is_hovered = current.hovered && !suppressed;
+    let pressed_now = interaction.is_some_and(|slot| slot.read(cx).1);
+    debug_assert!(
+        pressed.is_none() || interaction.is_some(),
+        "a pressed endpoint needs the interaction slot's pressed bit"
+    );
+    let target = match pressed {
+        Some(pressed) if pressed_now => pressed,
+        _ if is_hovered => hovered,
+        _ => idle,
+    };
+
+    // The fill's colour lives in a `Tween` keyed beside the element: its
+    // generation advances on every target change and the value cell holds
+    // the frame actually on screen, so a mid-flight reversal resumes from
+    // the painted colour — the way CSS reverses a transition — instead of
+    // snapping to the far endpoint a from/to pair derived from the hovered
+    // bit would pick.
+    let mut tween = Tween::keyed(&id, "fade-color", target, window, cx);
+
+    // First render: the resting colour on the element IS the state, and
+    // there is nothing to ease from yet.
+    if tween.generation() == 0 {
+        return el.bg(target);
+    }
+    // Reduced motion and a zero-duration theme still need an immediate
     // endpoint. Use the same listener/state path as the animated case instead
     // of installing a second `.hover` refinement on a caller that already owns
     // one for its border. GPUI deliberately rejects duplicate hover styles.
+    // The tween still lands on the target so a later animated generation
+    // resumes from the colour actually painted.
     let Some(duration) = duration else {
-        return el;
+        tween.snap_if_reduced(true);
+        return el.bg(target);
     };
-
-    // Generation 0 is the first render: the resting colour on the element IS
-    // the state, and there is nothing to ease from yet.
-    if current.generation == 0 {
-        return el;
-    }
-    let (from, to) = if current.hovered {
-        (idle, hovered)
-    } else {
-        (hovered, idle)
-    };
+    // Once the fill is mounted it is the only painter of this colour. The
+    // element under it stays transparent: a translucent endpoint (a soft or
+    // ghost fill) painted on both layers composites twice, and the settled
+    // colour -- resting as well as hovered -- would read darker than the
+    // token for as long as the element lives.
+    el = el.bg(gpui::transparent_black());
     // The fill sits under everything the caller adds afterwards: it exactly
     // covers the rounded element and carries only the colour transition, so the
     // element's own state — and its hover listeners — survive the id change.
-    el.child(
-        round_corners(gpui::div().absolute().inset_0()).with_animation(
-            element_id::indexed(&id, "fade", current.generation),
-            gpui::Animation::new(duration).with_easing(move |t| easing.at(t)),
-            move |fill, delta| fill.bg(herogpui_core::mix_oklab(from, to, delta)),
-        ),
-    )
+    let fill = if tween.animates(false) {
+        let (from, to) = (tween.from(), tween.target());
+        let value = tween.value();
+        round_corners(gpui::div().absolute().inset_0())
+            .with_animation(
+                element_id::indexed(&id, "fade", tween.generation()),
+                gpui::Animation::new(duration).with_easing(move |t| easing.at(t)),
+                move |fill, delta| {
+                    let color = if delta >= 1.0 {
+                        to
+                    } else {
+                        herogpui_core::mix_oklab(from, to, delta)
+                    };
+                    value.set(color);
+                    fill.bg(color)
+                },
+            )
+            .into_any_element()
+    } else {
+        tween.settle();
+        round_corners(gpui::div().absolute().inset_0())
+            .bg(target)
+            .into_any_element()
+    };
+    el.child(fill)
 }
 
 #[derive(Clone, Copy)]
@@ -1658,11 +1738,12 @@ fn hover_fade_duration_with_override(
     (ms > 0).then(|| Duration::from_millis(ms))
 }
 
-/// The hover flag and restart counter [`hover_fade`] keeps per element.
+/// The hover flag [`hover_fade`] keeps per element. The fill's restart
+/// generation lives in the colour tween's own keyed state, so a press or a
+/// reversal bumps that instead.
 #[derive(Clone, Copy, Debug, Default)]
 struct HoverFade {
     hovered: bool,
-    generation: usize,
 }
 
 // ---------------------------------------------------------------------------
@@ -1829,16 +1910,24 @@ pub(crate) struct FieldChrome {
 ///
 /// `base_shadows` is the shell's constant shadow list (`--field-shadow`); the
 /// state ring rides on top of it because `shadow()` replaces rather than
-/// adds. `ring_escapes_clip` mounts the ring layer deferred, for a shell
-/// whose own `overflow-hidden` would clip an outset ring painted by a child
-/// to the shell's box — the layer then paints after the subtree, the same
-/// way every floating surface does.
+/// adds. `ring_escapes_clip` is for a shell whose own `overflow-hidden` (or
+/// an ancestor's) would clip an outset ring painted by a child — including a
+/// deferred one, which stays masked — so no ring layer mounts inside it at
+/// all: the third return value hands the caller the hollow
+/// `ring_overlay_in` geometry, its opacity driven by the ring tween's spread
+/// the way the shadow alpha used to, for the caller to hang on its
+/// non-clipping carrier (`util::field_ring_carrier`). A shadow could never
+/// serve there: gpui paints a spread shadow as a filled shape, so the
+/// background-coloured gap ring would cover the whole shell interior. The
+/// in-flow ring (`ring_escapes_clip` false) stays on shadows.
 ///
-/// Returns the refined shell and whether the ramp is painting the state ring
-/// this frame. It is not, on a shell whose ring has never been part of a
-/// tracked state -- a pristine shell, or one that never takes a ring -- and
-/// then whatever ring the caller painted is the state. A caller whose ring is
-/// an overlay on a wrapper reads the flag to decide whether to paint one.
+/// Returns the refined shell, whether the ramp is painting the state ring
+/// this frame, and — for a clip-escaping shell — the ring overlay element
+/// for the caller's carrier. The ramp is not painting the ring on a shell
+/// whose ring has never been part of a tracked state -- a pristine shell, or
+/// one that never takes a ring -- and then whatever ring the caller painted
+/// is the state. A caller whose ring is an overlay on a wrapper reads the
+/// flag to decide whether to paint one.
 #[allow(clippy::too_many_arguments)] // one parameter per chrome track, ring and shell option
 pub(crate) fn field_chrome_ramp<E>(
     mut el: E,
@@ -1850,7 +1939,7 @@ pub(crate) fn field_chrome_ramp<E>(
     ring_escapes_clip: bool,
     window: &mut Window,
     cx: &mut App,
-) -> (E, bool)
+) -> (E, bool, Option<AnyElement>)
 where
     E: InteractiveElement + Styled + ParentElement,
 {
@@ -1909,7 +1998,7 @@ where
     // mounts, and the shell keeps every property it was given.
     let pristine = bg.generation() == 0 && border.generation() == 0 && ring.generation() == 0;
     if pristine {
-        return (el, false);
+        return (el, false, None);
     }
 
     // The containing block the layers stretch across. The shell's own paint
@@ -1998,9 +2087,61 @@ where
             .border_color(border_to)
             .into_any_element()
     };
+    // The clip-escaping ring cannot be a child of the shell at all: the
+    // shell's own `overflow-hidden` (or any ancestor's) cuts an outset ring
+    // painted inside it, and a deferred child is still masked. The hollow
+    // overlay is handed back for the caller to hang on its non-clipping
+    // carrier — `util::field_ring_carrier` — where the settled ring already
+    // lives. A shadow could never serve here either: gpui paints a spread
+    // shadow as a filled shape, so the background-coloured gap ring would
+    // cover the whole shell interior. The overlay's opacity is driven by the
+    // ring tween's spread the way the shadow alpha used to, resuming from
+    // the painted frame through the same `ring_value`.
+    let mut escaped_ring: Option<AnyElement> = None;
     let ring_layer: Option<AnyElement> = if ring.generation() == 0 {
         // The ring has never been part of this shell's state: the caller's
         // painted ring (if any) is the state.
+        None
+    } else if ring_escapes_clip {
+        let visible = if ring_to.ring.1 > 0.0 {
+            ring_to
+        } else {
+            ring_from
+        };
+        let full_spread = visible.ring.1;
+        let overlay_offset = visible.gap.1 > 0.0;
+        let overlay_color = visible.ring.0;
+        let opacity = move |ring: FieldRing| {
+            if full_spread > 0.0 {
+                (ring.ring.1 / full_spread).clamp(0.0, 1.0)
+            } else {
+                0.0
+            }
+        };
+        escaped_ring = Some(if ring.animates(reduce) {
+            ring_value.set(ring_from);
+            crate::util::ring_overlay_in(radius, overlay_offset, overlay_color, cx)
+                .with_animation(
+                    element_id::indexed(id, "chrome-ring", ring.generation()),
+                    gpui::Animation::new(Duration::from_millis(FIELD_CHROME_SHADOW_MS))
+                        .with_easing(|t| FIELD_CHROME_SHADOW_CURVE.at(t)),
+                    move |layer, delta| {
+                        let next = if delta >= 1.0 {
+                            ring_to
+                        } else {
+                            ring_from.mix(ring_to, delta)
+                        };
+                        ring_value.set(next);
+                        layer.opacity(opacity(next))
+                    },
+                )
+                .into_any_element()
+        } else {
+            ring.settle();
+            crate::util::ring_overlay_in(radius, overlay_offset, overlay_color, cx)
+                .opacity(opacity(ring_to))
+                .into_any_element()
+        });
         None
     } else if ring.animates(reduce) {
         ring_value.set(ring_from);
@@ -2036,16 +2177,12 @@ where
                 .into_any_element(),
         )
     };
-    let ring_layer: Option<AnyElement> = match ring_layer {
-        Some(layer) if ring_escapes_clip => Some(crate::util::floating(layer).into_any_element()),
-        some => some,
-    };
+    let ring_painted = ring_layer.is_some() || escaped_ring.is_some();
     el = el.child(fill).child(border_layer);
-    let ring_painted = ring_layer.is_some();
     if let Some(ring_layer) = ring_layer {
         el = el.child(ring_layer);
     }
-    (el, ring_painted)
+    (el, ring_painted, escaped_ring)
 }
 
 /// v3's `@keyframes caret-blink`: opaque at 0/70/100%, transparent at 20/50%.

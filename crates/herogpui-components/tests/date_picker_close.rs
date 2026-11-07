@@ -145,7 +145,7 @@ fn date_picker_closes_when_a_day_is_picked(cx: &mut TestAppContext) {
             .into_any_element()
     });
 
-    click(cx, 124., 18.);
+    click(cx, 295., 18.);
     assert_eq!(
         opened.borrow().as_slice(),
         ["open:true"],
@@ -217,7 +217,7 @@ fn date_picker_can_remain_open_after_a_day_is_picked(cx: &mut TestAppContext) {
             .into_any_element()
     });
 
-    click(cx, 124., 18.);
+    click(cx, 295., 18.);
     click(cx, day_x, day_y);
 
     assert_eq!(recorded.borrow().as_slice(), [expected.format_iso()]);
@@ -245,7 +245,7 @@ fn date_picker_custom_indicator_preserves_trigger_behavior(cx: &mut TestAppConte
             .into_any_element()
     });
 
-    click(cx, 124., 18.);
+    click(cx, 295., 18.);
     assert_eq!(opened.borrow().as_slice(), ["open:true"]);
 }
 
@@ -274,7 +274,7 @@ fn date_picker_change_records_the_pick_once(cx: &mut TestAppContext) {
             .into_any_element()
     });
 
-    click(cx, 124., 18.);
+    click(cx, 295., 18.);
     click(cx, day_x, day_y);
 
     assert_eq!(

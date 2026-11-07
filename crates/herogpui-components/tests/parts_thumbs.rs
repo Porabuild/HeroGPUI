@@ -17,7 +17,7 @@
 use crate::harness;
 
 use gpui::{point, prelude::*, px, Modifiers, MouseButton, TestAppContext, VisualTestContext};
-use harness::{click, events, open_host, press};
+use harness::{click, events, open_host, press, still};
 use herogpui_components::{
     ColorSwatchPicker, ColorSwatchPickerItemState, Form, FormData, PickerColor, SizeXl, Slider,
     SwatchLayout,
@@ -782,5 +782,125 @@ fn disabled_range_thumb_submits_nothing(cx: &mut TestAppContext) {
         seen.borrow().as_slice(),
         ["max=80"],
         "a disabled thumb's named input must not submit"
+    );
+}
+
+/// A pointer press must arm the same roving stop Tab does: the gallery demo
+/// is controlled (`value` fed back from `on_change`), the click selects the
+/// swatch under the pointer *and* seats the cursor there, and the next arrow
+/// has to move on from it. Md swatches are 32px with an 8px gap, so the
+/// second cell spans x 40..72 and its centre is (56, 16).
+#[gpui::test]
+fn swatch_picker_pointer_click_arms_arrow_roving(cx: &mut TestAppContext) {
+    let seen = events();
+    let for_view = seen.clone();
+    let held: std::rc::Rc<std::cell::RefCell<PickerColor>> = std::rc::Rc::new(
+        std::cell::RefCell::new(PickerColor::from_hex("#F43F5E").unwrap()),
+    );
+    let red = PickerColor::from_hex("#F43F5E").unwrap();
+    let green = PickerColor::from_hex("#10B981").unwrap();
+    let blue = PickerColor::from_hex("#3B82F6").unwrap();
+    let cx = open_host(cx, move || {
+        let recorded = for_view.clone();
+        let held = held.clone();
+        let value = *held.borrow();
+        ColorSwatchPicker::new("pt-csp-click", vec![red, green, blue])
+            .value(value)
+            .on_change(move |c, _, _| {
+                *held.borrow_mut() = *c;
+                recorded.borrow_mut().push(c.to_hex());
+            })
+            .into_any_element()
+    });
+
+    click(cx, 56., 16.);
+    flush_frame(cx);
+    press(cx, "right");
+    flush_frame(cx);
+    press(cx, "enter");
+    flush_frame(cx);
+    assert_eq!(
+        seen.borrow().as_slice(),
+        ["#10B981", "#3B82F6"],
+        "the click must seat the roving stop on green so Right reaches blue"
+    );
+}
+
+/// Space is the same press edge as Enter on a focused swatch: the key-up
+/// commit must fire exactly once -- a second record would mean gpui's
+/// synthesized click also landed on top of the capture.
+#[gpui::test]
+fn swatch_picker_space_commits_the_roving_stop_once(cx: &mut TestAppContext) {
+    let seen = events();
+    let for_view = seen.clone();
+    let held: std::rc::Rc<std::cell::RefCell<PickerColor>> = std::rc::Rc::new(
+        std::cell::RefCell::new(PickerColor::from_hex("#F43F5E").unwrap()),
+    );
+    let red = PickerColor::from_hex("#F43F5E").unwrap();
+    let green = PickerColor::from_hex("#10B981").unwrap();
+    let blue = PickerColor::from_hex("#3B82F6").unwrap();
+    let cx = open_host(cx, move || {
+        let recorded = for_view.clone();
+        let held = held.clone();
+        let value = *held.borrow();
+        ColorSwatchPicker::new("pt-csp-space", vec![red, green, blue])
+            .value(value)
+            .on_change(move |c, _, _| {
+                *held.borrow_mut() = *c;
+                recorded.borrow_mut().push(c.to_hex());
+            })
+            .into_any_element()
+    });
+
+    click(cx, 56., 16.);
+    flush_frame(cx);
+    press(cx, "right");
+    flush_frame(cx);
+    press(cx, "space");
+    flush_frame(cx);
+    assert_eq!(
+        seen.borrow().as_slice(),
+        ["#10B981", "#3B82F6"],
+        "Space on the roved stop must commit blue exactly once"
+    );
+}
+
+/// The swatch focus ring is the shared offset overlay, not a spread shadow:
+/// `focus_ring_shadows` keeps the element's corner radius under the spread,
+/// so on a round swatch it squared the ring off. `ring_gaps` reads the
+/// overlay's `ring-offset` band quad, and `band_is_clipped` proves no
+/// ancestor cuts the ring that hangs outside the cell.
+#[gpui::test]
+fn swatch_picker_focus_ring_is_the_offset_overlay(cx: &mut TestAppContext) {
+    still();
+    let red = PickerColor::from_hex("#F43F5E").unwrap();
+    let green = PickerColor::from_hex("#10B981").unwrap();
+    let blue = PickerColor::from_hex("#3B82F6").unwrap();
+    let cx = open_host(cx, move || {
+        ColorSwatchPicker::new("pt-csp-ring", vec![red, green, blue]).into_any_element()
+    });
+    harness::settle(cx);
+    press(cx, "tab");
+    flush_frame(cx);
+
+    let scene = harness::painted(cx);
+    let (bg, gap) = cx.update(|_, cx| {
+        use herogpui_theme::ActiveTheme;
+        (
+            cx.colors().background,
+            f32::from(cx.layout().ring_offset_width),
+        )
+    });
+    let rings = scene.ring_gaps(bg, gap);
+    assert_eq!(
+        rings.len(),
+        1,
+        "a focused swatch must paint one offset-overlay ring\n{}",
+        scene.describe()
+    );
+    assert!(
+        !scene.band_is_clipped(rings[0]),
+        "no ancestor may clip the swatch's overlay ring\n{}",
+        scene.describe()
     );
 }

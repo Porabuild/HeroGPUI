@@ -18,10 +18,12 @@
 
 use crate::harness;
 
+use std::cell::RefCell;
+use std::rc::Rc;
 use std::time::Duration;
 
 use gpui::{prelude::*, Focusable, TestAppContext};
-use herogpui_components::{ComboBox, Input, InputState, MenuTrigger, PickerItem};
+use herogpui_components::{Button, ComboBox, Input, InputState, MenuTrigger, PickerItem};
 
 use harness::{click, events, open_host, press};
 
@@ -618,5 +620,243 @@ fn combo_box_page_keys_reach_enabled_ends_after_a_cursor_exists(cx: &mut TestApp
         recorded.borrow().as_slice(),
         ["Option 01", "Option 18", "Option 01"],
         "PageUp with a cursor must reach the first enabled row"
+    );
+}
+
+/// The outside-press contract Select already has: an open ComboBox's
+/// dismissal must not swallow the press, so clicking another ComboBox's
+/// chevron opens it while the first list closes. Before the fix the
+/// topmost panel's `on_mouse_down_out` consumed every outside press, so any
+/// open list left the rest of the page unclickable.
+#[gpui::test]
+fn combo_box_outside_press_reaches_the_next_trigger(cx: &mut TestAppContext) {
+    let eater_state = combo_state(cx);
+    let target_state = combo_state(cx);
+    let eater_id = eater_state.entity_id().as_u64();
+    let target_id = target_state.entity_id().as_u64();
+    let eater_for_view = eater_state;
+    let target_for_view = target_state;
+
+    let cx = open_host(cx, move || {
+        gpui::div()
+            .flex()
+            .flex_col()
+            .gap(gpui::px(8.))
+            .child(
+                ComboBox::new(target_for_view.clone(), keyed(&["Gamma", "Delta"]))
+                    .into_any_element(),
+            )
+            .child(
+                ComboBox::new(eater_for_view.clone(), keyed(&["Alpha", "Beta"]))
+                    .default_open(true)
+                    .into_any_element(),
+            )
+            .into_any_element()
+    });
+    harness::settle(cx);
+
+    assert!(
+        cx.debug_bounds(selector(format!("combobox-panel-{eater_id}")))
+            .is_some(),
+        "the default_open combo's panel must be laid out"
+    );
+
+    let field = cx
+        .debug_bounds(selector(format!("combobox-field-{target_id}")))
+        .expect("the second combo's field must be laid out");
+    // The chevron sits at the field's right end; it owns the open gesture
+    // under every `MenuTrigger`.
+    let chevron = gpui::point(
+        field.origin.x + field.size.width - gpui::px(22.),
+        field.center().y,
+    );
+    cx.simulate_click(chevron, gpui::Modifiers::none());
+    harness::settle(cx);
+    // The dismissed panel keeps its exit frame for ~100ms; let it finish.
+    harness::wait_ms(cx, 200);
+
+    assert!(
+        cx.debug_bounds(selector(format!("combobox-panel-{target_id}")))
+            .is_some(),
+        "the press must reach the field and open its list"
+    );
+    assert!(
+        cx.debug_bounds(selector(format!("combobox-panel-{eater_id}")))
+            .is_none(),
+        "the same press dismisses the previously open list"
+    );
+}
+
+/// The gallery's controlled ComboBox: the parent owns `open` and feeds it
+/// back through `is_open`/`on_open_change`. A pointer click on the chevron --
+/// the `menuTrigger` under every `MenuTrigger` -- must run the whole path:
+/// click, open callback, re-render, panel layout.
+#[gpui::test]
+fn combo_box_controlled_chevron_click_opens_the_panel(cx: &mut TestAppContext) {
+    let opens = events();
+    let opened = opens.clone();
+    let open_flag = Rc::new(RefCell::new(false));
+    let state = combo_state(cx);
+    let entity_id = state.entity_id().as_u64();
+    let state_for_view = state;
+
+    let cx = open_host(cx, move || {
+        let opens = opens.clone();
+        let is_open = *open_flag.borrow();
+        ComboBox::new(state_for_view.clone(), keyed(&["Alpha", "Beta", "Gamma"]))
+            .is_open(is_open)
+            .on_open_change({
+                let open_flag = open_flag.clone();
+                move |v, window, _| {
+                    *open_flag.borrow_mut() = *v;
+                    opens.borrow_mut().push(format!("open:{v}"));
+                    window.refresh();
+                }
+            })
+            .into_any_element()
+    });
+    harness::settle(cx);
+
+    let field = cx
+        .debug_bounds(selector(format!("combobox-field-{entity_id}")))
+        .expect("the field must be laid out");
+    // The chevron sits at the field's right end; it owns the open gesture.
+    let chevron = gpui::point(
+        field.origin.x + field.size.width - gpui::px(22.),
+        field.center().y,
+    );
+    cx.simulate_click(chevron, gpui::Modifiers::none());
+    harness::settle(cx);
+
+    assert_eq!(
+        opened.borrow().as_slice(),
+        ["open:true"],
+        "the chevron click must report the open through on_open_change"
+    );
+    assert!(
+        cx.debug_bounds(selector(format!("combobox-panel-{entity_id}")))
+            .is_some(),
+        "the controlled panel must lay out after the click"
+    );
+}
+
+/// ComboBox's popover is `isNonModal` in React Aria — no underlay — so an
+/// outside press closes the list *and* reaches the control underneath: the
+/// sibling button fires while the combo's panel dismisses. Select and the
+/// dialog popovers keep the consuming underlay contract instead.
+#[gpui::test]
+fn combo_box_outside_press_reaches_the_sibling(cx: &mut TestAppContext) {
+    let clicks = events();
+    let clicked = clicks.clone();
+    let state = combo_state(cx);
+    let entity_id = state.entity_id().as_u64();
+    let state_for_view = state;
+
+    let cx = open_host(cx, move || {
+        let clicks = clicks.clone();
+        gpui::div()
+            .flex()
+            .flex_col()
+            .gap(gpui::px(8.))
+            .child(
+                gpui::div()
+                    .id("cb-outside-btn")
+                    .w(gpui::px(140.))
+                    .h(gpui::px(36.))
+                    .flex()
+                    .items_center()
+                    .justify_center()
+                    .debug_selector(|| "cb-outside-btn".to_owned())
+                    .child(
+                        Button::new("cb-outside-inner")
+                            .label("Outside")
+                            .on_press(move |_, _, _| clicks.borrow_mut().push("click".into())),
+                    )
+                    .into_any_element(),
+            )
+            .child(
+                ComboBox::new(state_for_view.clone(), keyed(&["Alpha", "Beta"]))
+                    .default_open(true)
+                    .into_any_element(),
+            )
+            .into_any_element()
+    });
+    harness::settle(cx);
+
+    assert!(
+        cx.debug_bounds(selector(format!("combobox-panel-{entity_id}")))
+            .is_some(),
+        "the combo's panel must start open"
+    );
+
+    let button = cx
+        .debug_bounds("cb-outside-btn")
+        .expect("the sibling button must be laid out");
+    cx.simulate_click(button.center(), gpui::Modifiers::none());
+    harness::settle(cx);
+    // The dismissed panel keeps its exit frame for ~100ms; let it finish.
+    harness::wait_ms(cx, 200);
+
+    assert_eq!(
+        clicked.borrow().as_slice(),
+        ["click"],
+        "the non-modal press must reach the sibling button"
+    );
+    assert!(
+        cx.debug_bounds(selector(format!("combobox-panel-{entity_id}")))
+            .is_none(),
+        "the same press dismisses the open combo"
+    );
+}
+
+/// The chevron owns the close gesture: with the list open, a press on it
+/// must end closed — the panel's outside-press dismissal declines the press
+/// (`inside_pressed`) and the chevron's own click performs the close, once.
+#[gpui::test]
+fn combo_box_chevron_press_while_open_closes_once(cx: &mut TestAppContext) {
+    let opens = events();
+    let opened = opens.clone();
+    let state = combo_state(cx);
+    let entity_id = state.entity_id().as_u64();
+    let state_for_view = state;
+
+    let cx = open_host(cx, move || {
+        let opens = opens.clone();
+        ComboBox::new(state_for_view.clone(), keyed(&["Alpha", "Beta", "Gamma"]))
+            .on_open_change(move |v, _, _| opens.borrow_mut().push(format!("open:{v}")))
+            .into_any_element()
+    });
+    harness::settle(cx);
+
+    let field = cx
+        .debug_bounds(selector(format!("combobox-field-{entity_id}")))
+        .expect("the field must be laid out");
+    // The chevron sits at the field's right end; it owns the open gesture.
+    let chevron = gpui::point(
+        field.origin.x + field.size.width - gpui::px(22.),
+        field.center().y,
+    );
+    cx.simulate_click(chevron, gpui::Modifiers::none());
+    harness::settle(cx);
+    assert!(
+        cx.debug_bounds(selector(format!("combobox-panel-{entity_id}")))
+            .is_some(),
+        "the first chevron click must open the list"
+    );
+
+    cx.simulate_click(chevron, gpui::Modifiers::none());
+    harness::settle(cx);
+    // The dismissed panel keeps its exit frame for ~100ms; let it finish.
+    harness::wait_ms(cx, 200);
+
+    assert_eq!(
+        opened.borrow().as_slice(),
+        ["open:true", "open:false"],
+        "the chevron press must close once -- no dismiss-then-reopen"
+    );
+    assert!(
+        cx.debug_bounds(selector(format!("combobox-panel-{entity_id}")))
+            .is_none(),
+        "the panel must be gone after the closing press"
     );
 }

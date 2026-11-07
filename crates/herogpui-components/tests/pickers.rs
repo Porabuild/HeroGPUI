@@ -1544,7 +1544,7 @@ fn date_picker_opens_and_picks_a_day(cx: &mut TestAppContext) {
             .into_any_element()
     });
 
-    click(cx, 124., 18.);
+    click(cx, 295., 18.);
     click(cx, day_x, day_y);
 
     assert_eq!(

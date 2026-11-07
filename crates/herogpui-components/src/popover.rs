@@ -1301,7 +1301,10 @@ impl RenderOnce for Popover {
         )
         .with_resolved_placement(resolved_placement)
         .child(panel);
-        root = root.child(positioner);
+        // gpui paints in tree order, so a later sibling would overdraw the
+        // open panel — every floating surface goes through `util::floating`
+        // (v3 portals the popover above the page).
+        root = root.child(crate::util::floating(positioner));
         root = crate::util::apply_sx(root, &self.sx);
         root
     }

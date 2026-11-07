@@ -3744,7 +3744,7 @@ impl Widget {
     fn drawer_metadata_keeps_drag_contract_and_style_gaps_explicit() {
         let metadata = reference_metadata::for_route(
             "Drawer",
-            "use herogpui::components::drawer::{Drawer, DrawerCloseTrigger, DrawerPlacement};",
+            "use herogpui::components::drawer::{Drawer, DrawerCloseTrigger, DrawerHandle, DrawerPlacement};",
         )
         .expect("Drawer metadata is registered");
 

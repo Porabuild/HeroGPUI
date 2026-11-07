@@ -296,7 +296,8 @@ impl RenderOnce for ColorPicker {
         } else {
             util::record_focus_bounds(trigger, &trigger_focus, window, cx)
         };
-        let trigger = trigger_focus_motion.render(trigger, Vec::new(), true, cx);
+        let trigger =
+            trigger_focus_motion.render(trigger, Vec::new(), util::hairline_radius(cx), true, cx);
 
         // The popover overlays the page rather than pushing it down.
         let mut root = div().relative().flex().flex_col().gap(px(8.));

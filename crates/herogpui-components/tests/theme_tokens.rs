@@ -348,9 +348,9 @@ fn button_reaches_hover(cx: &mut TestAppContext, fade_ms: u64, wait_ms: u64) -> 
     harness::wait_ms(cx, 50);
     cx.simulate_mouse_move(point(px(20.), px(18.)), None, Modifiers::none());
     harness::wait_ms(cx, wait_ms);
-    // The fade sets the element's own fill to the endpoint at once and eases
-    // an overlay fill across it, so the colour that shows is the last solid
-    // painted over the element's box.
+    // Once the fade's fill is mounted it is the only painter of the colour —
+    // the element underneath stays transparent — so the colour that shows is
+    // the last solid painted over the element's box.
     let scene = harness::painted(cx);
     let Some(element) = scene
         .quads

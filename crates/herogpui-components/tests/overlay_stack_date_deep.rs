@@ -193,8 +193,8 @@ fn date_picker_trigger_outside_guard_does_not_report_duplicate_close(cx: &mut Te
             .into_any_element()
     });
 
-    click(cx, 124., 18.);
-    click(cx, 124., 18.);
+    click(cx, 295., 18.);
+    click(cx, 295., 18.);
     assert_eq!(changes.borrow().as_slice(), ["true", "false"]);
 }
 
@@ -240,7 +240,7 @@ fn date_picker_cancelled_trigger_press_does_not_block_later_outside_dismissal(
     });
 
     cx.simulate_mouse_down(
-        point(px(124.), px(18.)),
+        point(px(295.), px(18.)),
         MouseButton::Left,
         Modifiers::none(),
     );

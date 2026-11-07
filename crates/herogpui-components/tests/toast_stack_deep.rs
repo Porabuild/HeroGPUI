@@ -6,11 +6,11 @@ use crate::harness;
 use std::time::Duration;
 
 use gpui::{point, prelude::*, px, Modifiers, TestAppContext};
-use harness::{open_host, press, still};
+use harness::{open_host, painted, press, still};
 use herogpui_components::{
     dismiss_toast, toast_store, Toast, ToastHotkey, ToastViewport, DEFAULT_TOAST_EXIT_DURATION,
 };
-use herogpui_theme::{set_reduce_motion, ThemeProvider};
+use herogpui_theme::{set_reduce_motion, ActiveTheme, ThemeProvider};
 
 fn flush_frame(cx: &mut gpui::VisualTestContext) {
     cx.update(|window, _| window.refresh());
@@ -141,6 +141,71 @@ fn hover_expands_the_stack_and_pauses_timers(cx: &mut TestAppContext) {
             "a hovered stack must not dismiss while the pointer is inside"
         );
     });
+}
+
+/// v3's `.toast-region--bottom` is `left-1/2 -translate-x-1/2` around a
+/// region only as wide as the toasts: hover must count over the centred
+/// 460px column (x 730..1190 in this 1920px window), not the whole window.
+#[gpui::test]
+fn hover_counts_only_over_the_centred_stack(cx: &mut TestAppContext) {
+    still();
+    cx.update(|cx| {
+        Toast::new("Older").timeout(Duration::ZERO).push(None, cx);
+        Toast::new("Newer").timeout(Duration::ZERO).push(None, cx);
+    });
+    let cx = open_host(cx, || ToastViewport::new().into_any_element());
+    assert!(!expanded(cx), "the stack starts collapsed");
+
+    // Inside the region's vertical band but beside the toast column: the
+    // full-width region used to expand on this pointer position.
+    cx.simulate_mouse_move(point(px(1900.), px(1040.)), None, Modifiers::none());
+    flush_frame(cx);
+    assert!(
+        !expanded(cx),
+        "hover beside the toast column must not expand the stack"
+    );
+    assert!(
+        !interaction_paused(cx),
+        "a pointer outside the column must not pause the timers"
+    );
+
+    // Moving over the front card still expands the stack.
+    cx.simulate_mouse_move(point(px(960.), px(1042.)), None, Modifiers::none());
+    flush_frame(cx);
+    assert!(expanded(cx), "hovering the card must expand the stack");
+}
+
+/// Narrowing the hover region to the toast column must not move the cards:
+/// the painted card quads keep the centred 460px x-range.
+#[gpui::test]
+fn centred_region_keeps_the_cards_centred(cx: &mut TestAppContext) {
+    still();
+    cx.update(|cx| {
+        Toast::new("Older").timeout(Duration::ZERO).push(None, cx);
+        Toast::new("Newer").timeout(Duration::ZERO).push(None, cx);
+    });
+    let cx = open_host(cx, || ToastViewport::new().into_any_element());
+    flush_frame(cx);
+
+    let scene = painted(cx);
+    let surface = cx.update(|_, cx| cx.colors().surface.background);
+    let mut card_lefts: Vec<f32> = scene
+        .filled(surface)
+        .into_iter()
+        .map(|quad| scene.bounds(quad))
+        .filter(|bounds| (f32::from(bounds.size.width) - 460.).abs() < 1.)
+        .map(|bounds| f32::from(bounds.origin.x))
+        .collect();
+    card_lefts.sort_by(|a, b| a.total_cmp(b));
+    card_lefts.dedup_by(|a, b| (*a - *b).abs() < 0.5);
+    assert!(
+        !card_lefts.is_empty(),
+        "the toast cards must paint their surface fill"
+    );
+    assert!(
+        card_lefts.iter().all(|x| (*x - 730.).abs() < 1.),
+        "every card must keep the centred 730px left edge: {card_lefts:?}"
+    );
 }
 
 #[gpui::test]

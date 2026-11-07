@@ -23,46 +23,6 @@ impl Gallery {
                         .into_any_element()]), cx),
                 ),
                 (
-                    "Fallback Content",
-                    specimen_body("avatar-fallback", spec_row(vec![
-                        spec(
-                            "Initials",
-                            h::Avatar::new("initials-avatar").name("Jane Doe"),
-                            cx,
-                        ),
-                        spec("No name", h::Avatar::new("unnamed-avatar"), cx),
-                        // v3's own Fallback Content example drives a
-                        // deliberately broken URL with
-                        // `<Avatar.Fallback delayMs={600}>`; an unregistered
-                        // asset path fails identically here (no network), and
-                        // the initials replace the box once the delay elapses.
-                        spec(
-                            "Broken image",
-                            h::Avatar::new("delay-avatar")
-                                .name("NA")
-                                .src("images/avatar-broken.png")
-                                .delay_ms(600),
-                            cx,
-                        ),
-                        spec(
-                            "Custom fallback",
-                            h::Avatar::new("icon-avatar")
-                                .name("HG")
-                                .fallback(icon(h::icons::HEART_FILL, cx)),
-                            cx,
-                        ),
-                        spec(
-                            "Fallback color",
-                            h::Avatar::new("fb-color-avatar")
-                                .name("HG")
-                                .color(Color::Accent)
-                                .variant(h::AvatarVariant::Soft)
-                                .fallback_color(Color::Warning),
-                            cx,
-                        ),
-                    ]), cx),
-                ),
-                (
                     "Sizes",
                     specimen_body("avatar-sizes", spec_row(
                         Size::ALL
@@ -106,6 +66,46 @@ impl Gallery {
                             })
                             .collect()
                     ), cx),
+                ),
+                (
+                    "Fallback Content",
+                    specimen_body("avatar-fallback", spec_row(vec![
+                        spec(
+                            "Initials",
+                            h::Avatar::new("initials-avatar").name("Jane Doe"),
+                            cx,
+                        ),
+                        spec("No name", h::Avatar::new("unnamed-avatar"), cx),
+                        // v3's own Fallback Content example drives a
+                        // deliberately broken URL with
+                        // `<Avatar.Fallback delayMs={600}>`; an unregistered
+                        // asset path fails identically here (no network), and
+                        // the initials replace the box once the delay elapses.
+                        spec(
+                            "Broken image",
+                            h::Avatar::new("delay-avatar")
+                                .name("NA")
+                                .src("images/avatar-broken.png")
+                                .delay_ms(600),
+                            cx,
+                        ),
+                        spec(
+                            "Custom fallback",
+                            h::Avatar::new("icon-avatar")
+                                .name("HG")
+                                .fallback(icon(h::icons::HEART_FILL, cx)),
+                            cx,
+                        ),
+                        spec(
+                            "Fallback color",
+                            h::Avatar::new("fb-color-avatar")
+                                .name("HG")
+                                .color(Color::Accent)
+                                .variant(h::AvatarVariant::Soft)
+                                .fallback_color(Color::Warning),
+                            cx,
+                        ),
+                    ]), cx),
                 ),
                 (
                     "Custom Image Component", "A custom image source composes the same way: the loader below supplies the embedded sample image itself, and `on_load` fires once the image is ready and replaces the fallback.",

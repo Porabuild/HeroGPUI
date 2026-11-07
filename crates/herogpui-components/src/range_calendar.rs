@@ -1552,6 +1552,18 @@ impl RenderOnce for RangeCalendar {
                 shrink_x: true,
                 scale: crate::anim::PRESSED_SCALE_DEEP,
             };
+            // The icon joins the skin after the fade's fill — the fill is
+            // appended and would paint over a child already present — and
+            // before the press wrap, whose slot would inherit children added
+            // after it.
+            let nav_icon = || {
+                gpui::svg()
+                    // `.range-calendar__nav-button-icon` is `size-4`, painted
+                    // `text-accent-soft-foreground` like its button.
+                    .size(px(16.))
+                    .path(icon)
+                    .text_color(colors.accent.soft_foreground(colors.foreground))
+            };
             let button = div()
                 .id(button_id.clone())
                 // The debug selector lets the headless tests read the
@@ -1566,17 +1578,6 @@ impl RenderOnce for RangeCalendar {
                 // `rounded-2xl`.
                 .size(px(24.))
                 .rounded(util::small_radius(cx))
-                // The icon joins the skin before the press wrap: children
-                // added after `pressed` land on the slot and fight the skin
-                // for width.
-                .child(
-                    gpui::svg()
-                        // `.range-calendar__nav-button-icon` is `size-4`, painted
-                        // `text-accent-soft-foreground` like its button.
-                        .size(px(16.))
-                        .path(icon)
-                        .text_color(colors.accent.soft_foreground(colors.foreground)),
-                )
                 .when(!disabled && !inert, |b| {
                     let pressed = b
                         .cursor(util::interactive_cursor(cx))
@@ -1597,8 +1598,10 @@ impl RenderOnce for RangeCalendar {
                         window,
                         cx,
                     );
+                    let pressed = pressed.child(nav_icon());
                     crate::anim::pressed(pressed, press_box, cx)
                 })
+                .when(disabled || inert, |b| b.child(nav_icon()))
                 .when(disabled, |b| b.opacity(layout.disabled_opacity))
                 .when(year_picker_open, |b| b.invisible());
             let button = if inert {

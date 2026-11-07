@@ -863,45 +863,35 @@ fn badge_and_tag_steps_stay_the_fallback_and_inner_parts_keep_their_own(cx: &mut
     }
 }
 
-/// Both the skin and its animated hover fill consume the pixel corners an
-/// `sx` refinement names, and the pressed skin scales those corners: an `sx`
-/// top-left corner survives resting, hover and press on all three buttons.
+/// The animated hover fill consumes the pixel corners an `sx` refinement
+/// names — once it is mounted the skin underneath stays transparent, so the
+/// fill is the only painted layer — and the pressed state keeps them: an
+/// `sx` top-left corner survives resting, hover and press on all three
+/// buttons.
 #[gpui::test]
 fn button_shapes_reconcile_sx_on_skin_fill_and_press(cx: &mut TestAppContext) {
     const TL: f32 = 7.;
-    type Shape = (&'static str, fn() -> AnyElement, f32);
+    type Shape = (&'static str, fn() -> AnyElement);
     let shapes: [Shape; 3] = [
-        (
-            "Button",
-            || {
-                Button::new("b")
-                    .label("Save")
-                    .sx(|s| s.rounded_tl(px(TL)))
-                    .into_any_element()
-            },
-            0.97,
-        ),
-        (
-            "ToggleButton",
-            || {
-                ToggleButton::new("t")
-                    .label("Bold")
-                    .sx(|s| s.rounded_tl(px(TL)))
-                    .into_any_element()
-            },
-            0.97,
-        ),
-        (
-            "CloseButton",
-            || {
-                CloseButton::new("c")
-                    .sx(|s| s.rounded_tl(px(TL)))
-                    .into_any_element()
-            },
-            0.93,
-        ),
+        ("Button", || {
+            Button::new("b")
+                .label("Save")
+                .sx(|s| s.rounded_tl(px(TL)))
+                .into_any_element()
+        }),
+        ("ToggleButton", || {
+            ToggleButton::new("t")
+                .label("Bold")
+                .sx(|s| s.rounded_tl(px(TL)))
+                .into_any_element()
+        }),
+        ("CloseButton", || {
+            CloseButton::new("c")
+                .sx(|s| s.rounded_tl(px(TL)))
+                .into_any_element()
+        }),
     ];
-    for (name, build, scale) in shapes {
+    for (name, build) in shapes {
         // Motion on: the hover fill only exists while a fade is mounted.
         let vcx = open_host(cx, move || {
             gpui::div().p(px(24.)).child(build()).into_any_element()
@@ -930,8 +920,8 @@ fn button_shapes_reconcile_sx_on_skin_fill_and_press(cx: &mut TestAppContext) {
             })
             .collect::<Vec<_>>();
         assert!(
-            layers.len() >= 2,
-            "{name}: hovering must paint the skin and its fade fill, got {}",
+            !layers.is_empty(),
+            "{name}: hovering must paint the fade fill, got {}",
             layers.len()
         );
         for q in layers {
@@ -945,13 +935,19 @@ fn button_shapes_reconcile_sx_on_skin_fill_and_press(cx: &mut TestAppContext) {
         vcx.simulate_mouse_down(skin.center(), MouseButton::Left, Modifiers::none());
         wait_ms(vcx, 400);
         let pressed = painted(vcx);
-        let want = TL * scale;
+        // The visible pressed layer is the fade fill — the element
+        // underneath stays transparent once the fill is mounted — so the
+        // painted corner is the fill's own `sx` corner, the same shape
+        // CloseButton's transform-only press has always painted.
+        let pressed_fill = pressed
+            .quads
+            .iter()
+            .rfind(|q| q.background.as_solid().is_some_and(|c| c.a > 0.))
+            .expect("the pressed fade fill must be painting");
         assert!(
-            pressed
-                .quads
-                .iter()
-                .any(|q| (pressed.corners(q)[0] - want).abs() < 0.05),
-            "{name}: the pressed skin must scale the sx corner to {want}"
+            (pressed.corners(pressed_fill)[0] - TL).abs() < 0.05,
+            "{name}: the pressed fill must keep the sx corner {TL}, got {:?}",
+            pressed.corners(pressed_fill)
         );
         vcx.simulate_mouse_up(skin.center(), MouseButton::Left, Modifiers::none());
         settle(vcx);

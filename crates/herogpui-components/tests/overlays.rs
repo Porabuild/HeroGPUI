@@ -61,8 +61,8 @@ use gpui::{
 use harness::{click, events, open_host, press, tooltip_open_probe};
 use herogpui_components::{
     dismiss_toast, extend, toast_store, AlertDialog, AlertDialogCloseTrigger, AlertDialogSize,
-    Button, Drawer, DrawerPlacement, Modal, ModalCloseTrigger, Popover, Toast, Tooltip,
-    TooltipTrigger, Variant,
+    Button, Drawer, DrawerHandle, DrawerPlacement, Modal, ModalCloseTrigger, Popover, Toast,
+    Tooltip, TooltipTrigger, Variant,
 };
 
 /// Pins the layout by enabling reduced motion **before** the first frame.
@@ -867,6 +867,7 @@ fn drawer_escape_and_drag_dismiss(cx: &mut TestAppContext) {
             .is_open(is_open)
             .placement(DrawerPlacement::Right)
             .title("Drag me shut")
+            .child(DrawerHandle::new())
             .on_close(move |reason, _, _| reasons.borrow_mut().push(format!("{reason:?}")))
             .on_open_change({
                 let open_flag = open_flag.clone();
@@ -940,6 +941,7 @@ fn drawer_small_pull_springs_back(cx: &mut TestAppContext) {
             .is_open(is_open)
             .placement(DrawerPlacement::Right)
             .title("Drag me shut")
+            .child(DrawerHandle::new())
             .on_open_change({
                 let open_flag = open.clone();
                 move |v, window, _| {
