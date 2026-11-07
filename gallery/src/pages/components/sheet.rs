@@ -26,17 +26,30 @@ impl Gallery {
             crate::pages::Page::Sheet.description(),
             crate::pages::Page::Sheet.import_line(),
             vec![
+                // v3's Usage: secondary "Open Sheet" trigger, "Sheet
+                // Title", the muted drag hint, and Cancel/Confirm footer
+                // buttons that both close.
                 (
                     "Usage",
                     col(vec![h::Sheet::new("sheet-basic")
-                        .title("Usage")
+                        .title("Sheet Title")
                         .default_open(self.demo_overlay("sheet-basic"))
-                        .trigger(h::Button::new("sheet-basic-trigger").label("Open sheet"))
+                        .trigger(h::Button::new("sheet-basic-trigger")
+                            .label("Open Sheet")
+                            .variant(Variant::Secondary))
                         .close_trigger(
                             h::CloseButton::new("sheet-basic-close").aria_label("Dismiss details")
                         )
-                        .child("Drag the handle to expand, change snap position, or dismiss.")
-                        .close_child(h::Button::new("sheet-basic-done").label("Done"))
+                        .child(gpui::div()
+                            .text_size(px(14.))
+                            .text_color(cx.colors().muted)
+                            .child("This is a bottom sheet built with smooth drag-to-dismiss animations. Try dragging the handle down to close, or use the close button."))
+                        .close_child(h::Button::new("sheet-basic-cancel")
+                            .label("Cancel")
+                            .variant(Variant::Secondary))
+                        .close_child(h::Button::new("sheet-basic-confirm")
+                            .label("Confirm")
+                            .variant(Variant::Secondary))
                         .into_any_element()])
                 ),
                 (

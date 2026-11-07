@@ -1574,6 +1574,11 @@ impl RenderOnce for ToastCardEl {
             .rounded(radius)
             .bg(colors.surface.background)
             .text_color(colors.overlay.foreground)
+            // v3's `shadow-overlay` carries dark mode's inset hairline; the
+            // card has no permanent border.
+            .when_some(cx.layout().overlay_hairline, |c, hairline| {
+                c.border(cx.layout().border_width).border_color(hairline)
+            })
             .when(!cx.layout().overlay_shadow.is_empty(), |c| {
                 c.shadow(cx.layout().overlay_shadow.clone())
             });
@@ -2033,16 +2038,21 @@ mod tests {
     }
 
     #[test]
-    fn toast_card_does_not_add_a_border() {
+    fn toast_card_has_no_border_but_the_dark_hairline() {
         let card = implementation_source()
-            .split("let mut card =")
+            .split("let mut card = card")
             .nth(1)
             .expect("the card implementation is present")
             .split("// `.toast__indicator`")
             .next()
             .expect("the indicator implementation follows the card");
-        assert!(!card.contains(".border(cx.layout().border_width)"));
+        // v3's toast is `bg-surface shadow-overlay` with no border; dark
+        // mode's only edge is the inset hairline `overlay-shadow` carries,
+        // which the port paints as a conditional border — never a permanent
+        // one and never the theme's ordinary border colour.
+        assert!(card.contains("overlay_hairline"));
         assert!(!card.contains(".border_color(colors.border)"));
+        assert!(!card.contains(".border_color(colors.separator)"));
     }
 
     #[test]

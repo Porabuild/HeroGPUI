@@ -15,21 +15,21 @@ impl Gallery {
             vec![
                 (
                     "Usage",
-                    // v3 anchors three avatars: a danger count, an accent label
-                    // and a success dot pinned to the bottom-right.
+                    // v3 anchors three avatars `gap-6` apart: a danger count,
+                    // an accent label and a success dot pinned bottom-right.
                     specimen_body(
                         "badge-main",
-                        row(vec![
+                        gpui::div()
+                            .flex()
+                            .items_center()
+                            .gap(px(24.))
+                            .children(vec![
                             h::BadgeAnchor::new()
                                 .child(avatar_box(("badge-anchor", 0usize), "Jane Doe"))
                                 .child(
                                     h::Badge::new()
                                     .color(Color::Danger)
                                     .size(Size::Sm)
-                                    .text_size(px(14.))
-                                    // `radius(px)` replaces the size step's
-                                    // corner; the step stays the fallback.
-                                    .radius(px(4.))
                                     .child(h::BadgeLabel::new().child("5")),
                                 )
                                 .into_any_element(),
@@ -51,7 +51,8 @@ impl Gallery {
                                         .placement(h::BadgePlacement::BottomRight),
                                 )
                                 .into_any_element(),
-                        ]),
+                            ])
+                            .into_any_element(),
                         cx
                     ),
                 ),
@@ -234,6 +235,21 @@ impl Gallery {
                         cx
                     ),
                 ),
+                (
+                    "Styling Overrides",
+                    "`text_size` sets the label size; `radius(px)` replaces the size step's corner — the step stays the fallback.",
+                    specimen_body("badge-styling", row(vec![h::BadgeAnchor::new()
+                        .child(avatar_box(("badge-anchor", 12usize), "Jane Doe"))
+                        .child(
+                            h::Badge::new()
+                                .color(Color::Danger)
+                                .size(Size::Sm)
+                                .text_size(px(14.))
+                                .radius(px(4.))
+                                .child(h::BadgeLabel::new().child("5")),
+                        )
+                        .into_any_element()]), cx),
+                ),
             ],
             cx,
         )
@@ -247,12 +263,28 @@ impl Gallery {
             vec![
                 (
                     "Usage",
-                    "`text_size` sets the label size and paired leading; `radius` replaces the chip's default corner.",
-                    specimen_body("chip-main", row(vec![h::Chip::new()
-                        .text_size(px(14.))
-                        .radius(px(4.))
-                        .child(h::ChipLabel::new().child("Chip"))
-                        .into_any_element()]), cx),
+                    // v3's five chips: default, then the four colour roles.
+                    specimen_body("chip-main", row(vec![
+                        h::Chip::new()
+                            .child(h::ChipLabel::new().child("Default"))
+                            .into_any_element(),
+                        h::Chip::new()
+                            .color(Color::Accent)
+                            .child(h::ChipLabel::new().child("Accent"))
+                            .into_any_element(),
+                        h::Chip::new()
+                            .color(Color::Success)
+                            .child(h::ChipLabel::new().child("Success"))
+                            .into_any_element(),
+                        h::Chip::new()
+                            .color(Color::Warning)
+                            .child(h::ChipLabel::new().child("Warning"))
+                            .into_any_element(),
+                        h::Chip::new()
+                            .color(Color::Danger)
+                            .child(h::ChipLabel::new().child("Danger"))
+                            .into_any_element(),
+                    ]), cx),
                 ),
                 (
                     "Variants",
@@ -327,6 +359,15 @@ impl Gallery {
                         })
                         .els()), cx),
                 ),
+                (
+                    "Styling Overrides",
+                    "`text_size` sets the label size and paired leading; `radius` replaces the chip's default corner.",
+                    specimen_body("chip-styling", row(vec![h::Chip::new()
+                        .text_size(px(14.))
+                        .radius(px(4.))
+                        .child(h::ChipLabel::new().child("Chip"))
+                        .into_any_element()]), cx),
+                ),
             ],
             cx,
         )
@@ -380,7 +421,31 @@ impl Gallery {
             crate::pages::Page::Table.description(),
             crate::pages::Page::Table.import_line(),
             vec![
-                ("Usage", "Headers use 12px text with 16px lines; cells use 14px text with 20px lines in both ordinary and virtual rows.", stretch_col(vec![build("tbl-usage").into_any_element()])),
+                ("Usage", "Headers use 12px text with 16px lines; cells use 14px text with 20px lines in both ordinary and virtual rows.", stretch_col(vec![{
+                    // v3's Usage: Name is the row header, Status and Email are
+                    // plain text cells, and the content keeps a 600px floor.
+                    let mut table = h::Table::new(vec![])
+                        .id("tbl-usage")
+                        .column(h::TableColumn::new("Name").is_row_header(true))
+                        .column(h::TableColumn::new("Role"))
+                        .column(h::TableColumn::new("Status"))
+                        .column(h::TableColumn::new("Email"))
+                        .sx(|el| el.min_w(px(600.)));
+                    for (name, role, status, email) in [
+                        ("Kate Moore", "CEO", "Active", "kate@acme.com"),
+                        ("John Smith", "CTO", "Active", "john@acme.com"),
+                        ("Sara Johnson", "CMO", "On Leave", "sara@acme.com"),
+                        ("Michael Brown", "CFO", "Active", "michael@acme.com"),
+                    ] {
+                        table = table.row(vec![
+                            gpui::div().child(name).into_any_element(),
+                            gpui::div().child(role).into_any_element(),
+                            gpui::div().child(status).into_any_element(),
+                            gpui::div().child(email).into_any_element(),
+                        ]);
+                    }
+                    table.into_any_element()
+                }])),
                 (
                     "Secondary Variant", "The flat variant keeps a surface-filled rounded header, tertiary separators on every body cell, and no tray background.",
                     // The `Primary` tray paints its own radius over the shell's,

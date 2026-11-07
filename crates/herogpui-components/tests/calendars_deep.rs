@@ -1822,9 +1822,10 @@ fn calendar_enabled_nav_button_is_a_tab_stop(cx: &mut TestAppContext) {
     assert_eq!(view, (2026, 7));
 }
 
-/// Both chevrons are disabled by the August-only bounds. They must not remain
-/// in gpui's tab registry: after the grid and v3's year-picker trigger, the next
-/// Tab reaches the following button rather than landing on a dead chevron.
+/// Both chevrons are disabled by the August-only bounds, and the plain
+/// heading is not a tab stop. They must not remain in gpui's tab registry:
+/// after the grid, the next Tab reaches the following button rather than
+/// landing on a dead chevron.
 #[gpui::test]
 fn calendar_disabled_nav_buttons_leave_the_tab_order(cx: &mut TestAppContext) {
     let presses = events();
@@ -1848,7 +1849,6 @@ fn calendar_disabled_nav_buttons_leave_the_tab_order(cx: &mut TestAppContext) {
             .into_any_element()
     });
 
-    press(cx, "tab");
     press(cx, "tab");
     press(cx, "tab");
     press(cx, "enter");
@@ -1998,6 +1998,32 @@ fn calendar_year_picker_hides_month_navigation(cx: &mut TestAppContext) {
     assert_eq!(next, (2026, 8));
 }
 
+/// v3's basic composition is a plain `Calendar.Heading`: without
+/// `year_picker(true)` the heading is a label, not a tab stop. The standalone
+/// tab order is grid, previous, next — the third Tab reaches Next, so Enter
+/// pages forward instead of opening the year grid.
+#[gpui::test]
+fn calendar_heading_is_a_plain_label_without_year_picker(cx: &mut TestAppContext) {
+    let state = cx.new(|cx| CalendarState::new(cx));
+    let state_for_view = state.clone();
+    let cx = open_host(cx, move || {
+        Calendar::new(state_for_view.clone())
+            .default_value(Date::new(2026, 8, 15))
+            .into_any_element()
+    });
+
+    press(cx, "tab");
+    press(cx, "tab");
+    press(cx, "tab");
+    press(cx, "enter");
+
+    let view = cx.update(|_, cx| {
+        let state = state.read(cx);
+        (state.view_year, state.view_month)
+    });
+    assert_eq!(view, (2026, 9));
+}
+
 /// The heading is a real button in v3. In the standalone month layout the tab
 /// order is grid, previous, heading; Enter opens it and transfers focus to the
 /// selected year without requiring another Tab.
@@ -2011,6 +2037,7 @@ fn calendar_year_picker_trigger_opens_from_the_keyboard(cx: &mut TestAppContext)
         let open_changes = open_changes_for_view.clone();
         Calendar::new(state_for_view.clone())
             .default_value(Date::new(2026, 8, 15))
+            .year_picker(true)
             .on_year_picker_open_change(move |open, _, _| {
                 open_changes.borrow_mut().push(open.to_string());
             })
@@ -2215,6 +2242,7 @@ fn calendar_year_picker_escape_returns_to_its_opening_heading(cx: &mut TestAppCo
         Calendar::new(state_for_view.clone())
             .default_value(Date::new(2026, 8, 15))
             .visible_duration(VisibleDuration::Months(2))
+            .year_picker(true)
             .on_year_picker_open_change(move |open, _, _| {
                 open_changes.borrow_mut().push(open.to_string());
             })
@@ -2250,6 +2278,7 @@ fn range_calendar_year_selection_returns_to_its_opening_heading(cx: &mut TestApp
         RangeCalendar::new(state_for_view.clone())
             .default_value((Date::new(2026, 8, 15), Date::new(2026, 8, 16)))
             .visible_duration(VisibleDuration::Months(2))
+            .year_picker(true)
             .on_year_picker_open_change(move |open, _, _| {
                 open_changes.borrow_mut().push(open.to_string());
             })

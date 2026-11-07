@@ -18,10 +18,9 @@ impl Gallery {
             vec![
                 (
                     "Usage",
-                    "`radius` sets the corners; `sx` squares the top-left corner, including while pressed.",
+                    // v3's Button is a plain default button; the press handler
+                    // lives in "Press handler" below.
                     specimen_body("btn-usage", row(vec![h::Button::new("btn-usage")
-                        .radius(px(8.))
-                        .sx(|el| el.rounded_tl(px(0.)))
                         .label("Click me")
                         .into_any_element()]), cx),
                 ),
@@ -363,6 +362,15 @@ impl Gallery {
                             .into_any_element(),
                     ]),
                 ),
+                (
+                    "Styling Overrides",
+                    "`radius` sets the corners; `sx` squares the top-left corner, including while pressed.",
+                    specimen_body("btn-styling", row(vec![h::Button::new("btn-styling")
+                        .radius(px(8.))
+                        .sx(|el| el.rounded_tl(px(0.)))
+                        .label("Click me")
+                        .into_any_element()]), cx),
+                ),
             ],
             cx,
         )
@@ -376,24 +384,313 @@ impl Gallery {
             vec![
                 (
                     "Usage",
-                    // v3's Button paints `text-*` on its members and svgs
-                    // inherit `currentColor`, so the icon-only chevron reads
-                    // the primary member's own foreground. gpui svgs never
-                    // inherit, so the demo spells it out.
+                    // v3 composes icon+label buttons as children; `content`
+                    // reproduces that order while `label` stays the accessible
+                    // name (v3's `aria-label` on icon-only members). Closest
+                    // glyph substitutions: CodeFork→GitBranch, QrCode→
+                    // LayoutGrid, TextAlignLeft/Right/Justify→TextAlignStart/
+                    // End/Menu. v3's Dropdown around the merge chevron cannot
+                    // compose — `ButtonGroup::button` takes a `Button` only.
                     specimen_body(
                         "bgroup-usage",
-                        row(vec![h::ButtonGroup::new()
-                            .separators(true)
-                            .button(h::Button::new("bgu-1").label("Merge pull request"))
-                            .button(
-                                h::Button::new("bgu-2").is_icon_only(true).child(
-                                    gpui::svg()
-                                        .size(px(16.))
-                                        .path(h::icons::CHEVRON_DOWN)
-                                        .text_color(cx.colors().accent.foreground),
-                                ),
-                            )
-                            .into_any_element()]),
+                        {
+                            let fg = cx.colors().foreground;
+                            let accent_fg = cx.colors().accent.foreground;
+                            let icon_only =
+                                |id: &'static str,
+                                 name: &'static str,
+                                 ic: h::IconName,
+                                 sz: Option<f32>,
+                                 color: gpui::Hsla| {
+                                    h::Button::new(id).is_icon_only(true).label(name).content(
+                                        move |_| {
+                                            let icon = h::Icon::new(ic).color(color);
+                                            match sz {
+                                                Some(s) => icon.size(px(s)).into_any_element(),
+                                                None => icon.into_any_element(),
+                                            }
+                                        },
+                                    )
+                                };
+                            let lead = |id: &'static str,
+                                        name: &'static str,
+                                        ic: h::IconName,
+                                        sz: Option<f32>,
+                                        text: &'static str,
+                                        color: gpui::Hsla| {
+                                h::Button::new(id).label(name).content(move |_| {
+                                    let icon = h::Icon::new(ic).color(color);
+                                    let icon = match sz {
+                                        Some(s) => icon.size(px(s)).into_any_element(),
+                                        None => icon.into_any_element(),
+                                    };
+                                    gpui::div()
+                                        .flex()
+                                        .items_center()
+                                        .gap(px(8.))
+                                        .child(icon)
+                                        .child(text)
+                                        .into_any_element()
+                                })
+                            };
+                            gpui::div()
+                                .flex()
+                                .flex_col()
+                                .items_start()
+                                .gap(px(24.))
+                                .child(
+                                    h::ButtonGroup::new()
+                                        .separators(true)
+                                        .button(
+                                            h::Button::new("bgu-merge").label("Merge pull request"),
+                                        )
+                                        .button(icon_only(
+                                            "bgu-merge-more",
+                                            "More options",
+                                            h::IconName::ChevronDown,
+                                            None,
+                                            accent_fg,
+                                        )),
+                                )
+                                .child(
+                                    gpui::div()
+                                        .flex()
+                                        .flex_wrap()
+                                        .gap_x(px(8.))
+                                        .gap_y(px(16.))
+                                        .children(vec![
+                                            h::ButtonGroup::new()
+                                                .variant(Variant::Tertiary)
+                                                .separators(true)
+                                                .button(
+                                                    h::Button::new("bgu-fork")
+                                                        .label("Fork 24")
+                                                        .content(move |_| {
+                                                            gpui::div()
+                                                                .flex()
+                                                                .items_center()
+                                                                .gap(px(8.))
+                                                                .child(
+                                                                    h::Icon::new(
+                                                                        h::IconName::GitBranch,
+                                                                    )
+                                                                    .size(px(14.))
+                                                                    .color(fg),
+                                                                )
+                                                                .child("Fork")
+                                                                .child(
+                                                                    h::Chip::new()
+                                                                        .color(Color::Accent)
+                                                                        .size(Size::Sm)
+                                                                        .variant(
+                                                                            h::ChipVariant::Soft,
+                                                                        )
+                                                                        .child(
+                                                                            h::ChipLabel::new()
+                                                                                .child("24"),
+                                                                        ),
+                                                                )
+                                                                .into_any_element()
+                                                        }),
+                                                )
+                                                .button(icon_only(
+                                                    "bgu-fork-more",
+                                                    "More fork options",
+                                                    h::IconName::ChevronDown,
+                                                    None,
+                                                    fg,
+                                                )),
+                                            h::ButtonGroup::new()
+                                                .variant(Variant::Tertiary)
+                                                .separators(true)
+                                                .button(icon_only(
+                                                    "bgu-qr",
+                                                    "Show QR code",
+                                                    h::IconName::LayoutGrid,
+                                                    None,
+                                                    fg,
+                                                ))
+                                                .button(
+                                                    h::Button::new("bgu-scan").label("Scan to pay"),
+                                                ),
+                                            h::ButtonGroup::new()
+                                                .variant(Variant::Tertiary)
+                                                .separators(true)
+                                                .button(
+                                                    h::Button::new("bgu-like")
+                                                        .label("2.4K")
+                                                        .content(move |_| {
+                                                            gpui::div()
+                                                            .flex()
+                                                            .items_center()
+                                                            .gap(px(8.))
+                                                            .child(
+                                                                h::Icon::new(h::IconName::ThumbsUp)
+                                                                    .color(fg),
+                                                            )
+                                                            .child(
+                                                                gpui::div()
+                                                                    .text_size(px(12.))
+                                                                    .font_weight(
+                                                                        gpui::FontWeight::SEMIBOLD,
+                                                                    )
+                                                                    .child("2.4K"),
+                                                            )
+                                                            .into_any_element()
+                                                        }),
+                                                )
+                                                .button(icon_only(
+                                                    "bgu-dislike",
+                                                    "Dislike",
+                                                    h::IconName::ThumbsDown,
+                                                    None,
+                                                    fg,
+                                                )),
+                                            h::ButtonGroup::new()
+                                                .variant(Variant::Tertiary)
+                                                .separators(true)
+                                                .button(lead(
+                                                    "bgu-star",
+                                                    "Star",
+                                                    h::IconName::Star,
+                                                    Some(14.),
+                                                    "Star",
+                                                    fg,
+                                                ))
+                                                .button(
+                                                    h::Button::new("bgu-star-count")
+                                                        .label("104")
+                                                        .padding_x(px(8.))
+                                                        .content(move |_| {
+                                                            h::Chip::new()
+                                                                .color(Color::Accent)
+                                                                .size(Size::Sm)
+                                                                .variant(h::ChipVariant::Soft)
+                                                                .child(
+                                                                    h::ChipLabel::new()
+                                                                        .child("104"),
+                                                                )
+                                                                .into_any_element()
+                                                        }),
+                                                ),
+                                            h::ButtonGroup::new()
+                                                .variant(Variant::Tertiary)
+                                                .separators(true)
+                                                .button(lead(
+                                                    "bgu-pin",
+                                                    "Pinned",
+                                                    h::IconName::Pin,
+                                                    None,
+                                                    "Pinned",
+                                                    fg,
+                                                ))
+                                                .button(icon_only(
+                                                    "bgu-pin-more",
+                                                    "More pin options",
+                                                    h::IconName::ChevronDown,
+                                                    None,
+                                                    fg,
+                                                )),
+                                        ]),
+                                )
+                                .child(
+                                    h::ButtonGroup::new()
+                                        .variant(Variant::Tertiary)
+                                        .separators(true)
+                                        .button(lead(
+                                            "bgu-prev",
+                                            "Previous",
+                                            h::IconName::ChevronLeft,
+                                            None,
+                                            "Previous",
+                                            fg,
+                                        ))
+                                        .button(h::Button::new("bgu-next").label("Next").content(
+                                            move |_| {
+                                                gpui::div()
+                                                    .flex()
+                                                    .items_center()
+                                                    .gap(px(8.))
+                                                    .child("Next")
+                                                    .child(
+                                                        h::Icon::new(h::IconName::ChevronRight)
+                                                            .color(fg),
+                                                    )
+                                                    .into_any_element()
+                                            },
+                                        )),
+                                )
+                                .child(
+                                    h::ButtonGroup::new()
+                                        .variant(Variant::Tertiary)
+                                        .separators(true)
+                                        .button(lead(
+                                            "bgu-photos",
+                                            "Photos",
+                                            h::IconName::Image,
+                                            None,
+                                            "Photos",
+                                            fg,
+                                        ))
+                                        .button(lead(
+                                            "bgu-videos",
+                                            "Videos",
+                                            h::IconName::Video,
+                                            None,
+                                            "Videos",
+                                            fg,
+                                        ))
+                                        .button(icon_only(
+                                            "bgu-content-more",
+                                            "More options",
+                                            h::IconName::Ellipsis,
+                                            None,
+                                            fg,
+                                        )),
+                                )
+                                .child(
+                                    h::ButtonGroup::new()
+                                        .variant(Variant::Tertiary)
+                                        .separators(true)
+                                        .button(h::Button::new("bgu-left").label("Left"))
+                                        .button(h::Button::new("bgu-center").label("Center"))
+                                        .button(h::Button::new("bgu-right").label("Right")),
+                                )
+                                .child(
+                                    h::ButtonGroup::new()
+                                        .variant(Variant::Tertiary)
+                                        .separators(true)
+                                        .button(icon_only(
+                                            "bgu-align-left",
+                                            "Align left",
+                                            h::IconName::TextAlignStart,
+                                            None,
+                                            fg,
+                                        ))
+                                        .button(icon_only(
+                                            "bgu-align-center",
+                                            "Align center",
+                                            h::IconName::TextAlignCenter,
+                                            None,
+                                            fg,
+                                        ))
+                                        .button(icon_only(
+                                            "bgu-align-right",
+                                            "Align right",
+                                            h::IconName::TextAlignEnd,
+                                            None,
+                                            fg,
+                                        ))
+                                        .button(icon_only(
+                                            "bgu-align-justify",
+                                            "Justify",
+                                            h::IconName::Menu,
+                                            None,
+                                            fg,
+                                        )),
+                                )
+                                .into_any_element()
+                        },
                         cx
                     ),
                 ),
@@ -574,10 +871,9 @@ impl Gallery {
             crate::pages::Page::CloseButton.import_line(),
             vec![
                 (
-                    "Usage", "`radius` sets the corners; `sx` squares the top-left corner, including while pressed.",
+                    "Usage",
+                    // v3's Usage is a bare default CloseButton.
                     specimen_body("close-usage", row(vec![h::CloseButton::new("cb-usage")
-                        .radius(px(4.))
-                        .sx(|el| el.rounded_tl(px(0.)))
                         .into_any_element()]), cx),
                 ),
                 (
@@ -639,6 +935,14 @@ impl Gallery {
                         .is_disabled(true)
                         .into_any_element()]), cx),
                 ),
+                (
+                    "Styling Overrides",
+                    "`radius` sets the corners; `sx` squares the top-left corner, including while pressed.",
+                    specimen_body("close-styling", row(vec![h::CloseButton::new("cb-styling")
+                        .radius(px(4.))
+                        .sx(|el| el.rounded_tl(px(0.)))
+                        .into_any_element()]), cx),
+                ),
             ],
             cx,
         )
@@ -656,11 +960,20 @@ impl Gallery {
             vec![
                 (
                     "Usage",
-                    "`radius` sets the corners; `sx` squares the top-left corner, including while pressed.",
+                    // v3: a heart icon before the "Like" label. `content`
+                    // owns the row so the icon leads and `label` still names
+                    // the toggle for assistive technology.
                     specimen_body("toggle-usage", row(vec![h::ToggleButton::new("tb-usage")
-                        .radius(px(8.))
-                        .sx(|el| el.rounded_tl(px(0.)))
-                        .label("Bold")
+                        .label("Like")
+                        .content(|_| {
+                            gpui::div()
+                                .flex()
+                                .items_center()
+                                .gap(px(8.))
+                                .child(h::Icon::new(h::IconName::Heart))
+                                .child("Like")
+                                .into_any_element()
+                        })
                         .into_any_element()]), cx),
                 ),
                 (
@@ -957,6 +1270,15 @@ impl Gallery {
                             .child_toggle(h::ToggleButton::new("tbv-2").label("Bottom"))
                             .into_any_element(),
                     ]), cx),
+                ),
+                (
+                    "Styling Overrides",
+                    "`radius` sets the corners; `sx` squares the top-left corner, including while pressed.",
+                    specimen_body("toggle-styling", row(vec![h::ToggleButton::new("tb-styling")
+                        .radius(px(8.))
+                        .sx(|el| el.rounded_tl(px(0.)))
+                        .label("Bold")
+                        .into_any_element()]), cx),
                 ),
             ],
             cx,

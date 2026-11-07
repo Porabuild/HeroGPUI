@@ -12,6 +12,7 @@
 
 use std::collections::HashMap;
 
+use gpui::prelude::FluentBuilder;
 use gpui::{
     div, px, AnyElement, App, BorrowAppContext, ElementId, FocusHandle, InteractiveElement,
     IntoElement, KeyDownEvent, ParentElement, Pixels, RenderOnce, SharedString, Styled,
@@ -342,6 +343,10 @@ impl RenderOnce for Toolbar {
                 .p(px(4.))
                 .rounded(crate::util::control_radius(cx))
                 .bg(surface)
+                // Dark mode's `shadow-overlay` is the inset hairline alone.
+                .when_some(cx.layout().overlay_hairline, |el, hairline| {
+                    el.border(cx.layout().border_width).border_color(hairline)
+                })
                 .shadow(overlay_shadow);
         }
 

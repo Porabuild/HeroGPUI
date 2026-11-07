@@ -322,21 +322,6 @@ impl RegionalTimePattern {
         };
         (!name.is_empty()).then(|| name.to_owned())
     }
-
-    pub(crate) fn hint(&self) -> String {
-        let mut hint = String::new();
-        for (index, segment) in self.order.iter().copied().enumerate() {
-            hint.push_str(&self.literals[index]);
-            hint.push_str(match segment {
-                TimeSegment::Hour => "HH",
-                TimeSegment::Minute => "MM",
-                TimeSegment::Second => "SS",
-                TimeSegment::Meridiem => self.am.as_str(),
-            });
-        }
-        hint.push_str(self.literals.last().map_or("", String::as_str));
-        hint
-    }
 }
 
 pub(crate) fn regional_time_pattern(
@@ -1899,7 +1884,6 @@ mod tests {
         assert!(us.minute_has_leading_zero);
         assert!(us.second_has_leading_zero);
         assert_eq!((us.am.as_str(), us.pm.as_str()), ("AM", "PM"));
-        assert_eq!(us.hint(), "HH:MM:SS\u{202f}AM");
 
         let japanese = RegionalTimeFormat::for_locale_with_cycle("ja-JP", Some(HourCycle::H12))
             .unwrap()
@@ -1918,7 +1902,6 @@ mod tests {
             (japanese.am.as_str(), japanese.pm.as_str()),
             ("午前", "午後")
         );
-        assert_eq!(japanese.hint(), "午前HH:MM");
 
         let arabic = RegionalTimeFormat::for_locale_with_cycle("ar-EG", Some(HourCycle::H12))
             .unwrap()
@@ -1936,7 +1919,6 @@ mod tests {
         assert!(korean.hour_has_leading_zero);
         assert!(korean.minute_has_leading_zero);
         assert!(korean.second_has_leading_zero);
-        assert_eq!(korean.hint(), "HH:MM:SS");
     }
 
     #[test]

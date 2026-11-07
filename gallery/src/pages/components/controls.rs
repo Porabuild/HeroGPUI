@@ -357,7 +357,6 @@ impl Gallery {
     }
 
     pub fn page_switch(&mut self, cx: &mut Context<'_, Self>) -> AnyElement {
-        let (a, b) = (self.switch_a, self.switch_b);
         let controlled = self.demo_flag("sw-controlled", false);
         let wifi = self.demo_flag("sw-group-wifi", true);
         let bluetooth = self.demo_flag("sw-group-bt", false);
@@ -370,25 +369,10 @@ impl Gallery {
             vec![
                 (
                     "Usage", "Content uses 14px text with 20px lines; the built-in label uses 16px text with 24px lines.",
-                    specimen_body("sw-main", col(vec![
-                        h::Switch::new("sw-a")
-                            .is_selected(a)
-                            .hover_bg(cx.colors().accent.soft_hover())
-                            .label(gpui::div().child("Enable notifications"))
-                            .on_change(cx.listener(|this, v: &bool, _, cx| {
-                                this.switch_a = *v;
-                                cx.notify();
-                            }))
-                            .into_any_element(),
-                        h::Switch::new("sw-b")
-                            .is_selected(b)
-                            .label(gpui::div().child("Share usage data"))
-                            .on_change(cx.listener(|this, v: &bool, _, cx| {
-                                this.switch_b = *v;
-                                cx.notify();
-                            }))
-                            .into_any_element(),
-                    ]), cx),
+                    // v3's Usage is a single uncontrolled switch.
+                    specimen_body("sw-main", col(vec![h::Switch::new("sw-a")
+                        .label("Enable notifications")
+                        .into_any_element()]), cx),
                 ),
                 (
                     "Sizes",
@@ -633,6 +617,14 @@ impl Gallery {
                             .into_any_element(),
                         cx,
                     ),
+                ),
+                (
+                    "Styling Overrides",
+                    "`hover_bg` paints a custom background behind the hovered control and label.",
+                    specimen_body("sw-hover-bg", col(vec![h::Switch::new("sw-hover")
+                        .hover_bg(cx.colors().accent.soft_hover())
+                        .label("Enable notifications")
+                        .into_any_element()]), cx),
                 ),
             ],
             cx,

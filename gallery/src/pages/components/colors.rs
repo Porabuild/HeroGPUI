@@ -14,14 +14,17 @@ impl Gallery {
             crate::pages::Page::ColorArea.description(),
             crate::pages::Page::ColorArea.import_line(),
             vec![
+                // v3: `<ColorArea defaultValue="rgb(116, 52, 255)" />`.
                 (
                     "Usage",
-                    // v3: `<ColorArea defaultValue="hsl(30, 100%, 50%)" />`.
                     specimen_body(
                         "ca-main",
-                        col(vec![h::ColorArea::new("ca-usage", value)
-                            .default_value(value)
-                            .into_any_element()]),
+                        col(vec![h::ColorArea::new(
+                            "ca-usage",
+                            h::PickerColor::from_hex("#7434FF").unwrap_or_default(),
+                        )
+                        .default_value(h::PickerColor::from_hex("#7434FF").unwrap_or_default())
+                        .into_any_element()]),
                         cx
                     ),
                 ),
@@ -145,19 +148,29 @@ impl Gallery {
 
     pub fn page_color_field(&mut self, cx: &mut Context<'_, Self>) -> AnyElement {
         let value = self.picker_color;
+        // v3's Usage binds `#0485F7`; the shared `picker_color` swatch stays
+        // on its own seed for the other colour demos.
+        let usage_value = h::PickerColor::from_hex("#0485F7").unwrap_or_default();
         component_doc_page!(
             "Color Field",
             crate::pages::Page::ColorField.description(),
             crate::pages::Page::ColorField.import_line(),
             vec![
+                // v3: `w-[280px]`, `name="color"`, an xs `ColorSwatch`
+                // prefix (built into the field) and `#0485F7`.
                 (
                     "Usage",
-                    specimen_body("cf-main", field_col(vec![h::ColorField::new("cf-usage", value)
-                        .state(self.demo_text("cf-usage", "#0085F5", cx))
-                        // v3's Usage is uncontrolled: `defaultValue="#0085F5"`.
-                        .default_value(value)
-                        .label("Color")
-                        .radius(px(4.))
+                    specimen_body("cf-main", col(vec![gpui::div()
+                        .w(px(280.))
+                        .child(
+                            h::ColorField::new("cf-usage", usage_value)
+                                .state(self.demo_text("cf-usage", "#0485F7", cx))
+                                .default_value(usage_value)
+                                .name("color")
+                                .label("Color")
+                                .full_width(true)
+                                .into_any_element(),
+                        )
                         .into_any_element()]), cx),
                 ),
                 (
@@ -435,6 +448,16 @@ impl Gallery {
                             .into_any_element(),
                     ]), cx),
                 ),
+                (
+                    "Styling Overrides",
+                    "`radius(px)` replaces the field's default corner.",
+                    specimen_body("cf-styling", field_col(vec![h::ColorField::new("cf-styling", value)
+                        .state(self.demo_text("cf-styling", "#0085F5", cx))
+                        .default_value(value)
+                        .label("Color")
+                        .radius(px(4.))
+                        .into_any_element()]), cx),
+                ),
             ],
             cx,
         )
@@ -447,20 +470,18 @@ impl Gallery {
             crate::pages::Page::ColorPicker.description(),
             crate::pages::Page::ColorPicker.import_line(),
             vec![
+                // v3's Usage is uncontrolled `defaultValue="#0485F7"` with
+                // a swatch+label trigger; "Controlled" is separate.
                 (
                     "Usage",
                     "The panel flips near window edges and scrolls to keep the alpha control reachable in short windows.",
-                    specimen_body("cp-main", col(vec![h::ColorPicker::new("cp-main", value)
-                        // v3's Usage is uncontrolled; "Controlled" is separate.
-                        .default_value(value)
-                        .label("Accent")
-                        .font_family(crate::app::MONO_FONT)
-                        .show_alpha(true)
-                        .on_change(cx.listener(|this, c: &h::PickerColor, _, cx| {
-                            this.picker_color = *c;
-                            cx.notify();
-                        }))
-                        .into_any_element()]), cx),
+                    specimen_body("cp-main", col(vec![h::ColorPicker::new(
+                        "cp-main",
+                        h::PickerColor::from_hex("#0485F7").unwrap_or_default(),
+                    )
+                    .default_value(h::PickerColor::from_hex("#0485F7").unwrap_or_default())
+                    .label("Pick a color")
+                    .into_any_element()]), cx),
                 ),
                 (
                     "Controlled", "The caller owns the color value while the trigger owns its ordinary open state — the same split a dialog trigger composes.",
@@ -563,18 +584,21 @@ impl Gallery {
             crate::pages::Page::ColorSlider.description(),
             crate::pages::Page::ColorSlider.import_line(),
             vec![
+                // v3's Usage is uncontrolled `defaultValue="hsl(0, 100%,
+                // 50%)"` — pure red — with the Hue label and output;
+                // "Controlled" is its own example further down.
                 (
                     "Usage",
-                    // v3's Usage is uncontrolled; "Controlled" is its own
-                    // example further down.
+                    // v3's `w-full max-w-xs` resolves to the 320px cap here.
                     specimen_body(
                         "cs-main",
                         col(vec![h::ColorSlider::new(
                             "cs-usage",
-                            value,
+                            h::PickerColor::from_hex("#FF0000").unwrap_or_default(),
                             h::ColorChannel::Hue,
                         )
-                        .default_value(value)
+                        .default_value(h::PickerColor::from_hex("#FF0000").unwrap_or_default())
+                        .length(px(320.))
                         .into_any_element()]),
                         cx
                     ),
@@ -760,12 +784,36 @@ impl Gallery {
             crate::pages::Page::ColorSwatch.description(),
             crate::pages::Page::ColorSwatch.import_line(),
             vec![
+                // v3's Usage is five labelled swatches in a `gap-3` row.
                 (
                     "Usage",
-                    specimen_body("csw-main", row(vec![h::ColorSwatch::new(
-                        h::PickerColor::from_hex("#0085F5").unwrap_or_default(),
-                    )
-                    .into_any_element()]), cx),
+                    specimen_body("csw-main", row(vec![
+                        h::ColorSwatch::new(
+                            h::PickerColor::from_hex("#0485F7").unwrap_or_default(),
+                        )
+                        .color_name("Blue")
+                        .into_any_element(),
+                        h::ColorSwatch::new(
+                            h::PickerColor::from_hex("#EF4444").unwrap_or_default(),
+                        )
+                        .color_name("Red")
+                        .into_any_element(),
+                        h::ColorSwatch::new(
+                            h::PickerColor::from_hex("#F59E0B").unwrap_or_default(),
+                        )
+                        .color_name("Amber")
+                        .into_any_element(),
+                        h::ColorSwatch::new(
+                            h::PickerColor::from_hex("#10B981").unwrap_or_default(),
+                        )
+                        .color_name("Green")
+                        .into_any_element(),
+                        h::ColorSwatch::new(
+                            h::PickerColor::from_hex("#D946EF").unwrap_or_default(),
+                        )
+                        .color_name("Fuchsia")
+                        .into_any_element(),
+                    ]), cx),
                 ),
                 (
                     "Sizes",
@@ -872,18 +920,23 @@ impl Gallery {
             crate::pages::Page::ColorSwatchPicker.description(),
             crate::pages::Page::ColorSwatchPicker.import_line(),
             vec![
+                // v3's Usage is the uncontrolled seven-swatch palette.
                 (
                     "Usage",
+                    // v3's Usage palette: the seven Tailwind hues in its own
+                    // order, not the shared gallery `palette()`.
                     specimen_body("csp-main", col(vec![
-                        h::ColorSwatchPicker::new("csp-main", palette())
-                            .value(selected)
-                            .size(SizeXl::Lg)
-                            .on_change(cx.listener(|this, c: &h::PickerColor, _, cx| {
-                                this.swatch_selected = *c;
-                                cx.notify();
-                            }))
-                            .into_any_element(),
-                        para(&format!("Selected: {}", selected.to_hex()), cx),
+                        h::ColorSwatchPicker::new(
+                            "csp-main",
+                            [
+                                "#F43F5E", "#D946EF", "#8B5CF6", "#3B82F6", "#06B6D4", "#10B981",
+                                "#84CC16",
+                            ]
+                            .into_iter()
+                            .filter_map(h::PickerColor::from_hex)
+                            .collect(),
+                        )
+                        .into_any_element(),
                     ]), cx),
                 ),
                 (

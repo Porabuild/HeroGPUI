@@ -21,9 +21,6 @@ impl Gallery {
                     "Day, month and year labels use 14px/20px medium text; weekday labels use 12px/16px medium text. Enabled navigation hover fills ease over the pinned 100ms curve while the deep press scale stays on the button.",
                     specimen_body("cal-usage", col(vec![
                         h::Calendar::new(self.demo_calendar("cal-usage", cx))
-                            .day_hover_bg(cx.colors().accent.soft())
-                            .nav_hover_bg(cx.colors().accent.soft())
-                            .year_hover_bg(cx.colors().accent.soft())
                             .on_change(cx.listener(
                                 |this, d: &Option<h::Date>, _, cx| {
                                     this.cal_picked = *d;
@@ -31,13 +28,6 @@ impl Gallery {
                                 },
                             ))
                             .into_any_element(),
-                        para(
-                            &match picked {
-                                Some(d) => format!("Selected: {}", d.format_iso()),
-                                None => "No date selected".to_owned(),
-                            },
-                            cx,
-                        ),
                     ]), cx),
                 ),
                 (
@@ -227,6 +217,8 @@ impl Gallery {
                                 "Indian calendar",
                                 h::Calendar::new(self.demo_calendar("cal-indian", cx))
                                     .locale("en-US-u-ca-indian")
+                                    // v3's International Calendars composes `YearPickerTrigger`.
+                                    .year_picker(true)
                                     .default_value(h::Date::new(2026, 1, 15))
                                     .into_any_element(),
                                 cx,
@@ -239,6 +231,7 @@ impl Gallery {
                                 "Hebrew calendar",
                                 h::Calendar::new(self.demo_calendar("cal-hebrew", cx))
                                     .locale("en-US-u-ca-hebrew")
+                                    .year_picker(true)
                                     .default_value(h::Date::new(2024, 3, 25))
                                     .into_any_element(),
                                 cx,
@@ -273,6 +266,7 @@ impl Gallery {
                                 specimen_body("cal-heading-anchor", spec(
                                     "Same month",
                                     h::Calendar::new(self.demo_calendar("cal-heading-anchor", cx))
+                                        .year_picker(true)
                                         .default_value(august)
                                         .into_any_element(), cx),
                                     cx,
@@ -280,6 +274,7 @@ impl Gallery {
                                 specimen_body("cal-heading-offset", spec(
                                     "Heading offset",
                                     h::Calendar::new(self.demo_calendar("cal-heading-offset", cx))
+                                        .year_picker(true)
                                         .default_value(august)
                                         .offset(1)
                                         .into_any_element(),
@@ -288,6 +283,15 @@ impl Gallery {
                             ]),
                         ]
                     }),
+                ),
+                (
+                    "Styling Overrides",
+                    "`day_hover_bg`, `nav_hover_bg` and `year_hover_bg` each replace their own hover fill.",
+                    specimen_body("cal-styling", col(vec![h::Calendar::new(self.demo_calendar("cal-styling", cx))
+                        .day_hover_bg(cx.colors().accent.soft())
+                        .nav_hover_bg(cx.colors().accent.soft())
+                        .year_hover_bg(cx.colors().accent.soft())
+                        .into_any_element()]), cx),
                 ),
             ],
             cx,
@@ -301,30 +305,15 @@ impl Gallery {
             crate::pages::Page::DateField.description(),
             crate::pages::Page::DateField.import_line(),
             vec![
+                // v3's Usage is an empty field labelled "Date"; v3 has no
+                // `onChange` here, so the demo state is a plain
+                // `demo_text` entity rather than the shared `date_input`.
                 (
                     "Usage",
                     specimen_body("df-usage", field_col(vec![
-                        h::DateField::new(self.date_input.clone())
-                            // v3's Usage seeds the field with `defaultValue`.
-                            .default_value(h::Date::new(2025, 12, 25))
-                            .label("Start date")
-                            .radius(px(4.))
-                            .on_change(cx.listener(
-                                |this, d: &Option<h::Date>, _, cx| {
-                                    this.date_iso = *d;
-                                    cx.notify();
-                                },
-                            ))
+                        h::DateField::new(self.demo_text("df-usage", "", cx))
+                            .label("Date")
                             .into_any_element(),
-                        para(
-                            &match iso {
-                                Some(d) => format!("Parsed: {}", d.format_iso()),
-                                None => {
-                                    "Type digits, or step a segment with the arrow keys".to_owned()
-                                }
-                            },
-                            cx,
-                        ),
                     ]), cx),
                 ),
                 (
@@ -425,16 +414,24 @@ impl Gallery {
                                         h::Granularity::Minute => "df-gran-minute",
                                         h::Granularity::Second => "df-gran-second",
                                     };
-                                    specimen_body(key, spec(
-                                        granularity.label(),
-                                        h::DateField::new(self.demo_text(
+                                    // v3's `defaultValue` is a plain date at
+                                    // `day` and a zoned date-time below it;
+                                    // `Date` carries no clock, so only the
+                                    // day variant takes `default_value`.
+                                    let field = match granularity {
+                                        h::Granularity::Day => {
+                                            h::DateField::new(self.demo_text(key, "", cx))
+                                                .granularity(granularity)
+                                                .default_value(h::Date::new(2025, 2, 3))
+                                        }
+                                        _ => h::DateField::new(self.demo_text(
                                             key,
                                             "2025-02-03T08:45:09",
                                             cx,
                                         ))
                                         .granularity(granularity),
-                                        cx,
-                                    ), cx)
+                                    };
+                                    specimen_body(key, spec(granularity.label(), field, cx), cx)
                                 })
                                 .collect(),
                         )];
@@ -538,6 +535,14 @@ impl Gallery {
                         .into_any_element(), cx),
                     ]),
                 ),
+                (
+                    "Styling Overrides",
+                    "`radius(px)` replaces the field's default corner.",
+                    specimen_body("df-styling", field_col(vec![h::DateField::new(self.demo_text("df-styling", "", cx))
+                        .label("Date")
+                        .radius(px(4.))
+                        .into_any_element()]), cx),
+                ),
             ],
             cx,
         )
@@ -551,25 +556,29 @@ impl Gallery {
             crate::pages::Page::DatePicker.description(),
             crate::pages::Page::DatePicker.import_line(),
             vec![
+                // v3's Usage: `w-72`, `name="date"`, label "Date", and no
+                // default value.
                 (
                     "Usage",
-                    specimen_body("dp-usage", field_col(vec![h::DatePicker::new(self.demo_calendar("dp-usage", cx))
-                        // v3's Usage seeds the picker with `defaultValue`.
-                        .default_value(h::Date::new(2025, 12, 25))
-                        .label("Due date")
-                        .is_open(is_open)
-                        .on_open_change(cx.listener(|this, open: &bool, _, cx| {
-                            this.date_picker_open = *open;
-                            cx.notify();
-                        }))
-                        .on_change(cx.listener(
-                        |this, d: &Option<h::Date>, _, cx| {
-                                this.cal_picked = *d;
-                                this.date_picker_open = false;
+                    specimen_body("dp-usage", gpui::div()
+                        .w(px(288.))
+                        .child(h::DatePicker::new(self.demo_calendar("dp-usage", cx))
+                            .name("date")
+                            .label("Date")
+                            .is_open(is_open)
+                            .on_open_change(cx.listener(|this, open: &bool, _, cx| {
+                                this.date_picker_open = *open;
                                 cx.notify();
-                            },
-                        ))
-                        .into_any_element()]), cx),
+                            }))
+                            .on_change(cx.listener(
+                            |this, d: &Option<h::Date>, _, cx| {
+                                    this.cal_picked = *d;
+                                    this.date_picker_open = false;
+                                    cx.notify();
+                                },
+                            ))
+                            .into_any_element())
+                        .into_any_element(), cx),
                 ),
                 (
                     "Disabled",
@@ -619,6 +628,8 @@ impl Gallery {
                     specimen_body("dp-format", col(vec![
                         h::DatePicker::new(self.demo_calendar("dp-format", cx))
                             .label("Date")
+                            // v3's `defaultValue` for the day granularity.
+                            .default_value(h::Date::new(2026, 2, 3))
                             .into_any_element(),
                     ]), cx),
                 ),
@@ -690,6 +701,8 @@ impl Gallery {
                     )
                     .label("Date")
                     .locale("en-US-u-ca-indian")
+                    // v3's `defaultValue={today(getLocalTimeZone())}`.
+                    .default_value(h::Date::today())
                     .into_any_element()]), cx),
                 ),
                 (
@@ -722,20 +735,13 @@ impl Gallery {
                         .child(
                             h::DateRangePicker::new(self.demo_range("drp-usage", cx))
                                 .label("Trip dates")
-                                // v3's Usage seeds the range and bounds it.
-                                .default_value((
-                                    h::Date::new(2025, 12, 8),
-                                    h::Date::new(2025, 12, 14),
-                                ))
-                                .min_value(h::Date::new(2025, 1, 1))
                                 .is_open(is_open)
                                 .on_open_change(cx.listener(
                                     |this, open: &bool, _, cx| {
                                         this.range_open = *open;
                                         cx.notify();
                                     },
-                                ))
-                                .on_change(|_, _cx| {}),
+                                )),
                         )
                         .into_any_element()]),
                         cx),
@@ -798,6 +804,8 @@ impl Gallery {
                         self.demo_range("drp-invalid", cx),
                     )
                     .label("Stay")
+                    // v3's `minValue={currentDate}`.
+                    .min_value(h::Date::today())
                     .is_invalid(true)
                     .into_any_element()]), cx),
                 ),
@@ -806,6 +814,8 @@ impl Gallery {
                     specimen_body("drp-format", col(vec![
                         h::DateRangePicker::new(self.demo_range("drp-format", cx))
                             .label("Stay")
+                            // v3's day-granularity `defaultValue` range.
+                            .default_value((h::Date::new(2025, 2, 3), h::Date::new(2025, 2, 10)))
                             .into_any_element(),
                     ]), cx),
                 ),
@@ -815,9 +825,11 @@ impl Gallery {
                         .child(
                             h::DateRangePicker::new(self.demo_range("drp-form", cx))
                                 .label("Stay")
-                                // v3 submits a range as two named fields.
+                                // v3 submits a range as two named fields and
+                                // bounds it at `minValue={currentDate}`.
                                 .start_name("check_in")
-                                .end_name("check_out"),
+                                .end_name("check_out")
+                                .min_value(h::Date::today()),
                         )
                         .child(h::Button::new("drp-form-submit").label("Book"))
                         .into_any_element()]), cx),
@@ -880,6 +892,11 @@ impl Gallery {
                     )
                     .label("Stay")
                     .locale("en-US-u-ca-indian")
+                    // v3's `defaultValue={{start: today, end: today + 7d}}`.
+                    .default_value((
+                        h::Date::today(),
+                        h::add_days(&h::Date::today(), 7),
+                    ))
                     .trigger_hover_bg(cx.colors().accent.soft())
                     .into_any_element()]), cx),
                 ),
@@ -914,7 +931,8 @@ impl Gallery {
                 (
                     "Usage",
                     specimen_body("rc-usage", col(vec![h::RangeCalendar::new(self.demo_range("rc-usage", cx))
-                        .nav_hover_bg(cx.colors().accent.soft())
+                        // v3's Usage sets `firstDayOfWeek="mon"`.
+                        .first_day_of_week(h::Weekday::Mon)
                         .on_change(|_start, _end, _, _cx| {})
                         .into_any_element()]), cx),
                 ),
@@ -1119,6 +1137,7 @@ impl Gallery {
                                 specimen_body("rc-heading-anchor", spec(
                                     "Grid: August 2026; heading: August 2026 (offset 0)",
                                     h::RangeCalendar::new(self.demo_range("rc-heading-anchor", cx))
+                                        .year_picker(true)
                                         .default_value(august)
                                         .into_any_element(),
                                     cx,
@@ -1126,6 +1145,7 @@ impl Gallery {
                                 specimen_body("rc-heading-offset", spec(
                                     "Grid: August 2026; heading: September 2026 (offset +1)",
                                     h::RangeCalendar::new(self.demo_range("rc-heading-offset", cx))
+                                        .year_picker(true)
                                         .default_value(august)
                                         .offset(1)
                                         .into_any_element(),
@@ -1134,6 +1154,14 @@ impl Gallery {
                             ]),
                         ]
                     }),
+                ),
+                (
+                    "Styling Overrides",
+                    "`nav_hover_bg` replaces the navigation buttons' hover fill.",
+                    specimen_body("rc-styling", col(vec![h::RangeCalendar::new(self.demo_range("rc-styling", cx))
+                        .nav_hover_bg(cx.colors().accent.soft())
+                        .on_change(|_start, _end, _, _cx| {})
+                        .into_any_element()]), cx),
                 ),
             ],
             cx,
@@ -1151,7 +1179,6 @@ impl Gallery {
                     specimen_body("tmf-usage", field_col(vec![
                         h::TimeField::new(self.demo_time("tmf-usage", cx))
                             .label("Time")
-                            .radius(px(4.))
                             .into_any_element(),
                     ]), cx),
                 ),
@@ -1303,6 +1330,14 @@ impl Gallery {
                         .is_bare(true)
                         .stepper_hover_bg(cx.colors().accent.soft())
                         .font_family(crate::app::MONO_FONT)
+                        .into_any_element()]), cx),
+                ),
+                (
+                    "Styling Overrides",
+                    "`radius(px)` replaces the field's default corner.",
+                    specimen_body("tmf-styling", field_col(vec![h::TimeField::new(self.demo_time("tmf-styling", cx))
+                        .label("Time")
+                        .radius(px(4.))
                         .into_any_element()]), cx),
                 ),
             ],

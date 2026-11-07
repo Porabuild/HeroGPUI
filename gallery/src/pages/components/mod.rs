@@ -398,6 +398,37 @@ pub(super) fn language_items() -> Vec<h::PickerItem> {
         .collect()
 }
 
+/// v3's US-state list, shared by the Select, ComboBox and Autocomplete
+/// "Usage" demos.
+pub(super) fn state_items() -> Vec<h::PickerItem> {
+    [
+        ("florida", "Florida"),
+        ("delaware", "Delaware"),
+        ("california", "California"),
+        ("texas", "Texas"),
+        ("new-york", "New York"),
+        ("washington", "Washington"),
+    ]
+    .into_iter()
+    .map(|(key, label)| h::PickerItem::new(key, label))
+    .collect()
+}
+
+/// v3's ComboBox "Usage" animal list.
+pub(super) fn animal_items() -> Vec<h::PickerItem> {
+    [
+        ("aardvark", "Aardvark"),
+        ("cat", "Cat"),
+        ("dog", "Dog"),
+        ("kangaroo", "Kangaroo"),
+        ("panda", "Panda"),
+        ("snake", "Snake"),
+    ]
+    .into_iter()
+    .map(|(key, label)| h::PickerItem::new(key, label))
+    .collect()
+}
+
 /// Named colours, for the `Select::item_leading` demo: a colour-picking select
 /// is the case v3 composes a swatch per row for.
 pub(super) fn swatch_picker_items() -> Vec<h::PickerItem> {
@@ -829,21 +860,21 @@ mod example_quality {
     #[test]
     fn gallery_sections_are_preserved_while_reordering() {
         for (name, count) in [
-            ("select", 26),
-            ("autocomplete", 22),
-            ("combo_box", 30),
+            ("select", 27),
+            ("autocomplete", 23),
+            ("combo_box", 31),
             ("slider", 22),
-            ("date_field", 15),
-            ("alert_dialog", 12),
-            ("dropdown", 25),
+            ("date_field", 16),
+            ("alert_dialog", 13),
+            ("dropdown", 26),
             ("popover", 6),
             ("number_field", 18),
             ("text_area", 6),
             ("date_range_picker", 10),
             ("list_box", 18),
-            ("tag_group", 16),
-            ("meter", 5),
-            ("progress_bar", 6),
+            ("tag_group", 17),
+            ("meter", 6),
+            ("progress_bar", 7),
         ] {
             assert_eq!(
                 section_titles(page_fn(SRC, name)).len(),
@@ -878,8 +909,10 @@ mod example_quality {
             text_area.contains(".full_width()"),
             "TextArea fills its width"
         );
-        assert!(text_area.contains(".cols(48)"), "TextArea basic width");
-        assert!(text_area.contains(".rows(6)"), "TextArea basic height");
+        assert!(
+            text_area_compact.contains(".height(px(128.))"),
+            "TextArea basic height"
+        );
         assert!(
             text_area.contains("placeholder(\"Share a quick project update...\")"),
             "TextArea basic placeholder"
@@ -1079,7 +1112,7 @@ mod example_quality {
         let combo_box = page_fn(SRC, "combo_box");
         assert!(combo_box.contains("demo_text(\"cb-controlled\", \"\", cx)"));
         let select = page_fn(SRC, "select");
-        assert!(select.contains("h::Select::new(\"sel-main\", language_items())"));
+        assert!(select.contains("h::Select::new(\"sel-main\", state_items())"));
         assert!(!section_body(select, "Usage").contains("default_value("));
     }
 

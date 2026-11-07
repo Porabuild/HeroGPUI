@@ -15,12 +15,25 @@ impl Gallery {
             vec![
                 (
                     "Usage",
-                    "Fallback text uses 14px/20px, 12px/16px for small and 16px/24px for large avatars. Here `radius` sets 8px corners and `sx` squares just the top-left corner on the fallback and loaded image.",
-                    specimen_body("avatar-main", row(vec![h::Avatar::new("usage-avatar")
-                        .name("Jane Doe")
-                        .radius(px(8.))
-                        .sx(|el| el.rounded_tl(px(0.)))
-                        .into_any_element()]), cx),
+                    "Fallback text uses 14px/20px, 12px/16px for small and 16px/24px for large avatars.",
+                    specimen_body("avatar-main", gpui::div()
+                        .flex()
+                        .items_center()
+                        .gap(px(16.))
+                        .children(vec![
+                            h::Avatar::new("usage-avatar")
+                                .src(sample_avatar_source())
+                                .name("John Doe")
+                                .into_any_element(),
+                            h::Avatar::new("usage-avatar-2")
+                                .src(sample_avatar_source())
+                                .name("Blue")
+                                .into_any_element(),
+                            h::Avatar::new("usage-avatar-3")
+                                .fallback("JR")
+                                .into_any_element(),
+                        ])
+                        .into_any_element(), cx),
                 ),
                 (
                     "Sizes",
@@ -125,6 +138,15 @@ impl Gallery {
                         ),
                     ]), cx),
                 ),
+                (
+                    "Styling Overrides",
+                    "`radius(px)` replaces the default corner and `sx` squares just the top-left corner, on the fallback and the loaded image.",
+                    specimen_body("avatar-styling", row(vec![h::Avatar::new("avatar-override")
+                        .name("Jane Doe")
+                        .radius(px(8.))
+                        .sx(|el| el.rounded_tl(px(0.)))
+                        .into_any_element()]), cx),
+                ),
             ],
             cx,
         )
@@ -175,7 +197,17 @@ impl Gallery {
                 (
                     "Usage",
                     specimen_body("avatar-group-main", row(vec![h::AvatarGroup::new("ag-basic")
-                        .children(users("ag-basic-user", 4))
+                        .children(
+                            ["John Doe", "Kate Wilson", "Emily Chen", "Michael Brown"]
+                                .iter()
+                                .enumerate()
+                                .map(|(i, name)| {
+                                    h::Avatar::new(("ag-basic-user", i))
+                                        .src(sample_avatar_source())
+                                        .name(*name)
+                                })
+                                .collect::<Vec<_>>(),
+                        )
                         .into_any_element()]), cx),
                 ),
                 (

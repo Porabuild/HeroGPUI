@@ -49,12 +49,12 @@ impl InputAddon {
 impl RenderOnce for InputAddon {
     fn render(self, _window: &mut Window, cx: &mut App) -> impl IntoElement {
         // `.input-group__prefix` / `__suffix`: `px-3`, transparent, and drawn in
-        // `--field-placeholder`.
+        // `--field-placeholder`. The slot itself carries the inset in v3, so
+        // bare icon addons sit the same 12px in as `InputAddon` text.
         let el = div()
             .flex()
             .items_center()
             .flex_shrink_0()
-            .px(px(12.))
             .text_color(cx.colors().field.placeholder)
             .child(self.text.to_string());
         util::apply_sx(el, &self.sx)
@@ -496,6 +496,7 @@ impl RenderOnce for InputGroup {
                 .flex()
                 .items_center()
                 .justify_center()
+                .px(px(12.))
                 .text_color(colors.field.placeholder)
                 .when(name == "prefix", |slot| {
                     slot.border_r(layout.field_border_width)

@@ -63,6 +63,21 @@ pub struct InputState {
     /// messages must never rewind the receipt, or the next frame's clone
     /// would resurrect what the edit answered.
     routed_revision: u64,
+    /// The commit-gated part of the live validity — `validate`'s message and
+    /// the HTML5 attribute flag, with no controlled or server sources. React
+    /// Stately's `nextValidation`: rewritten every render, displayed only
+    /// once a commit copies it into [`Self::displayed`].
+    pending: crate::validation::Validity,
+    /// The validity snapshot a commit last displayed — React Stately's
+    /// `currentValidity`. Under `ValidationBehavior::Native` the field paints
+    /// this, not the live result: typing after a commit leaves the shown
+    /// error untouched until the next commit (a change-blur or a submit).
+    /// `Allow` ignores it and shows the live validity in real time.
+    displayed: crate::validation::Validity,
+    /// The value the field held when it took focus. A native `change` event —
+    /// and so a validation commit — fires on blur only when the value
+    /// differs from this; a focus→blur with no edit commits nothing.
+    focus_value: Option<String>,
 }
 
 impl InputState {
@@ -84,6 +99,9 @@ impl InputState {
             is_read_only: false,
             routed_errors: Vec::new(),
             routed_revision: 0,
+            pending: crate::validation::Validity::default(),
+            displayed: crate::validation::Validity::default(),
+            focus_value: None,
         }
     }
 
@@ -134,6 +152,47 @@ impl InputState {
     /// The resolved validity, as last written by `Input::render`.
     pub(crate) fn validity(&self) -> &crate::validation::Validity {
         &self.validity
+    }
+
+    /// Records the commit-gated validity, written by `Input::render` every
+    /// frame; a commit copies it into [`Self::displayed`].
+    pub(crate) fn set_pending(&mut self, pending: crate::validation::Validity) {
+        self.pending = pending;
+    }
+
+    /// The commit-gated validity as last written by `Input::render`.
+    pub(crate) fn pending(&self) -> &crate::validation::Validity {
+        &self.pending
+    }
+
+    /// The displayed validity snapshot — what `ValidationBehavior::Native`
+    /// paints. Committed by a change-blur or a form submission.
+    pub(crate) fn displayed(&self) -> &crate::validation::Validity {
+        &self.displayed
+    }
+
+    /// A commit: the pending gated validity becomes the displayed snapshot.
+    /// Called by `Input::render`'s focus tracking and by `FormField::commit`.
+    pub(crate) fn commit_display(&mut self) {
+        if self.displayed != self.pending {
+            self.displayed = self.pending.clone();
+        }
+    }
+
+    /// `resetValidation` — the display returns to valid without committing;
+    /// the next render's pending result waits for the next commit again.
+    pub(crate) fn reset_display(&mut self) {
+        self.displayed = crate::validation::Validity::default();
+    }
+
+    /// The value the field held at focus, for the change-since-focus commit
+    /// rule. Written by `Input::render`'s focus tracking.
+    pub(crate) fn focus_value(&self) -> Option<&str> {
+        self.focus_value.as_deref()
+    }
+
+    pub(crate) fn set_focus_value(&mut self, value: Option<String>) {
+        self.focus_value = value;
     }
 
     pub(crate) fn is_successful(&self) -> bool {
@@ -1966,12 +2025,17 @@ impl RenderOnce for Input {
         let value_now = self.state.read(cx).value().to_owned();
         let mut server_errors = self.state.read(cx).routed_errors().to_vec();
         server_errors.extend(self.validation_errors.iter().cloned());
+        let validate_result = self.validate.as_ref().and_then(|f| f(&value_now));
         let mut validity = crate::validation::resolve(
             self.is_invalid,
             &server_errors,
-            self.validate.as_ref().and_then(|f| f(&value_now)),
+            validate_result.clone(),
             self.error_message.clone(),
         );
+        // The commit-gated half of the same resolution: `validate` and the
+        // HTML5 attributes only, with the controlled flag, server messages
+        // and `errorMessage` left out — those stay live in every mode.
+        let mut pending = crate::validation::resolve(false, &[], validate_result, None);
         // v3's native validation enforces the HTML5 attribute constraints too:
         // a `minLength`/`pattern`/`min`/`max`/`step` violation is a field error
         // even when the controlled flags and `validate` say nothing, and a
@@ -1979,6 +2043,7 @@ impl RenderOnce for Input {
         // message slot stays untouched, so no error line appears.
         if !self.validity(&value_now).is_valid() {
             validity.is_invalid = true;
+            pending.is_invalid = true;
         }
         // The form reads this back through `FormField::text`; written only
         // when it differs, so the write cannot notify-re-render forever
@@ -1986,6 +2051,9 @@ impl RenderOnce for Input {
         let validity_state = self.state.clone();
         if validity_state.read(cx).validity() != &validity {
             validity_state.update(cx, |s, _| s.set_validity(validity.clone()));
+        }
+        if validity_state.read(cx).pending() != &pending {
+            validity_state.update(cx, |s, _| s.set_pending(pending.clone()));
         }
         let focus_handle = self.state.read(cx).focus_handle.clone();
         if self.auto_focus {
@@ -2023,6 +2091,59 @@ impl RenderOnce for Input {
         }
         let disabled_opacity = cx.layout().disabled_opacity;
         let focused = focus_handle.is_focused(window);
+        // v3 commits a field's validation on blur — but only when the value
+        // changed since focus, mirroring the native `change` event — and on
+        // submit, which `FormField::commit` reaches for every field. Until a
+        // commit the gated half stays internal: `pending` still feeds a
+        // `Form`'s blocked decision through `validity`, but the field paints
+        // only the live sources plus the last committed snapshot.
+        let was_focused =
+            window.use_keyed_state(element_id::scoped(&base_id, "was-focused"), cx, |_, _| {
+                false
+            });
+        let had_focus = *was_focused.read(cx);
+        if had_focus != focused {
+            was_focused.update(cx, |had, _| *had = focused);
+            if focused {
+                // Focus gained: remember the value — the blur below commits
+                // only when it differs, as the native `change` event does.
+                let value = value_now.clone();
+                self.state
+                    .update(cx, |state, _| state.set_focus_value(Some(value)));
+            } else {
+                let changed =
+                    self.state.read(cx).focus_value().map(str::to_owned) != Some(value_now.clone());
+                self.state.update(cx, |state, _| {
+                    state.set_focus_value(None);
+                    if changed {
+                        state.commit_display();
+                    }
+                });
+            }
+        }
+        // What the field paints. `Allow` (= React Aria's `aria` behavior)
+        // shows every source live, validate included, with no commit at
+        // all. `Native` keeps the controlled flag, the server messages and
+        // `errorMessage` live, but the validate/HTML5 half is the committed
+        // `displayed` snapshot — edits after a commit leave it untouched
+        // until the next commit.
+        let display_validity = if self.state.read(cx).validation_behavior()
+            == crate::form::ValidationBehavior::Allow
+        {
+            validity.clone()
+        } else {
+            let mut display =
+                crate::validation::resolve(self.is_invalid, &server_errors, None, None);
+            let displayed = self.state.read(cx).displayed().clone();
+            display.messages.extend(displayed.messages.iter().cloned());
+            display.is_invalid |= displayed.is_invalid;
+            if display.messages.is_empty() && display.is_invalid {
+                if let Some(message) = &self.error_message {
+                    display.messages.push(message.clone());
+                }
+            }
+            display
+        };
         if !focused && self.state.read(cx).marked.is_some() {
             self.state.update(cx, |state, _| state.marked = None);
         }
@@ -2065,7 +2186,7 @@ impl RenderOnce for Input {
             return render(InputFieldRenderState {
                 focus: field_focus,
                 is_disabled: self.is_disabled,
-                is_invalid: validity.is_invalid,
+                is_invalid: display_validity.is_invalid,
                 is_read_only: self.is_read_only,
                 is_required: self.is_required,
                 value: value_now.into(),
@@ -2086,7 +2207,7 @@ impl RenderOnce for Input {
         let h = self.height.unwrap_or(h);
         let text = self.text_size.or(field_theme.text_size).unwrap_or(text);
 
-        let is_invalid = validity.is_invalid;
+        let is_invalid = display_validity.is_invalid;
         let show_focus_ring = self.focus_ring.unwrap_or(true);
         let _border_color = if is_invalid {
             colors.danger.color
@@ -2113,7 +2234,7 @@ impl RenderOnce for Input {
         let a11y_name = crate::a11y::Name::field(
             self.label.as_ref().or(self.a11y_label.as_ref()),
             self.description.as_ref(),
-            &validity,
+            &display_validity,
         );
         // The box and shared field chrome use the same resolved radius.
         let radius = self.radius.unwrap_or_else(|| crate::util::field_radius(cx));
@@ -2359,6 +2480,10 @@ impl RenderOnce for Input {
         };
         let cursor = st.cursor;
         let is_empty = value.is_empty();
+        // IME marked text lives inside `value`, so a composition already
+        // makes the field non-empty; the explicit check keeps the placeholder
+        // from ever painting under marked text.
+        let empty_for_display = is_empty && st.marked.is_none();
         let selection = st.selection();
 
         // A multi-line field lays its lines out top-down and lets each one
@@ -2397,7 +2522,50 @@ impl RenderOnce for Input {
                 )
         };
 
-        if self.multiline && !(is_empty && !focused && self.placeholder.is_some()) {
+        if empty_for_display && focused && self.placeholder.is_some() {
+            // HTML keeps the placeholder painted while the empty field holds
+            // focus, the caret blinking at the start before the first glyph.
+            // The caret overlays the text's left edge instead of joining the
+            // flow, so the placeholder sits at the same x focused or not —
+            // and it is the same caret element the text path uses, so the
+            // blink continues seamlessly once typing replaces it.
+            row = row.child(
+                gpui::div()
+                    .relative()
+                    .w_full()
+                    .min_w_0()
+                    .child(
+                        gpui::div()
+                            .w_full()
+                            .min_w_0()
+                            // Headless probe: the placeholder's own bounds,
+                            // so a test can prove it holds its x when focus
+                            // toggles and vanishes once typing starts.
+                            .debug_selector(|| "input-placeholder".to_owned())
+                            .text_color(theme_placeholder)
+                            .truncate()
+                            .child(self.placeholder.clone().unwrap().to_string()),
+                    )
+                    .child(
+                        gpui::div()
+                            .absolute()
+                            .left_0()
+                            .top_0()
+                            .bottom_0()
+                            .flex()
+                            .items_center()
+                            .child(crate::anim::caret_blink(
+                                gpui::div()
+                                    .w(px(1.5))
+                                    .h(text * 1.3)
+                                    .bg(accent.color)
+                                    .flex_shrink_0(),
+                                element_id::scoped(&base_id, "caret"),
+                                cx,
+                            )),
+                    ),
+            );
+        } else if self.multiline && !(empty_for_display && !focused && self.placeholder.is_some()) {
             // One wrapping paragraph per newline, with the caret and any
             // selection placed inside the line they fall in.
             let caret_id = element_id::scoped(&base_id, "caret");
@@ -2413,9 +2581,11 @@ impl RenderOnce for Input {
                 },
                 cx,
             ));
-        } else if is_empty && !focused && self.placeholder.is_some() {
+        } else if empty_for_display && !focused && self.placeholder.is_some() {
             row = row.child(
                 gpui::div()
+                    // Headless probe: see the focused branch above.
+                    .debug_selector(|| "input-placeholder".to_owned())
                     .text_color(theme_placeholder)
                     .truncate()
                     .child(self.placeholder.clone().unwrap().to_string()),
@@ -2988,7 +3158,8 @@ impl RenderOnce for Input {
         // `FieldError` default — not just the first. The shared helper keeps
         // the last message mounted while the invalid row animates out, so a
         // description cannot replace it halfway through the height tween.
-        let error = (!validity.messages.is_empty()).then(|| validity.joined().into());
+        let error =
+            (!display_validity.messages.is_empty()).then(|| display_validity.joined().into());
         if let Some(error) = crate::anim::field_error_panel(&base_id, error, window, cx) {
             el = el.child(error);
         } else if let Some(desc) = self.description {

@@ -533,6 +533,10 @@ impl RenderOnce for Drawer {
             })
             .bg(colors.overlay.background)
             .text_color(colors.foreground)
+            // Dark mode's `shadow-overlay` is the inset hairline alone.
+            .when_some(cx.layout().overlay_hairline, |panel, hairline| {
+                panel.border(cx.layout().border_width).border_color(hairline)
+            })
             .shadow(cx.layout().overlay_shadow.clone())
             .when(self.placement == DrawerPlacement::Bottom, |panel| {
                 panel

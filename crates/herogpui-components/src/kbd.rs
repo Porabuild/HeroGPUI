@@ -26,6 +26,140 @@ impl KbdVariant {
     }
 }
 
+/// A named key for `KbdAbbr` — v3's `keyValue` union from
+/// `kbd.constants.ts`.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum KbdKey {
+    /// `"command"` — ⌘.
+    Command,
+    /// `"shift"` — ⇧.
+    Shift,
+    /// `"ctrl"` — ⌃.
+    Ctrl,
+    /// `"option"` — ⌥.
+    Option,
+    /// `"enter"` — ↵.
+    Enter,
+    /// `"delete"` — ⌫.
+    Delete,
+    /// `"escape"` — ⎋.
+    Escape,
+    /// `"tab"` — ⇥.
+    Tab,
+    /// `"capslock"` — ⇪.
+    CapsLock,
+    /// `"up"` — ↑.
+    Up,
+    /// `"right"` — →.
+    Right,
+    /// `"down"` — ↓.
+    Down,
+    /// `"left"` — ←.
+    Left,
+    /// `"pageup"` — ⇞.
+    PageUp,
+    /// `"pagedown"` — ⇟.
+    PageDown,
+    /// `"home"` — ↖.
+    Home,
+    /// `"end"` — ↘.
+    End,
+    /// `"help"` — ?.
+    Help,
+    /// `"space"` — ␣.
+    Space,
+    /// `"fn"` — Fn.
+    Fn,
+    /// `"win"` — ⌘.
+    Win,
+    /// `"alt"` — ⌥.
+    Alt,
+}
+
+impl KbdKey {
+    /// Every named key, in v3 `KbdKey` declaration order.
+    pub const ALL: [KbdKey; 22] = [
+        KbdKey::Command,
+        KbdKey::Shift,
+        KbdKey::Ctrl,
+        KbdKey::Option,
+        KbdKey::Enter,
+        KbdKey::Delete,
+        KbdKey::Escape,
+        KbdKey::Tab,
+        KbdKey::CapsLock,
+        KbdKey::Up,
+        KbdKey::Right,
+        KbdKey::Down,
+        KbdKey::Left,
+        KbdKey::PageUp,
+        KbdKey::PageDown,
+        KbdKey::Home,
+        KbdKey::End,
+        KbdKey::Help,
+        KbdKey::Space,
+        KbdKey::Fn,
+        KbdKey::Win,
+        KbdKey::Alt,
+    ];
+
+    /// The symbol v3's `Kbd.Abbr` renders (`symbols` in `kbd.constants.ts`).
+    pub fn symbol(self) -> &'static str {
+        match self {
+            KbdKey::Command | KbdKey::Win => "⌘",
+            KbdKey::Shift => "⇧",
+            KbdKey::Ctrl => "⌃",
+            KbdKey::Option | KbdKey::Alt => "⌥",
+            KbdKey::Enter => "↵",
+            KbdKey::Delete => "⌫",
+            KbdKey::Escape => "⎋",
+            KbdKey::Tab => "⇥",
+            KbdKey::CapsLock => "⇪",
+            KbdKey::Up => "↑",
+            KbdKey::Right => "→",
+            KbdKey::Down => "↓",
+            KbdKey::Left => "←",
+            KbdKey::PageUp => "⇞",
+            KbdKey::PageDown => "⇟",
+            KbdKey::Home => "↖",
+            KbdKey::End => "↘",
+            KbdKey::Help => "?",
+            KbdKey::Space => "␣",
+            KbdKey::Fn => "Fn",
+        }
+    }
+
+    /// The accessible name v3's `<abbr title>` carries (`labels` in
+    /// `kbd.constants.ts`). gpui has no abbr element to hang it on, so the
+    /// port exposes it for callers that need it.
+    pub fn label(self) -> &'static str {
+        match self {
+            KbdKey::Command => "Command",
+            KbdKey::Shift => "Shift",
+            KbdKey::Ctrl => "Control",
+            KbdKey::Option => "Option",
+            KbdKey::Enter => "Enter",
+            KbdKey::Delete => "Delete",
+            KbdKey::Escape => "Escape",
+            KbdKey::Tab => "Tab",
+            KbdKey::CapsLock => "Caps Lock",
+            KbdKey::Up => "Up",
+            KbdKey::Right => "Right",
+            KbdKey::Down => "Down",
+            KbdKey::Left => "Left",
+            KbdKey::PageUp => "Page Up",
+            KbdKey::PageDown => "Page Down",
+            KbdKey::Home => "Home",
+            KbdKey::End => "End",
+            KbdKey::Help => "Help",
+            KbdKey::Space => "Space",
+            KbdKey::Fn => "Fn",
+            KbdKey::Win => "Win",
+            KbdKey::Alt => "Alt",
+        }
+    }
+}
+
 /// Keyboard key display (`<Kbd>`).
 #[must_use = "a component does nothing until it is rendered: add it as a child or return it from `render`"]
 #[derive(IntoElement)]
@@ -122,3 +256,103 @@ impl RenderOnce for Kbd {
 }
 
 crate::util::impl_component_styled!(Kbd);
+
+/// The named-key abbreviation (`<Kbd.Abbr keyValue="…">`) — v3's `<abbr>`
+/// that resolves the key's symbol. gpui has no abbr element or accessibility
+/// title, so this renders the symbol in the `.kbd__abbr` centered box; the
+/// accessible name stays available as `KbdKey::label()`.
+#[must_use = "a component does nothing until it is rendered: add it as a child or return it from `render`"]
+#[derive(IntoElement)]
+pub struct KbdAbbr {
+    key: KbdKey,
+    /// The `sx` slot, refined over the root style at the end of render.
+    sx: Option<Box<gpui::StyleRefinement>>,
+}
+
+impl KbdAbbr {
+    /// Creates an abbreviation for `key`.
+    pub fn new(key: KbdKey) -> Self {
+        Self { key, sx: None }
+    }
+
+    /// The one slot for caller-owned low-level styling.
+    pub fn sx(mut self, style: impl FnOnce(gpui::Div) -> gpui::Div) -> Self {
+        crate::util::refine_sx(&mut self.sx, style);
+        self
+    }
+}
+
+impl Default for KbdAbbr {
+    fn default() -> Self {
+        Self::new(KbdKey::Command)
+    }
+}
+
+impl RenderOnce for KbdAbbr {
+    fn render(self, _window: &mut Window, _cx: &mut App) -> impl IntoElement {
+        // `.kbd__abbr` is `display:flex; justify/align-items:center;
+        // width/height:100%; text-decoration:none` — the symbol fills the key.
+        let el = gpui::div()
+            .flex()
+            .items_center()
+            .justify_center()
+            .w_full()
+            .h_full()
+            .child(self.key.symbol());
+        crate::util::apply_sx(el, &self.sx)
+    }
+}
+
+crate::util::impl_component_styled!(KbdAbbr);
+
+/// The key text wrapper (`<Kbd.Content>`) — v3's `.kbd__content` centered
+/// flex box around the letter or word a chord presses.
+#[must_use = "a component does nothing until it is rendered: add it as a child or return it from `render`"]
+#[derive(IntoElement)]
+pub struct KbdContent {
+    children: Vec<AnyElement>,
+    /// The `sx` slot, refined over the root style at the end of render.
+    sx: Option<Box<gpui::StyleRefinement>>,
+}
+
+impl KbdContent {
+    /// Creates an empty content wrapper.
+    pub fn new() -> Self {
+        Self {
+            children: Vec::new(),
+            sx: None,
+        }
+    }
+
+    /// The one slot for caller-owned low-level styling.
+    pub fn sx(mut self, style: impl FnOnce(gpui::Div) -> gpui::Div) -> Self {
+        crate::util::refine_sx(&mut self.sx, style);
+        self
+    }
+}
+
+impl Default for KbdContent {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl ParentElement for KbdContent {
+    fn extend(&mut self, elements: impl IntoIterator<Item = AnyElement>) {
+        self.children.extend(elements);
+    }
+}
+
+impl RenderOnce for KbdContent {
+    fn render(self, _window: &mut Window, _cx: &mut App) -> impl IntoElement {
+        // `.kbd__content` is `display:flex; justify/align-items:center`.
+        let el = gpui::div()
+            .flex()
+            .items_center()
+            .justify_center()
+            .children(self.children);
+        crate::util::apply_sx(el, &self.sx)
+    }
+}
+
+crate::util::impl_component_styled!(KbdContent);

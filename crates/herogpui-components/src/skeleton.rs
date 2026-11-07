@@ -144,43 +144,77 @@ impl RenderOnce for Skeleton {
             // style of its own to refine, so the slot lands on the box the
             // animation wraps: the pulse keeps driving opacity, everything
             // else the caller set holds.
+            // Tailwind's `animate-pulse`: opacity 1 → .5 at 50% → 1 over
+            // 2s, `cubic-bezier(0.4, 0, 0.6, 1)` easing each half of the
+            // cycle — not the old 1.6s sine between .3 and .8.
             SkeletonAnimation::Pulse => crate::util::apply_sx(base, &self.sx)
                 .with_animation(
                     self.id,
-                    Animation::new(Duration::from_millis(1600)).repeat(),
-                    move |el, delta| {
-                        let t = (delta * std::f32::consts::TAU).sin();
-                        el.opacity(0.55 + 0.25 * t)
+                    Animation::new(Duration::from_millis(2000)).repeat(),
+                    |el, delta| {
+                        let (from, to, t) = if delta < 0.5 {
+                            (1.0, 0.5, delta * 2.0)
+                        } else {
+                            (0.5, 1.0, (delta - 0.5) * 2.0)
+                        };
+                        let eased = crate::anim::cubic_bezier(0.4, 0.0, 0.6, 1.0, t);
+                        el.opacity(from + (to - from) * eased)
                     },
                 )
                 .into_any_element(),
-            // A highlight band sweeping left to right, like v3's shimmer. The
-            // band itself is animated, so its position moves rather than its
-            // size.
+            // v3's `::after` is `inset-0` with
+            // `bg-linear-to-r from-transparent via-surface-tertiary
+            // to-transparent`, travelling `-translate-x-full` →
+            // `translateX(200%)` over 2s linear, infinite — three box widths
+            // of travel. GPUI gradients take two stops, so the symmetric band
+            // is two half-width children: transparent→surface-tertiary, then
+            // surface-tertiary→transparent. The band is full-width and its
+            // middle is the opaque token, so it reads as a sheen over the
+            // tinted base rather than a hard-edged band of the page colour.
             SkeletonAnimation::Shimmer => {
-                let highlight = colors.background;
-                // The band sweeps edge to edge, so at each end of its travel
-                // it paints square pixels through the base's rounded corners
-                // (vanilla GPUI clips `overflow_hidden()` to the rectangle).
-                // Rounding the band to the base radius reproduces the CSS
-                // clip v3 gets from `overflow: hidden` + `border-radius`.
+                let surface = colors.surface_tertiary;
+                let half = |from: gpui::Hsla, to: gpui::Hsla| {
+                    div()
+                        .h_full()
+                        .w(gpui::relative(0.5))
+                        .bg(gpui::linear_gradient(
+                            90.0,
+                            gpui::linear_color_stop(from, 0.0),
+                            gpui::linear_color_stop(to, 1.0),
+                        ))
+                };
+                let clear = surface.alpha(0.0);
+                // The band sweeps edge to edge inside a clip container inset
+                // horizontally by the base radius: vanilla GPUI clips
+                // `overflow_hidden()` to the rectangle, so without the inset
+                // the band's square ends would paint through the base's
+                // rounded corners at each end of its travel. The radius-wide
+                // strips the sheen never reaches are visually negligible —
+                // the CSS clip v3 gets from `overflow: hidden` +
+                // `border-radius`.
                 let band = div()
                     .absolute()
                     .top_0()
                     .bottom_0()
-                    .w(gpui::relative(0.35))
-                    .rounded(base_radius)
-                    .bg(gpui::linear_gradient(
-                        90.0,
-                        gpui::linear_color_stop(highlight.alpha(0.0), 0.0),
-                        gpui::linear_color_stop(highlight.alpha(0.7), 0.5),
-                    ))
+                    .left(gpui::relative(-1.0))
+                    .w_full()
+                    .flex()
+                    .child(half(clear, surface))
+                    .child(half(surface, clear))
                     .with_animation(
                         self.id,
-                        Animation::new(Duration::from_millis(1400)).repeat(),
-                        |el, delta| el.left(gpui::relative(delta)),
+                        Animation::new(Duration::from_millis(2000)).repeat(),
+                        |el, delta| el.left(gpui::relative(-1.0 + 3.0 * delta)),
                     );
-                crate::util::apply_sx(base.child(band), &self.sx).into_any_element()
+                let clip = div()
+                    .absolute()
+                    .top_0()
+                    .bottom_0()
+                    .left(base_radius)
+                    .right(base_radius)
+                    .overflow_hidden()
+                    .child(band);
+                crate::util::apply_sx(base.child(clip), &self.sx).into_any_element()
             }
         }
     }
@@ -188,6 +222,14 @@ impl RenderOnce for Skeleton {
 
 #[cfg(test)]
 mod tests {
+    fn implementation() -> String {
+        let source = include_str!("skeleton.rs")
+            .split("#[cfg(test)]")
+            .next()
+            .expect("the implementation section is always present");
+        source.split_whitespace().collect()
+    }
+
     #[test]
     fn composed_skeletons_keep_children_visible_for_a_parent_shimmer() {
         let source = include_str!("skeleton.rs")
@@ -199,6 +241,76 @@ mod tests {
         assert!(
             !source.contains("div().opacity(0.).children(self.children)"),
             "composed Skeleton children must remain visible beneath the parent shimmer"
+        );
+    }
+
+    /// v3's shimmer `::after` is a full-box band, `transparent →
+    /// surface-tertiary → transparent`, travelling -100% → +200% over 2s
+    /// linear — three box widths, symmetric, in the tertiary token (which
+    /// stays light in dark theme), never the page `background`.
+    #[test]
+    fn the_shimmer_band_matches_v3s_sheen() {
+        let compact = implementation();
+        assert!(
+            compact.contains("letsurface=colors.surface_tertiary;"),
+            "the sheen must be surface-tertiary, not the page background"
+        );
+        assert!(
+            !compact.contains("colors.background"),
+            "a background-coloured band is a dark smear in dark theme"
+        );
+        assert!(
+            compact.contains(".w_full()")
+                && compact.contains(".child(half(clear,surface))")
+                && compact.contains(".child(half(surface,clear))"),
+            "the symmetric gradient is two half-width children"
+        );
+        assert!(
+            compact.contains("Animation::new(Duration::from_millis(2000)).repeat()")
+                && compact.contains("el.left(gpui::relative(-1.0+3.0*delta))"),
+            "the band must travel -100% to +200% of the box over 2s"
+        );
+    }
+
+    /// Vanilla GPUI clips `overflow_hidden()` to the rectangle, so a band
+    /// sweeping the full box paints square pixels through the base's rounded
+    /// corners. The band therefore rides inside a clip container inset
+    /// horizontally by the base radius — the sheen never reaches the corner
+    /// columns, and the band's own rounding is no longer needed.
+    #[test]
+    fn the_shimmer_band_clears_the_rounded_corners() {
+        let compact = implementation();
+        assert!(
+            compact.contains(".left(base_radius).right(base_radius).overflow_hidden()"),
+            "the band must sweep inside a clip inset by the base radius"
+        );
+        assert!(
+            !compact.contains(".flex().rounded(base_radius)"),
+            "the band's own rounding is redundant inside the inset clip"
+        );
+    }
+
+    /// Tailwind `animate-pulse`: 2s `cubic-bezier(0.4,0,0.6,1)`, opacity
+    /// 1 → .5 at the midpoint → 1 — not a sine between other extremes.
+    #[test]
+    fn the_pulse_matches_tailwinds_animate_pulse() {
+        let compact = implementation();
+        assert!(
+            compact.contains("crate::anim::cubic_bezier(0.4,0.0,0.6,1.0,t)"),
+            "the pulse easing must be Tailwind's cubic-bezier(0.4,0,0.6,1)"
+        );
+        assert!(
+            compact.contains("(1.0,0.5,delta*2.0)")
+                && compact.contains("(0.5,1.0,(delta-0.5)*2.0)"),
+            "opacity must go 1 → .5 → 1 across the 2s cycle"
+        );
+        assert!(
+            compact.contains("Animation::new(Duration::from_millis(2000)).repeat()"),
+            "animate-pulse runs on a 2s cycle"
+        );
+        assert!(
+            !compact.contains("0.55+0.25*t"),
+            "the old 1.6s sine pulse must be gone"
         );
     }
 }

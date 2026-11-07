@@ -60,6 +60,9 @@ pub struct RangeCalendar {
     /// seeded from `defaultYearPickerOpen`.
     year_picker_open: Option<bool>,
     default_year_picker_open: bool,
+    /// Whether the heading is the interactive `YearPickerTrigger` (v3 composes
+    /// it as a part) rather than the plain `RangeCalendar.Heading` label.
+    year_picker: bool,
     /// `RangeCalendar.YearPickerGrid.visibleYears` — `None` uses the v3
     /// min/max span or 20-year default.
     visible_years: Option<usize>,
@@ -180,6 +183,7 @@ impl RangeCalendar {
             selection_alignment: None,
             year_picker_open: None,
             default_year_picker_open: false,
+            year_picker: false,
             visible_years: None,
             year_heading_offset_months: 0,
             on_year_picker_open_change: None,
@@ -225,8 +229,18 @@ impl RangeCalendar {
         self
     }
 
+    /// Whether the heading is the interactive year-picker trigger (v3's
+    /// `RangeCalendar.YearPickerTrigger`) instead of a plain heading label.
+    /// `is_year_picker_open` and `default_year_picker_open` imply it: a
+    /// picker state with no trigger could never open.
+    pub fn year_picker(mut self, v: bool) -> Self {
+        self.year_picker = v;
+        self
+    }
+
     /// `isYearPickerOpen` — swaps the day grid for a year grid.
     pub fn is_year_picker_open(mut self, v: bool) -> Self {
+        self.year_picker = true;
         self.year_picker_open = Some(v);
         self
     }
@@ -236,6 +250,7 @@ impl RangeCalendar {
     /// Only consulted when `isYearPickerOpen` is not supplied; the component
     /// then owns the state and the heading toggles it directly.
     pub fn default_year_picker_open(mut self, v: bool) -> Self {
+        self.year_picker = true;
         self.default_year_picker_open = v;
         self
     }
@@ -1632,6 +1647,11 @@ impl RenderOnce for RangeCalendar {
                 .child(text);
             let indicator_id =
                 element_id::scoped(&self.id, format!("year-picker-indicator-{index}"));
+            // Without the composed `YearPickerTrigger` the heading is a plain
+            // label, whatever state or handler the picker props carry.
+            if !self.year_picker {
+                return label.into_any_element();
+            }
             match &self.on_year_picker_open_change {
                 // No handler and no state of our own: a plain label.
                 None if year_picker_own.is_none() => label.into_any_element(),

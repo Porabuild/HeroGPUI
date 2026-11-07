@@ -20,6 +20,7 @@ impl Gallery {
         let ac_picked = self.demo_text_value("ac-picked");
         let ac_typed = self.demo_text_value("ac-typed");
         let ac_multi = self.demo_selection("ac-multi");
+        let ac_usage = self.demo_selection("ac-usage");
         let ac_open = self.demo_flag("ac-open", false);
         let ac_muted = cx.colors().muted;
         component_doc_page!(
@@ -27,17 +28,22 @@ impl Gallery {
             crate::pages::Page::Autocomplete.description(),
             crate::pages::Page::Autocomplete.import_line(),
             vec![
+                // v3's Usage is a controlled multi-select: six states,
+                // selected keys rendered as removable tags in the value.
                 (
                     "Usage", "Values and options use 14px text with 20px lines. Section headers use 12px text with 16px lines and keep their own spacing. The popup anchors to the trigger with an 8px gap, flips when the preferred side cannot fit and the opposite side has more room, keeps the search visible, and scrolls the list within the available height up to 320px; virtual paging follows the visible list height.",
                     specimen_body("ac-main", field_col(vec![h::Autocomplete::new(
                         self.ac_entity.clone(),
-                        language_items(),
+                        state_items(),
                     )
-                    .label("Language")
-                    .placeholder("Select a language")
-                    // `radius` is the detached panel's corner; the trigger
-                    // keeps the field chrome's own.
-                    .radius(px(8.))
+                    .label("States to Visit")
+                    .placeholder("Select states")
+                    .selection_mode(SelectionMode::Multiple)
+                    .value(ac_usage.iter().cloned())
+                    .on_selection_change_all(cx.listener(|this, keys: &[SharedString], _, cx| {
+                        this.set_demo_selection("ac-usage", keys.to_vec());
+                        cx.notify();
+                    }))
                     .into_any_element()]), cx),
                 ),
                 (
@@ -416,6 +422,18 @@ impl Gallery {
                     .clear_hover_bg(cx.colors().danger.soft())
                     .into_any_element()]), cx),
                 ),
+                (
+                    "Styling Overrides",
+                    "`radius` is the detached panel's corner; the trigger keeps the field chrome's own.",
+                    specimen_body("ac-styling", field_col(vec![h::Autocomplete::new(
+                        self.demo_text("ac-styling", "", cx),
+                        language_items(),
+                    )
+                    .label("Language")
+                    .placeholder("Select a language")
+                    .radius(px(8.))
+                    .into_any_element()]), cx),
+                ),
             ],
             cx,
         )
@@ -435,18 +453,16 @@ impl Gallery {
             crate::pages::Page::ComboBox.description(),
             crate::pages::Page::ComboBox.import_line(),
             vec![
+                // v3's Usage is "Favorite Animal" over six animals.
                 (
                     "Usage", "Values and options use 14px text with 20px lines. Section headers use 12px text with 16px lines and keep their own spacing. The popup flips near window edges and scrolls to keep options reachable in short windows.",
                     specimen_body("cb-main", field_col(vec![h::ComboBox::new(
                         self.demo_text("cb-usage", "", cx),
-                        language_items(),
+                        animal_items(),
                     )
-                    .label("Language")
-                    .placeholder("Pick or type")
+                    .label("Favorite Animal")
+                    .placeholder("Search animals...")
                     .is_open(self.demo_overlay("cb-usage-open"))
-                    // `radius` is the detached panel's corner; the trigger is
-                    // the inner input's box and keeps the field chrome's own.
-                    .radius(px(8.))
                     .on_open_change(cx.listener(|this, open: &bool, _, cx| {
                         this.set_demo_flag("cb-usage-open", *open);
                         cx.notify();
@@ -993,6 +1009,18 @@ impl Gallery {
                     .placeholder("Search animals...")
                     .into_any_element()]), cx),
                 ),
+                (
+                    "Styling Overrides",
+                    "`radius` is the detached panel's corner; the trigger is the inner input's box and keeps the field chrome's own.",
+                    specimen_body("cb-styling", field_col(vec![h::ComboBox::new(
+                        self.demo_text("cb-styling", "", cx),
+                        language_items(),
+                    )
+                    .label("Language")
+                    .placeholder("Pick or type")
+                    .radius(px(8.))
+                    .into_any_element()]), cx),
+                ),
             ],
             cx,
         )
@@ -1007,22 +1035,19 @@ impl Gallery {
             crate::pages::Page::Select.description(),
             crate::pages::Page::Select.import_line(),
             vec![
+                // v3's Usage is an uncontrolled "State" select over six
+                // states; `is_open` stays wired for the overlay deep link.
                 (
-                    "Usage", "Use the arrow keys and Enter or Space to select a language. Selection closes the list and keeps focus on the trigger. Enabled options use the pinned 98% press scale over 250ms ease-out-quart inside a stable row slot. Values and options use 14px text with 20px lines. Section headers use 12px text with 16px lines and keep their own spacing. The popup flips near window edges and scrolls to keep options reachable in short windows.",
-                    specimen_body("sel-main", field_col(vec![h::Select::new("sel-main", language_items())
-                        .label("Language")
-                        .placeholder("Choose one")
-                        .value(selected.clone())
+                    "Usage", "Use the arrow keys and Enter or Space to select a state. Selection closes the list and keeps focus on the trigger. Enabled options use the pinned 98% press scale over 250ms ease-out-quart inside a stable row slot. Values and options use 14px text with 20px lines. Section headers use 12px text with 16px lines and keep their own spacing. The popup flips near window edges and scrolls to keep options reachable in short windows.",
+                    specimen_body("sel-main", field_col(vec![h::Select::new("sel-main", state_items())
+                        .label("State")
+                        .placeholder("Select one")
                         .is_open(is_open)
-                        // `radius` is the detached panel's corner; the trigger
-                        // keeps the field chrome's own.
-                        .radius(px(8.))
                         .on_open_change(cx.listener(|this, open: &bool, _, cx| {
                             this.select_open = *open;
                             cx.notify();
                         }))
-                        .on_change(cx.listener(|this, key: &Option<SharedString>, _, cx| {
-                            this.select_lang = key.clone();
+                        .on_selection_change(cx.listener(|this, _key: &Option<SharedString>, _, cx| {
                             this.select_open = false;
                             cx.notify();
                         }))
@@ -1499,6 +1524,15 @@ impl Gallery {
                         .label("Language")
                         .placeholder("Choose one")
                         .default_value(Some(SharedString::from("rust")))
+                        .into_any_element()]), cx),
+                ),
+                (
+                    "Styling Overrides",
+                    "`radius` is the detached panel's corner; the trigger keeps the field chrome's own.",
+                    specimen_body("sel-styling", field_col(vec![h::Select::new("sel-styling", language_items())
+                        .label("Language")
+                        .placeholder("Choose one")
+                        .radius(px(8.))
                         .into_any_element()]), cx),
                 ),
             ],

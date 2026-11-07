@@ -16,7 +16,8 @@
     "Flex Fill",
     "Press handler",
     "Sx slot",
-    "Custom hover fill"
+    "Custom hover fill",
+    "Styling Overrides"
   ],
   "button-group": [
     "Usage",
@@ -35,7 +36,8 @@
     "With Custom Icon",
     "Hover Colour",
     "Render Function",
-    "Disabled"
+    "Disabled",
+    "Styling Overrides"
   ],
   "toggle-button": [
     "Usage",
@@ -53,7 +55,8 @@
     "Single selection",
     "Multiple selection",
     "Default Selected Keys",
-    "Vertical"
+    "Vertical",
+    "Styling Overrides"
   ],
   "dropdown": [
     "Usage",
@@ -80,7 +83,8 @@
     "Basic Usage",
     "Controlled Selection",
     "Context Menu",
-    "Menu Bar"
+    "Menu Bar",
+    "Styling Overrides"
   ],
   "list-box": [
     "Usage",
@@ -118,7 +122,8 @@
     "Disallow Empty Selection",
     "Escape Key Behavior",
     "Removable",
-    "Selectable"
+    "Selectable",
+    "Styling Overrides"
   ],
   "color-area": [
     "Usage",
@@ -148,7 +153,8 @@
     "Hex value",
     "Blur Behaviour",
     "Read-only display",
-    "Single channel"
+    "Single channel",
+    "Styling Overrides"
   ],
   "color-picker": [
     "Usage",
@@ -229,7 +235,8 @@
     "Group Horizontal",
     "Form Integration",
     "Render Props",
-    "Label Size"
+    "Label Size",
+    "Styling Overrides"
   ],
   "badge": [
     "Usage",
@@ -238,7 +245,8 @@
     "Colors",
     "Placements",
     "Dot Badge",
-    "With Content"
+    "With Content",
+    "Styling Overrides"
   ],
   "chip": [
     "Usage",
@@ -246,7 +254,8 @@
     "Statuses",
     "With Icons",
     "Colors",
-    "Sizes"
+    "Sizes",
+    "Styling Overrides"
   ],
   "table": [
     "Usage",
@@ -291,7 +300,8 @@
     "International Calendars",
     "Constraints",
     "First day of week",
-    "Heading Offset"
+    "Heading Offset",
+    "Styling Overrides"
   ],
   "date-field": [
     "Usage",
@@ -308,7 +318,8 @@
     "Form Example",
     "With Validation",
     "Box Customisation",
-    "Forced Leading Zeros"
+    "Forced Leading Zeros",
+    "Styling Overrides"
   ],
   "date-picker": [
     "Usage",
@@ -354,7 +365,8 @@
     "Real-World Example",
     "Multiple Months",
     "International Calendars",
-    "Heading Offset"
+    "Heading Offset",
+    "Styling Overrides"
   ],
   "time-field": [
     "Usage",
@@ -371,20 +383,23 @@
     "24-hour",
     "12-hour with seconds",
     "Forced Leading Zeros",
-    "Box Customisation"
+    "Box Customisation",
+    "Styling Overrides"
   ],
   "alert": [
     "Usage",
     "Colors",
     "Custom Indicator",
-    "Closable"
+    "Closable",
+    "Styling Overrides"
   ],
   "meter": [
     "Usage",
     "Sizes",
     "Colors",
     "Without Label",
-    "Custom Value Scale"
+    "Custom Value Scale",
+    "Styling Overrides"
   ],
   "progress-bar": [
     "Usage",
@@ -392,7 +407,8 @@
     "Colors",
     "Without Label",
     "Indeterminate",
-    "Custom Value Scale"
+    "Custom Value Scale",
+    "Styling Overrides"
   ],
   "progress-circle": [
     "Usage",
@@ -436,7 +452,8 @@
     "Render Props",
     "Custom Indicator",
     "Label Size",
-    "Sizes"
+    "Sizes",
+    "Styling Overrides"
   ],
   "checkbox-group": [
     "Usage",
@@ -639,7 +656,8 @@
     "Colors",
     "Variants",
     "Fallback Content",
-    "Custom Image Component"
+    "Custom Image Component",
+    "Styling Overrides"
   ],
   "avatar-group": [
     "Usage",
@@ -683,7 +701,8 @@
     "Icon Placement",
     "Custom Icon",
     "Render Function",
-    "Text Decoration"
+    "Text Decoration",
+    "Styling Overrides"
   ],
   "pagination": [
     "Usage",
@@ -730,7 +749,8 @@
     "Custom Backdrop",
     "Dismiss Behavior",
     "Close Methods",
-    "Custom Animations"
+    "Custom Animations",
+    "Styling Overrides"
   ],
   "drawer": [
     "Usage",
@@ -814,7 +834,8 @@
     "Placement",
     "Long Selected Value",
     "Box Customisation",
-    "Hover Colours"
+    "Hover Colours",
+    "Styling Overrides"
   ],
   "combo-box": [
     "Usage",
@@ -846,7 +867,8 @@
     "Controlled Selection",
     "Value Render Props",
     "Long Value Content",
-    "Basic Usage"
+    "Basic Usage",
+    "Styling Overrides"
   ],
   "select": [
     "Usage",
@@ -874,7 +896,8 @@
     "Row Leading Content",
     "Wrapping Trigger",
     "Custom Trigger Indicator",
-    "Uncontrolled"
+    "Uncontrolled",
+    "Styling Overrides"
   ],
   "sheet": [
     "Usage",
@@ -898,7 +921,8 @@
     "Navigation Keys",
     "Inline Usage",
     "Instructional Text",
-    "Special Keys"
+    "Special Keys",
+    "Styling Overrides"
   ],
   "typography": [
     "Usage",

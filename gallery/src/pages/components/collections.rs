@@ -13,11 +13,12 @@ impl Gallery {
             .dropdown_selected
             .clone()
             .unwrap_or_else(|| SharedString::from("none"));
+        // v3's Usage menu: four plain items, the last danger.
         let items = vec![
-            h::MenuItem::new("new", "New file").shortcut("Ctrl N"),
-            h::MenuItem::new("copy", "Copy link").shortcut("Ctrl C"),
-            h::MenuItem::Separator,
-            h::MenuItem::new("delete", "Delete file").danger(),
+            h::MenuItem::new("new-file", "New file"),
+            h::MenuItem::new("copy-link", "Copy link"),
+            h::MenuItem::new("edit-file", "Edit file"),
+            h::MenuItem::new("delete-file", "Delete file").danger(),
         ];
         // A `MenuItem` is moved into the menu that shows it, so each demo builds
         // its own list.
@@ -40,13 +41,16 @@ impl Gallery {
                         h::Dropdown::new(
                             "dd-trigger-dd",
                             h::Button::new("dd-trigger")
-                                .label("Actions")
+                                // v3's trigger is `aria-label="Menu"` over the
+                                // visible "Actions"; `label` names it while
+                                // `content` paints the text.
+                                .label("Menu")
+                                .content(|_| "Actions".into_any_element())
                                 .variant(Variant::Secondary),
                             items,
                             is_open,
                         )
                         .id("dd-trigger-dd")
-                        .radius(px(4.))
                         .on_open_change(cx.listener(|this, open: &bool, _, cx| {
                             this.dropdown_open = *open;
                             cx.notify();
@@ -57,7 +61,6 @@ impl Gallery {
                             cx.notify();
                         }))
                         .into_any_element(),
-                        para(&format!("Last action: {selected}"), cx),
                     ]), cx),
                 ),
                 (
@@ -643,6 +646,20 @@ impl Gallery {
                         para(&format!("Last action: {}", self.menu_bar_last), cx),
                     ]), cx),
                 ),
+                (
+                    "Styling Overrides",
+                    "`radius(px)` replaces the menu panel's default corner.",
+                    specimen_body("dd-styling", col(vec![h::Dropdown::uncontrolled(
+                        "dd-styling-dd",
+                        h::Button::new("dd-styling")
+                            .label("Actions")
+                            .variant(Variant::Secondary),
+                        plain(),
+                    )
+                    .id("dd-styling-dd")
+                    .radius(px(4.))
+                    .into_any_element()]), cx),
+                ),
             ],
             cx,
         )
@@ -663,20 +680,74 @@ impl Gallery {
             crate::pages::Page::ListBox.description(),
             crate::pages::Page::ListBox.import_line(),
             vec![
+                // v3's Usage is three users: a small avatar, a label and
+                // an email description per row. `ListBoxItem` has no
+                // avatar slot, so `item_content` composes each row's
+                // leading `Avatar size="sm"` and label/description stack.
                 (
                     "Usage", "Labels use 14px text with 20px lines; descriptions and section headers use 12px text with 16px lines.",
-                    specimen_body("lb-main", col(vec![gpui::div()
-                        .w(px(220.))
-                        .child(h::ListBox::new(
-                            "lb-usage",
-                            vec![
-                                h::ListBoxItem::new("inbox", "Inbox"),
-                                h::ListBoxItem::new("sent", "Sent"),
-                                h::ListBoxItem::new("drafts", "Drafts"),
-                            ],
-                        )
-                        .selection_mode(SelectionMode::Single))
-                        .into_any_element()]), cx),
+                    specimen_body("lb-main", col(vec![{
+                        let muted = cx.colors().muted;
+                        gpui::div()
+                            .w(px(220.))
+                            .child(
+                                h::ListBox::new(
+                                    "lb-usage",
+                                    vec![
+                                        h::ListBoxItem::new("1", "Bob")
+                                            .description("bob@heroui.com"),
+                                        h::ListBoxItem::new("2", "Fred")
+                                            .description("fred@heroui.com"),
+                                        h::ListBoxItem::new("3", "Martha")
+                                            .description("martha@heroui.com"),
+                                    ],
+                                )
+                                .selection_mode(SelectionMode::Single)
+                                .item_content(move |key, _| {
+                                    let (name, email, fallback) = match &**key {
+                                        "1" => ("Bob", "bob@heroui.com", "B"),
+                                        "2" => ("Fred", "fred@heroui.com", "F"),
+                                        _ => ("Martha", "martha@heroui.com", "M"),
+                                    };
+                                    gpui::div()
+                                        .flex()
+                                        .flex_row()
+                                        .items_center()
+                                        .gap(px(12.))
+                                        .flex_1()
+                                        .min_w_0()
+                                        .child(
+                                            h::Avatar::new(el_id(format!(
+                                                "lb-usage-avatar-{key}"
+                                            )))
+                                            .name(name)
+                                            .src(sample_avatar_source())
+                                            .fallback(fallback)
+                                            .size(Size::Sm),
+                                        )
+                                        .child(
+                                            gpui::div()
+                                                .flex()
+                                                .flex_col()
+                                                .min_w_0()
+                                                .child(
+                                                    gpui::div()
+                                                        .font_weight(gpui::FontWeight::MEDIUM)
+                                                        .child(name),
+                                                )
+                                                .child(
+                                                    gpui::div()
+                                                        .text_size(px(12.))
+                                                        .line_height(px(16.))
+                                                        .text_color(muted)
+                                                        .child(email),
+                                                ),
+                                        )
+                                        .into_any_element()
+                                }),
+                            )
+                            .into_any_element()
+                    }]), cx),
                 ),
                 (
                     "With Disabled Items",
@@ -1128,13 +1199,27 @@ impl Gallery {
             crate::pages::Page::TagGroup.description(),
             crate::pages::Page::TagGroup.import_line(),
             vec![
+                // v3's Usage is four icon tags in single-selection mode.
+                // v3 names the group with `aria-label="Tags"` only; the
+                // port's `label` always paints, so the group goes unnamed
+                // rather than gaining a visible label v3 does not have.
                 (
-                    "Usage", "`radius(px)` replaces the chip's size-step corner.",
-                    specimen_body("tg-main", col(vec![h::TagGroup::new("tg-usage", tags())
-                        .full_width(true)
-                        .label("Skills")
-                        .radius(px(2.))
-                        .into_any_element()]), cx),
+                    "Usage",
+                    specimen_body("tg-main", col(vec![h::TagGroup::new(
+                        "tg-usage",
+                        vec![
+                            h::Tag::new("default-news", "News")
+                                .icon(h::IconName::FileText.path()),
+                            h::Tag::new("default-travel", "Travel")
+                                .icon(h::IconName::Globe.path()),
+                            h::Tag::new("default-gaming", "Gaming")
+                                .icon(h::IconName::Rocket.path()),
+                            h::Tag::new("default-shopping", "Shopping")
+                                .icon(h::IconName::ShoppingBag.path()),
+                        ],
+                    )
+                    .selection_mode(SelectionMode::Single)
+                    .into_any_element()]), cx),
                 ),
                 (
                     "Sizes",
@@ -1359,6 +1444,14 @@ impl Gallery {
                                 cx.notify();
                             },
                         ))
+                        .into_any_element()]), cx),
+                ),
+                (
+                    "Styling Overrides",
+                    "`radius(px)` replaces the chip's size-step corner.",
+                    specimen_body("tg-styling", col(vec![h::TagGroup::new("tg-styling", tags())
+                        .label("Skills")
+                        .radius(px(2.))
                         .into_any_element()]), cx),
                 ),
             ],

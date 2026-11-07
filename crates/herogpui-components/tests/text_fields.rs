@@ -49,14 +49,15 @@ use crate::harness;
 use crate::source_scan;
 
 use gpui::{
-    point, prelude::*, px, Bounds, Focusable, Modifiers, MouseButton, Pixels, TestAppContext,
-    VisualTestContext,
+    point, prelude::*, px, Bounds, Entity, Focusable, Modifiers, MouseButton, Pixels,
+    TestAppContext, VisualTestContext,
 };
 use herogpui_components::{
     Button, ColorField, Date, DateField, FieldGroup, Fieldset, FieldsetLegend, Input, InputAddon,
     InputGroup, InputOTP, InputState, InputType, NumberField, NumberState, OtpPattern, OtpState,
-    PickerColor, SearchField, TextArea, TextField, Time, TimeField, TimeState,
+    PickerColor, SearchField, TextArea, TextField, Time, TimeField, TimeState, ValidationBehavior,
 };
+use herogpui_theme::ActiveTheme;
 
 use harness::{click, events, open_host, press, probe as inset_probe};
 
@@ -1137,6 +1138,62 @@ fn input_group_prefix_and_suffix_do_not_steal_the_caret(cx: &mut TestAppContext)
     );
 }
 
+/// v3's `.input-group__prefix`/`__suffix` slots carry `px-3` themselves, so a
+/// bare icon child insets exactly like `InputAddon` text — which keeps its
+/// old position now that the padding lives on the slot.
+#[gpui::test]
+fn input_group_slot_padding_insets_icons_and_keeps_addon_text(cx: &mut TestAppContext) {
+    let icon_state = cx.new(|cx| InputState::new(cx));
+    let text_state = cx.new(|cx| InputState::new(cx));
+    let icon_id = icon_state.entity_id().as_u64();
+    let text_id = text_state.entity_id().as_u64();
+    let icon_for_view = icon_state;
+    let text_for_view = text_state;
+    let cx = open_host(cx, move || {
+        gpui::div()
+            .flex()
+            .flex_col()
+            .gap(px(16.))
+            .items_start()
+            .w(px(400.))
+            .child(
+                InputGroup::new()
+                    .prefix(
+                        gpui::div()
+                            .debug_selector(|| "icon-addon".to_owned())
+                            .child("I"),
+                    )
+                    .input(Input::new(icon_for_view.clone())),
+            )
+            .child(
+                InputGroup::new()
+                    .prefix(
+                        gpui::div()
+                            .debug_selector(|| "text-addon".to_owned())
+                            .child(InputAddon::new("$")),
+                    )
+                    .input(Input::new(text_for_view.clone())),
+            )
+            .into_any_element()
+    });
+    cx.run_until_parked();
+    let slot_probe = |entity: u64| -> &'static str {
+        Box::leak(format!("input-group-{entity}-prefix").into_boxed_str())
+    };
+    for (slot, probe) in [
+        (slot_probe(icon_id), "icon-addon"),
+        (slot_probe(text_id), "text-addon"),
+    ] {
+        let slot_bounds = cx.debug_bounds(slot).unwrap();
+        let probe_bounds = cx.debug_bounds(probe).unwrap();
+        let inset = probe_bounds.origin.x - slot_bounds.origin.x;
+        assert!(
+            (inset - px(12.)).abs() < px(0.5),
+            "{probe} must sit 12px inside its slot, got {inset:?}"
+        );
+    }
+}
+
 #[gpui::test]
 fn input_group_disabled_propagates_to_the_field(cx: &mut TestAppContext) {
     // v3 puts `isDisabled` on the TextField around the group, and the browser
@@ -1280,10 +1337,11 @@ fn input_group_button_suffix_presses_then_hands_focus_to_the_field(cx: &mut Test
     });
     flush_frame(cx);
 
-    // The suffix Button ("Go", md padding) hangs off the row's right edge in
-    // the 400px wrapper: the click lands in its right padding at (394, 18) —
-    // on the group, outside the field between the addons.
-    click(cx, 394., 18.);
+    // The suffix slot's own `px-3` insets the Button ("Go", md padding) 12px
+    // off the row's right edge in the 400px wrapper: the click lands in its
+    // right padding at (384, 18) — on the group, outside the field between
+    // the addons.
+    click(cx, 384., 18.);
     assert_eq!(
         pressed.borrow().as_slice(),
         ["press"],
@@ -1367,7 +1425,7 @@ fn input_group_field_disabled_refuses_addon_focus_from_the_first_frame(cx: &mut 
     // the button holds the focus. A wrongly focused disabled field is not
     // in the focus tree, so the app root takes the focus back on the next
     // paint and Enter activates nothing.
-    click(cx, 394., 18.);
+    click(cx, 384., 18.);
     assert_eq!(
         pressed.borrow().as_slice(),
         ["press"],
@@ -2040,6 +2098,273 @@ fn input_label_description_and_error_keep_pinned_line_heights(cx: &mut TestAppCo
     }
 }
 
+/// v3's `validate` is commit-gated the way React Stately's native behavior
+/// gates it: the displayed validity is a *snapshot* taken at commit, not the
+/// live result. A focus→blur with no edit commits nothing (the native
+/// `change` event needs a changed value); an edit followed by blur commits
+/// the snapshot, and typing afterwards leaves the shown error untouched —
+/// even when the live value turns valid — until the next commit.
+#[gpui::test]
+fn native_validation_shows_a_committed_snapshot_not_the_live_value(cx: &mut TestAppContext) {
+    let state = cx.new(|cx| InputState::new(cx));
+    let other = cx.new(|cx| InputState::new(cx));
+    let validated = state.clone();
+    let plain = other.clone();
+    let cx = open_host(cx, move || {
+        gpui::div()
+            .flex()
+            .flex_col()
+            .gap(px(16.))
+            .items_start()
+            .child(
+                gpui::div().debug_selector(|| "validated".to_owned()).child(
+                    Input::new(validated.clone())
+                        .label("Name")
+                        .is_required(true)
+                        .validate(|value: &str| {
+                            (value.len() < 3).then(|| "Name must be at least 3 characters".into())
+                        }),
+                ),
+            )
+            .child(
+                gpui::div()
+                    .debug_selector(|| "plain".to_owned())
+                    .child(Input::new(plain.clone()).label("Other")),
+            )
+            .into_any_element()
+    });
+    cx.run_until_parked();
+    let plain_height = cx.debug_bounds("plain").unwrap().size.height;
+    let rest_height = cx.debug_bounds("validated").unwrap().size.height;
+    assert_eq!(
+        rest_height, plain_height,
+        "an untouched field failing `validate` must not paint its error at rest"
+    );
+    let focus = |cx: &mut VisualTestContext, which: &Entity<InputState>| {
+        cx.update(|window, cx| {
+            let handle = which.read(cx).focus_handle(cx);
+            window.focus(&handle, cx);
+        });
+        cx.run_until_parked();
+    };
+    // Focus then blur with no edit: no `change`, so no commit — still no error.
+    focus(cx, &state);
+    focus(cx, &other);
+    assert_eq!(
+        cx.debug_bounds("validated").unwrap().size.height,
+        rest_height,
+        "a blur with no edit since focus must not commit the validation"
+    );
+    // Type an invalid value and blur: the change commits the snapshot. The
+    // error row animates its height in, so let the motion settle first.
+    focus(cx, &state);
+    cx.simulate_input("ab");
+    focus(cx, &other);
+    harness::wait_ms(cx, 800);
+    let committed_height = cx.debug_bounds("validated").unwrap().size.height;
+    assert!(
+        committed_height > rest_height,
+        "an edit followed by blur must commit and show the error"
+    );
+    // Type the value valid *without* blurring: the displayed snapshot must
+    // not track the live result — the stale error stays painted.
+    focus(cx, &state);
+    cx.simulate_keystrokes("ctrl-a");
+    cx.simulate_input("name");
+    let typed = cx.update(|_, cx| state.read(cx).value().to_owned());
+    assert!(
+        typed.len() >= 3,
+        "the valid edit must have landed for this check to mean anything, got {typed:?}"
+    );
+    assert_eq!(
+        cx.debug_bounds("validated").unwrap().size.height,
+        committed_height,
+        "typing after a commit must not change the displayed error"
+    );
+    // The next change-blur commits the now-valid pending result: it clears,
+    // and the error row animates its height back out.
+    focus(cx, &other);
+    harness::wait_ms(cx, 800);
+    assert_eq!(
+        cx.debug_bounds("validated").unwrap().size.height,
+        rest_height,
+        "the commit after the valid edit must clear the displayed error"
+    );
+}
+
+/// `ValidationBehavior::Allow` is React Aria's `aria` behavior: `validate`
+/// and built-in results display in real time — no blur, no commit.
+#[gpui::test]
+fn allow_validation_displays_in_real_time_without_a_commit(cx: &mut TestAppContext) {
+    let state = cx.new(|cx| InputState::new(cx));
+    let field = state.clone();
+    let cx = open_host(cx, move || {
+        gpui::div()
+            .flex()
+            .flex_col()
+            .gap(px(16.))
+            .items_start()
+            .child(
+                gpui::div().debug_selector(|| "allow".to_owned()).child(
+                    Input::new(field.clone())
+                        .label("Name")
+                        .validation_behavior(ValidationBehavior::Allow)
+                        .validate(|value: &str| {
+                            (value == "bad").then(|| "That name is taken".into())
+                        }),
+                ),
+            )
+            .into_any_element()
+    });
+    cx.run_until_parked();
+    let rest_height = cx.debug_bounds("allow").unwrap().size.height;
+    // Type while focused and never blur: the error must already paint.
+    cx.update(|window, cx| {
+        let handle = state.read(cx).focus_handle(cx);
+        window.focus(&handle, cx);
+    });
+    cx.run_until_parked();
+    cx.simulate_input("bad");
+    cx.run_until_parked();
+    assert_eq!(
+        cx.update(|_, cx| state.read(cx).value().to_owned()),
+        "bad",
+        "the typed value must have landed for this check to mean anything"
+    );
+    assert!(
+        cx.debug_bounds("allow").unwrap().size.height > rest_height,
+        "Allow must display the validate error in real time, before any blur"
+    );
+}
+
+/// The caret probe shared by the placeholder tests: a ~1.5px-wide solid
+/// accent bar inside `field`'s bounds. `still()` keeps the blink opaque.
+fn caret_quad(scene: &harness::Painted, field: Bounds<Pixels>, accent: gpui::Hsla) -> bool {
+    scene.quads.iter().any(|q| {
+        q.background
+            .as_solid()
+            .is_some_and(|c| harness::same_color(c, accent))
+            && {
+                let b = scene.bounds(q);
+                f32::from(b.size.width) <= 2.
+                    && f32::from(b.size.height) > 10.
+                    && harness::contains(field, b)
+            }
+    })
+}
+
+/// HTML keeps `placeholder` painted while the empty field is focused — the
+/// caret blinks at the start and the first typed character swaps the hint
+/// for the value. The focused placeholder must sit at the same x as the
+/// unfocused one, and the caret must be the same element the text path
+/// uses.
+#[gpui::test]
+fn focused_empty_input_keeps_its_placeholder_and_caret(cx: &mut TestAppContext) {
+    harness::still();
+    let state = cx.new(|cx| InputState::new(cx));
+    let other = cx.new(|cx| InputState::new(cx));
+    let field = state.clone();
+    let cx = open_host(cx, move || {
+        gpui::div()
+            .flex()
+            .flex_col()
+            .gap(px(16.))
+            .items_start()
+            .child(
+                gpui::div().debug_selector(|| "ph-field".to_owned()).child(
+                    Input::new(field.clone())
+                        .label("Name")
+                        .placeholder("Type your name"),
+                ),
+            )
+            .child(Input::new(other.clone()).label("Other"))
+            .into_any_element()
+    });
+    cx.run_until_parked();
+    let unfocused = cx
+        .debug_bounds("input-placeholder")
+        .expect("an unfocused empty field must paint its placeholder");
+    cx.update(|window, cx| {
+        let handle = state.read(cx).focus_handle(cx);
+        window.focus(&handle, cx);
+    });
+    cx.run_until_parked();
+    let focused = cx
+        .debug_bounds("input-placeholder")
+        .expect("a focused empty field must keep its placeholder");
+    assert_eq!(
+        focused.origin.x, unfocused.origin.x,
+        "the placeholder must not shift horizontally when focus toggles"
+    );
+    let field_bounds = cx.debug_bounds("ph-field").unwrap();
+    let accent = cx.update(|_, cx| cx.colors().accent.color);
+    let scene = harness::painted(cx);
+    assert!(
+        caret_quad(&scene, field_bounds, accent),
+        "the focused empty field must paint its caret at the start"
+    );
+    cx.simulate_input("a");
+    cx.run_until_parked();
+    assert!(
+        cx.debug_bounds("input-placeholder").is_none(),
+        "typing must replace the placeholder with the value"
+    );
+}
+
+/// The same contract inside a multi-line field: the placeholder stays
+/// painted under the blinking caret while the TextArea is focused and
+/// empty.
+#[gpui::test]
+fn focused_empty_text_area_keeps_its_placeholder_and_caret(cx: &mut TestAppContext) {
+    harness::still();
+    let state = cx.new(|cx| InputState::new(cx));
+    let field = state.clone();
+    let cx = open_host(cx, move || {
+        gpui::div()
+            .flex()
+            .flex_col()
+            .gap(px(16.))
+            .items_start()
+            .child(
+                gpui::div().debug_selector(|| "ph-area".to_owned()).child(
+                    TextArea::new(field.clone())
+                        .label("Bio")
+                        .placeholder("Tell us about yourself..."),
+                ),
+            )
+            .into_any_element()
+    });
+    cx.run_until_parked();
+    let unfocused = cx
+        .debug_bounds("input-placeholder")
+        .expect("an unfocused empty TextArea must paint its placeholder");
+    cx.update(|window, cx| {
+        let handle = state.read(cx).focus_handle(cx);
+        window.focus(&handle, cx);
+    });
+    cx.run_until_parked();
+    let focused = cx
+        .debug_bounds("input-placeholder")
+        .expect("a focused empty TextArea must keep its placeholder");
+    assert_eq!(
+        focused.origin.x, unfocused.origin.x,
+        "the TextArea placeholder must not shift horizontally on focus"
+    );
+    let field_bounds = cx.debug_bounds("ph-area").unwrap();
+    let accent = cx.update(|_, cx| cx.colors().accent.color);
+    let scene = harness::painted(cx);
+    assert!(
+        caret_quad(&scene, field_bounds, accent),
+        "the focused empty TextArea must paint its caret at the start"
+    );
+    cx.simulate_input("a");
+    cx.run_until_parked();
+    assert!(
+        cx.debug_bounds("input-placeholder").is_none(),
+        "typing must replace the TextArea placeholder with the value"
+    );
+}
+
 // ---------------------------------------------------------------------------
 // Input box geometry: `height`, `padding_x`, `is_bare`, `start_content`
 // ---------------------------------------------------------------------------
@@ -2255,7 +2580,7 @@ fn chrome_boxes(cx: &mut VisualTestContext, min_h: f32) -> usize {
 /// ring (behaviour pinned by the test above), never the chrome.
 #[gpui::test]
 fn input_chrome_is_one_call_site_gated_on_bare_and_group(cx: &mut TestAppContext) {
-    type Build = fn(gpui::Entity<InputState>) -> gpui::AnyElement;
+    type Build = fn(Entity<InputState>) -> gpui::AnyElement;
     let cases: [(&str, Build, usize); 4] = [
         ("stock", |s| Input::new(s).into_any_element(), 1),
         (

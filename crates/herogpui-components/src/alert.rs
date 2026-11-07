@@ -24,6 +24,11 @@ pub struct Alert {
     /// `Alert.Indicator` children replace the status glyph while retaining
     /// the pinned 24px indicator box and status-owned default fallback.
     indicator: Option<AnyElement>,
+    /// Rich content inside the content column after the description — v3's
+    /// `Alert.Description` accepts ReactNode, so a bulleted list or link
+    /// can follow the description text. The `description` builder stays
+    /// text-only; this is its element tail.
+    content_extra: Option<AnyElement>,
     /// Composed children — v3's "Additional content like buttons, close
     /// button, etc.", appended after the content column.
     children: Vec<AnyElement>,
@@ -48,6 +53,7 @@ impl Alert {
             description: None,
             color: Color::Default,
             indicator: None,
+            content_extra: None,
             children: Vec::new(),
             sx: None,
             radius: None,
@@ -65,6 +71,15 @@ impl Alert {
     /// 4px inset and fixed 16px glyph footprint.
     pub fn indicator(mut self, content: impl IntoElement) -> Self {
         self.indicator = Some(content.into_any_element());
+        self
+    }
+
+    /// Rich content rendered inside the content column after the
+    /// description — the element tail of v3's `Alert.Description`, whose
+    /// ReactNode children can be a list, a link, or any markup the
+    /// text-only `description` builder cannot express.
+    pub fn content_extra(mut self, content: impl IntoElement) -> Self {
+        self.content_extra = Some(content.into_any_element());
         self
     }
 
@@ -196,6 +211,9 @@ impl RenderOnce for Alert {
                     .debug_selector(|| "alert-description".to_owned())
                     .child(desc.to_string()),
             );
+        }
+        if let Some(extra) = self.content_extra {
+            text_col = text_col.child(extra);
         }
         alert = alert.child(text_col);
 

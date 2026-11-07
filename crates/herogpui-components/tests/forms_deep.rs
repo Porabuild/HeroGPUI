@@ -1971,12 +1971,14 @@ fn form_native_blocks_on_field_validate(cx: &mut TestAppContext) {
         .into_any_element()
     });
 
-    // The field's own error line (validate's "Name too short") sits between
-    // the field and the button, so the button is 76..112 here, not 52..88:
-    // centre (60, 94).
+    // The field is still uncommitted — `validate`'s message joins the
+    // display only after blur or submit — so no error line sits between the
+    // field and the button and the button rests at 52..88: centre (60, 70).
+    // The stored validity already says the field is in error, which is what
+    // the submit consults.
     click(cx, 60., 18.);
     cx.simulate_input("ab");
-    click(cx, 60., 94.);
+    click(cx, 60., 70.);
     assert!(
         submitted.borrow().is_empty(),
         "a field validate failure must block the native submit so onSubmit \
@@ -1987,6 +1989,70 @@ fn form_native_blocks_on_field_validate(cx: &mut TestAppContext) {
         invalid.borrow().as_slice(),
         [""],
         "a field validate failure must route the native submit to onInvalid"
+    );
+}
+
+#[gpui::test]
+fn form_submit_commits_the_display_and_reset_clears_it(cx: &mut TestAppContext) {
+    // React Stately's native contract, end to end: the displayed validity is
+    // a snapshot committed by a change-blur or by submission — an untouched
+    // failing field paints no error until Submit commits it — and the form's
+    // reset (`resetValidation`) returns the display to valid without
+    // committing anything new.
+    let invalids = events();
+    let invalid = invalids.clone();
+    let state = cx.new(|cx| InputState::new(cx));
+    let submit_slot = handler_slot();
+    let submit_for_view = submit_slot.clone();
+    let reset_slot = handler_slot();
+    let reset_for_view = reset_slot.clone();
+    let cx = open_host(cx, move || {
+        let invalids = invalids.clone();
+        let form = Form::new()
+            .field(FormField::text(state.clone()).is_required(true))
+            .on_invalid(move |data: &FormData, _, _| {
+                invalids.borrow_mut().push(record_missing(data, &["name"]));
+            });
+        *submit_for_view.borrow_mut() = Some(form.submit_handler());
+        *reset_for_view.borrow_mut() = Some(form.reset_handler());
+        form.child(
+            gpui::div()
+                .debug_selector(|| "fd-commit-field".to_owned())
+                .child(
+                    Input::new(state.clone())
+                        .name("name")
+                        .label("Name")
+                        .is_required(true)
+                        .validate(|value| (value.len() < 3).then(|| "Name too short".into())),
+                ),
+        )
+        .into_any_element()
+    });
+    cx.run_until_parked();
+    let rest = cx.debug_bounds("fd-commit-field").unwrap().size.height;
+    // Submit with the field untouched and failing: the commit paints the
+    // error line the pending validity was already holding.
+    run_handler(&submit_slot, cx);
+    harness::wait_ms(cx, 800);
+    let shown = cx.debug_bounds("fd-commit-field").unwrap().size.height;
+    assert!(
+        shown > rest,
+        "a submission must commit every field's pending validity into the \
+         displayed snapshot — the untouched failing field's error must paint"
+    );
+    assert_eq!(
+        invalid.borrow().as_slice(),
+        ["name"],
+        "the same submission must still route to onInvalid for the missing \
+         required value"
+    );
+    // Reset clears the displayed snapshot; the error row animates out.
+    run_handler(&reset_slot, cx);
+    harness::wait_ms(cx, 800);
+    assert_eq!(
+        cx.debug_bounds("fd-commit-field").unwrap().size.height,
+        rest,
+        "reset must clear the displayed validation back to valid"
     );
 }
 

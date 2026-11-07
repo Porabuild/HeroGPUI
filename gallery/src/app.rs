@@ -68,10 +68,6 @@ pub struct Gallery {
     // -- demo state ---------------------------------------------------------
     pub button_clicks: u32,
     pub button_upload_pending: bool,
-    pub switch_a: bool,
-    pub switch_b: bool,
-    pub cb_basic: bool,
-    pub cb_color: bool,
     pub cb_select_all_selected: bool,
     pub cb_select_all_indeterminate: bool,
     pub radio_sel: Option<usize>,
@@ -128,7 +124,6 @@ pub struct Gallery {
     pub select_open: bool,
     pub ac_entity: Entity<h::InputState>,
     pub drawer_open: bool,
-    pub otp: Entity<h::OtpState>,
     pub otp_done: String,
     /// InputOTP "Controlled": every keystroke, not just completion.
     pub otp_typed: String,
@@ -139,13 +134,13 @@ pub struct Gallery {
     pub range_calendar_focus: h::Date,
     pub date_picker_open: bool,
     pub range_open: bool,
-    pub date_input: Entity<h::InputState>,
     pub date_iso: Option<h::Date>,
     /// Kept on the view so the store outlives registration and for tests.
     #[allow(dead_code)]
     pub toasts: Entity<h::ToastStore>,
     pub popover_open: bool,
     pub disclosure_expanded: bool,
+    pub disclosure_usage_expanded: bool,
     pub disclosure_group_expanded: HashSet<SharedString>,
     /// ToggleButton "Controlled": v3's own like/unlike demo.
     pub toggle_like: bool,
@@ -164,7 +159,6 @@ pub struct Gallery {
     pub picker_color: h::PickerColor,
     pub swatch_selected: h::PickerColor,
     pub search_state: Entity<h::InputState>,
-    pub search_query: String,
     /// The Icons page's name filter.
     pub icons_search: Entity<h::InputState>,
     pub icons_query: String,
@@ -425,8 +419,6 @@ Enter inserts a newline here, and a long paragraph wraps inside the field instea
             )
         });
         let ac = cx.new(|cx| h::InputState::new(cx));
-        let date_input = cx.new(|cx| h::InputState::new(cx));
-        let otp = cx.new(|cx| h::OtpState::with_length(cx, 6));
         let number = cx.new(|cx| {
             let mut n = h::NumberState::new(cx, 5.0);
             n.set_range(0.0, 20.0);
@@ -461,10 +453,6 @@ Enter inserts a newline here, and a long paragraph wraps inside the field instea
             toast_promises: Vec::new(),
             button_clicks: 0,
             button_upload_pending: false,
-            switch_a: true,
-            switch_b: false,
-            cb_basic: true,
-            cb_color: false,
             cb_select_all_selected: false,
             cb_select_all_indeterminate: true,
             radio_sel: Some(0),
@@ -509,7 +497,6 @@ Enter inserts a newline here, and a long paragraph wraps inside the field instea
             select_open: std::env::var("HEROGPUI_OPEN_OVERLAYS").is_ok(),
             ac_entity: ac,
             drawer_open: std::env::var("HEROGPUI_OPEN_OVERLAYS").is_ok(),
-            otp,
             otp_done: String::new(),
             otp_typed: String::new(),
             number,
@@ -519,11 +506,11 @@ Enter inserts a newline here, and a long paragraph wraps inside the field instea
             range_calendar_focus: h::Date::today(),
             date_picker_open: false,
             range_open: std::env::var("HEROGPUI_OPEN_OVERLAYS").is_ok(),
-            date_input,
             date_iso: None,
             toasts,
             popover_open: std::env::var("HEROGPUI_OPEN_OVERLAYS").is_ok(),
             disclosure_expanded: true,
+            disclosure_usage_expanded: true,
             disclosure_group_expanded,
             toggle_like: false,
             toggle_single: Some(SharedString::from("center")),
@@ -542,7 +529,6 @@ Enter inserts a newline here, and a long paragraph wraps inside the field instea
             picker_color: h::PickerColor::from_hex("#0085F5").unwrap_or_default(),
             swatch_selected: h::PickerColor::from_hex("#0085F5").unwrap_or_default(),
             search_state,
-            search_query: String::new(),
             icons_search,
             icons_query: String::new(),
             group_amount,

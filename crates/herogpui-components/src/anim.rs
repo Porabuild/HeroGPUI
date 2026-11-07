@@ -113,7 +113,7 @@ pub fn progress_circle_spin_turn(delta: f32) -> f32 {
 /// v3 names its curves in `--ease-*` tokens and gpui takes an arbitrary easing
 /// function, so the real curves can be used rather than approximated by
 /// whichever of gpui's two built-ins looks closest.
-fn cubic_bezier(x1: f32, y1: f32, x2: f32, y2: f32, t: f32) -> f32 {
+pub(crate) fn cubic_bezier(x1: f32, y1: f32, x2: f32, y2: f32, t: f32) -> f32 {
     // A cubic Bezier from (0,0) to (1,1); `t` is the x we want a y for, so the
     // curve parameter has to be solved for first.
     let bez = |a: f32, b: f32, u: f32| {

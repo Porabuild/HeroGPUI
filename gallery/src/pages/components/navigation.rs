@@ -27,12 +27,63 @@ impl Gallery {
             crate::pages::Page::Accordion.description(),
             crate::pages::Page::Accordion.import_line(),
             vec![
+                // v3's Usage is six FAQ items in a `max-w-md` column, all
+                // collapsed. v3 draws a muted leading icon inside each
+                // trigger; AccordionItem has no trigger-content slot, so
+                // the icons are the one piece that cannot be ported.
                 (
                     "Usage",
                     "Titles, subtitles and body text keep their line heights when used inside larger text containers; opening and closing measures the body and animates height plus opacity over 200ms.",
-                    specimen_body("acc-main", col(vec![h::Accordion::new(items())
+                    specimen_body("acc-main", col(vec![gpui::div()
+                        .w(px(448.))
+                        .child(h::Accordion::new(vec![
+                            h::AccordionItem::new(
+                                "1",
+                                "How do I place an order?",
+                            )
+                            .content(gpui::div().child(
+                                "Browse our products, add items to your cart, and proceed to \
+                                 checkout. You'll need to provide shipping and payment \
+                                 information to complete your purchase.",
+                            )),
+                            h::AccordionItem::new(
+                                "2",
+                                "Can I modify or cancel my order?",
+                            )
+                            .content(gpui::div().child(
+                                "Yes, you can modify or cancel your order before it's shipped. \
+                                 Once your order is processed, you can't make changes.",
+                            )),
+                            h::AccordionItem::new(
+                                "3",
+                                "What payment methods do you accept?",
+                            )
+                            .content(gpui::div().child(
+                                "We accept all major credit cards, including Visa, Mastercard, \
+                                 and American Express.",
+                            )),
+                            h::AccordionItem::new("4", "How much does shipping cost?")
+                                .content(gpui::div().child(
+                                    "Shipping costs vary based on your location and the size of \
+                                     your order. We offer free shipping for orders over $50.",
+                                )),
+                            h::AccordionItem::new(
+                                "5",
+                                "Do you ship internationally?",
+                            )
+                            .content(gpui::div().child(
+                                "Yes, we ship to most countries. Please check our shipping rates \
+                                 and policies for more information.",
+                            )),
+                            h::AccordionItem::new("6", "How do I request a refund?")
+                                .content(gpui::div().child(
+                                    "If you're not satisfied with your purchase, you can request a \
+                                     refund within 30 days of purchase. Please contact our \
+                                     customer support team for assistance.",
+                                )),
+                        ])
                         .id("acc-usage")
-                        .default_expanded("1")
+                        .into_any_element())
                         .into_any_element()]), cx),
                 ),
                 (
@@ -198,7 +249,6 @@ impl Gallery {
     }
 
     pub fn page_breadcrumbs(&mut self, cx: &mut Context<'_, Self>) -> AnyElement {
-        let last_nav = self.demo_text_value("bc-nav");
         let crumbs = || {
             vec![
                 h::Crumb::new("Home").href("#"),
@@ -216,43 +266,16 @@ impl Gallery {
                     specimen_body(
                         "bc-main",
                         col(vec![
-                            // `cx.listener` takes one event argument, and
-                            // `on_navigate` receives the index and the crumb
-                            // alongside the click, so the view state is reached
-                            // through the entity directly.
-                            h::Breadcrumbs::new(crumbs())
-                                .id("bc-usage")
-                                .full_width(true)
-                                .text_size(px(16.))
-                                .on_navigate({
-                                    let view = cx.entity().downgrade();
-                                    move |idx: &usize,
-                                          crumb: &h::Crumb,
-                                          _,
-                                          _,
-                                          cx: &mut gpui::App| {
-                                        let _ = view.update(cx, |this, cx| {
-                                            this.set_demo_text_value(
-                                                "bc-nav",
-                                                format!("{idx}: {}", crumb.label),
-                                            );
-                                            cx.notify();
-                                        });
-                                    }
-                                })
-                                .into_any_element(),
-                            para(
-                                &format!(
-                                    "The current page is \"Breadcrumbs\" -- inert, no tab stop. \
-                                 Last navigation: {}",
-                                    if last_nav.is_empty() {
-                                        "none yet".to_owned()
-                                    } else {
-                                        last_nav
-                                    }
-                                ),
-                                cx,
-                            ),
+                            // v3's Usage crumbs: Home, Products, Electronics,
+                            // then the inert current page.
+                            h::Breadcrumbs::new(vec![
+                                h::Crumb::new("Home").href("#"),
+                                h::Crumb::new("Products").href("#"),
+                                h::Crumb::new("Electronics").href("#"),
+                                h::Crumb::new("Laptop"),
+                            ])
+                            .id("bc-usage")
+                            .into_any_element(),
                         ]),
                         cx
                     ),
@@ -347,17 +370,59 @@ impl Gallery {
             crate::pages::Page::Disclosure.description(),
             crate::pages::Page::Disclosure.import_line(),
             vec![
+                // v3's Usage is a controlled Disclosure (`isExpanded` +
+                // `onExpandedChange`) titled "Preview HeroUI Native" whose
+                // trigger is a secondary Button and whose body carries two
+                // muted paragraphs and a primary App Store button. Ours
+                // keeps the title-text trigger — AccordionItem-style
+                // trigger composition does not exist — and has no QR or
+                // Apple glyph asset, so the body ports v3's text and
+                // button without the image.
                 (
                     "Usage",
                     "The measured panel animates height and opacity over 200ms and stays mounted until the close transition completes.",
                     specimen_body(
                         "dis-main",
-                        col(vec![h::Disclosure::new(
-                            "disclosure-usage",
-                            "Shipping details"
-                        )
-                        .child(gpui::div().child("Ships in 2-4 business days."))
-                        .into_any_element()]),
+                        gpui::div()
+                            .w_full()
+                            .max_w(px(448.))
+                            .flex()
+                            .justify_center()
+                            .child(h::Disclosure::new(
+                                "disclosure-usage",
+                                "Preview HeroUI Native",
+                            )
+                            .is_expanded(self.disclosure_usage_expanded)
+                            .on_expanded_change(cx.listener(|this, v: &bool, _, cx| {
+                                this.disclosure_usage_expanded = *v;
+                                cx.notify();
+                            }))
+                            .child(
+                                gpui::div()
+                                    .flex()
+                                    .flex_col()
+                                    .items_center()
+                                    .gap(px(16.))
+                                    .p(px(16.))
+                                    .rounded(px(24.))
+                                    .bg(cx.colors().surface.background)
+                                    // v3's `shadow-panel` on the body.
+                                    .shadow(cx.layout().surface_shadow.clone())
+                                    .child(muted_para(
+                                        "Scan this QR code with your camera app to preview the HeroUI native components.",
+                                        cx,
+                                    ))
+                                    .child(muted_para(
+                                        "Expo must be installed on your device.",
+                                        cx,
+                                    ))
+                                    .child(h::Button::new("dis-app-store").label(
+                                        "Download on App Store",
+                                    ))
+                                    .into_any_element(),
+                            )
+                            .into_any_element())
+                            .into_any_element(),
                         cx
                     ),
                 ),
@@ -468,13 +533,13 @@ impl Gallery {
             crate::pages::Page::Link.description(),
             crate::pages::Page::Link.import_line(),
             vec![
+                // v3: "Call to action" with the trailing `Link.Icon`.
                 (
-                    "Usage", "`radius(px)` replaces the root's default `rounded-xl`; the link paints no fill of its own, so this one carries an `sx` background to show the corner.",
-                    specimen_body("link-main", col(vec![h::Link::new("ln-hover")
-                        .label("Hover to see the underline")
+                    "Usage",
+                    specimen_body("link-main", col(vec![h::Link::new("ln-usage")
+                        .label("Call to action")
                         .href("#")
-                        .radius(px(4.))
-                        .sx(|el| el.bg(gpui::rgba(0x22c55e33)))
+                        .icon(icon(h::icons::EXTERNAL_LINK, cx))
                         .into_any_element()]), cx),
                 ),
                 (
@@ -541,6 +606,16 @@ impl Gallery {
                             .into_any_element(),
                     ]), cx),
                 ),
+                (
+                    "Styling Overrides",
+                    "`radius(px)` replaces the root's default `rounded-xl`; the link paints no fill of its own, so this one carries an `sx` background to show the corner.",
+                    specimen_body("link-styling", col(vec![h::Link::new("ln-styling")
+                        .label("Hover to see the underline")
+                        .href("#")
+                        .radius(px(4.))
+                        .sx(|el| el.bg(gpui::rgba(0x22c55e33)))
+                        .into_any_element()]), cx),
+                ),
             ],
             cx,
         )
@@ -555,13 +630,49 @@ impl Gallery {
             vec![
                 (
                     "Usage",
-                    specimen_body("pagination-main", col(vec![h::Pagination::new("pg-main", page, 10)
-                        .full_width(true)
-                        .on_change(cx.listener(|this, p: &usize, _, cx| {
-                            this.pagination_page = *p;
-                            cx.notify();
-                        }))
-                        .into_any_element()]), cx),
+                    // v3's Usage labels the arrows: Previous is icon-then-text,
+                    // Next is text-then-icon.
+                    specimen_body("pagination-main", col(vec![{
+                        let fg = cx.colors().foreground;
+                        let nav_content = |icon_first: bool,
+                                           path: &'static str,
+                                           label: &'static str| {
+                            let icon = gpui::svg()
+                                .size(px(14.))
+                                .path(path)
+                                .text_color(fg)
+                                .into_any_element();
+                            let text = gpui::div().child(label).into_any_element();
+                            let pair = if icon_first {
+                                gpui::div()
+                                    .flex()
+                                    .items_center()
+                                    .gap(px(6.))
+                                    .child(icon)
+                                    .child(text)
+                            } else {
+                                gpui::div()
+                                    .flex()
+                                    .items_center()
+                                    .gap(px(6.))
+                                    .child(text)
+                                    .child(icon)
+                            };
+                            pair.into_any_element()
+                        };
+                        h::Pagination::new("pg-main", page, 3)
+                            .previous_icon(nav_content(
+                                true,
+                                h::icons::CHEVRON_LEFT,
+                                "Previous",
+                            ))
+                            .next_icon(nav_content(false, h::icons::CHEVRON_RIGHT, "Next"))
+                            .on_change(cx.listener(|this, p: &usize, _, cx| {
+                                this.pagination_page = *p;
+                                cx.notify();
+                            }))
+                            .into_any_element()
+                    }]), cx),
                 ),
                 (
                     "Sizes",
@@ -729,19 +840,32 @@ impl Gallery {
                 (
                     "Usage",
                     "Tab labels use a 20px line height independently of surrounding text.",
-                    specimen_body("tabs-main", col(vec![h::Tabs::new(
-                        "tabs-usage",
-                        vec![
-                            h::TabItem::new("photos", "Photos")
-                                .content(gpui::div().child("Your photo library.")),
-                            h::TabItem::new("music", "Music")
-                                .content(gpui::div().child("Playlists and albums.")),
-                            h::TabItem::new("videos", "Videos")
-                                .content(gpui::div().child("Everything you have filmed.")),
-                        ],
-                        "photos",
-                    )
-                    .into_any_element()]), cx),
+                    // v3's `w-full max-w-md` frame and `pt-4` panels.
+                    specimen_body("tabs-main", gpui::div()
+                        .w(px(448.))
+                        .child(h::Tabs::new(
+                            "tabs-usage",
+                            vec![
+                                h::TabItem::new("overview", "Overview").content(
+                                    gpui::div()
+                                        .pt(px(16.))
+                                        .child("View your project overview and recent activity."),
+                                ),
+                                h::TabItem::new("analytics", "Analytics").content(
+                                    gpui::div()
+                                        .pt(px(16.))
+                                        .child("Track your metrics and analyze performance data."),
+                                ),
+                                h::TabItem::new("reports", "Reports").content(
+                                    gpui::div()
+                                        .pt(px(16.))
+                                        .child("Generate and download detailed reports."),
+                                ),
+                            ],
+                            "overview",
+                        )
+                        .into_any_element())
+                        .into_any_element(), cx),
                 ),
                 (
                     "Vertical",

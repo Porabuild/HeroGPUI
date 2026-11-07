@@ -7,7 +7,7 @@ use gpui::prelude::FluentBuilder;
 use gpui::{
     px, App, ElementId, ImageCacheError, ImageSource, ImgResourceLoader, InteractiveElement,
     IntoElement, ParentElement, Pixels, RenderImage, RenderOnce, Resource, SharedString, Styled,
-    Window,
+    StyledImage, Window,
 };
 use herogpui_core::{element_id, Color};
 use herogpui_theme::ActiveTheme;
@@ -635,12 +635,16 @@ impl RenderOnce for Avatar {
 
                 match got {
                     // Success: the image replaces the fallback inside the
-                    // `.avatar__image` box.
+                    // `.avatar__image` box. v3's `.avatar__image` is
+                    // `absolute inset-0 aspect-square size-full` with no
+                    // object-fit — the browser default `fill`, which crops
+                    // rather than letterboxes a non-square source.
                     Some(Ok(data)) => el.child(crate::util::round_sx_corners(
                         gpui::img(data)
                             .absolute()
                             .inset_0()
                             .size_full()
+                            .object_fit(gpui::ObjectFit::Fill)
                             .rounded(radius),
                         &sx_corners,
                     )),
@@ -693,7 +697,7 @@ mod fill_tokens {
         for consumer in [
             "letsx_corners=crate::util::sx_radius(&self.sx);",
             "letfallback=crate::util::round_sx_corners(fallback,&sx_corners);",
-            "crate::util::round_sx_corners(gpui::img(data).absolute().inset_0().size_full().rounded(radius),&sx_corners,)",
+            "crate::util::round_sx_corners(gpui::img(data).absolute().inset_0().size_full().object_fit(gpui::ObjectFit::Fill).rounded(radius),&sx_corners,)",
             "crate::util::apply_sx(el,&self.sx)",
         ] {
             assert!(compact.contains(consumer), "missing corner consumer: {consumer}");
@@ -740,9 +744,12 @@ mod fill_tokens {
         );
         let compact: String = source.split_whitespace().collect();
         assert!(
-            compact.contains("gpui::img(data).absolute().inset_0().size_full().rounded(radius)"),
+            compact.contains(
+                "gpui::img(data).absolute().inset_0().size_full().object_fit(gpui::ObjectFit::Fill).rounded(radius)"
+            ),
             "the loaded image must carry the avatar radius because not every \
-             renderer clips image content at a rounded parent"
+             renderer clips image content at a rounded parent, and Fill \
+             because v3's `.avatar__image` has no object-fit"
         );
         assert!(
             !source.contains("colors().muted"),

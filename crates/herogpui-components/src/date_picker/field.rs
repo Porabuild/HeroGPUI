@@ -223,19 +223,6 @@ impl RegionalDateFormat {
     pub(super) fn for_preferences(tags: &[String]) -> Option<Self> {
         tags.iter().find_map(|tag| Self::for_locale(tag))
     }
-
-    pub(super) fn date_hint(&self) -> String {
-        let mut hint = self.literals[0].clone();
-        for (index, segment) in self.order.iter().enumerate() {
-            hint.push_str(match segment {
-                DateSegment::Month => "MM",
-                DateSegment::Day => "DD",
-                DateSegment::Year => "YYYY",
-            });
-            hint.push_str(&self.literals[index + 1]);
-        }
-        hint
-    }
 }
 
 pub(super) fn system_date_format() -> &'static RegionalDateFormat {
@@ -862,20 +849,6 @@ pub(super) fn parse_iso(text: &str) -> Option<Date> {
         return None;
     }
     Some(Date::new(y, m, d))
-}
-
-/// The regional format a field of this granularity accepts, which is the
-/// description v3 shows when the caller supplies none of their own.
-pub(super) fn format_hint(
-    regional_date: &RegionalDateFormat,
-    regional_time: Option<&crate::time_field::RegionalTimePattern>,
-) -> String {
-    let mut hint = regional_date.date_hint();
-    if let Some(regional_time) = regional_time {
-        hint.push_str(", ");
-        hint.push_str(&regional_time.hint());
-    }
-    hint
 }
 
 /// A date field's value: the date, and the time when `granularity` asks for
@@ -1697,16 +1670,14 @@ impl RenderOnce for DateField {
             );
         }
         el = el.child(row);
-        // The format hint is the description v3 shows when the caller supplies
-        // none of their own.
+        // v3's `date-field.tsx` renders only the caller's `children` here —
+        // no format hint appears unless the caller supplies a description.
         match validity.first() {
             Some(message) => el = el.child(crate::field::ErrorMessage::new(message)),
             None => {
-                let description = self
-                    .description
-                    .clone()
-                    .unwrap_or_else(|| format_hint(regional_date, regional_time.as_ref()).into());
-                el = el.child(crate::field::Description::new(description));
+                if let Some(description) = self.description.clone() {
+                    el = el.child(crate::field::Description::new(description));
+                }
             }
         }
         if self.is_disabled {
@@ -1898,52 +1869,6 @@ mod tests {
         assert_eq!(
             slots(Granularity::Hour, true),
             vec![TimeSegment::Hour, TimeSegment::Meridiem]
-        );
-    }
-
-    #[test]
-    fn the_hint_says_what_the_field_takes() {
-        let us = RegionalDateFormat::for_locale("en-US").unwrap();
-        let gb = RegionalDateFormat::for_locale("en-GB").unwrap();
-        let german = RegionalDateFormat::for_locale("de-DE").unwrap();
-        assert_eq!(format_hint(&us, None), "MM/DD/YYYY");
-        assert_eq!(format_hint(&gb, None), "DD/MM/YYYY");
-        assert_eq!(format_hint(&german, None), "DD.MM.YYYY");
-        let minute = crate::time_field::RegionalTimePattern {
-            order: vec![TimeSegment::Hour, TimeSegment::Minute],
-            literals: vec![String::new(), ":".to_owned(), String::new()],
-            hour_has_leading_zero: true,
-            hour_zero_based: false,
-            minute_has_leading_zero: true,
-            second_has_leading_zero: false,
-            am: "AM".to_owned(),
-            pm: "PM".to_owned(),
-        };
-        assert_eq!(format_hint(&us, Some(&minute)), "MM/DD/YYYY, HH:MM");
-        let second_twelve = crate::time_field::RegionalTimePattern {
-            order: vec![
-                TimeSegment::Hour,
-                TimeSegment::Minute,
-                TimeSegment::Second,
-                TimeSegment::Meridiem,
-            ],
-            literals: vec![
-                String::new(),
-                ":".to_owned(),
-                ":".to_owned(),
-                " ".to_owned(),
-                String::new(),
-            ],
-            hour_has_leading_zero: false,
-            hour_zero_based: false,
-            minute_has_leading_zero: true,
-            second_has_leading_zero: true,
-            am: "AM".to_owned(),
-            pm: "PM".to_owned(),
-        };
-        assert_eq!(
-            format_hint(&us, Some(&second_twelve)),
-            "MM/DD/YYYY, HH:MM:SS AM"
         );
     }
 }

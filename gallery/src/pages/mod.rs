@@ -522,7 +522,9 @@ impl Page {
             Page::Autocomplete => "use herogpui::components::autocomplete::Autocomplete;",
             Page::ComboBox => "use herogpui::components::combo_box::ComboBox;",
             Page::Select => "use herogpui::components::select::Select;",
-            Page::Kbd => "use herogpui::components::kbd::Kbd;",
+            Page::Kbd => {
+                "use herogpui::components::kbd::{Kbd, KbdAbbr, KbdContent, KbdKey};"
+            }
             Page::Typography => {
                 "use herogpui::components::typography::{Typography, TypographyType};"
             }

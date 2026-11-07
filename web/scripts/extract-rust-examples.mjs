@@ -1040,16 +1040,17 @@ function resolveImportPaths(canonical, code, aliases) {
   for (const name of importNamesFromCode(code, aliases)) {
     if (!path.has(name)) path.set(name, "herogpui::prelude");
   }
-  // Rule: `cx.colors()` is an `ActiveTheme` trait method — the call site
-  // never names the trait, so a snippet can need it in scope with no
-  // path-shaped token to detect. The prelude re-exports the trait by name,
-  // so bind it like any other import unless a canonical `herogpui::prelude`
-  // glob already covers it. (Corpus check: `.colors()` is the only trait
-  // method the examples use, always on a context value.)
+  // Rule: `cx.colors()`/`cx.layout()`/`cx.role()`/`cx.theme()` are
+  // `ActiveTheme` trait methods — the call site never names the trait, so a
+  // snippet can need it in scope with no path-shaped token to detect. The
+  // prelude re-exports the trait by name, so bind it like any other import
+  // unless a canonical `herogpui::prelude` glob already covers it. (Corpus
+  // check: those are the only trait methods the examples use, always on a
+  // context value.)
   if (
     !path.has("ActiveTheme") &&
     !globs.includes("herogpui::prelude") &&
-    /\b(?:cx|window|app)\.(?:colors|role|theme)\(\)?/.test(code)
+    /\b(?:cx|window|app)\.(?:colors|layout|role|theme)\(\)?/.test(code)
   ) {
     path.set("ActiveTheme", "herogpui::prelude");
   }

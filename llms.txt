@@ -702,9 +702,11 @@ navigation, or a date-bound change that moves that year to another row.
   Picking from an initially aligned view preserves its month/week/day anchor.
   `Center` matches React Aria: it halves the duration and then backs off again on
   an even count, so a 2-up range aligns like `Start`.
-- `is_year_picker_open(bool)` + `on_year_picker_open_change(fn)` — supplying the
-  handler is what turns the heading into the trigger, so the affordance never
-  appears without something behind it.
+- `year_picker(bool)` — composes v3's `YearPickerTrigger`: the heading becomes
+  the interactive year-picker control (with its rotating chevron) instead of a
+  plain label. `is_year_picker_open(bool)` and `default_year_picker_open(bool)`
+  imply it, since a picker state with no trigger could never open.
+  `on_year_picker_open_change(fn)` reports the trigger's open changes.
 
 The geometry is pure and testable: `calendar_view::{page, aligned_anchor,
 week_start, month_headings, linear_cells, range_heading, year_page}`.
@@ -789,7 +791,7 @@ Modal, Drawer, and AlertDialog cover the window even inside clipped or positione
 
 ### Typography
 The browser gallery bundles distinct Inter faces for Normal, Medium, Semibold and Bold weights.
-- **Kbd** — `Kbd::new().variant(KbdVariant::{Default,Light}).radius(px).child("Ctrl")`
+- **Kbd** — `Kbd::new().variant(KbdVariant::{Default,Light}).radius(px)` plus arbitrary children; v3's parts are `KbdAbbr::new(KbdKey)` (renders `KbdKey::symbol()`, the accessible name is `KbdKey::label()`) and `KbdContent::new()` for the key text. `KbdKey` covers all 22 v3 `keyValue`s (Command, Shift, Ctrl, Option, Enter, Delete, Escape, Tab, CapsLock, arrows, PageUp/PageDown, Home/End, Help, Space, Fn, Win, Alt).
 - **Typography** — `Typography::new(text).kind(TypographyType::{H1..H6,Body,BodySm,BodyXs,Code}).align().color(TextColor::{Default,Muted}).weight(FontWeight).font_family(name).radius(px).truncate()`; helpers `heading(level, t)`, `paragraph(ParagraphSize, t)`, `code(t)`; `Prose::new()` for rich text. `radius` is the same per-component repository extension as `Button::radius`, not the removed v2 prop, and it rounds the inline `Code` chip in place of `mark_radius` — the only kind that paints a box, so every other kind ignores it.
 
 ### Utilities

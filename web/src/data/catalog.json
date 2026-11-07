@@ -882,7 +882,7 @@
       "title": "Kbd",
       "description": "Display keyboard key combinations.",
       "category": "Typography",
-      "importLine": "use herogpui::components::kbd::Kbd;",
+      "importLine": "use herogpui::components::kbd::{Kbd, KbdAbbr, KbdContent, KbdKey};",
       "tile": "/shots/kbd-tile-v3.png",
       "tileDark": "/shots/kbd-tile-dark-v3.png",
       "demos": [],

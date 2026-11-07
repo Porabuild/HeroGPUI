@@ -16,6 +16,9 @@ impl Gallery {
             vec![
                 (
                     "Usage",
+                    // v3's Usage: a danger trigger, a danger-icon heading,
+                    // a body that bolds the project name, and Cancel /
+                    // "Delete Project" footer buttons.
                     stretch_col(vec![{
                         gpui::div()
                             .relative()
@@ -25,7 +28,7 @@ impl Gallery {
                             .w_full()
                             .child(
                             h::Button::new("ad-open")
-                                .label("Delete project")
+                                .label("Delete Project")
                                 .variant(Variant::Danger)
                                 .on_press(cx.listener(|this, _, _, cx| {
                                     this.alert_dialog_open = true;
@@ -33,16 +36,28 @@ impl Gallery {
                                 })),
                         )
                         .child(
-                            h::AlertDialog::new("Delete this project?").id("ad-usage")
-                                .description(
-                                    "This removes the project and every deployment. \
-                                     This action cannot be undone.",
-                                )
+                            h::AlertDialog::new("Delete project permanently?").id("ad-usage")
+                                .status(Color::Danger)
+                                .size(h::AlertDialogSize::Sm)
                                 .is_open(is_open)
-                                // The panel's entry zoom interpolates the same
-                                // value the panel paints.
-                                .radius(px(12.))
                                 .child(h::AlertDialogCloseTrigger::new())
+                                // v3 bolds the project name mid-sentence; gpui
+                                // text has no inline span, so the paragraph
+                                // flows as wrapped flex items instead.
+                                .child(
+                                    gpui::div()
+                                        .flex()
+                                        .flex_wrap()
+                                        .child("This will permanently delete ")
+                                        .child(
+                                            gpui::div()
+                                                .font_weight(gpui::FontWeight::SEMIBOLD)
+                                                .child("My Awesome Project"),
+                                        )
+                                        .child(
+                                            " and all of its data. This action cannot be undone.",
+                                        ),
+                                )
                                 .footer_child(
                                     h::Button::new("ad-usage-cancel")
                                         .label("Cancel")
@@ -54,7 +69,7 @@ impl Gallery {
                                 )
                                 .footer_child(
                                     h::Button::new("ad-usage-confirm")
-                                        .label("Delete")
+                                        .label("Delete Project")
                                         .variant(Variant::Danger)
                                         .on_press(cx.listener(|this, _, _, cx| {
                                             this.alert_dialog_open = false;
@@ -403,6 +418,25 @@ impl Gallery {
                         cx,
                     )]),
                 ),
+                (
+                    "Styling Overrides",
+                    "`radius(px)` replaces the panel's default corner; the entry zoom interpolates the same value the panel paints.",
+                    stretch_col(vec![overlay_demo(
+                        "ad-styling",
+                        "Open and watch the panel",
+                        h::AlertDialog::new("Styled").id("ad-styling")
+                            .description("A squared corner radius.")
+                            .is_open(self.demo_overlay("ad-styling"))
+                            .radius(px(12.))
+                            .child(h::AlertDialogCloseTrigger::new())
+                            .on_open_change(cx.listener(|this, v: &bool, _, cx| {
+                                this.set_demo_flag("ad-styling", *v);
+                                cx.notify();
+                            }))
+                            .into_any_element(),
+                        cx,
+                    )]),
+                ),
             ],
             cx,
         )
@@ -724,6 +758,9 @@ impl Gallery {
             crate::pages::Page::Modal.description(),
             crate::pages::Page::Modal.import_line(),
             vec![
+                // v3's Usage: secondary "Open Modal" trigger, a rocket
+                // icon over the "Welcome to HeroUI" heading, the library
+                // description, and a full-width Continue that closes.
                 (
                     "Usage",
                     specimen_body("md-usage", stretch_col(vec![
@@ -735,7 +772,8 @@ impl Gallery {
                             .w_full()
                             .child(
                             h::Button::new("md-open")
-                                .label("Open modal")
+                                .label("Open Modal")
+                                .variant(Variant::Secondary)
                                 .on_press(cx.listener(|this, _, _, cx| {
                                     this.modal_open = true;
                                     cx.notify();
@@ -746,26 +784,22 @@ impl Gallery {
                                 .id("md-usage")
                                 .is_open(is_open)
                                 // `Modal.Icon` sits above the heading.
-                                .icon(h::icons::MAIL)
-                                .title("Create account")
+                                .icon(h::IconName::Rocket.path())
+                                .title("Welcome to HeroUI")
                                 .is_dismissible(true)
                                 .child(h::ModalCloseTrigger::new())
-                                .child(gpui::div().child("Sign up to get started with HeroGPUI."))
-                                .footer_child(
-                                    h::Button::new("md-cancel")
-                                        .label("Cancel")
-                                        .variant(Variant::Tertiary)
-                                        .on_press(cx.listener(|this, _, _, cx| {
-                                            this.modal_open = false;
-                                            cx.notify();
-                                        })),
-                                )
-                                .footer_child(h::Button::new("md-ok").label("Sign up").on_press(
-                                    cx.listener(|this, _, _, cx| {
+                                .child(gpui::div().child(
+                                    "A beautiful, fast, and modern React UI library for building \
+                                     accessible and customizable web applications with ease.",
+                                ))
+                                .footer_child(h::Button::new("md-ok")
+                                    .label("Continue")
+                                    .full_width(true)
+                                    .on_press(cx.listener(|this, _, _, cx| {
                                         this.modal_open = false;
                                         cx.notify();
-                                    }),
-                                ))
+                                    })),
+                                )
                                 .on_close(cx.listener(|this, _, _, cx| {
                                     this.modal_open = false;
                                     cx.notify();
@@ -1575,18 +1609,42 @@ impl Gallery {
             crate::pages::Page::Toast.description(),
             crate::pages::Page::Toast.import_line(),
             vec![
+                // v3's Usage: a small secondary "Show toast" button that
+                // pushes the invitation toast with a users indicator and
+                // a tertiary Dismiss action that closes it.
                 (
                     "Usage",
-                    row(vec![h::Button::new("toast-usage")
-                        .label("Show a toast")
-                        .variant(Variant::Secondary)
-                        .on_press(|_, _, cx| {
-                            h::Toast::new("Saved")
-                                .description("Your changes are live.")
-                                .closable(true)
-                                .push(Some(std::time::Duration::from_secs(4)), cx);
-                        })
-                        .into_any_element()]),
+                    // v3's `flex h-full max-w-xl flex-col items-center
+                    // justify-center` frame around the button.
+                    gpui::div()
+                        .w_full()
+                        .max_w(px(576.))
+                        .flex()
+                        .flex_col()
+                        .items_center()
+                        .justify_center()
+                        .child(h::Button::new("toast-usage")
+                            .label("Show toast")
+                            .variant(Variant::Secondary)
+                            .size(Size::Sm)
+                            .on_press(|_, _, cx| {
+                                let slot = std::rc::Rc::new(RefCell::new(None));
+                                let action_slot = slot.clone();
+                                let id = h::Toast::new("You have been invited to join a team")
+                                    .description(
+                                        "Bob sent you an invitation to join HeroUI team",
+                                    )
+                                    .indicator(Some(h::IconName::Users.path().into()))
+                                    .action("Dismiss", move |cx| {
+                                        if let Some(id) = *action_slot.borrow() {
+                                            h::dismiss_toast(id, cx);
+                                        }
+                                    })
+                                    .push(Some(std::time::Duration::from_secs(4)), cx);
+                                *slot.borrow_mut() = Some(id);
+                            })
+                            .into_any_element())
+                        .into_any_element(),
                 ),
                 (
                     "Variants",
@@ -1944,26 +2002,38 @@ impl Gallery {
             crate::pages::Page::Tooltip.description(),
             crate::pages::Page::Tooltip.import_line(),
             vec![
+                // v3's Usage: two `delay={0}` tooltips — a secondary
+                // "Hover me" button and an icon-only tertiary info button.
                 (
                     "Usage",
-                    row(vec![
-                        h::Tooltip::new("Above the trigger")
-                            .placement(h::TooltipPlacement::Top)
+                    // v3's `flex items-center gap-4` wrapper.
+                    gpui::div()
+                        .flex()
+                        .items_center()
+                        .gap(px(16.))
+                        .children(vec![
+                        h::Tooltip::new("This is a tooltip")
+                            .delay(0)
                             .child(
-                                h::Button::new("tt-top")
-                                    .label("Top")
+                                h::Button::new("tt-hover")
+                                    .label("Hover me")
                                     .variant(Variant::Secondary),
                             )
                             .into_any_element(),
-                        h::Tooltip::new("Below the trigger")
-                            .placement(h::TooltipPlacement::Bottom)
+                        h::Tooltip::new("More information")
+                            .delay(0)
                             .child(
-                                h::Button::new("tt-bottom")
-                                    .label("Bottom")
-                                    .variant(Variant::Secondary),
+                                h::Button::new("tt-info")
+                                    .is_icon_only(true)
+                                    .label("More information")
+                                    .variant(Variant::Tertiary)
+                                    .content(|_| {
+                                        h::Icon::new(h::IconName::Info).into_any_element()
+                                    }),
                             )
                             .into_any_element(),
-                    ]),
+                    ])
+                        .into_any_element(),
                 ),
                 (
                     "Placement",
