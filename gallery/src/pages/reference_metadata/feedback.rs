@@ -628,7 +628,7 @@ const ALERT_API: &[ApiDoc] = &[
         prop: "children",
         ty: "ReactNode",
         default: "—",
-        description: "The alert description text. The port takes plain description text; omitting it renders no description row at all.",
+        description: "The alert description text. The port takes plain description text via `description(text)` and element content after it via `description_content(el)`; omitting both renders no description row at all.",
         rust_owner: "Alert",
         rust: "description(text)",
         status: ImplementationStatus::Partial,

@@ -763,8 +763,16 @@ NO_NODE = {
         '`kbd/kbd.js` imports no RAC primitive: `KbdRoot` is a `dom.kbd`, '
         '`KbdContent` a `dom.span`, and `KbdAbbr` a `dom.abbr` that sets '
         '`title` — not `aria-label`. No `role` and no `aria-*` anywhere in '
-        'the file. gpui also has no `title`-tooltip equivalent, which is why '
-        '`.kbd__abbr` has no analogue in the port.',
+        'the file.',
+    ('kbd.rs', 'KbdAbbr'):
+        '`KbdAbbr` in `kbd/kbd.js` is a `dom.abbr` whose only naming is '
+        '`title` (the key\'s label), not `aria-label`, and it has no `role`. '
+        'gpui has no `title`-tooltip equivalent, so the port paints the '
+        'symbol alone; `KbdKey::label()` stays available to a caller that '
+        'wants the name as text.',
+    ('kbd.rs', 'KbdContent'):
+        '`KbdContent` in `kbd/kbd.js` is a `dom.span` with a `data-slot` and '
+        'no `role` or `aria-*`: the text slot after the abbreviation.',
     ('scrollbar.rs', 'Scrollbar'):
         'HeroUI styles the browser\'s native scrollbar with `--scrollbar`; '
         'there is no RAC Scrollbar component and no role. This overlay is '

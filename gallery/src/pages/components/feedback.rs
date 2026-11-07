@@ -45,7 +45,7 @@ impl Gallery {
                             // space-y-1 text-sm">` inside `Alert.Description`;
                             // gpui has no list-style, so each row draws its
                             // own disc.
-                            .content_extra({
+                            .description_content({
                                 let muted = cx.colors().muted;
                                 let item = |text: &'static str| {
                                     gpui::div()

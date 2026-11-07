@@ -3,17 +3,17 @@
   "target": "v3.2.7",
   "target_commit": "7cb1642606c6f96f424dad78a961ccf45436be72",
   "inventory_recorded_on": "2026-11-07",
-  "inventory_verification_sha256": "157d3f0fc7672d00f245c2fae3461826b78c9cd9ac9be7fc927863d11c74bdaf",
-  "source_snapshot_sha256": "85213d7e240c5154c1e91b29edb512d787fc667f7ec2355f631b1a7551fbdfc7",
+  "inventory_verification_sha256": "0fe6c8dc0f65939e2c9e7fb9b4ec0e824ce828d122904dd50c05ee241ba26d11",
+  "source_snapshot_sha256": "f6338bebc3f11f6338a9b6d53725bdf5a6b7ed68414985f97354f6a0c5246875",
   "last_evidence_commit": null,
   "last_evidence_commit_recorded": false,
   "totals": {
-    "specimens": 792,
+    "specimens": 816,
     "verified": 0,
-    "outstanding": 792,
-    "unobserved": 792,
+    "outstanding": 816,
+    "unobserved": 816,
     "components": 69,
-    "gallery_sections": 785
+    "gallery_sections": 809
   },
   "status_counts": {
     "implemented-unverified": 7,
@@ -22,35 +22,35 @@
     "not-applicable": 0,
     "platform-limited": 0,
     "specified": 0,
-    "unreviewed": 785,
+    "unreviewed": 809,
     "verified": 0
   },
   "scope_counts": {
     "component-state": 4,
     "cross-component": 1,
-    "gallery-section": 785,
+    "gallery-section": 809,
     "platform-harness": 2
   },
   "evidence_counts": {
     "upstream": {
       "specimens_with_evidence": 5,
-      "specimens_missing_evidence": 787
+      "specimens_missing_evidence": 811
     },
     "native": {
       "specimens_with_evidence": 1,
-      "specimens_missing_evidence": 791
+      "specimens_missing_evidence": 815
     },
     "wasm": {
       "specimens_with_evidence": 1,
-      "specimens_missing_evidence": 791
+      "specimens_missing_evidence": 815
     },
     "tests": {
       "specimens_with_evidence": 5,
-      "specimens_missing_evidence": 787
+      "specimens_missing_evidence": 811
     },
     "all_surfaces": {
       "specimens_with_evidence": 1,
-      "specimens_missing_evidence": 791
+      "specimens_missing_evidence": 815
     }
   },
   "unobserved_statuses": [
@@ -231,6 +231,13 @@
       "state": "section-seed"
     },
     {
+      "id": "gallery/alert-dialog/styling-overrides",
+      "component": "Alert Dialog",
+      "scope": "gallery-section",
+      "status": "unreviewed",
+      "state": "section-seed"
+    },
+    {
       "id": "gallery/alert-dialog/usage",
       "component": "Alert Dialog",
       "scope": "gallery-section",
@@ -253,6 +260,13 @@
     },
     {
       "id": "gallery/alert/custom-indicator",
+      "component": "Alert",
+      "scope": "gallery-section",
+      "status": "unreviewed",
+      "state": "section-seed"
+    },
+    {
+      "id": "gallery/alert/styling-overrides",
       "component": "Alert",
       "scope": "gallery-section",
       "status": "unreviewed",
@@ -378,6 +392,13 @@
       "state": "section-seed"
     },
     {
+      "id": "gallery/autocomplete/styling-overrides",
+      "component": "Autocomplete",
+      "scope": "gallery-section",
+      "status": "unreviewed",
+      "state": "section-seed"
+    },
+    {
       "id": "gallery/autocomplete/usage",
       "component": "Autocomplete",
       "scope": "gallery-section",
@@ -497,6 +518,13 @@
       "state": "section-seed"
     },
     {
+      "id": "gallery/avatar/styling-overrides",
+      "component": "Avatar",
+      "scope": "gallery-section",
+      "status": "unreviewed",
+      "state": "section-seed"
+    },
+    {
       "id": "gallery/avatar/usage",
       "component": "Avatar",
       "scope": "gallery-section",
@@ -533,6 +561,13 @@
     },
     {
       "id": "gallery/badge/sizes",
+      "component": "Badge",
+      "scope": "gallery-section",
+      "status": "unreviewed",
+      "state": "section-seed"
+    },
+    {
+      "id": "gallery/badge/styling-overrides",
       "component": "Badge",
       "scope": "gallery-section",
       "status": "unreviewed",
@@ -742,6 +777,13 @@
       "state": "section-seed"
     },
     {
+      "id": "gallery/button/styling-overrides",
+      "component": "Button",
+      "scope": "gallery-section",
+      "status": "unreviewed",
+      "state": "section-seed"
+    },
+    {
       "id": "gallery/button/sx-slot",
       "component": "Button",
       "scope": "gallery-section",
@@ -883,6 +925,13 @@
     },
     {
       "id": "gallery/calendar/real-world-example",
+      "component": "Calendar",
+      "scope": "gallery-section",
+      "status": "unreviewed",
+      "state": "section-seed"
+    },
+    {
+      "id": "gallery/calendar/styling-overrides",
       "component": "Calendar",
       "scope": "gallery-section",
       "status": "unreviewed",
@@ -1127,6 +1176,13 @@
       "state": "section-seed"
     },
     {
+      "id": "gallery/checkbox/styling-overrides",
+      "component": "Checkbox",
+      "scope": "gallery-section",
+      "status": "unreviewed",
+      "state": "section-seed"
+    },
+    {
       "id": "gallery/checkbox/usage",
       "component": "Checkbox",
       "scope": "gallery-section",
@@ -1163,6 +1219,13 @@
     },
     {
       "id": "gallery/chip/statuses",
+      "component": "Chip",
+      "scope": "gallery-section",
+      "status": "unreviewed",
+      "state": "section-seed"
+    },
+    {
+      "id": "gallery/chip/styling-overrides",
       "component": "Chip",
       "scope": "gallery-section",
       "status": "unreviewed",
@@ -1212,6 +1275,13 @@
     },
     {
       "id": "gallery/close-button/render-function",
+      "component": "Close Button",
+      "scope": "gallery-section",
+      "status": "unreviewed",
+      "state": "section-seed"
+    },
+    {
+      "id": "gallery/close-button/styling-overrides",
       "component": "Close Button",
       "scope": "gallery-section",
       "status": "unreviewed",
@@ -1380,6 +1450,13 @@
     },
     {
       "id": "gallery/color-field/single-channel",
+      "component": "Color Field",
+      "scope": "gallery-section",
+      "status": "unreviewed",
+      "state": "section-seed"
+    },
+    {
+      "id": "gallery/color-field/styling-overrides",
       "component": "Color Field",
       "scope": "gallery-section",
       "status": "unreviewed",
@@ -1806,6 +1883,13 @@
       "state": "section-seed"
     },
     {
+      "id": "gallery/combo-box/styling-overrides",
+      "component": "Combo Box",
+      "scope": "gallery-section",
+      "status": "unreviewed",
+      "state": "section-seed"
+    },
+    {
       "id": "gallery/combo-box/usage",
       "component": "Combo Box",
       "scope": "gallery-section",
@@ -1912,6 +1996,13 @@
     },
     {
       "id": "gallery/date-field/required-field",
+      "component": "Date Field",
+      "scope": "gallery-section",
+      "status": "unreviewed",
+      "state": "section-seed"
+    },
+    {
+      "id": "gallery/date-field/styling-overrides",
       "component": "Date Field",
       "scope": "gallery-section",
       "status": "unreviewed",
@@ -2290,6 +2381,13 @@
     },
     {
       "id": "gallery/dropdown/standalone-compact-menu",
+      "component": "Dropdown",
+      "scope": "gallery-section",
+      "status": "unreviewed",
+      "state": "section-seed"
+    },
+    {
+      "id": "gallery/dropdown/styling-overrides",
       "component": "Dropdown",
       "scope": "gallery-section",
       "status": "unreviewed",
@@ -2758,6 +2856,13 @@
       "state": "section-seed"
     },
     {
+      "id": "gallery/kbd/styling-overrides",
+      "component": "Kbd",
+      "scope": "gallery-section",
+      "status": "unreviewed",
+      "state": "section-seed"
+    },
+    {
       "id": "gallery/kbd/usage",
       "component": "Kbd",
       "scope": "gallery-section",
@@ -2878,6 +2983,13 @@
     },
     {
       "id": "gallery/link/render-function",
+      "component": "Link",
+      "scope": "gallery-section",
+      "status": "unreviewed",
+      "state": "section-seed"
+    },
+    {
+      "id": "gallery/link/styling-overrides",
       "component": "Link",
       "scope": "gallery-section",
       "status": "unreviewed",
@@ -3039,6 +3151,13 @@
     },
     {
       "id": "gallery/meter/sizes",
+      "component": "Meter",
+      "scope": "gallery-section",
+      "status": "unreviewed",
+      "state": "section-seed"
+    },
+    {
+      "id": "gallery/meter/styling-overrides",
       "component": "Meter",
       "scope": "gallery-section",
       "status": "unreviewed",
@@ -3430,6 +3549,13 @@
       "state": "section-seed"
     },
     {
+      "id": "gallery/progress-bar/styling-overrides",
+      "component": "Progress Bar",
+      "scope": "gallery-section",
+      "status": "unreviewed",
+      "state": "section-seed"
+    },
+    {
       "id": "gallery/progress-bar/usage",
       "component": "Progress Bar",
       "scope": "gallery-section",
@@ -3683,6 +3809,13 @@
     },
     {
       "id": "gallery/range-calendar/real-world-example",
+      "component": "Range Calendar",
+      "scope": "gallery-section",
+      "status": "unreviewed",
+      "state": "section-seed"
+    },
+    {
+      "id": "gallery/range-calendar/styling-overrides",
       "component": "Range Calendar",
       "scope": "gallery-section",
       "status": "unreviewed",
@@ -4005,6 +4138,13 @@
     },
     {
       "id": "gallery/select/row-leading-content",
+      "component": "Select",
+      "scope": "gallery-section",
+      "status": "unreviewed",
+      "state": "section-seed"
+    },
+    {
+      "id": "gallery/select/styling-overrides",
       "component": "Select",
       "scope": "gallery-section",
       "status": "unreviewed",
@@ -4571,6 +4711,13 @@
       "state": "section-seed"
     },
     {
+      "id": "gallery/switch/styling-overrides",
+      "component": "Switch",
+      "scope": "gallery-section",
+      "status": "unreviewed",
+      "state": "section-seed"
+    },
+    {
       "id": "gallery/switch/usage",
       "component": "Switch",
       "scope": "gallery-section",
@@ -4921,6 +5068,13 @@
       "state": "section-seed"
     },
     {
+      "id": "gallery/tag-group/styling-overrides",
+      "component": "Tag Group",
+      "scope": "gallery-section",
+      "status": "unreviewed",
+      "state": "section-seed"
+    },
+    {
       "id": "gallery/tag-group/transitions",
       "component": "Tag Group",
       "scope": "gallery-section",
@@ -5166,6 +5320,13 @@
       "state": "section-seed"
     },
     {
+      "id": "gallery/time-field/styling-overrides",
+      "component": "Time Field",
+      "scope": "gallery-section",
+      "status": "unreviewed",
+      "state": "section-seed"
+    },
+    {
       "id": "gallery/time-field/usage",
       "component": "Time Field",
       "scope": "gallery-section",
@@ -5384,6 +5545,13 @@
     },
     {
       "id": "gallery/toggle-button/sizes",
+      "component": "Toggle Button",
+      "scope": "gallery-section",
+      "status": "unreviewed",
+      "state": "section-seed"
+    },
+    {
+      "id": "gallery/toggle-button/styling-overrides",
       "component": "Toggle Button",
       "scope": "gallery-section",
       "status": "unreviewed",
@@ -5639,7 +5807,7 @@
     },
     {
       "component": "Alert",
-      "specimens": 4,
+      "specimens": 5,
       "statuses": {
         "implemented-unverified": 0,
         "intentional-deviation": 0,
@@ -5647,21 +5815,22 @@
         "not-applicable": 0,
         "platform-limited": 0,
         "specified": 0,
-        "unreviewed": 4,
+        "unreviewed": 5,
         "verified": 0
       },
       "verified": 0,
-      "outstanding": 4,
+      "outstanding": 5,
       "unresolved_ids": [
         "gallery/alert/closable",
         "gallery/alert/colors",
         "gallery/alert/custom-indicator",
+        "gallery/alert/styling-overrides",
         "gallery/alert/usage"
       ]
     },
     {
       "component": "Alert Dialog",
-      "specimens": 12,
+      "specimens": 13,
       "statuses": {
         "implemented-unverified": 0,
         "intentional-deviation": 0,
@@ -5669,11 +5838,11 @@
         "not-applicable": 0,
         "platform-limited": 0,
         "specified": 0,
-        "unreviewed": 12,
+        "unreviewed": 13,
         "verified": 0
       },
       "verified": 0,
-      "outstanding": 12,
+      "outstanding": 13,
       "unresolved_ids": [
         "gallery/alert-dialog/backdrop-variants",
         "gallery/alert-dialog/close-methods",
@@ -5686,12 +5855,13 @@
         "gallery/alert-dialog/placements",
         "gallery/alert-dialog/sizes",
         "gallery/alert-dialog/statuses",
+        "gallery/alert-dialog/styling-overrides",
         "gallery/alert-dialog/usage"
       ]
     },
     {
       "component": "Autocomplete",
-      "specimens": 22,
+      "specimens": 23,
       "statuses": {
         "implemented-unverified": 0,
         "intentional-deviation": 0,
@@ -5699,11 +5869,11 @@
         "not-applicable": 0,
         "platform-limited": 0,
         "specified": 0,
-        "unreviewed": 22,
+        "unreviewed": 23,
         "verified": 0
       },
       "verified": 0,
-      "outstanding": 22,
+      "outstanding": 23,
       "unresolved_ids": [
         "gallery/autocomplete/allows-empty-collection",
         "gallery/autocomplete/asynchronous-filtering",
@@ -5721,6 +5891,7 @@
         "gallery/autocomplete/multiple-select",
         "gallery/autocomplete/placement",
         "gallery/autocomplete/required",
+        "gallery/autocomplete/styling-overrides",
         "gallery/autocomplete/usage",
         "gallery/autocomplete/variants",
         "gallery/autocomplete/virtualization",
@@ -5731,7 +5902,7 @@
     },
     {
       "component": "Avatar",
-      "specimens": 6,
+      "specimens": 7,
       "statuses": {
         "implemented-unverified": 0,
         "intentional-deviation": 0,
@@ -5739,16 +5910,17 @@
         "not-applicable": 0,
         "platform-limited": 0,
         "specified": 0,
-        "unreviewed": 6,
+        "unreviewed": 7,
         "verified": 0
       },
       "verified": 0,
-      "outstanding": 6,
+      "outstanding": 7,
       "unresolved_ids": [
         "gallery/avatar/colors",
         "gallery/avatar/custom-image-component",
         "gallery/avatar/fallback-content",
         "gallery/avatar/sizes",
+        "gallery/avatar/styling-overrides",
         "gallery/avatar/usage",
         "gallery/avatar/variants"
       ]
@@ -5780,7 +5952,7 @@
     },
     {
       "component": "Badge",
-      "specimens": 7,
+      "specimens": 8,
       "statuses": {
         "implemented-unverified": 0,
         "intentional-deviation": 0,
@@ -5788,16 +5960,17 @@
         "not-applicable": 0,
         "platform-limited": 0,
         "specified": 0,
-        "unreviewed": 7,
+        "unreviewed": 8,
         "verified": 0
       },
       "verified": 0,
-      "outstanding": 7,
+      "outstanding": 8,
       "unresolved_ids": [
         "gallery/badge/colors",
         "gallery/badge/dot-badge",
         "gallery/badge/placements",
         "gallery/badge/sizes",
+        "gallery/badge/styling-overrides",
         "gallery/badge/usage",
         "gallery/badge/variants",
         "gallery/badge/with-content"
@@ -5828,7 +6001,7 @@
     },
     {
       "component": "Button",
-      "specimens": 19,
+      "specimens": 20,
       "statuses": {
         "implemented-unverified": 2,
         "intentional-deviation": 0,
@@ -5836,11 +6009,11 @@
         "not-applicable": 0,
         "platform-limited": 0,
         "specified": 0,
-        "unreviewed": 17,
+        "unreviewed": 18,
         "verified": 0
       },
       "verified": 0,
-      "outstanding": 19,
+      "outstanding": 20,
       "unresolved_ids": [
         "button/usage/press-motion",
         "button/usage/rest-geometry",
@@ -5856,6 +6029,7 @@
         "gallery/button/press-handler",
         "gallery/button/sizes",
         "gallery/button/social-buttons",
+        "gallery/button/styling-overrides",
         "gallery/button/sx-slot",
         "gallery/button/text-metrics",
         "gallery/button/usage",
@@ -5892,7 +6066,7 @@
     },
     {
       "component": "Calendar",
-      "specimens": 21,
+      "specimens": 22,
       "statuses": {
         "implemented-unverified": 0,
         "intentional-deviation": 0,
@@ -5900,11 +6074,11 @@
         "not-applicable": 0,
         "platform-limited": 0,
         "specified": 0,
-        "unreviewed": 21,
+        "unreviewed": 22,
         "verified": 0
       },
       "verified": 0,
-      "outstanding": 21,
+      "outstanding": 22,
       "unresolved_ids": [
         "gallery/calendar/cell-indicators",
         "gallery/calendar/constraints",
@@ -5922,6 +6096,7 @@
         "gallery/calendar/multiple-selection",
         "gallery/calendar/read-only",
         "gallery/calendar/real-world-example",
+        "gallery/calendar/styling-overrides",
         "gallery/calendar/unavailable-dates",
         "gallery/calendar/usage",
         "gallery/calendar/week-view",
@@ -5955,7 +6130,7 @@
     },
     {
       "component": "Checkbox",
-      "specimens": 15,
+      "specimens": 16,
       "statuses": {
         "implemented-unverified": 0,
         "intentional-deviation": 0,
@@ -5963,11 +6138,11 @@
         "not-applicable": 0,
         "platform-limited": 0,
         "specified": 0,
-        "unreviewed": 15,
+        "unreviewed": 16,
         "verified": 0
       },
       "verified": 0,
-      "outstanding": 15,
+      "outstanding": 16,
       "unresolved_ids": [
         "gallery/checkbox/controlled",
         "gallery/checkbox/custom-indicator",
@@ -5981,6 +6156,7 @@
         "gallery/checkbox/label-size",
         "gallery/checkbox/render-props",
         "gallery/checkbox/sizes",
+        "gallery/checkbox/styling-overrides",
         "gallery/checkbox/usage",
         "gallery/checkbox/variants",
         "gallery/checkbox/with-description"
@@ -6017,7 +6193,7 @@
     },
     {
       "component": "Chip",
-      "specimens": 6,
+      "specimens": 7,
       "statuses": {
         "implemented-unverified": 0,
         "intentional-deviation": 0,
@@ -6025,15 +6201,16 @@
         "not-applicable": 0,
         "platform-limited": 0,
         "specified": 0,
-        "unreviewed": 6,
+        "unreviewed": 7,
         "verified": 0
       },
       "verified": 0,
-      "outstanding": 6,
+      "outstanding": 7,
       "unresolved_ids": [
         "gallery/chip/colors",
         "gallery/chip/sizes",
         "gallery/chip/statuses",
+        "gallery/chip/styling-overrides",
         "gallery/chip/usage",
         "gallery/chip/variants",
         "gallery/chip/with-icons"
@@ -6041,7 +6218,7 @@
     },
     {
       "component": "Close Button",
-      "specimens": 6,
+      "specimens": 7,
       "statuses": {
         "implemented-unverified": 0,
         "intentional-deviation": 0,
@@ -6049,16 +6226,17 @@
         "not-applicable": 0,
         "platform-limited": 0,
         "specified": 0,
-        "unreviewed": 6,
+        "unreviewed": 7,
         "verified": 0
       },
       "verified": 0,
-      "outstanding": 6,
+      "outstanding": 7,
       "unresolved_ids": [
         "gallery/close-button/disabled",
         "gallery/close-button/hover-colour",
         "gallery/close-button/interactive",
         "gallery/close-button/render-function",
+        "gallery/close-button/styling-overrides",
         "gallery/close-button/usage",
         "gallery/close-button/with-custom-icon"
       ]
@@ -6090,7 +6268,7 @@
     },
     {
       "component": "Color Field",
-      "specimens": 19,
+      "specimens": 20,
       "statuses": {
         "implemented-unverified": 0,
         "intentional-deviation": 0,
@@ -6098,11 +6276,11 @@
         "not-applicable": 0,
         "platform-limited": 0,
         "specified": 0,
-        "unreviewed": 19,
+        "unreviewed": 20,
         "verified": 0
       },
       "verified": 0,
-      "outstanding": 19,
+      "outstanding": 20,
       "unresolved_ids": [
         "gallery/color-field/blur-behaviour",
         "gallery/color-field/box-customisation",
@@ -6119,6 +6297,7 @@
         "gallery/color-field/required-field",
         "gallery/color-field/root-styling",
         "gallery/color-field/single-channel",
+        "gallery/color-field/styling-overrides",
         "gallery/color-field/usage",
         "gallery/color-field/validation",
         "gallery/color-field/variants",
@@ -6232,7 +6411,7 @@
     },
     {
       "component": "Combo Box",
-      "specimens": 30,
+      "specimens": 31,
       "statuses": {
         "implemented-unverified": 0,
         "intentional-deviation": 0,
@@ -6240,11 +6419,11 @@
         "not-applicable": 0,
         "platform-limited": 0,
         "specified": 0,
-        "unreviewed": 30,
+        "unreviewed": 31,
         "verified": 0
       },
       "verified": 0,
-      "outstanding": 30,
+      "outstanding": 31,
       "unresolved_ids": [
         "gallery/combo-box/allows-custom-value",
         "gallery/combo-box/asynchronous-loading",
@@ -6269,6 +6448,7 @@
         "gallery/combo-box/placement",
         "gallery/combo-box/read-only",
         "gallery/combo-box/required",
+        "gallery/combo-box/styling-overrides",
         "gallery/combo-box/usage",
         "gallery/combo-box/validation-behavior",
         "gallery/combo-box/value-render-props",
@@ -6280,7 +6460,7 @@
     },
     {
       "component": "Date Field",
-      "specimens": 15,
+      "specimens": 16,
       "statuses": {
         "implemented-unverified": 0,
         "intentional-deviation": 0,
@@ -6288,11 +6468,11 @@
         "not-applicable": 0,
         "platform-limited": 0,
         "specified": 0,
-        "unreviewed": 15,
+        "unreviewed": 16,
         "verified": 0
       },
       "verified": 0,
-      "outstanding": 15,
+      "outstanding": 16,
       "unresolved_ids": [
         "gallery/date-field/box-customisation",
         "gallery/date-field/controlled",
@@ -6303,6 +6483,7 @@
         "gallery/date-field/granularity",
         "gallery/date-field/in-surface",
         "gallery/date-field/required-field",
+        "gallery/date-field/styling-overrides",
         "gallery/date-field/usage",
         "gallery/date-field/validation",
         "gallery/date-field/variants",
@@ -6419,7 +6600,7 @@
     },
     {
       "component": "Dropdown",
-      "specimens": 25,
+      "specimens": 26,
       "statuses": {
         "implemented-unverified": 0,
         "intentional-deviation": 0,
@@ -6427,11 +6608,11 @@
         "not-applicable": 0,
         "platform-limited": 0,
         "specified": 0,
-        "unreviewed": 25,
+        "unreviewed": 26,
         "verified": 0
       },
       "verified": 0,
-      "outstanding": 25,
+      "outstanding": 26,
       "unresolved_ids": [
         "gallery/dropdown/basic-usage",
         "gallery/dropdown/context-menu",
@@ -6447,6 +6628,7 @@
         "gallery/dropdown/row-with-an-inline-control",
         "gallery/dropdown/single-with-custom-indicator",
         "gallery/dropdown/standalone-compact-menu",
+        "gallery/dropdown/styling-overrides",
         "gallery/dropdown/usage",
         "gallery/dropdown/with-custom-submenu-indicator",
         "gallery/dropdown/with-descriptions",
@@ -6603,7 +6785,7 @@
     },
     {
       "component": "Kbd",
-      "specimens": 6,
+      "specimens": 7,
       "statuses": {
         "implemented-unverified": 0,
         "intentional-deviation": 0,
@@ -6611,16 +6793,17 @@
         "not-applicable": 0,
         "platform-limited": 0,
         "specified": 0,
-        "unreviewed": 6,
+        "unreviewed": 7,
         "verified": 0
       },
       "verified": 0,
-      "outstanding": 6,
+      "outstanding": 7,
       "unresolved_ids": [
         "gallery/kbd/inline-usage",
         "gallery/kbd/instructional-text",
         "gallery/kbd/navigation-keys",
         "gallery/kbd/special-keys",
+        "gallery/kbd/styling-overrides",
         "gallery/kbd/usage",
         "gallery/kbd/variants"
       ]
@@ -6658,7 +6841,7 @@
     },
     {
       "component": "Link",
-      "specimens": 5,
+      "specimens": 6,
       "statuses": {
         "implemented-unverified": 0,
         "intentional-deviation": 0,
@@ -6666,15 +6849,16 @@
         "not-applicable": 0,
         "platform-limited": 0,
         "specified": 0,
-        "unreviewed": 5,
+        "unreviewed": 6,
         "verified": 0
       },
       "verified": 0,
-      "outstanding": 5,
+      "outstanding": 6,
       "unresolved_ids": [
         "gallery/link/custom-icon",
         "gallery/link/icon-placement",
         "gallery/link/render-function",
+        "gallery/link/styling-overrides",
         "gallery/link/text-decoration",
         "gallery/link/usage"
       ]
@@ -6717,7 +6901,7 @@
     },
     {
       "component": "Meter",
-      "specimens": 5,
+      "specimens": 6,
       "statuses": {
         "implemented-unverified": 0,
         "intentional-deviation": 0,
@@ -6725,15 +6909,16 @@
         "not-applicable": 0,
         "platform-limited": 0,
         "specified": 0,
-        "unreviewed": 5,
+        "unreviewed": 6,
         "verified": 0
       },
       "verified": 0,
-      "outstanding": 5,
+      "outstanding": 6,
       "unresolved_ids": [
         "gallery/meter/colors",
         "gallery/meter/custom-value-scale",
         "gallery/meter/sizes",
+        "gallery/meter/styling-overrides",
         "gallery/meter/usage",
         "gallery/meter/without-label"
       ]
@@ -6862,7 +7047,7 @@
     },
     {
       "component": "Progress Bar",
-      "specimens": 6,
+      "specimens": 7,
       "statuses": {
         "implemented-unverified": 0,
         "intentional-deviation": 0,
@@ -6870,16 +7055,17 @@
         "not-applicable": 0,
         "platform-limited": 0,
         "specified": 0,
-        "unreviewed": 6,
+        "unreviewed": 7,
         "verified": 0
       },
       "verified": 0,
-      "outstanding": 6,
+      "outstanding": 7,
       "unresolved_ids": [
         "gallery/progress-bar/colors",
         "gallery/progress-bar/custom-value-scale",
         "gallery/progress-bar/indeterminate",
         "gallery/progress-bar/sizes",
+        "gallery/progress-bar/styling-overrides",
         "gallery/progress-bar/usage",
         "gallery/progress-bar/without-label"
       ]
@@ -6942,7 +7128,7 @@
     },
     {
       "component": "Range Calendar",
-      "specimens": 20,
+      "specimens": 21,
       "statuses": {
         "implemented-unverified": 0,
         "intentional-deviation": 0,
@@ -6950,11 +7136,11 @@
         "not-applicable": 0,
         "platform-limited": 0,
         "specified": 0,
-        "unreviewed": 20,
+        "unreviewed": 21,
         "verified": 0
       },
       "verified": 0,
-      "outstanding": 20,
+      "outstanding": 21,
       "unresolved_ids": [
         "gallery/range-calendar/allows-non-contiguous-ranges",
         "gallery/range-calendar/anchor-based-unavailable-dates",
@@ -6971,6 +7157,7 @@
         "gallery/range-calendar/multiple-months",
         "gallery/range-calendar/read-only",
         "gallery/range-calendar/real-world-example",
+        "gallery/range-calendar/styling-overrides",
         "gallery/range-calendar/unavailable-dates",
         "gallery/range-calendar/usage",
         "gallery/range-calendar/week-view",
@@ -7040,7 +7227,7 @@
     },
     {
       "component": "Select",
-      "specimens": 27,
+      "specimens": 28,
       "statuses": {
         "implemented-unverified": 1,
         "intentional-deviation": 0,
@@ -7048,11 +7235,11 @@
         "not-applicable": 0,
         "platform-limited": 0,
         "specified": 0,
-        "unreviewed": 26,
+        "unreviewed": 27,
         "verified": 0
       },
       "verified": 0,
-      "outstanding": 27,
+      "outstanding": 28,
       "unresolved_ids": [
         "gallery/select/asynchronous-loading",
         "gallery/select/box-customisation",
@@ -7071,6 +7258,7 @@
         "gallery/select/placement",
         "gallery/select/required",
         "gallery/select/row-leading-content",
+        "gallery/select/styling-overrides",
         "gallery/select/uncontrolled",
         "gallery/select/usage",
         "gallery/select/variants",
@@ -7273,7 +7461,7 @@
     },
     {
       "component": "Switch",
-      "specimens": 14,
+      "specimens": 15,
       "statuses": {
         "implemented-unverified": 0,
         "intentional-deviation": 0,
@@ -7281,11 +7469,11 @@
         "not-applicable": 0,
         "platform-limited": 0,
         "specified": 0,
-        "unreviewed": 14,
+        "unreviewed": 15,
         "verified": 0
       },
       "verified": 0,
-      "outstanding": 14,
+      "outstanding": 15,
       "unresolved_ids": [
         "gallery/switch/controlled",
         "gallery/switch/default-selected",
@@ -7297,6 +7485,7 @@
         "gallery/switch/label-size",
         "gallery/switch/render-props",
         "gallery/switch/sizes",
+        "gallery/switch/styling-overrides",
         "gallery/switch/usage",
         "gallery/switch/with-description",
         "gallery/switch/with-icons",
@@ -7379,7 +7568,7 @@
     },
     {
       "component": "Tag Group",
-      "specimens": 17,
+      "specimens": 18,
       "statuses": {
         "implemented-unverified": 1,
         "intentional-deviation": 0,
@@ -7387,11 +7576,11 @@
         "not-applicable": 0,
         "platform-limited": 0,
         "specified": 0,
-        "unreviewed": 16,
+        "unreviewed": 17,
         "verified": 0
       },
       "verified": 0,
-      "outstanding": 17,
+      "outstanding": 18,
       "unresolved_ids": [
         "gallery/tag-group/controlled",
         "gallery/tag-group/disabled",
@@ -7402,6 +7591,7 @@
         "gallery/tag-group/selectable",
         "gallery/tag-group/selection-modes",
         "gallery/tag-group/sizes",
+        "gallery/tag-group/styling-overrides",
         "gallery/tag-group/transitions",
         "gallery/tag-group/usage",
         "gallery/tag-group/variants",
@@ -7468,7 +7658,7 @@
     },
     {
       "component": "Time Field",
-      "specimens": 15,
+      "specimens": 16,
       "statuses": {
         "implemented-unverified": 0,
         "intentional-deviation": 0,
@@ -7476,11 +7666,11 @@
         "not-applicable": 0,
         "platform-limited": 0,
         "specified": 0,
-        "unreviewed": 15,
+        "unreviewed": 16,
         "verified": 0
       },
       "verified": 0,
-      "outstanding": 15,
+      "outstanding": 16,
       "unresolved_ids": [
         "gallery/time-field/12-hour-with-seconds",
         "gallery/time-field/24-hour",
@@ -7492,6 +7682,7 @@
         "gallery/time-field/full-width",
         "gallery/time-field/on-surface",
         "gallery/time-field/required-field",
+        "gallery/time-field/styling-overrides",
         "gallery/time-field/usage",
         "gallery/time-field/validation",
         "gallery/time-field/with-description",
@@ -7534,7 +7725,7 @@
     },
     {
       "component": "Toggle Button",
-      "specimens": 16,
+      "specimens": 17,
       "statuses": {
         "implemented-unverified": 0,
         "intentional-deviation": 0,
@@ -7542,11 +7733,11 @@
         "not-applicable": 0,
         "platform-limited": 0,
         "specified": 0,
-        "unreviewed": 16,
+        "unreviewed": 17,
         "verified": 0
       },
       "verified": 0,
-      "outstanding": 16,
+      "outstanding": 17,
       "unresolved_ids": [
         "gallery/toggle-button/controlled",
         "gallery/toggle-button/default-selected-keys",
@@ -7560,6 +7751,7 @@
         "gallery/toggle-button/selection-mode",
         "gallery/toggle-button/single-selection",
         "gallery/toggle-button/sizes",
+        "gallery/toggle-button/styling-overrides",
         "gallery/toggle-button/usage",
         "gallery/toggle-button/variants",
         "gallery/toggle-button/vertical",

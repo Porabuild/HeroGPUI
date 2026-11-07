@@ -105,6 +105,14 @@ CONSTANT_ALLOWED = {
         'pointer state, focus handle, hotkey interceptor, and each toast\'s '
         'parts -- derives from it, so a named viewport moves its whole '
         'subtree.',
+    ('crates/herogpui-components/src/progress.rs', 'progress-circle'):
+        'the root of an id-less `ProgressCircle`\'s arc-signature key. '
+        '`ProgressCircle::id` is optional, and an unnamed ring scopes its '
+        'motion state under this root by determinate flag, min, max and size '
+        '(plus the fraction, for the tween), so rings that differ in any of '
+        'those keep separate timelines. Two unnamed rings with one signature '
+        'share the last-painted seed a new value eases from; `.id(..)` gives '
+        'a ring a timeline of its own.',
 }
 
 # (path, part-of-the-line) -> why this id may still be built with `format!`.

@@ -3,7 +3,7 @@
 
 Target: `v3.2.7` (`7cb1642606c6f96f424dad78a961ccf45436be72`)
 Inventory date: `2026-11-07`
-Inventory verification: `157d3f0fc7672d00f245c2fae3461826b78c9cd9ac9be7fc927863d11c74bdaf`
+Inventory verification: `0fe6c8dc0f65939e2c9e7fb9b4ec0e824ce828d122904dd50c05ee241ba26d11`
 Last evidence commit: `(none recorded)`
 
 This is a maintainer work-queue summary. It does not turn gallery section headings, static audits, or successful builds into parity evidence.
@@ -12,12 +12,12 @@ This is a maintainer work-queue summary. It does not turn gallery section headin
 
 | Metric | Count |
 | --- | --- |
-| Specimens | 792 |
+| Specimens | 816 |
 | Verified | 0 |
-| Outstanding | 792 |
-| Unobserved/unreviewed | 792 |
+| Outstanding | 816 |
+| Unobserved/unreviewed | 816 |
 | Components | 69 |
-| Gallery sections | 785 |
+| Gallery sections | 809 |
 
 ## Status distribution
 
@@ -29,73 +29,73 @@ This is a maintainer work-queue summary. It does not turn gallery section headin
 | not-applicable | 0 |
 | platform-limited | 0 |
 | specified | 0 |
-| unreviewed | 785 |
+| unreviewed | 809 |
 | verified | 0 |
 
 ## Evidence surfaces
 
 | Surface | With evidence | Missing evidence |
 | --- | --- | --- |
-| upstream | 5 | 787 |
-| native | 1 | 791 |
-| wasm | 1 | 791 |
-| tests | 5 | 787 |
-| all_surfaces | 1 | 791 |
+| upstream | 5 | 811 |
+| native | 1 | 815 |
+| wasm | 1 | 815 |
+| tests | 5 | 811 |
+| all_surfaces | 1 | 815 |
 
 ## Component queue
 
 | Component | Specimens | Verified | Outstanding |
 | --- | --- | --- | --- |
 | Accordion | 11 | 0 | 11 |
-| Alert | 4 | 0 | 4 |
-| Alert Dialog | 12 | 0 | 12 |
-| Autocomplete | 22 | 0 | 22 |
-| Avatar | 6 | 0 | 6 |
+| Alert | 5 | 0 | 5 |
+| Alert Dialog | 13 | 0 | 13 |
+| Autocomplete | 23 | 0 | 23 |
+| Avatar | 7 | 0 | 7 |
 | AvatarGroup | 7 | 0 | 7 |
-| Badge | 7 | 0 | 7 |
+| Badge | 8 | 0 | 8 |
 | Breadcrumbs | 5 | 0 | 5 |
-| Button | 19 | 0 | 19 |
+| Button | 20 | 0 | 20 |
 | Button Group | 9 | 0 | 9 |
-| Calendar | 21 | 0 | 21 |
+| Calendar | 22 | 0 | 22 |
 | Card | 6 | 0 | 6 |
-| Checkbox | 15 | 0 | 15 |
+| Checkbox | 16 | 0 | 16 |
 | Checkbox Group | 11 | 0 | 11 |
-| Chip | 6 | 0 | 6 |
-| Close Button | 6 | 0 | 6 |
+| Chip | 7 | 0 | 7 |
+| Close Button | 7 | 0 | 7 |
 | Color Area | 7 | 0 | 7 |
-| Color Field | 19 | 0 | 19 |
+| Color Field | 20 | 0 | 20 |
 | Color Picker | 6 | 0 | 6 |
 | Color Slider | 9 | 0 | 9 |
 | Color Swatch | 7 | 0 | 7 |
 | Color Swatch Picker | 11 | 0 | 11 |
-| Combo Box | 30 | 0 | 30 |
-| Date Field | 15 | 0 | 15 |
+| Combo Box | 31 | 0 | 31 |
+| Date Field | 16 | 0 | 16 |
 | Date Picker | 10 | 0 | 10 |
 | Date Range Picker | 10 | 0 | 10 |
 | Disclosure | 6 | 0 | 6 |
 | Drawer | 8 | 0 | 8 |
-| Dropdown | 25 | 0 | 25 |
+| Dropdown | 26 | 0 | 26 |
 | Fieldset | 2 | 0 | 2 |
 | Form | 2 | 0 | 2 |
 | Input | 9 | 0 | 9 |
 | Input Group | 26 | 0 | 26 |
 | Input OTP | 12 | 0 | 12 |
-| Kbd | 6 | 0 | 6 |
+| Kbd | 7 | 0 | 7 |
 | Label & Messages | 13 | 0 | 13 |
-| Link | 5 | 0 | 5 |
+| Link | 6 | 0 | 6 |
 | List Box | 18 | 0 | 18 |
-| Meter | 5 | 0 | 5 |
+| Meter | 6 | 0 | 6 |
 | Modal | 14 | 0 | 14 |
 | Number Field | 18 | 0 | 18 |
 | Pagination | 12 | 0 | 12 |
 | Popover | 6 | 0 | 6 |
-| Progress Bar | 6 | 0 | 6 |
+| Progress Bar | 7 | 0 | 7 |
 | Progress Circle | 7 | 0 | 7 |
 | Radio Group | 13 | 0 | 13 |
-| Range Calendar | 20 | 0 | 20 |
+| Range Calendar | 21 | 0 | 21 |
 | Scroll Shadow | 9 | 0 | 9 |
 | Search Field | 15 | 0 | 15 |
-| Select | 27 | 0 | 27 |
+| Select | 28 | 0 | 28 |
 | Separator | 8 | 0 | 8 |
 | Shared focus modality | 1 | 0 | 1 |
 | Sheet | 14 | 0 | 14 |
@@ -103,15 +103,15 @@ This is a maintainer work-queue summary. It does not turn gallery section headin
 | Slider | 22 | 0 | 22 |
 | Spinner | 6 | 0 | 6 |
 | Surface | 3 | 0 | 3 |
-| Switch | 14 | 0 | 14 |
+| Switch | 15 | 0 | 15 |
 | Table | 20 | 0 | 20 |
 | Tabs | 18 | 0 | 18 |
-| Tag Group | 17 | 0 | 17 |
+| Tag Group | 18 | 0 | 18 |
 | Text Area | 6 | 0 | 6 |
 | Text Field | 12 | 0 | 12 |
-| Time Field | 15 | 0 | 15 |
+| Time Field | 16 | 0 | 16 |
 | Toast | 15 | 0 | 15 |
-| Toggle Button | 16 | 0 | 16 |
+| Toggle Button | 17 | 0 | 17 |
 | Toolbar | 7 | 0 | 7 |
 | Tooltip | 8 | 0 | 8 |
 | Typography | 7 | 0 | 7 |
@@ -121,6 +121,6 @@ This is a maintainer work-queue summary. It does not turn gallery section headin
 - Measured gaps: **0**
 - Intentional deviations: **0**
 - Platform limits: **0**
-- Unresolved specimen records: **792**
+- Unresolved specimen records: **816**
 
 The JSON file contains the complete unresolved id list and per-component detail. Add a concrete evidence record before changing a specimen to `verified`; record intentional deviations and platform limits with user-facing notes.

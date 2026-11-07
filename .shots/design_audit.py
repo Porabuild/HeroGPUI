@@ -447,6 +447,14 @@ def swatch_picker_radius(_group):
     return None
 
 
+# `.input-group__prefix` / `__suffix` are `px-3` on the slot itself, so the
+# inset is the `addon_slot` wrapper's padding in `InputGroup::render`, which
+# frames text addons and bare icons alike.
+INPUT_GROUP_SLOT_PX = (
+    r"let addon_slot = \|el: AnyElement, name: &'static str\|[\s\S]{0,1200}?"
+    r'\.justify_center\(\)\s*\.px\(px\((\d+(?:\.\d*)?)\.\)\)\s*'
+    r'\.text_color\(colors\.field\.placeholder\)')
+
 # (css file, rule selector, metric, our label, our file, regex, transform)
 #
 # The regex must capture our value in group 1, or the transform turns the match
@@ -894,8 +902,11 @@ CHECKS = [
      r'(?=.*\.start_content\(match self\.search_icon)', None),
     ('color-input-group', '.color-input-group__prefix', 'ms',
      'ColorField prefix inset -> group px', SRC + 'color_picker.rs',
+     # The chrome and hover-fade helpers take and return the same element, so
+     # a swatch added after them is still a child of the padded box; only a
+     # rebinding of `field` would move it out of that box.
      r'let mut field = div\(\)(?:(?!;)[\s\S])*?\.px\((field_box\.resolved_padding_x\(\))\)'
-     r'(?:(?!field = util::apply_field_chrome)[\s\S])*?\.child\(ColorSwatch::new',
+     r'(?:(?!let (?:mut )?field\b)[\s\S])*?field = field\.child\(ColorSwatch::new',
      field_box_px),
     ('date-input-group', '.date-input-group__prefix', 'ms',
      'DateField prefix inset -> group px', SRC + 'date_picker.rs',
@@ -1124,8 +1135,8 @@ CHECKS = [
      r'\.min_h\(explicit_height\.unwrap_or\(util::(FIELD_HEIGHT)\)\)', lambda _: 36.0),
     ('input-group', '.input-group', 'text', 'InputGroup text', SRC + 'input_group.rs',
      r'\.text_size\(util::(FIELD_TEXT)\)', lambda _: 14.0),
-    ('input-group', '.input-group__prefix', 'px', 'InputGroup addon px',
-     SRC + 'input_group.rs', r'\.px\(px\((\d+(?:\.\d*)?)\.\)\)', None),
+    ('input-group', '.input-group__prefix', 'px', 'InputGroup addon slot px',
+     SRC + 'input_group.rs', INPUT_GROUP_SLOT_PX, None),
     ('input-group', '.input-group__input', 'px', 'Input px', SRC + 'input.rs',
      r'None => f\.px\(px\((\d+(?:\.\d*)?)\.\)\)', None),
     # --- Badge and Tag ----------------------------------------------------
@@ -1825,8 +1836,8 @@ CHECKS = [
     ('input', '.input', 'px', 'Input padding_x', SRC + 'input.rs',
      r'match self\.in_group \{\s*None => f\.px\(px\((\d+(?:\.\d*)?)\.\)\),\s*'
      r'Some\(\(prefix, suffix\)\)', None),
-    ('input-group', '.input-group__suffix', 'px', 'InputGroup addon px', SRC + 'input_group.rs',
-     r'`__suffix`: `px-3`[\s\S]{0,200}?\.px\(px\((\d+(?:\.\d*)?)\.\)\)', None),
+    ('input-group', '.input-group__suffix', 'px', 'InputGroup addon slot px',
+     SRC + 'input_group.rs', INPUT_GROUP_SLOT_PX, None),
 
     # --- a popover type size, wherever the rows set it ------------------------
     ('popover', '.popover', 'text', 'Popover text', SRC + 'popover.rs',
@@ -3487,9 +3498,17 @@ def check_toggle_button_style_contract():
             render))),
         ('selected hover', 'colors.accent.soft_hover()' in render),
         ('default hover', 'colors.default.hover()' in render),
-        ('pressed fill', ('pressed_with_background(' in render or
-         'pressed_with_background_ramp(' in render) and
-         'el.active(move |style| style.bg(hover_bg))' in render),
+        # The press colour is v3's `:active` fill, the colour `:hover` paints.
+        # A mounted hover fade owns it: `hover_fade_with_press` eases to the
+        # fade's own hover endpoint (`colors.1`) while the press bit is set.
+        # A grouped toggle keeps the `.active` fill only where no fade is
+        # mounted, so the press is never painted twice.
+        ('pressed fill', bool(re.search(
+            r'crate::anim::hover_fade_with_press\([^;]*?colors,\s*'
+            r'(?://[^\n]*\n\s*)*colors\.1,', render)) and
+         bool(re.search(
+            r'\.when\(fade\.is_none\(\),\s*\|e\|\s*\{\s*'
+            r'e\.active\(move \|style\| style\.bg\(hover_bg\)\)', render))),
         ('group focus offset', 'ring_if_focused(' in render and '!is_grouped,' in render),
     ]
     print()
@@ -3673,6 +3692,12 @@ def check_toolbar_style_contract():
     src = read_path(path, errors='replace')
     parts = src.split('if self.is_attached {', 1)
     attached = parts[1].split('el = el.track_focus', 1)[0] if len(parts) == 2 else ''
+    # Dark mode's `shadow-overlay` is an inset 1px hairline, which
+    # `overlay_hairline` draws as a border (see token_audit.py): the one border
+    # an attached toolbar may carry, and only when the theme sets it.
+    hairline = re.compile(
+        r'\.when_some\(cx\.layout\(\)\.overlay_hairline,\s*\|el, hairline\|\s*\{\s*'
+        r'el\.border\(cx\.layout\(\)\.border_width\)\.border_color\(hairline\)\s*\}\)')
     checks = [
         # `.toolbar--attached` applies `shadow-overlay`; the overlay shadow is
         # what separates a floating surface in light mode.
@@ -3680,7 +3705,9 @@ def check_toolbar_style_contract():
          bool(attached) and '.shadow(overlay_shadow)' in attached),
         # v3 gives a floating panel no border, and this toolbar drew one.
         ('no attached border',
-         '.border_1()' not in src and '.border_color' not in attached),
+         '.border_1()' not in src
+         and '.border_color' not in hairline.sub('', attached)),
+        ('dark overlay hairline', bool(attached) and bool(hairline.search(attached))),
         # `.toolbar--vertical` is `grid-flow-row items-start justify-start`: a
         # column whose controls hug the start edge, while the base `.toolbar`
         # rule's centered cross axis stays with the horizontal toolbar.

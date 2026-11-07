@@ -690,14 +690,18 @@ impl RenderOnce for ProgressCircle {
         // painted to seed a new fraction's tween -- an id-less value change
         // still eases instead of snapping.
         let signature_id = self.id.is_none().then(|| {
-            let signature = format!(
-                "{}-{}-{}-{}",
-                u8::from(self.is_indeterminate),
-                self.min_value.to_bits(),
-                self.max_value.to_bits(),
-                f32::from(self.size_px).to_bits(),
+            let ring = gpui::ElementId::Name("progress-circle".into());
+            let ring = element_id::scoped(
+                &ring,
+                if self.is_indeterminate {
+                    "indeterminate"
+                } else {
+                    "determinate"
+                },
             );
-            gpui::ElementId::Name(format!("progress-circle-{signature}").into())
+            let ring = element_id::scoped(&ring, self.min_value.to_bits().to_string());
+            let ring = element_id::scoped(&ring, self.max_value.to_bits().to_string());
+            element_id::scoped(&ring, f32::from(self.size_px).to_bits().to_string())
         });
         let motion_id = match &self.id {
             Some(id) => id.clone(),
@@ -793,13 +797,12 @@ impl RenderOnce for ProgressCircle {
         .absolute()
         .inset_0();
 
-        let spin_id = element_id::scoped(
-            self.id
-                .as_ref()
-                .or(signature_id.as_ref())
-                .expect("a ring always has a caller id or an arc signature"),
-            "spin",
-        );
+        let id = self
+            .id
+            .as_ref()
+            .or(signature_id.as_ref())
+            .expect("a ring always has a caller id or an arc signature");
+        let spin_id = element_id::scoped(id, "spin");
         let track = gpui::div()
             .absolute()
             .inset_0()

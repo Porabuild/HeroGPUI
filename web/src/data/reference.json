@@ -8809,7 +8809,7 @@
         "prop": "placeholder",
         "type": "string",
         "default": "—",
-        "description": "Placeholder shown while empty and unfocused.",
+        "description": "Placeholder shown while empty; it stays painted under the caret while the field is focused and empty.",
         "rustOwner": "Input",
         "rust": "placeholder(text)",
         "status": "implemented"
@@ -9459,7 +9459,7 @@
         "prop": "placeholder",
         "type": "string",
         "default": "—",
-        "description": "Placeholder shown while empty and unfocused.",
+        "description": "Placeholder shown while empty; it stays painted under the caret while the field is focused and empty.",
         "rustOwner": "TextArea",
         "rust": "placeholder(text)",
         "status": "implemented"
@@ -9962,7 +9962,7 @@
         "prop": "placeholder",
         "type": "string",
         "default": "—",
-        "description": "Placeholder displayed while the query is empty and unfocused.",
+        "description": "Placeholder displayed while the query is empty; it stays painted under the caret while the field is focused and empty.",
         "rustOwner": "SearchField",
         "rust": "placeholder(text)",
         "status": "implemented"
@@ -25136,7 +25136,7 @@
         "prop": "children",
         "type": "ReactNode",
         "default": "—",
-        "description": "The alert description text. The port takes plain description text; omitting it renders no description row at all.",
+        "description": "The alert description text. The port takes plain description text via `description(text)` and element content after it via `description_content(el)`; omitting both renders no description row at all.",
         "rustOwner": "Alert",
         "rust": "description(text)",
         "status": "partial"

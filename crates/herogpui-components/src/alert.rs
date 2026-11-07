@@ -28,7 +28,7 @@ pub struct Alert {
     /// `Alert.Description` accepts ReactNode, so a bulleted list or link
     /// can follow the description text. The `description` builder stays
     /// text-only; this is its element tail.
-    content_extra: Option<AnyElement>,
+    description_content: Option<AnyElement>,
     /// Composed children — v3's "Additional content like buttons, close
     /// button, etc.", appended after the content column.
     children: Vec<AnyElement>,
@@ -53,7 +53,7 @@ impl Alert {
             description: None,
             color: Color::Default,
             indicator: None,
-            content_extra: None,
+            description_content: None,
             children: Vec::new(),
             sx: None,
             radius: None,
@@ -78,8 +78,8 @@ impl Alert {
     /// description — the element tail of v3's `Alert.Description`, whose
     /// ReactNode children can be a list, a link, or any markup the
     /// text-only `description` builder cannot express.
-    pub fn content_extra(mut self, content: impl IntoElement) -> Self {
-        self.content_extra = Some(content.into_any_element());
+    pub fn description_content(mut self, content: impl IntoElement) -> Self {
+        self.description_content = Some(content.into_any_element());
         self
     }
 
@@ -212,7 +212,7 @@ impl RenderOnce for Alert {
                     .child(desc.to_string()),
             );
         }
-        if let Some(extra) = self.content_extra {
+        if let Some(extra) = self.description_content {
             text_col = text_col.child(extra);
         }
         alert = alert.child(text_col);
