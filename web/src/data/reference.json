@@ -8809,7 +8809,7 @@
         "prop": "placeholder",
         "type": "string",
         "default": "—",
-        "description": "Placeholder shown while empty and unfocused.",
+        "description": "Placeholder shown while empty; it stays painted under the caret while the field is focused and empty.",
         "rustOwner": "Input",
         "rust": "placeholder(text)",
         "status": "implemented"
@@ -9459,7 +9459,7 @@
         "prop": "placeholder",
         "type": "string",
         "default": "—",
-        "description": "Placeholder shown while empty and unfocused.",
+        "description": "Placeholder shown while empty; it stays painted under the caret while the field is focused and empty.",
         "rustOwner": "TextArea",
         "rust": "placeholder(text)",
         "status": "implemented"
@@ -9962,7 +9962,7 @@
         "prop": "placeholder",
         "type": "string",
         "default": "—",
-        "description": "Placeholder displayed while the query is empty and unfocused.",
+        "description": "Placeholder displayed while the query is empty; it stays painted under the caret while the field is focused and empty.",
         "rustOwner": "SearchField",
         "rust": "placeholder(text)",
         "status": "implemented"
@@ -11096,7 +11096,7 @@
       {
         "token": ".input-group__prefix / __suffix",
         "description": "The 12px inset, placeholder colour, flush edges and prefix/suffix field-border seams match; arbitrary child addons inherit the same wrapper treatment.",
-        "rust": "addon slot wrapper + InputAddon px(12px) + border_r/border_l",
+        "rust": "addon slot wrapper px(12px) + border_r/border_l",
         "status": "implemented"
       },
       {
@@ -11904,7 +11904,7 @@
       {
         "name": "Calendar.Heading",
         "slot": "calendar-heading",
-        "description": "Formatted heading for one visible month or linear range.",
+        "description": "Formatted heading for one visible month or linear range; the default plain label.",
         "rustOwner": "Calendar",
         "status": "implemented"
       },
@@ -11960,7 +11960,7 @@
       {
         "name": "Calendar.YearPickerTrigger",
         "slot": "calendar-year-picker-trigger",
-        "description": "Focusable heading control that toggles year-picker mode.",
+        "description": "Focusable heading control that toggles year-picker mode; composed with `year_picker(true)`, which `is_year_picker_open`/`default_year_picker_open` imply.",
         "rustOwner": "Calendar",
         "status": "implemented"
       },
@@ -15093,7 +15093,7 @@
       {
         "name": "RangeCalendar.Heading",
         "slot": "range-calendar-heading",
-        "description": "Heading for one visible month or linear range.",
+        "description": "Heading for one visible month or linear range; the default plain label.",
         "rustOwner": "RangeCalendar",
         "status": "implemented"
       },
@@ -15149,7 +15149,7 @@
       {
         "name": "RangeCalendar.YearPickerTrigger",
         "slot": "calendar-year-picker-trigger",
-        "description": "Heading control that toggles year-picker mode.",
+        "description": "Heading control that toggles year-picker mode; composed with `year_picker(true)`, which `is_year_picker_open`/`default_year_picker_open` imply.",
         "rustOwner": "RangeCalendar",
         "status": "implemented"
       },
@@ -15437,7 +15437,7 @@
   },
   "drawer": {
     "page": "Drawer",
-    "importLine": "use herogpui::components::drawer::{Drawer, DrawerCloseTrigger, DrawerPlacement};",
+    "importLine": "use herogpui::components::drawer::{Drawer, DrawerCloseTrigger, DrawerHandle, DrawerPlacement};",
     "version": "3.2.7",
     "docsSource": "https://github.com/heroui-inc/heroui/blob/v3.2.7/apps/docs/content/docs/en/react/components/(overlays)/drawer.mdx",
     "apiSource": "https://github.com/heroui-inc/heroui/blob/v3.2.7/packages/react/src/components/drawer/drawer.tsx",
@@ -15804,8 +15804,8 @@
       {
         "name": "Drawer.Handle",
         "slot": "drawer-handle",
-        "description": "Separator bar that starts the drag-to-dismiss gesture.",
-        "rustOwner": "Drawer",
+        "description": "Optional composed drag handle: the separator bar that starts the drag-to-dismiss gesture, mounted before the header on every placement except Top, where it follows the footer at the moving edge. With no dismissal wiring it still paints but cannot drag.",
+        "rustOwner": "DrawerHandle",
         "status": "implemented"
       },
       {
@@ -24588,7 +24588,7 @@
   },
   "kbd": {
     "page": "Kbd",
-    "importLine": "use herogpui::components::kbd::Kbd;",
+    "importLine": "use herogpui::components::kbd::{Kbd, KbdAbbr, KbdContent, KbdKey};",
     "version": "3.2.7",
     "docsSource": "https://github.com/heroui-inc/heroui/blob/v3.2.7/apps/docs/content/docs/en/react/components/(typography)/kbd.mdx",
     "apiSource": "https://github.com/heroui-inc/heroui/blob/v3.2.7/packages/react/src/components/kbd/kbd.tsx",
@@ -24604,7 +24604,7 @@
         "prop": "children",
         "type": "React.ReactNode",
         "default": "—",
-        "description": "Content of the key. v3 renders plain text directly in the root; the port's children are laid out by the same centered row, so the key text needs no wrapper part.",
+        "description": "Content of the key: plain text drawn in the root row, or the composed `KbdAbbr`/`KbdContent` parts v3's demos use.",
         "rustOwner": "Kbd",
         "rust": "ParentElement::extend",
         "status": "partial"
@@ -24634,29 +24634,29 @@
         "prop": "title",
         "type": "string",
         "default": "—",
-        "description": "Accessibility title for the key (e.g., \"Command\" for ⌘). v3 sets it on the `<abbr>` element; gpui-pre 0.3.3 has no accessibility tree and the part renders no element, so there is nothing to carry a title.",
-        "rustOwner": "Kbd",
-        "rust": "—",
-        "status": "unavailable"
+        "description": "Accessibility title for the key (e.g., \"Command\" for ⌘). v3 sets it on the `<abbr>` element; gpui has no accessibility tree, so the name stays available as `KbdKey::label()` instead.",
+        "rustOwner": "KbdKey",
+        "rust": "KbdKey::label()",
+        "status": "partial"
       },
       {
         "owner": "Kbd.Abbr",
         "prop": "keyValue",
         "type": "KbdKey",
         "default": "—",
-        "description": "Named key (`\"command\"`, `\"shift\"`, …) that resolves the symbol and the accessibility title. The symbol/title map rides on the `<abbr>` element, which gpui-pre 0.3.3 has no accessibility tree to express, so the port takes the key symbol as ordinary children instead.",
-        "rustOwner": "Kbd",
-        "rust": "—",
-        "status": "unavailable"
+        "description": "Named key (`\"command\"`, `\"shift\"`, …) that resolves the symbol and the accessibility title.",
+        "rustOwner": "KbdAbbr",
+        "rust": "KbdAbbr::new(KbdKey)",
+        "status": "implemented"
       },
       {
         "owner": "Kbd.Abbr",
         "prop": "children",
         "type": "React.ReactNode",
         "default": "—",
-        "description": "The symbol or text to display. v3 wraps it in an `<abbr title>` for screen readers; the part is not rendered here at all (no accessibility element), so nothing owns its children.",
-        "rustOwner": "Kbd",
-        "rust": "—",
+        "description": "The symbol or text to display. v3 derives it from `keyValue` (`KbdKey::symbol()`), so there is no separate children slot — pick the matching `KbdKey` instead.",
+        "rustOwner": "KbdKey",
+        "rust": "KbdKey::symbol()",
         "status": "unavailable"
       },
       {
@@ -24674,10 +24674,10 @@
         "prop": "children",
         "type": "React.ReactNode",
         "default": "—",
-        "description": "The key text itself; the port draws it directly inside the root row, whose centering already covers the content wrapper's flex centering.",
-        "rustOwner": "Kbd",
-        "rust": "ParentElement::extend",
-        "status": "partial"
+        "description": "The key text itself, wrapped in the `.kbd__content` centered flex box.",
+        "rustOwner": "KbdContent",
+        "rust": "KbdContent::new() + ParentElement::extend",
+        "status": "implemented"
       },
       {
         "owner": "Kbd.Content",
@@ -24701,16 +24701,16 @@
       {
         "name": "Kbd.Abbr",
         "slot": "— (no data-slot)",
-        "description": "The `<abbr title>` v3 wraps the symbol in for screen readers, styled by the `.kbd__abbr` BEM class. gpui-pre 0.3.3 has no accessibility tree and no abbr element, so the port renders no such part and the key text is drawn as the root's own child.",
-        "rustOwner": "Kbd",
-        "status": "unavailable"
+        "description": "The named-key abbreviation on the `.kbd__abbr` BEM class: a full-size centered box that renders `KbdKey::symbol()`. v3's `<abbr title>` has no accessibility element here, so the title stays available as `KbdKey::label()`.",
+        "rustOwner": "KbdAbbr",
+        "status": "implemented"
       },
       {
         "name": "Kbd.Content",
         "slot": "— (no data-slot)",
-        "description": "Content wrapper on the `.kbd__content` BEM class: a centered flex box. The port folds it into the root row's centering and draws the key text directly.",
-        "rustOwner": "Kbd",
-        "status": "partial"
+        "description": "Content wrapper on the `.kbd__content` BEM class: a centered flex box around the key text (`KbdContent` takes arbitrary children).",
+        "rustOwner": "KbdContent",
+        "status": "implemented"
       }
     ],
     "states": [],
@@ -24723,15 +24723,15 @@
       },
       {
         "token": ".kbd__abbr",
-        "description": "The abbreviation element fills the key and strips its underline. Not rendered: gpui-pre 0.3.3 has no accessibility element to express it.",
-        "rust": "—",
-        "status": "unavailable"
+        "description": "The abbreviation fills the key and centers the symbol. The `text-decoration: none` underline strip has no analogue — gpui draws no link underline here — and there is no `<abbr>` element for the accessibility title (`KbdKey::label()` carries the name instead).",
+        "rust": "KbdAbbr => flex + items_center + justify_center + w_full + h_full + key.symbol()",
+        "status": "implemented"
       },
       {
         "token": ".kbd__content",
-        "description": "Centered content wrapper; the root row's centering covers it.",
-        "rust": "folded into Kbd's items_center + justify_center",
-        "status": "partial"
+        "description": "Centered content wrapper around the key text.",
+        "rust": "KbdContent => flex + items_center + justify_center",
+        "status": "implemented"
       },
       {
         "token": ".kbd--light",
@@ -25136,7 +25136,7 @@
         "prop": "children",
         "type": "ReactNode",
         "default": "—",
-        "description": "The alert description text. The port takes plain description text; omitting it renders no description row at all.",
+        "description": "The alert description text. The port takes plain description text via `description(text)` and element content after it via `description_content(el)`; omitting both renders no description row at all.",
         "rustOwner": "Alert",
         "rust": "description(text)",
         "status": "partial"

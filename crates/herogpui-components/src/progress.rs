@@ -665,11 +665,6 @@ impl RenderOnce for ProgressCircle {
         // in the same keyed tween and let the paint callback read it. This
         // preserves reversal from the frame actually on screen and lets
         // reduced motion settle without scheduling a frame.
-        let motion_id = self
-            .id
-            .clone()
-            .unwrap_or_else(|| gpui::ElementId::from("progress-circle"));
-        let reduce_motion = ActiveTheme::reduce_motion(cx);
         // Clamp once at entry, like the bar: a non-percent label formats the
         // clamped value, and the guard keeps `f32::clamp` from panicking on
         // the inverted range `fraction_of` tolerates.
@@ -684,8 +679,59 @@ impl RenderOnce for ProgressCircle {
         } else {
             fraction_of(self.value, self.min_value, self.max_value)
         };
-        let mut fraction_motion =
-            crate::anim::Tween::keyed(&motion_id, "fill-fraction", fraction, window, cx);
+        // An id-less ring still needs per-instance motion state. The old
+        // constant fallback made every anonymous ring share one tween slot --
+        // one `Rc<Cell>` fraction -- so an indeterminate sibling's `settle()`
+        // pinned the shared cell at the quarter arc and every determinate
+        // ring painted 0.25 while its fill animation restarted each frame.
+        // The fallback key is the ring's own arc signature plus the fraction
+        // itself, so rings that differ only in `value` keep separate
+        // timelines, and `last_fraction` remembers what this signature last
+        // painted to seed a new fraction's tween -- an id-less value change
+        // still eases instead of snapping.
+        let signature_id = self.id.is_none().then(|| {
+            let ring = gpui::ElementId::Name("progress-circle".into());
+            let ring = element_id::scoped(
+                &ring,
+                if self.is_indeterminate {
+                    "indeterminate"
+                } else {
+                    "determinate"
+                },
+            );
+            let ring = element_id::scoped(&ring, self.min_value.to_bits().to_string());
+            let ring = element_id::scoped(&ring, self.max_value.to_bits().to_string());
+            element_id::scoped(&ring, f32::from(self.size_px).to_bits().to_string())
+        });
+        let motion_id = match &self.id {
+            Some(id) => id.clone(),
+            None => element_id::scoped(
+                signature_id
+                    .as_ref()
+                    .expect("the signature exists exactly when the id does not"),
+                fraction.to_bits().to_string(),
+            ),
+        };
+        let continuity = signature_id.as_ref().map(|signature| {
+            window.use_keyed_state(
+                element_id::scoped(signature, "last-fraction"),
+                cx,
+                |_, _| std::cell::Cell::new(f32::NAN),
+            )
+        });
+        let seed = continuity
+            .as_ref()
+            .map(|held| held.read(cx).get())
+            .filter(|last| !last.is_nan());
+        let reduce_motion = ActiveTheme::reduce_motion(cx);
+        let mut fraction_motion = crate::anim::Tween::keyed_with_initial(
+            &motion_id,
+            "fill-fraction",
+            fraction,
+            seed,
+            window,
+            cx,
+        );
         if self.is_indeterminate {
             fraction_motion.settle();
         } else {
@@ -693,6 +739,9 @@ impl RenderOnce for ProgressCircle {
         }
         let animate_fraction = !self.is_indeterminate && fraction_motion.animates(reduce_motion);
         let paint_fraction = fraction_motion.value();
+        if let Some(held) = &continuity {
+            held.update(cx, |cell, _| cell.set(paint_fraction.get()));
+        }
         let colors = cx.colors();
         let arc_color = if self.color == Color::Default {
             colors.default.foreground
@@ -748,10 +797,12 @@ impl RenderOnce for ProgressCircle {
         .absolute()
         .inset_0();
 
-        let spin_id = match &self.id {
-            Some(id) => element_id::scoped(id, "spin"),
-            None => gpui::ElementId::from("progress-circle-spin"),
-        };
+        let id = self
+            .id
+            .as_ref()
+            .or(signature_id.as_ref())
+            .expect("a ring always has a caller id or an arc signature");
+        let spin_id = element_id::scoped(id, "spin");
         let track = gpui::div()
             .absolute()
             .inset_0()

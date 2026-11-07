@@ -1419,6 +1419,7 @@ impl Select {
                 element_id::scoped(&self.id, "trigger-hover-fade"),
                 (idle_bg, hover_bg),
                 None,
+                None,
                 (!clear_hovered).then_some(hover_border),
                 clear_hovered,
                 |fill| fill.rounded(trigger_radius),
@@ -2694,6 +2695,7 @@ impl SelectRows {
             ref items,
             ref sections,
             ref opt_disabled_keys,
+            ref cursor_rows,
             ref focus_rows,
             ref indicator,
             ref item_leading,
@@ -2792,9 +2794,26 @@ impl SelectRows {
         if opt_disabled {
             item = item.opacity(row_disabled_opacity);
         } else if panel_interactive {
+            // `useOption.onHoverStart`: pointer hover seats the virtual
+            // cursor for the next arrow key — `shouldFocusOnHover` — while
+            // a keyboard-active session (`focus_visible`) keeps it. Real
+            // focus stays on the trigger; only the cursor moves, and the
+            // row ring stays gated on `shows_focus_ring`.
+            let hover_cursor = cursor_rows.clone();
+            let hover_key = row_key.clone();
             item = item
                 .cursor(util::interactive_cursor(cx))
-                .hover(move |s| s.bg(row_hover_bg));
+                .hover(move |s| s.bg(row_hover_bg))
+                .on_mouse_move(move |_, _window, cx| {
+                    if util::focus_visible(cx) || hover_cursor.read(cx).as_ref() == Some(&hover_key)
+                    {
+                        return;
+                    }
+                    hover_cursor.update(cx, |v, cx| {
+                        *v = Some(hover_key.clone());
+                        cx.notify();
+                    });
+                });
         }
 
         // `.list-box-item[data-selected]` is indicator-only in v3:

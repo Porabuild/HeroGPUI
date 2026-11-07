@@ -30,6 +30,24 @@ mod tests {
         assert_eq!(swatch_visual_scale(true, false), 0.77);
         assert_eq!(swatch_visual_scale(true, true), 0.77);
     }
+
+    #[test]
+    fn the_selection_border_overlay_follows_the_item_radius() {
+        let source = include_str!("swatch_picker.rs");
+        // v3's selected ring is round on a round swatch: the overlay is the
+        // only thing that draws it, so a square overlay squares off the
+        // corners the item radius just rounded. `rsplit` anchors on the real
+        // builder -- this test's own pattern literals precede it in the file.
+        let overlay = source
+            .rsplit("let border_visual = div()")
+            .next()
+            .and_then(|rest| rest.split("let border_visual = if").next())
+            .expect("the selection border overlay");
+        assert!(
+            overlay.contains(".rounded(item_radius)"),
+            "the selection border overlay must carry the item's radius"
+        );
+    }
 }
 
 /// Layout of a [`ColorSwatchPicker`].
@@ -404,7 +422,15 @@ impl RenderOnce for ColorSwatchPicker {
                 cell = cell.child(visual);
             }
 
-            let border_visual = div().absolute().inset_0().border(border_width);
+            let field_shadow = cx.layout().field_shadow.clone();
+            let border_visual = div()
+                .absolute()
+                .inset_0()
+                .rounded(item_radius)
+                .border(border_width)
+                .when(selected && !field_shadow.is_empty(), |b| {
+                    b.shadow(field_shadow)
+                });
             let border_visual = if border.animates(reduced_motion) {
                 let from = border.from();
                 let value = border.value();
@@ -484,30 +510,36 @@ impl RenderOnce for ColorSwatchPicker {
                 );
             }
 
+            // One commit for the pointer click and the Enter/Space key-up:
+            // uncontrolled takes the selection, or the press would do
+            // nothing.
+            let commit = {
+                let own = own.clone();
+                let on_change = self.on_change.clone();
+                let value = *swatch;
+                move |window: &mut Window, cx: &mut App| {
+                    if let Some(held) = &own {
+                        held.update(cx, |v, cx| {
+                            *v = Some(value);
+                            cx.notify();
+                        });
+                    }
+                    if let Some(cb) = &on_change {
+                        cb(&value, window, cx);
+                    }
+                }
+            };
+
             if item_disabled {
                 // v3's sheet: `[data-disabled="true"]` is `status-disabled`,
                 // reduced opacity, and no press handler is attached here at
                 // all -- a disabled swatch cannot report a choice.
                 cell = cell.opacity(cx.layout().disabled_opacity);
             } else if self.on_change.is_some() || own.is_some() {
-                let on_change = self.on_change.clone();
-                let own = own.clone();
-                let value = *swatch;
+                let commit_click = commit.clone();
                 cell = cell
                     .cursor(util::interactive_cursor(cx))
-                    .on_click(move |_, window, cx| {
-                        // Uncontrolled: take the selection, or the press would do
-                        // nothing.
-                        if let Some(held) = &own {
-                            held.update(cx, |v, cx| {
-                                *v = Some(value);
-                                cx.notify();
-                            });
-                        }
-                        if let Some(cb) = &on_change {
-                            cb(&value, window, cx);
-                        }
-                    });
+                    .on_click(move |_, window, cx| commit_click(window, cx));
             }
 
             if !item_disabled {
@@ -528,6 +560,12 @@ impl RenderOnce for ColorSwatchPicker {
                                 cx.notify();
                             });
                             window.focus(&focus, cx);
+                            // gpui's mouse-down default focuses the nearest
+                            // focusable ancestor of the press -- the app
+                            // root here, since only the *previous* cursor cell
+                            // tracks the group's handle -- and would steal the
+                            // handle back in the same dispatch.
+                            window.prevent_default();
                         },
                     );
                 } else {
@@ -541,23 +579,42 @@ impl RenderOnce for ColorSwatchPicker {
                             cx.notify();
                         });
                         window.focus(&focus, cx);
+                        window.prevent_default();
                     });
                 }
             }
 
             // The collection keyboard, the ListBox's: the arrows rove the
             // focus over the enabled swatches and Home and End jump, while a
-            // disabled swatch is never a stop. Enter and Space stay with gpui
-            // -- a focused element's press fires on key up, so the click
-            // handler above is the only path that selects; binding them again
-            // here would select twice. Disabled swatches never see this
-            // handler (they cannot hold the focus), so the cursor only moves
-            // between `enabled`.
+            // disabled swatch is never a stop. Enter and Space are the press,
+            // fired on key up -- the same edge gpui maps a focused press to a
+            // click on -- but the commit runs here rather than through gpui's
+            // pending-keyboard record, which a pointer-pressed swatch leaves
+            // unarmed; the capture keeps gpui's half from also firing, so the
+            // selection still lands exactly once. Disabled swatches never see
+            // this handler (they cannot hold the focus), so the cursor only
+            // moves between `enabled`.
             if !item_disabled {
                 let stops = enabled.clone();
                 let moved = cursor.clone();
                 let pointer = pointer_focus.clone();
                 let columns = grid_columns;
+                let commit_key = commit.clone();
+                cell = cell
+                    .capture_key_down(move |event, window, _cx| {
+                        let key = event.keystroke.key.as_str();
+                        if matches!(key, "enter" | "space") && !event.keystroke.modifiers.modified()
+                        {
+                            window.prevent_default();
+                        }
+                    })
+                    .on_key_up(move |event, window, cx| {
+                        let key = event.keystroke.key.as_str();
+                        if matches!(key, "enter" | "space") && !event.keystroke.modifiers.modified()
+                        {
+                            commit_key(window, cx);
+                        }
+                    });
                 cell = cell.on_key_down(move |event, _window, cx| {
                     let key = event.keystroke.key.as_str();
                     if key == "tab" {
@@ -629,7 +686,7 @@ impl RenderOnce for ColorSwatchPicker {
             }
             let focus_motion =
                 color_focus_ring_motion(&item_id, swatch_ring && item_focused, window, cx);
-            row = row.child(focus_motion.render(cell, Vec::new(), true, cx));
+            row = row.child(focus_motion.render(cell, Vec::new(), item_radius, true, cx));
         }
 
         row.a11y(a11y::Role::RadioGroup)

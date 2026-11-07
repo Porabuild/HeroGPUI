@@ -459,6 +459,9 @@ EXTRA_OK = {
     'selected_indices': 'composition',
     'on_year_picker_open_change': 'composition',
     'is_year_picker_open': 'composition',
+    # Composes v3's `Calendar.YearPickerTrigger`; without it the heading is
+    # the plain `Calendar.Heading` label, as in v3's basic Calendar.
+    'year_picker': 'composition',
     # In a v3 example but not in any prop table: `<ComboBox allowsCustomValue>`
     # and `<TimeField hourCycle={12}>`.
     'allows_custom_value': 'documented-by-example',
@@ -931,12 +934,16 @@ EXTRA_OK_SCOPED = {
     'Checkbox.is_round': 'no-classname',
     'Link.icon': 'composition',
     'Link.icon_first': 'composition',
+    # v3's `Alert.Description` takes a ReactNode; `description` stays the
+    # text-only builder and this is its element content (a list, a link).
+    'Alert.description_content': 'composition',
     # The field styling seams this port adds on top of v3: v3 leaves the box
     # height and horizontal padding to Tailwind (`h-9`, `px-3`) and the family
     # to a font utility, and strips an embedded input's chrome with the
     # ancestor group's descendant selectors. `TextArea`/`TextField` delegate:
     # the wrapper forwards all four, TextArea forwards padding_x/is_bare/
-    # font_family (height stays content-driven by `rows`).
+    # font_family, and its `height` is a floor over the `rows`-derived box
+    # (content still grows it).
     'Input.height': 'no-classname',
     'Input.padding_x': 'no-classname',
     'Input.font_family': 'no-classname',
@@ -948,6 +955,7 @@ EXTRA_OK_SCOPED = {
     'SearchField.text_size': 'no-classname',
     'TextArea.padding_x': 'no-classname',
     'TextArea.font_family': 'no-classname',
+    'TextArea.height': 'no-classname',
     # A bare field is the chrome-less treatment `InputGroup.Input` already
     # gives an embedded field, for a caller painting the box around it. gpui
     # has no descendant selectors, so the group context must be named on the

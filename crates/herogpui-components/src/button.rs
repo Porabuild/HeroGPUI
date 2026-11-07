@@ -471,8 +471,10 @@ fn apply_variant(
             let el = el.text_color(base.foreground);
             let el = if hover_bg { el.bg(base.color) } else { el };
             if interactive {
-                el.when(hover_bg, |e| e.hover(move |s| s.bg(base.hover())))
-                    .active(move |s| s.bg(base.hover()))
+                el.when(hover_bg, |e| {
+                    e.hover(move |s| s.bg(base.hover()))
+                        .active(move |s| s.bg(base.hover()))
+                })
             } else {
                 el
             }
@@ -484,8 +486,10 @@ fn apply_variant(
             let el = el.text_color(colors.accent.soft_foreground(colors.foreground));
             let el = if hover_bg { el.bg(base.color) } else { el };
             if interactive {
-                el.when(hover_bg, |e| e.hover(move |s| s.bg(base.hover())))
-                    .active(move |s| s.bg(base.hover()))
+                el.when(hover_bg, |e| {
+                    e.hover(move |s| s.bg(base.hover()))
+                        .active(move |s| s.bg(base.hover()))
+                })
             } else {
                 el
             }
@@ -499,8 +503,10 @@ fn apply_variant(
                 el.text_color(fg)
             };
             if interactive {
-                el.when(hover_bg, |e| e.hover(move |s| s.bg(base.hover())))
-                    .active(move |s| s.bg(base.hover()))
+                el.when(hover_bg, |e| {
+                    e.hover(move |s| s.bg(base.hover()))
+                        .active(move |s| s.bg(base.hover()))
+                })
             } else {
                 el
             }
@@ -512,8 +518,10 @@ fn apply_variant(
                 .border_color(colors.border)
                 .text_color(base.foreground);
             if interactive {
-                el.when(hover_bg, |e| e.hover(move |s| s.bg(base.color.alpha(0.6))))
-                    .active(move |s| s.bg(base.color))
+                el.when(hover_bg, |e| {
+                    e.hover(move |s| s.bg(base.color.alpha(0.6)))
+                        .active(move |s| s.bg(base.color))
+                })
             } else {
                 el
             }
@@ -522,8 +530,10 @@ fn apply_variant(
             let base = colors.default;
             let el = el.text_color(base.foreground);
             if interactive {
-                el.when(hover_bg, |e| e.hover(move |s| s.bg(base.color)))
-                    .active(move |s| s.bg(base.color))
+                el.when(hover_bg, |e| {
+                    e.hover(move |s| s.bg(base.color))
+                        .active(move |s| s.bg(base.color))
+                })
             } else {
                 el
             }
@@ -533,8 +543,10 @@ fn apply_variant(
             let el = el.text_color(base.foreground);
             let el = if hover_bg { el.bg(base.color) } else { el };
             if interactive {
-                el.when(hover_bg, |e| e.hover(move |s| s.bg(base.hover())))
-                    .active(move |s| s.bg(base.hover()))
+                el.when(hover_bg, |e| {
+                    e.hover(move |s| s.bg(base.hover()))
+                        .active(move |s| s.bg(base.hover()))
+                })
             } else {
                 el
             }
@@ -544,8 +556,10 @@ fn apply_variant(
             let el = el.text_color(base.soft_foreground(colors.foreground));
             let el = if hover_bg { el.bg(base.soft()) } else { el };
             if interactive {
-                el.when(hover_bg, |e| e.hover(move |s| s.bg(base.soft_hover())))
-                    .active(move |s| s.bg(base.soft_hover()))
+                el.when(hover_bg, |e| {
+                    e.hover(move |s| s.bg(base.soft_hover()))
+                        .active(move |s| s.bg(base.soft_hover()))
+                })
             } else {
                 el
             }
@@ -819,6 +833,12 @@ impl RenderOnce for Button {
         let fade = interactive
             .then(|| button_hover_colors(self.variant, cx))
             .and_then(|variant| util::fade_endpoints(variant, sx_background, self.hover_bg));
+        // The pressed endpoint both press paths resolve: the theme's
+        // `pressed_bg` when a recipe names one, else the variant's
+        // `--button-bg-pressed`. The hover fade eases to it while the
+        // interaction slot's pressed bit is set; the reduced-motion press
+        // refinement paints it outright.
+        let pressed_bg = theme_pressed_bg.unwrap_or(button_pressed_background(self.variant, cx));
 
         // The size ladder is the default; the instance text and padding
         // builders replace their rung. An overridden size re-pairs its leading
@@ -905,17 +925,20 @@ impl RenderOnce for Button {
         // colour transition lives on an inset fill *inside* the button, so the
         // button's own element id — and with it the hover listener latch — never
         // moves when the fill's animation restarts (see `anim::hover_fade`).
-        // The interaction slot is handed over when a `content` closure is set:
-        // `track_interaction` then owns `on_hover`, and the fade reads the hover
-        // bit the slot records instead of binding a second listener.
+        // The interaction slot is always present: `track_interaction` owns
+        // `on_hover`, and the fade reads the hover and press bits the slot
+        // records — including the keyboard press — instead of binding a second
+        // listener or a competing `.active` background.
         if let Some(colors) = fade {
             let edge = self.group_edge;
-            el = crate::anim::hover_fade(
+            el = crate::anim::hover_fade_with_press(
                 el,
                 element_id::scoped(&self.id, "fade"),
                 colors,
-                interaction.as_ref(),
-                None,
+                pressed_bg,
+                interaction
+                    .as_ref()
+                    .expect("a button always creates its interaction slot"),
                 move |fill| {
                     util::round_sx_corners(group_radius_any(fill, edge, radius), &sx_corners)
                 },
@@ -993,19 +1016,16 @@ impl RenderOnce for Button {
                 scale: press_scale,
             };
             if ActiveTheme::reduce_motion(cx) {
-                el = crate::anim::pressed_with_background(
-                    el,
-                    press_box,
-                    button_pressed_background(self.variant, cx),
-                    cx,
-                );
+                el = crate::anim::pressed_with_background(el, press_box, pressed_bg, cx);
             } else {
-                let press_endpoints =
-                    fade.map(|(idle, _)| (idle, button_pressed_background(self.variant, cx)));
+                // The hover fade owns the colour whenever it is mounted —
+                // its pressed endpoint is the same `pressed_bg` — so the
+                // ramp keeps only the transform track, the shape
+                // CloseButton's press takes.
                 el = crate::anim::pressed_with_background_ramp(
                     el,
                     press_box,
-                    press_endpoints,
+                    None,
                     crate::anim::BUTTON_PRESS,
                     interaction.as_ref(),
                     window,
@@ -1095,7 +1115,11 @@ impl RenderOnce for Button {
         if let Some(foreground) = theme_hover_fg {
             el = el.hover(move |style| style.text_color(foreground));
         }
-        if let Some(background) = theme_pressed_bg {
+        // The fade folds `pressed_bg` into its pressed endpoint, so the
+        // `.active` refinement only applies where no fade owns the colour.
+        if fade.is_none()
+            && let Some(background) = theme_pressed_bg
+        {
             el = el.active(move |style| style.bg(background));
         }
         if (self.is_disabled || self.is_pending)

@@ -8,8 +8,9 @@ use gpui::{
     point, prelude::*, px, Modifiers, MouseButton, ScrollDelta, ScrollEvent, TestAppContext,
     VisualTestContext,
 };
-use harness::{click, events, open_host, press, Events};
-use herogpui_components::{Button, Drawer, DrawerPlacement};
+use harness::{click, events, open_host, painted, press, Events};
+use herogpui_components::{Button, Drawer, DrawerHandle, DrawerPlacement};
+use herogpui_theme::ActiveTheme;
 
 fn still() {
     harness::still();
@@ -81,6 +82,7 @@ fn content_defaults_to_bottom_placement(cx: &mut TestAppContext) {
             .id("drawer-default-bottom")
             .is_open(true)
             .is_dismissible(false)
+            .child(DrawerHandle::new())
             .child(
                 gpui::div()
                     .id("drawer-default-bottom-probe")
@@ -111,6 +113,7 @@ fn closing_drawer_stays_mounted_for_its_full_exit_duration(cx: &mut TestAppConte
             .id("drawer-exit-lifetime")
             .is_open(open_for_view.get())
             .is_dismissible(false)
+            .child(DrawerHandle::new())
             .child(
                 gpui::div()
                     .id("drawer-exit-lifetime-probe")
@@ -157,7 +160,8 @@ fn body_scroll_reaches_last_row_without_dismissal_and_body_drag_is_excluded(
         let mut drawer = Drawer::new()
             .id("drawer-scroll-body")
             .is_open(open_for_view.get())
-            .placement(DrawerPlacement::Right);
+            .placement(DrawerPlacement::Right)
+            .child(DrawerHandle::new());
         for index in 0..40 {
             let label = format!("row-{index}");
             let recorded = rows_for_view.clone();
@@ -213,7 +217,8 @@ fn titleless_right_drawer_dismisses_once_from_visible_handle(cx: &mut TestAppCon
             Drawer::new()
                 .id("drawer-handle-drag")
                 .is_open(open_for_view.get())
-                .placement(DrawerPlacement::Right),
+                .placement(DrawerPlacement::Right)
+                .child(DrawerHandle::new()),
             open_for_view.clone(),
             for_view.clone(),
         )
@@ -239,7 +244,8 @@ fn right_drawer_dismisses_once_from_header(cx: &mut TestAppContext) {
                 .id("drawer-header-drag")
                 .is_open(open_for_view.get())
                 .placement(DrawerPlacement::Right)
-                .title("Header"),
+                .title("Header")
+                .child(DrawerHandle::new()),
             open_for_view.clone(),
             for_view.clone(),
         )
@@ -263,6 +269,7 @@ fn right_drawer_dismisses_once_from_footer(cx: &mut TestAppContext) {
                 .id("drawer-footer-drag")
                 .is_open(open_for_view.get())
                 .placement(DrawerPlacement::Right)
+                .child(DrawerHandle::new())
                 .footer_child(gpui::div().w(px(80.)).h(px(40.))),
             open_for_view.clone(),
             for_view.clone(),
@@ -291,6 +298,7 @@ fn footer_button_does_not_start_drag_and_still_activates(cx: &mut TestAppContext
                 .id("drawer-footer-button")
                 .is_open(open_for_view.get())
                 .placement(DrawerPlacement::Right)
+                .child(DrawerHandle::new())
                 .footer_child(
                     gpui::div().w(px(160.)).child(
                         Button::new("drawer-footer-action")
@@ -340,6 +348,7 @@ fn unfocusable_footer_click_does_not_start_drag_and_still_activates(cx: &mut Tes
                 .id("drawer-footer-unfocusable-click")
                 .is_open(open_for_view.get())
                 .placement(DrawerPlacement::Right)
+                .child(DrawerHandle::new())
                 .footer_child(
                     gpui::div()
                         .id("drawer-footer-clickable-div")
@@ -377,6 +386,7 @@ fn noninteractive_full_width_footer_child_remains_draggable(cx: &mut TestAppCont
                 .id("drawer-footer-full-width")
                 .is_open(open_for_view.get())
                 .placement(DrawerPlacement::Right)
+                .child(DrawerHandle::new())
                 .footer_child(gpui::div().w_full().h(px(40.))),
             open_for_view.clone(),
             recorded_for_view.clone(),
@@ -408,7 +418,9 @@ fn top_drawer_drag_reaches_past_window_edge(cx: &mut TestAppContext) {
         .into_any_element()
     });
 
-    drag(cx, (960., 48.), (960., -120.));
+    // With no composed handle the title row starts at the 24px inset and
+    // ends at y=48, so the pull begins at its centre.
+    drag(cx, (960., 36.), (960., -120.));
     assert_eq!(recorded.borrow().as_slice(), ["close", "open:false"]);
 }
 
@@ -426,6 +438,7 @@ fn top_drawer_handle_and_footer_can_start_global_drag(cx: &mut TestAppContext) {
                 .is_open(open_for_view.get())
                 .placement(DrawerPlacement::Top)
                 .title("Top")
+                .child(DrawerHandle::new())
                 .footer_child(gpui::div().w(px(80.)).h(px(40.))),
             open_for_view.clone(),
             recorded_for_view.clone(),
@@ -433,7 +446,10 @@ fn top_drawer_handle_and_footer_can_start_global_drag(cx: &mut TestAppContext) {
         .into_any_element()
     });
 
-    drag(cx, (960., 28.), (960., -120.));
+    // v3 mounts the composed Top handle after the footer: the sheet is
+    // 120px tall, so the 4px bar sits at y[108..112] and the footer row at
+    // y[68..108].
+    drag(cx, (960., 110.), (960., -120.));
     assert_eq!(recorded.borrow().as_slice(), ["close", "open:false"]);
 
     recorded.borrow_mut().clear();
@@ -455,7 +471,8 @@ fn drawer_drag_needs_eight_pixels_but_fast_flick_can_dismiss(cx: &mut TestAppCon
             Drawer::new()
                 .id("drawer-drag-activation")
                 .is_open(open_for_view.get())
-                .placement(DrawerPlacement::Right),
+                .placement(DrawerPlacement::Right)
+                .child(DrawerHandle::new()),
             open_for_view.clone(),
             recorded_for_view.clone(),
         )
@@ -487,6 +504,7 @@ fn non_dismissible_blocks_surface_drags_and_backdrop_but_not_escape(cx: &mut Tes
                 .placement(DrawerPlacement::Right)
                 .is_dismissible(false)
                 .title("Header")
+                .child(DrawerHandle::new())
                 .footer_child(gpui::div().w_full().h(px(40.))),
             open_for_view.clone(),
             for_view.clone(),
@@ -521,7 +539,8 @@ fn keyboard_dismiss_disabled_blocks_escape_but_not_handle_drag(cx: &mut TestAppC
                 .id("drawer-keyboard-disabled")
                 .is_open(open_for_view.get())
                 .placement(DrawerPlacement::Right)
-                .is_keyboard_dismiss_disabled(true),
+                .is_keyboard_dismiss_disabled(true)
+                .child(DrawerHandle::new()),
             open_for_view.clone(),
             for_view.clone(),
         )
@@ -579,4 +598,147 @@ fn tab_remains_trapped_inside_drawer(cx: &mut TestAppContext) {
     press(cx, "enter");
     assert_eq!(inside.borrow().as_slice(), ["second"]);
     assert!(outside.borrow().is_empty(), "Tab must not leave the drawer");
+}
+
+/// The handle's whole painted surface is the 36x4 `bg-separator` bar, so
+/// finding separator-coloured quads of that size finds every composed
+/// handle and nothing else in these minimal sheets.
+fn handle_bars(cx: &mut VisualTestContext) -> Vec<gpui::Bounds<gpui::Pixels>> {
+    let scene = painted(cx);
+    let separator = cx.update(|_, cx| cx.colors().separator);
+    scene
+        .quads
+        .iter()
+        .filter(|quad| quad.background.as_solid() == Some(separator))
+        .map(|quad| scene.bounds(quad))
+        .filter(|bounds| {
+            (f32::from(bounds.size.width) - 36.).abs() < 0.6
+                && (f32::from(bounds.size.height) - 4.).abs() < 0.6
+        })
+        .collect()
+}
+
+/// v3's `Drawer.Handle` is an optional composed part: a drawer that composes
+/// none paints no bar, so right and left sheets — which v3 never gives one —
+/// stay clean by default.
+#[gpui::test]
+fn drawer_without_composed_handle_paints_no_bar(cx: &mut TestAppContext) {
+    still();
+    let cx = open_host(cx, move || {
+        Drawer::new()
+            .id("drawer-no-handle")
+            .is_open(true)
+            .placement(DrawerPlacement::Right)
+            .title("No handle")
+            .into_any_element()
+    });
+
+    assert!(
+        handle_bars(cx).is_empty(),
+        "an uncomposed Drawer.Handle must paint no separator bar"
+    );
+}
+
+/// A composed handle paints the 36x4 bar before the header on Bottom: the
+/// bar's top sits above the body probe by the title row plus `mt-2`, not
+/// merely above it — a bar mounted between header and body would land only
+/// ~19px above the probe instead of ~47px.
+#[gpui::test]
+fn composed_handle_paints_before_the_header_on_bottom(cx: &mut TestAppContext) {
+    still();
+    let body_color: gpui::Hsla = gpui::rgb(0x334455).into();
+    let footer_color: gpui::Hsla = gpui::rgb(0x556677).into();
+    let body_color_for_view = body_color;
+    let footer_color_for_view = footer_color;
+    let cx = open_host(cx, move || {
+        Drawer::new()
+            .id("drawer-bottom-handle")
+            .is_open(true)
+            .placement(DrawerPlacement::Bottom)
+            .title("Bottom")
+            .child(DrawerHandle::new())
+            .child(gpui::div().w(px(40.)).h(px(40.)).bg(body_color_for_view))
+            .footer_child(gpui::div().w(px(40.)).h(px(40.)).bg(footer_color_for_view))
+            .into_any_element()
+    });
+
+    let scene = painted(cx);
+    let body_probe = scene
+        .filled(body_color)
+        .into_iter()
+        .next()
+        .map(|quad| scene.bounds(quad))
+        .expect("the body probe must paint");
+    let bars = handle_bars(cx);
+    assert_eq!(bars.len(), 1, "exactly one composed handle must paint");
+    let gap = f32::from(body_probe.origin.y) - f32::from(bars[0].origin.y);
+    assert!(
+        gap > 35.,
+        "the handle must mount before the header: bar top is {gap}px above the body probe"
+    );
+}
+
+/// On Top the composed handle mounts after the footer — v3's `--top`
+/// variant parks the bar at the sheet's far edge — so the bar's top is at
+/// or below the footer probe's bottom.
+#[gpui::test]
+fn composed_handle_mounts_after_the_footer_on_top(cx: &mut TestAppContext) {
+    still();
+    let footer_color: gpui::Hsla = gpui::rgb(0x556677).into();
+    let footer_color_for_view = footer_color;
+    let cx = open_host(cx, move || {
+        Drawer::new()
+            .id("drawer-top-handle")
+            .is_open(true)
+            .placement(DrawerPlacement::Top)
+            .title("Top")
+            .child(DrawerHandle::new())
+            .footer_child(gpui::div().w(px(40.)).h(px(40.)).bg(footer_color_for_view))
+            .into_any_element()
+    });
+
+    let scene = painted(cx);
+    let footer_probe = scene
+        .filled(footer_color)
+        .into_iter()
+        .next()
+        .map(|quad| scene.bounds(quad))
+        .expect("the footer probe must paint");
+    let bars = handle_bars(cx);
+    assert_eq!(bars.len(), 1, "exactly one composed handle must paint");
+    let footer_bottom = f32::from(footer_probe.origin.y + footer_probe.size.height);
+    let bar_top = f32::from(bars[0].origin.y);
+    assert!(
+        bar_top >= footer_bottom - 0.5,
+        "the Top handle must mount after the footer: bar top {bar_top} vs footer bottom {footer_bottom}"
+    );
+}
+
+/// The composed handle keeps the drag-to-dismiss wiring: a pull on the
+/// Bottom sheet's bar travels past the threshold and reports the close.
+#[gpui::test]
+fn bottom_drawer_composed_handle_drag_still_dismisses(cx: &mut TestAppContext) {
+    still();
+    let open = Rc::new(Cell::new(true));
+    let recorded = events();
+    let open_for_view = open;
+    let for_view = recorded.clone();
+    let cx = open_host(cx, move || {
+        close_callbacks(
+            Drawer::new()
+                .id("drawer-bottom-handle-drag")
+                .is_open(open_for_view.get())
+                .placement(DrawerPlacement::Bottom)
+                .title("Bottom")
+                .child(DrawerHandle::new()),
+            open_for_view.clone(),
+            for_view.clone(),
+        )
+        .into_any_element()
+    });
+
+    // Title + handle only: the 84px sheet sits at y[996..1080] and its
+    // handle strip spans y[1020..1032]. A 94px pull clears 30% of it.
+    drag(cx, (960., 1026.), (960., 1120.));
+    assert_eq!(recorded.borrow().as_slice(), ["close", "open:false"]);
 }

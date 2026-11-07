@@ -15,10 +15,87 @@ impl Gallery {
             vec![
                 (
                     "Usage",
-                    specimen_body("alert-main", wide_col(vec![h::Alert::new("New features available")
-                        .description(ALERT_USAGE_DESCRIPTION)
-                        .radius(px(8.))
-                        .into_any_element()]), cx),
+                    // v3's alert wall: default, accent with an action, danger
+                    // with steps, a title-only success with a close button, a
+                    // custom spinner indicator and a warning.
+                    specimen_body("alert-main", wide_col(vec![
+                        h::Alert::new("New features available")
+                            .description(ALERT_USAGE_DESCRIPTION)
+                            .into_any_element(),
+                        h::Alert::new("Update available")
+                            .status(Color::Accent)
+                            .description(
+                                "A new version of the application is available. Please \
+                                 refresh to get the latest features and bug fixes.",
+                            )
+                            .child(
+                                h::Button::new("alert-refresh")
+                                    .label("Refresh")
+                                    .size(Size::Sm)
+                                    .variant(Variant::Primary),
+                            )
+                            .into_any_element(),
+                        h::Alert::new("Unable to connect to server")
+                            .status(Color::Danger)
+                            .description(
+                                "We're experiencing connection issues. Please try the \
+                                 following:",
+                            )
+                            // v3's `<ul class="mt-2 list-inside list-disc
+                            // space-y-1 text-sm">` inside `Alert.Description`;
+                            // gpui has no list-style, so each row draws its
+                            // own disc.
+                            .description_content({
+                                let muted = cx.colors().muted;
+                                let item = |text: &'static str| {
+                                    gpui::div()
+                                        .flex()
+                                        .flex_row()
+                                        .gap(px(4.))
+                                        .child(gpui::div().flex_shrink_0().child("•"))
+                                        .child(gpui::div().child(text))
+                                        .into_any_element()
+                                };
+                                gpui::div()
+                                    .mt(px(8.))
+                                    .flex()
+                                    .flex_col()
+                                    .gap(px(4.))
+                                    .text_size(px(14.))
+                                    .line_height(px(20.))
+                                    .text_color(muted)
+                                    .child(item("Check your internet connection"))
+                                    .child(item("Refresh the page"))
+                                    .child(item("Clear your browser cache"))
+                                    .into_any_element()
+                            })
+                            .child(
+                                h::Button::new("alert-retry")
+                                    .label("Retry")
+                                    .size(Size::Sm)
+                                    .variant(Variant::Danger),
+                            )
+                            .into_any_element(),
+                        h::Alert::new("Profile updated successfully")
+                            .status(Color::Success)
+                            .child(h::CloseButton::new("alert-success-close"))
+                            .into_any_element(),
+                        h::Alert::new("Processing your request")
+                            .status(Color::Accent)
+                            .description(
+                                "Please wait while we sync your data. This may take a few \
+                                 moments.",
+                            )
+                            .indicator(h::Spinner::new("alert-spinner").size(h::SpinnerSize::Sm))
+                            .into_any_element(),
+                        h::Alert::new("Scheduled maintenance")
+                            .status(Color::Warning)
+                            .description(
+                                "Our services will be unavailable on Sunday, March 15th \
+                                 from 2:00 AM to 6:00 AM UTC for scheduled maintenance.",
+                            )
+                            .into_any_element(),
+                    ]), cx),
                 ),
                 (
                     "Colors",
@@ -72,6 +149,14 @@ impl Gallery {
                         },
                     ]), cx),
                 ),
+                (
+                    "Styling Overrides",
+                    "`radius(px)` replaces the alert's default corner.",
+                    specimen_body("alert-styling", wide_col(vec![h::Alert::new("New features available")
+                        .description(ALERT_USAGE_DESCRIPTION)
+                        .radius(px(8.))
+                        .into_any_element()]), cx),
+                ),
             ],
             cx,
         )
@@ -89,23 +174,11 @@ impl Gallery {
                     specimen_body("meter-main", col(vec![gpui::div()
                         .w(px(256.))
                         .child(
-                            h::Meter::new("meter-usage", value)
-                                .label("Disk usage")
-                                .radius(px(4.))
+                            h::Meter::new("meter-usage", 60.)
+                                .label("Storage")
                                 .show_value(true),
                         )
                         .into_any_element()]), cx),
-                ),
-                (
-                    "Colors",
-                    col(Color::ALL
-                        .iter()
-                        .enumerate()
-                        .map(|(index, c)| {
-                            let key = format!("meter-color-{c:?}");
-                            specimen_body(&key, fixed_demo(256., h::Meter::new(("meter-color", index), value).color(*c)), cx)
-                        })
-                        .els()),
                 ),
                 (
                     "Sizes",
@@ -115,6 +188,17 @@ impl Gallery {
                         .map(|(index, s)| {
                             let key = format!("meter-size-{s:?}");
                             specimen_body(&key, fixed_demo(256., h::Meter::new(("meter-size", index), value).size(*s)), cx)
+                        })
+                        .els()),
+                ),
+                (
+                    "Colors",
+                    col(Color::ALL
+                        .iter()
+                        .enumerate()
+                        .map(|(index, c)| {
+                            let key = format!("meter-color-{c:?}");
+                            specimen_body(&key, fixed_demo(256., h::Meter::new(("meter-color", index), value).color(*c)), cx)
                         })
                         .els()),
                 ),
@@ -137,6 +221,19 @@ impl Gallery {
                             .format_options(herogpui_core::NumberFormat::unit("GB")),
                     )]), cx),
                 ),
+                (
+                    "Styling Overrides",
+                    "`radius(px)` replaces the track's default corner.",
+                    specimen_body("meter-styling", col(vec![gpui::div()
+                        .w(px(256.))
+                        .child(
+                            h::Meter::new("meter-override", value)
+                                .label("Disk usage")
+                                .radius(px(4.))
+                                .show_value(true),
+                        )
+                        .into_any_element()]), cx),
+                ),
             ],
             cx,
         )
@@ -154,28 +251,11 @@ impl Gallery {
                         .w(px(256.))
                         .child(
                             h::ProgressBar::new("progress-usage")
-                                .value(65.0)
-                                .label("Uploading")
-                                .radius(px(4.))
+                                .value(60.0)
+                                .label("Loading")
                                 .show_value_label(true),
                         )
                         .into_any_element()]), cx),
-                ),
-                (
-                    "Colors",
-                    col(Color::ALL
-                        .iter()
-                        .enumerate()
-                        .map(|(index, c)| {
-                            let key = format!("progress-color-{c:?}");
-                            specimen_body(&key, fixed_demo(
-                                256.,
-                                h::ProgressBar::new(("progress-color", index))
-                                    .value(65.0)
-                                    .color(*c),
-                            ), cx)
-                        })
-                        .els()),
                 ),
                 (
                     "Sizes",
@@ -199,6 +279,22 @@ impl Gallery {
                                 .size(Size::Lg),
                         ), cx),
                     ]),
+                ),
+                (
+                    "Colors",
+                    col(Color::ALL
+                        .iter()
+                        .enumerate()
+                        .map(|(index, c)| {
+                            let key = format!("progress-color-{c:?}");
+                            specimen_body(&key, fixed_demo(
+                                256.,
+                                h::ProgressBar::new(("progress-color", index))
+                                    .value(65.0)
+                                    .color(*c),
+                            ), cx)
+                        })
+                        .els()),
                 ),
                 (
                     "Without Label",
@@ -229,6 +325,20 @@ impl Gallery {
                             .format_options(herogpui_core::NumberFormat::unit("MB")),
                     )]), cx),
                 ),
+                (
+                    "Styling Overrides",
+                    "`radius(px)` replaces the track's default corner.",
+                    specimen_body("progress-styling", col(vec![gpui::div()
+                        .w(px(256.))
+                        .child(
+                            h::ProgressBar::new("progress-override")
+                                .value(65.0)
+                                .label("Uploading")
+                                .radius(px(4.))
+                                .show_value_label(true),
+                        )
+                        .into_any_element()]), cx),
+                ),
             ],
             cx,
         )
@@ -247,23 +357,37 @@ impl Gallery {
                     specimen_body("progress-circle-main", row(vec![h::ProgressCircle::new().value(60.).into_any_element()]), cx),
                 ),
                 (
-                    "Value Transition",
-                    "Determinate value changes interpolate the retained arc over HeroUI's 300ms ease-out stroke transition; reduced motion settles directly.",
-                    specimen_body("progress-circle-transition", row(vec![
-                        h::ProgressCircle::new()
-                            .id("progress-circle-transition-ring")
-                            .value(circle_value)
-                            .into_any_element(),
-                        h::Button::new("progress-circle-transition-toggle")
-                            .label(if circle_transition { "Show 25%" } else { "Show 85%" })
+                    "Sizes",
+                    row(vec![
+                        specimen_body("progress-circle-size-Sm", h::ProgressCircle::new()
+                            .value(70.0)
                             .size(Size::Sm)
-                            .variant(Variant::Secondary)
-                            .on_press(cx.listener(move |this, _, _, cx| {
-                                this.set_demo_flag("progress-circle-transition", !circle_transition);
-                                cx.notify();
-                            }))
-                            .into_any_element(),
-                    ]), cx),
+                            .into_any_element(), cx),
+                        specimen_body("progress-circle-size-Md", h::ProgressCircle::new()
+                            .value(70.0)
+                            .size(Size::Md)
+                            .into_any_element(), cx),
+                        specimen_body("progress-circle-size-Lg", h::ProgressCircle::new()
+                            .value(70.0)
+                            .size(Size::Lg)
+                            .into_any_element(), cx),
+                    ]),
+                ),
+                (
+                    "Colors",
+                    row(Color::ALL
+                        .iter()
+                        .map(|c| {
+                                {
+                                    let key = format!("progress-circle-color-{c:?}");
+                                    specimen_body(&key, spec(
+                                        c.label(),
+                                        h::ProgressCircle::new().value(70.0).color(*c),
+                                        cx,
+                                    ), cx)
+                                }
+                        })
+                        .collect()),
                 ),
                 (
                     "Indeterminate",
@@ -300,37 +424,23 @@ impl Gallery {
                     ]),
                 ),
                 (
-                    "Colors",
-                    row(Color::ALL
-                        .iter()
-                        .map(|c| {
-                                {
-                                    let key = format!("progress-circle-color-{c:?}");
-                                    specimen_body(&key, spec(
-                                        c.label(),
-                                        h::ProgressCircle::new().value(70.0).color(*c),
-                                        cx,
-                                    ), cx)
-                                }
-                        })
-                        .collect()),
-                ),
-                (
-                    "Sizes",
-                    row(vec![
-                        specimen_body("progress-circle-size-Sm", h::ProgressCircle::new()
-                            .value(70.0)
+                    "Value Transition",
+                    "Determinate value changes interpolate the retained arc over HeroUI's 300ms ease-out stroke transition; reduced motion settles directly.",
+                    specimen_body("progress-circle-transition", row(vec![
+                        h::ProgressCircle::new()
+                            .id("progress-circle-transition-ring")
+                            .value(circle_value)
+                            .into_any_element(),
+                        h::Button::new("progress-circle-transition-toggle")
+                            .label(if circle_transition { "Show 25%" } else { "Show 85%" })
                             .size(Size::Sm)
-                            .into_any_element(), cx),
-                        specimen_body("progress-circle-size-Md", h::ProgressCircle::new()
-                            .value(70.0)
-                            .size(Size::Md)
-                            .into_any_element(), cx),
-                        specimen_body("progress-circle-size-Lg", h::ProgressCircle::new()
-                            .value(70.0)
-                            .size(Size::Lg)
-                            .into_any_element(), cx),
-                    ]),
+                            .variant(Variant::Secondary)
+                            .on_press(cx.listener(move |this, _, _, cx| {
+                                this.set_demo_flag("progress-circle-transition", !circle_transition);
+                                cx.notify();
+                            }))
+                            .into_any_element(),
+                    ]), cx),
                 ),
             ],
             cx,
@@ -345,20 +455,26 @@ impl Gallery {
             vec![
                 (
                     "Usage",
+                    // v3: a `shadow-panel` `w-[250px] rounded-lg p-4` frame
+                    // holding an `h-32` block and three `h-3` bars at 3/5, 4/5
+                    // and 2/5 of the 218px content width.
                     specimen_body("skeleton-main", col(vec![gpui::div()
                         .w(px(250.))
+                        .p(px(16.))
                         .flex()
                         .flex_col()
                         .gap(px(20.))
+                        .rounded(px(8.))
+                        .shadow(cx.layout().surface_shadow.clone())
                         .child(h::Skeleton::new().w(px(218.)).h(px(128.)).radius(px(8.)))
                         .child(
                             gpui::div()
                                 .flex()
                                 .flex_col()
                                 .gap(px(12.))
-                                .child(h::Skeleton::new().w(px(130.)).h(px(12.)))
-                                .child(h::Skeleton::new().w(px(174.)).h(px(12.)))
-                                .child(h::Skeleton::new().w(px(87.)).h(px(12.))),
+                                .child(h::Skeleton::new().w(px(130.)).h(px(12.)).radius(px(8.)))
+                                .child(h::Skeleton::new().w(px(174.)).h(px(12.)).radius(px(8.)))
+                                .child(h::Skeleton::new().w(px(87.)).h(px(12.)).radius(px(8.))),
                         )
                         .into_any_element()]), cx),
                 ),
@@ -505,14 +621,6 @@ impl Gallery {
                     specimen_body("spinner-main", row(vec![h::Spinner::new("sp-usage").into_any_element()]), cx),
                 ),
                 (
-                    "Speed",
-                    row(vec![
-                        specimen_body("spinner-speed-Slow", spec("Slow", h::Spinner::new("sp-slow").duration_ms(1500), cx), cx),
-                        specimen_body("spinner-speed-Default", spec("Default", h::Spinner::new("sp-default"), cx), cx),
-                        specimen_body("spinner-speed-Fast", spec("Fast", h::Spinner::new("sp-fast").duration_ms(500), cx), cx),
-                    ]),
-                ),
-                (
                     "Colors",
                     row(Color::ALL
                         .iter()
@@ -543,6 +651,14 @@ impl Gallery {
                             }
                         })
                         .collect()),
+                ),
+                (
+                    "Speed",
+                    row(vec![
+                        specimen_body("spinner-speed-Slow", spec("Slow", h::Spinner::new("sp-slow").duration_ms(1500), cx), cx),
+                        specimen_body("spinner-speed-Default", spec("Default", h::Spinner::new("sp-default"), cx), cx),
+                        specimen_body("spinner-speed-Fast", spec("Fast", h::Spinner::new("sp-fast").duration_ms(500), cx), cx),
+                    ]),
                 ),
                 (
                     "Pixel Sizes",

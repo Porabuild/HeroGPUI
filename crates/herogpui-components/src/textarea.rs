@@ -63,6 +63,18 @@ impl TextArea {
         self
     }
 
+    /// A pixel height floor, in place of the `rows`-derived one — the
+    /// spelling for v3's `h-*`/`min-h-*` classes on the field box.
+    ///
+    /// The multi-line surface grows with its content and has no inner
+    /// scroller, so this is a floor rather than the fixed `height` v3's
+    /// `h-32` declares: an empty or short field shows exactly this height,
+    /// and longer content still grows the box instead of clipping.
+    pub fn height(mut self, h: impl Into<gpui::Pixels>) -> Self {
+        self.inner = self.inner.min_h(h.into());
+        self
+    }
+
     /// `name` — see [`crate::input::Input::name`].
     pub fn name(mut self, name: impl Into<SharedString>) -> Self {
         self.inner = self.inner.name(name);

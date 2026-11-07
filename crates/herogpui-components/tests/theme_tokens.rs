@@ -71,6 +71,40 @@ const CONSUMERS: &[Consumer] = &[
     },
 ];
 
+/// v3's dark `--overlay-shadow` is `0 0 1px rgba(255,255,255,.3) inset` —
+/// the hairline that separates a floating panel from the page. Every surface
+/// painting `overlay_shadow` must also paint `overlay_hairline`, or dark mode
+/// loses the edge entirely.
+#[test]
+fn every_overlay_shadow_surface_paints_the_dark_hairline() {
+    for file in [
+        "toast.rs",
+        "toolbar.rs",
+        "sheet.rs",
+        "modal.rs",
+        "drawer.rs",
+        "date_picker/picker.rs",
+        // Already wired before this sweep; pinned so a regression cannot
+        // drop one side of the pair.
+        "popover.rs",
+        "alert_dialog.rs",
+        "select.rs",
+        "tooltip.rs",
+        "dropdown.rs",
+        "combo_box.rs",
+        "autocomplete.rs",
+        "hover_card.rs",
+        "color_picker/picker.rs",
+        "command_palette.rs",
+    ] {
+        let source = component_src(file);
+        assert!(
+            source.contains("overlay_hairline"),
+            "{file} paints overlay_shadow but never the dark-mode hairline"
+        );
+    }
+}
+
 #[test]
 fn every_named_consumer_reads_its_token_and_drops_the_literal() {
     // The three Tabs closures must be fed by the layout-token binding: a
@@ -348,9 +382,9 @@ fn button_reaches_hover(cx: &mut TestAppContext, fade_ms: u64, wait_ms: u64) -> 
     harness::wait_ms(cx, 50);
     cx.simulate_mouse_move(point(px(20.), px(18.)), None, Modifiers::none());
     harness::wait_ms(cx, wait_ms);
-    // The fade sets the element's own fill to the endpoint at once and eases
-    // an overlay fill across it, so the colour that shows is the last solid
-    // painted over the element's box.
+    // Once the fade's fill is mounted it is the only painter of the colour —
+    // the element underneath stays transparent — so the colour that shows is
+    // the last solid painted over the element's box.
     let scene = harness::painted(cx);
     let Some(element) = scene
         .quads

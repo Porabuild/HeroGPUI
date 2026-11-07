@@ -1972,7 +1972,10 @@ impl ComboBox {
             let dismiss_close = close_open.clone();
             let dismiss_commit = commit_value.clone();
             let dismiss_blur = blur_scope.clone();
-            root = util::dismiss_on_press_outside_with_token(
+            // ComboBox's popover is `isNonModal` in React Aria: no underlay,
+            // so the outside press that closes the list also reaches the
+            // control under the pointer.
+            root = util::dismiss_on_press_outside_passthrough_with_token(
                 root,
                 dismissal_token.clone(),
                 move |window, cx| {
@@ -2077,8 +2080,10 @@ impl ComboBox {
         let dismiss_close = close_open.clone();
         let dismiss_commit = commit_value.clone();
         let dismiss_blur = blur_scope;
-        let mut panel =
-            util::dismiss_on_press_outside_with_token(panel, dismissal_token, move |window, cx| {
+        let mut panel = util::dismiss_on_press_outside_passthrough_with_token(
+            panel,
+            dismissal_token,
+            move |window, cx| {
                 if inside_pressed.get() {
                     return util::DismissResult::Declined;
                 }
@@ -2086,7 +2091,8 @@ impl ComboBox {
                 dismiss_commit(window, cx);
                 dismiss_close(window, cx);
                 util::DismissResult::Handled
-            });
+            },
+        );
 
         if matches.is_empty() {
             // `allowsCustomValue` means an unmatched query is still valid,
@@ -2653,9 +2659,11 @@ impl ComboRows {
             row_read_only,
             ref row_selected_keys,
             ref indicator,
+            ref row_cursor,
             row_disabled_opacity,
             ref row_base,
             row_virtualized,
+            panel_interactive,
             row_count,
             row_padding_x,
             ref row_font_family,
@@ -2746,6 +2754,29 @@ impl ComboRows {
             row = row
                 .cursor(util::interactive_cursor(cx))
                 .hover(move |s| s.bg(hover_bg));
+            // `useOption.onHoverStart` with `shouldFocusOnHover`: pointer
+            // hover seats the virtual cursor for the next arrow key, but a
+            // keyboard-active session (`focus_visible`) keeps it. The input
+            // keeps real focus — only the cursor moves.
+            if panel_interactive {
+                let hover_cursor = row_cursor.clone();
+                let next_cursor = cursor_for(rows, index, None);
+                let hover_key = item.key().clone();
+                row = row.on_mouse_move(move |_, _window, cx| {
+                    if util::focus_visible(cx)
+                        || hover_cursor
+                            .read(cx)
+                            .as_ref()
+                            .is_some_and(|cursor| cursor.key == hover_key)
+                    {
+                        return;
+                    }
+                    hover_cursor.update(cx, |v, cx| {
+                        *v = Some(next_cursor.clone());
+                        cx.notify();
+                    });
+                });
+            }
         }
 
         // `status-focused` on the row the keyboard is on.

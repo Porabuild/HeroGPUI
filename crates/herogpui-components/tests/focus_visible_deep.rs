@@ -8,7 +8,9 @@ use crate::harness;
 
 use gpui::{prelude::*, px, TestAppContext};
 use harness::{click, events, open_host, press, still};
-use herogpui_components::{extend, Button, Dropdown, MenuItem, PickerItem, Select};
+use herogpui_components::{
+    extend, Button, ColorSwatchPicker, Dropdown, MenuItem, PickerColor, PickerItem, Select,
+};
 
 fn ring_on(cx: &mut gpui::VisualTestContext) -> bool {
     cx.update(|_, cx| extend::focus_visible(cx))
@@ -343,3 +345,137 @@ fn select_keyboard_pick_rings_the_trigger(cx: &mut TestAppContext) {
 /// the list padding put it here, and `select_mouse_pick_does_not_ring_the_trigger`
 /// asserts the press really picked.
 const OPTION_Y: f32 = 62.;
+
+/// A Dropdown's menu is modal like Select's: the outside press that
+/// closes it is consumed by the underlay contract and must not reach the
+/// sibling button underneath.
+#[gpui::test]
+fn pointer_dropdown_outside_press_does_not_reach_the_sibling(cx: &mut TestAppContext) {
+    still();
+    let clicks = events();
+    let clicked = clicks.clone();
+    let opened = events();
+    let log = opened.clone();
+    let cx = open_host(cx, move || {
+        let clicks = clicks.clone();
+        let log = log.clone();
+        gpui::div()
+            .flex()
+            .flex_col()
+            .gap(px(8.))
+            .child(
+                gpui::div()
+                    .id("fv-dd-outside-btn")
+                    .w(px(140.))
+                    .h(px(36.))
+                    .flex()
+                    .items_center()
+                    .justify_center()
+                    .debug_selector(|| "fv-dd-outside-btn".to_owned())
+                    .child(
+                        Button::new("fv-dd-outside-inner")
+                            .label("Outside")
+                            .on_press(move |_, _, _| clicks.borrow_mut().push("click".into())),
+                    )
+                    .into_any_element(),
+            )
+            .child(
+                Dropdown::uncontrolled(
+                    "fv-dd-outside",
+                    Button::new("fv-dd-outside-trigger").label("Open"),
+                    vec![MenuItem::new("a", "Alpha"), MenuItem::new("b", "Beta")],
+                )
+                .id("fv-dd-outside")
+                .on_open_change(move |open, _, _| {
+                    log.borrow_mut().push(format!("open:{open}"));
+                })
+                .into_any_element(),
+            )
+            .into_any_element()
+    });
+
+    // The trigger sits one row below the sibling button: 36px + 8px gap.
+    click(cx, 40., 62.);
+    cx.update(|window, _| window.refresh());
+    assert_eq!(last_open(&opened).as_deref(), Some("open:true"));
+
+    let button = cx
+        .debug_bounds("fv-dd-outside-btn")
+        .expect("the sibling button must be laid out");
+    cx.simulate_click(button.center(), gpui::Modifiers::none());
+    cx.update(|window, _| window.refresh());
+
+    assert_eq!(
+        last_open(&opened).as_deref(),
+        Some("open:false"),
+        "the outside press must still dismiss the open menu"
+    );
+    assert!(
+        clicked.borrow().is_empty(),
+        "the modal underlay must consume the press: the button never sees it"
+    );
+}
+
+// ---------------------------------------------------------------------------
+// Keyboard modality is recorded in the capture phase — the way React Aria's
+// document-level keydown listener does it — so a descendant that stops
+// propagation on a key cannot hide the modality switch from the app root.
+// ---------------------------------------------------------------------------
+
+#[gpui::test]
+fn swatch_picker_pointer_click_then_arrow_shows_keyboard_ring(cx: &mut TestAppContext) {
+    still();
+    let red = PickerColor::from_hex("#F43F5E").unwrap();
+    let green = PickerColor::from_hex("#10B981").unwrap();
+    let blue = PickerColor::from_hex("#3B82F6").unwrap();
+    let cx = open_host(cx, move || {
+        ColorSwatchPicker::new("fv-csp", vec![red, green, blue]).into_any_element()
+    });
+    harness::settle(cx);
+
+    // Pointer session: the click seats focus without a ring.
+    click(cx, 56., 16.);
+    cx.update(|window, _| window.refresh());
+    assert!(!ring_on(cx), "a pointer click must not show a ring");
+
+    // The swatch arrow handler stops propagation; the root's capture-phase
+    // modality record must still see the key, or the moved focus rings
+    // only after a second key.
+    press(cx, "right");
+    assert!(
+        ring_on(cx),
+        "an arrow that moves swatch focus must switch on the ring even though the handler stops propagation"
+    );
+}
+
+#[gpui::test]
+fn a_swallowed_key_still_records_keyboard_modality(cx: &mut TestAppContext) {
+    still();
+    let handle = cx.update(|cx| cx.focus_handle().tab_stop(true));
+    let tracked = handle.clone();
+    let cx = open_host(cx, move || {
+        gpui::div()
+            .id("fv-swallow")
+            .w(px(120.))
+            .h(px(36.))
+            .track_focus(&tracked)
+            .on_key_down(|event, _, cx| {
+                if event.keystroke.key == "down" {
+                    cx.stop_propagation();
+                }
+            })
+            .into_any_element()
+    });
+    harness::settle(cx);
+
+    // Focus the element without any key so the modality stays off.
+    cx.update(|window, cx| window.focus(&handle, cx));
+    cx.update(|window, _| window.refresh());
+    assert!(!ring_on(cx), "programmatic focus must not show a ring");
+
+    press(cx, "down");
+    assert!(
+        ring_on(cx),
+        "the root's capture phase must record the modality before the child's stop_propagation"
+    );
+}

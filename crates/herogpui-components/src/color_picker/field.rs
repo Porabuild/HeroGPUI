@@ -899,25 +899,6 @@ impl RenderOnce for ColorField {
             .text_size(util::FIELD_TEXT)
             .line_height(px(20.))
             .text_color(colors.field.foreground);
-        // `.color-input-group__prefix` is `shrink-0 ms-3` in the placeholder
-        // colour. An empty ColorField omits the swatch, matching
-        // `ColorSwatch color={value ?? undefined}` in the pinned example.
-        if let Some(value) = self.value {
-            field = field.child(ColorSwatch::new(value).size(SizeXl::Xs));
-        }
-        field = field.child(div().flex_1().child(text));
-        // `.color-input-group__suffix` is `shrink-0 text-field-placeholder
-        // me-3 flex items-center`; the trailing inset is the field box's
-        // resolved padding, since this port renders the value itself.
-        field = field.children(self.suffix.map(|el| {
-            div()
-                .flex()
-                .items_center()
-                .flex_shrink_0()
-                .text_color(colors.field.placeholder)
-                .child(el)
-        }));
-
         if !field_box.is_bare {
             let focused = self
                 .state
@@ -976,6 +957,27 @@ impl RenderOnce for ColorField {
                 );
             }
         }
+
+        // The content joins the skin after the fade's fill — the fill is
+        // appended and would paint over a child already present.
+        // `.color-input-group__prefix` is `shrink-0 ms-3` in the placeholder
+        // colour. An empty ColorField omits the swatch, matching
+        // `ColorSwatch color={value ?? undefined}` in the pinned example.
+        if let Some(value) = self.value {
+            field = field.child(ColorSwatch::new(value).size(SizeXl::Xs));
+        }
+        field = field.child(div().flex_1().child(text));
+        // `.color-input-group__suffix` is `shrink-0 text-field-placeholder
+        // me-3 flex items-center`; the trailing inset is the field box's
+        // resolved padding, since this port renders the value itself.
+        field = field.children(self.suffix.map(|el| {
+            div()
+                .flex()
+                .items_center()
+                .flex_shrink_0()
+                .text_color(colors.field.placeholder)
+                .child(el)
+        }));
 
         // v3's ColorField steps its channel on scroll; `isWheelDisabled` turns
         // that off. There is no sensible increment for a hex value, so only a

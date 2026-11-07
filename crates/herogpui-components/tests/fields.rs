@@ -51,7 +51,9 @@ use crate::harness;
 
 use std::{cell::RefCell, collections::HashSet, rc::Rc};
 
-use gpui::{point, prelude::*, px, Modifiers, SharedString, TestAppContext, VisualTestContext};
+use gpui::{
+    point, prelude::*, px, Focusable, Modifiers, SharedString, TestAppContext, VisualTestContext,
+};
 use herogpui_components::{
     Button, Checkbox, CheckboxGroup, CheckboxOption, CheckboxState, Form, FormData, FormField,
     Input, InputOTP, InputState, NumberField, NumberState, OtpState, RadioGroup, RadioOption,
@@ -632,6 +634,45 @@ fn number_field_vertical_steppers_drive_both_directions(cx: &mut TestAppContext)
     assert_eq!(value.to_bits(), 10.0_f64.to_bits());
 }
 
+/// RAC's `useNumberField` keeps the input focused while a stepper is pressed
+/// (`onButtonPressStart`, pointerType mouse), which is what makes the group
+/// focus-within and paints the state ring. gpui's mouse-down default would
+/// refocus the nearest ancestor and steal the handle back in the same
+/// dispatch, so the stepper prevents the default after focusing the input.
+#[gpui::test]
+fn number_field_stepper_press_keeps_focus_on_the_input(cx: &mut TestAppContext) {
+    let changes = events();
+    let recorded = changes.clone();
+    let state = cx.new(|cx| NumberState::new(cx, 10.0));
+    let state_for_view = state.clone();
+    let cx = open_host(cx, move || {
+        let changes = changes.clone();
+        NumberField::new(state_for_view.clone())
+            .step(2.0)
+            .on_change(move |value, _, _| changes.borrow_mut().push(format!("{value}")))
+            .into_any_element()
+    });
+    settle(cx);
+
+    // Press and release the increment cell (centre 200, 18): one bump, and
+    // the input — not the app root — holds the focus afterwards.
+    click(cx, 200., 18.);
+    flush_frame(cx);
+
+    assert_eq!(
+        recorded.borrow().as_slice(),
+        ["12"],
+        "the stepper press must report exactly one increment"
+    );
+    cx.update(|window, cx| {
+        let input_focus = state.read(cx).input.read(cx).focus_handle(cx);
+        assert!(
+            input_focus.is_focused(window),
+            "the stepper press must leave focus on the input"
+        );
+    });
+}
+
 // ---------------------------------------------------------------------------
 // TimeField
 // ---------------------------------------------------------------------------
@@ -988,6 +1029,226 @@ fn number_field_hover_interpolates_the_group_surface(cx: &mut TestAppContext) {
     );
     settle(cx);
     assert_eq!(pending_frames(cx), 0);
+}
+
+/// `field_chrome_ramp(.., ring_escapes_clip = true)` cannot paint the ring
+/// as a shadow: gpui fills a spread shadow, so the background-coloured gap
+/// ring covered the whole group interior once the layer landed after the
+/// subtree — and no child, deferred or not, escapes the group's
+/// `overflow-hidden` clip. The ramp now hands the caller a hollow overlay —
+/// its `ring-offset` band is a quad `ring_gaps` can find (the shadow painted
+/// none, so this fails on the old layer) — which NumberField hangs on the
+/// non-clipping `field_ring_carrier`, and no background fill may sit inside
+/// the group.
+#[gpui::test]
+fn number_field_deferred_focus_ring_is_hollow(cx: &mut TestAppContext) {
+    let state = cx.new(|cx| NumberState::new(cx, 5.0));
+    let state_for_view = state;
+    let cx = open_host(cx, move || {
+        gpui::div()
+            // The 2px ring offset hangs the band outside the group's box;
+            // keep it inside the window so `band_is_clipped` reads ancestor
+            // clips, not the viewport edge.
+            .ml(px(8.))
+            .mt(px(200.))
+            .child(NumberField::new(state_for_view.clone()))
+            .into_any_element()
+    });
+    settle(cx);
+
+    // Focus -> blur -> focus: the ramp is past generation 0 on the second
+    // focus, so the deferred ring layer is the one painting. `settle` only
+    // runs while blurred — the focused input's caret blink never ends.
+    press(cx, "tab");
+    flush_frame(cx);
+    advance_mid_flight(cx);
+    cx.update(|window, cx| window.blur(cx));
+    flush_frame(cx);
+    settle(cx);
+    press(cx, "tab");
+    flush_frame(cx);
+    for _ in 0..30 {
+        pending_frames(cx);
+        cx.executor()
+            .advance_clock(std::time::Duration::from_millis(16));
+    }
+    flush_frame(cx);
+
+    let scene = harness::painted(cx);
+    let (bg, gap) = cx.update(|_, cx| {
+        use herogpui_theme::ActiveTheme;
+        (
+            cx.colors().background,
+            f32::from(cx.layout().ring_offset_width),
+        )
+    });
+    let rings = scene.ring_gaps(bg, gap);
+    assert_eq!(
+        rings.len(),
+        1,
+        "the focused NumberField must paint one offset-overlay ring band\n{}",
+        scene.describe()
+    );
+    assert!(
+        !scene.band_is_clipped(rings[0]),
+        "the carrier-mounted overlay escapes the group's overflow clip\n{}",
+        scene.describe()
+    );
+
+    // Hollow: the band inflates the group bounds by `gap`; nothing filled
+    // with the page background may sit inside that interior — the old gap
+    // shadow filled exactly this area after the content had painted.
+    let band = scene.bounds(rings[0]);
+    let interior = gpui::Bounds {
+        origin: point(
+            px(f32::from(band.origin.x) + gap),
+            px(f32::from(band.origin.y) + gap),
+        ),
+        size: gpui::size(
+            px(f32::from(band.size.width) - 2.0 * gap),
+            px(f32::from(band.size.height) - 2.0 * gap),
+        ),
+    };
+    for quad in scene.filled(bg) {
+        assert!(
+            !harness::contains(interior, scene.bounds(quad)),
+            "a background fill covers the NumberField interior\n{}",
+            scene.describe()
+        );
+    }
+}
+
+/// v3 rounds only a stepper cell's outer corners (`rounded-s-field` /
+/// `rounded-e-field` on the group): the press fill carries the group's inner
+/// radius on those corners and stays square on the seam side. Horizontal:
+/// decrement owns the left corners, increment the right.
+#[gpui::test]
+fn number_field_stepper_press_fill_rounds_only_the_outer_corners(cx: &mut TestAppContext) {
+    let state = cx.new(|cx| NumberState::new(cx, 5.0));
+    let state_for_view = state;
+    let cx = open_host(cx, move || {
+        NumberField::new(state_for_view.clone()).into_any_element()
+    });
+    settle(cx);
+    let pressed_bg = cx.update(|_, cx| {
+        use herogpui_theme::ActiveTheme;
+        cx.colors().field.foreground.alpha(0.1)
+    });
+
+    let corners_at = |cx: &mut VisualTestContext, x: f32, y: f32| {
+        cx.simulate_mouse_down(
+            point(px(x), px(y)),
+            gpui::MouseButton::Left,
+            Modifiers::none(),
+        );
+        flush_frame(cx);
+        advance_mid_flight(cx);
+        let scene = harness::painted(cx);
+        cx.simulate_mouse_up(
+            point(px(x), px(y)),
+            gpui::MouseButton::Left,
+            Modifiers::none(),
+        );
+        let quad = scene
+            .filled(pressed_bg)
+            .into_iter()
+            .find(|q| {
+                let b = scene.bounds(q);
+                f32::from(b.origin.x) >= 0.0
+                    && f32::from(b.origin.x) + f32::from(b.size.width) <= 220.0
+                    && f32::from(b.origin.y) >= 0.0
+                    && f32::from(b.origin.y) + f32::from(b.size.height) <= 36.0
+            })
+            .unwrap_or_else(|| panic!("no pressed stepper fill painted\n{}", scene.describe()));
+        scene.corners(quad)
+    };
+
+    // Decrement (20, 18): top-left + bottom-left rounded, seam side square.
+    let decrement = corners_at(cx, 20., 18.);
+    assert!(
+        decrement[0] > 0.5 && decrement[3] > 0.5,
+        "the decrement press fill must round the group's left corners: {decrement:?}"
+    );
+    assert!(
+        decrement[1] < 0.05 && decrement[2] < 0.05,
+        "the decrement press fill must stay square on the seam side: {decrement:?}"
+    );
+
+    // Increment (200, 18): top-right + bottom-right rounded.
+    let increment = corners_at(cx, 200., 18.);
+    assert!(
+        increment[1] > 0.5 && increment[2] > 0.5,
+        "the increment press fill must round the group's right corners: {increment:?}"
+    );
+    assert!(
+        increment[0] < 0.05 && increment[3] < 0.05,
+        "the increment press fill must stay square on the seam side: {increment:?}"
+    );
+}
+
+/// The vertical stepper column (x 196..220) splits into an 18px increment
+/// half and an 18px decrement half; v3 rounds only the cell's outer corner —
+/// top-right for increment, bottom-right for decrement.
+#[gpui::test]
+fn number_field_vertical_stepper_press_fill_rounds_the_outer_corner(cx: &mut TestAppContext) {
+    let state = cx.new(|cx| NumberState::new(cx, 5.0));
+    let state_for_view = state;
+    let cx = open_host(cx, move || {
+        NumberField::new(state_for_view.clone())
+            .vertical_steppers(true)
+            .increment_icon(gpui::div())
+            .decrement_icon(gpui::div())
+            .into_any_element()
+    });
+    settle(cx);
+    let pressed_bg = cx.update(|_, cx| {
+        use herogpui_theme::ActiveTheme;
+        cx.colors().field.foreground.alpha(0.1)
+    });
+
+    let corners_at = |cx: &mut VisualTestContext, x: f32, y: f32| {
+        cx.simulate_mouse_down(
+            point(px(x), px(y)),
+            gpui::MouseButton::Left,
+            Modifiers::none(),
+        );
+        flush_frame(cx);
+        advance_mid_flight(cx);
+        let scene = harness::painted(cx);
+        cx.simulate_mouse_up(
+            point(px(x), px(y)),
+            gpui::MouseButton::Left,
+            Modifiers::none(),
+        );
+        let quad = scene
+            .filled(pressed_bg)
+            .into_iter()
+            .find(|q| f32::from(scene.bounds(q).origin.x) >= 190.0)
+            .unwrap_or_else(|| panic!("no pressed stepper fill painted\n{}", scene.describe()));
+        scene.corners(quad)
+    };
+
+    // Increment (208, 9): only the top-right corner is rounded.
+    let increment = corners_at(cx, 208., 9.);
+    assert!(
+        increment[1] > 0.5,
+        "the vertical increment press fill must round the top-right corner: {increment:?}"
+    );
+    assert!(
+        increment[0] < 0.05 && increment[2] < 0.05 && increment[3] < 0.05,
+        "the vertical increment press fill must stay square elsewhere: {increment:?}"
+    );
+
+    // Decrement (208, 27): only the bottom-right corner is rounded.
+    let decrement = corners_at(cx, 208., 27.);
+    assert!(
+        decrement[2] > 0.5,
+        "the vertical decrement press fill must round the bottom-right corner: {decrement:?}"
+    );
+    assert!(
+        decrement[0] < 0.05 && decrement[1] < 0.05 && decrement[3] < 0.05,
+        "the vertical decrement press fill must stay square elsewhere: {decrement:?}"
+    );
 }
 
 #[gpui::test]

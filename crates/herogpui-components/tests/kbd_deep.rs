@@ -192,3 +192,89 @@ fn kbd_keeps_content_on_one_line(cx: &mut TestAppContext) {
          than its own single 26px default line"
     );
 }
+
+/// v3 `kbd.constants.ts` pins the symbol and label of every `keyValue`; the
+/// port's `KbdKey` must answer both maps exactly for all 22 keys.
+#[test]
+fn kbd_key_symbols_and_labels_match_v3() {
+    use herogpui_components::KbdKey;
+
+    let expected: [(KbdKey, &str, &str); 22] = [
+        (KbdKey::Command, "⌘", "Command"),
+        (KbdKey::Shift, "⇧", "Shift"),
+        (KbdKey::Ctrl, "⌃", "Control"),
+        (KbdKey::Option, "⌥", "Option"),
+        (KbdKey::Enter, "↵", "Enter"),
+        (KbdKey::Delete, "⌫", "Delete"),
+        (KbdKey::Escape, "⎋", "Escape"),
+        (KbdKey::Tab, "⇥", "Tab"),
+        (KbdKey::CapsLock, "⇪", "Caps Lock"),
+        (KbdKey::Up, "↑", "Up"),
+        (KbdKey::Right, "→", "Right"),
+        (KbdKey::Down, "↓", "Down"),
+        (KbdKey::Left, "←", "Left"),
+        (KbdKey::PageUp, "⇞", "Page Up"),
+        (KbdKey::PageDown, "⇟", "Page Down"),
+        (KbdKey::Home, "↖", "Home"),
+        (KbdKey::End, "↘", "End"),
+        (KbdKey::Help, "?", "Help"),
+        (KbdKey::Space, "␣", "Space"),
+        (KbdKey::Fn, "Fn", "Fn"),
+        (KbdKey::Win, "⌘", "Win"),
+        (KbdKey::Alt, "⌥", "Alt"),
+    ];
+    assert_eq!(KbdKey::ALL.len(), expected.len());
+    for (key, symbol, label) in expected {
+        assert_eq!(key.symbol(), symbol, "{key:?} symbol");
+        assert_eq!(key.label(), label, "{key:?} label");
+    }
+}
+
+/// `<Kbd.Abbr keyValue>` resolves its symbol through `KbdKey::symbol()` —
+/// the render path must hand that string to the key, not a hard-coded glyph.
+#[test]
+fn kbd_abbr_renders_the_key_symbol() {
+    let src = include_str!("../src/kbd.rs");
+    assert!(
+        src.contains(".child(self.key.symbol())"),
+        "KbdAbbr must render `key.symbol()`"
+    );
+}
+
+/// A chord (`Abbr` + `Content`) measures wider than the content alone: the
+/// abbreviation's symbol takes real layout space inside the 24px key.
+#[gpui::test]
+fn kbd_abbr_contributes_the_symbol_width(cx: &mut TestAppContext) {
+    use herogpui_components::{KbdAbbr, KbdContent, KbdKey};
+
+    let cx = open_host(cx, || {
+        gpui::div()
+            .flex()
+            .child(
+                gpui::div()
+                    .flex()
+                    .child(
+                        Kbd::new()
+                            .child(KbdAbbr::new(KbdKey::Command))
+                            .child(KbdContent::new().child("K")),
+                    )
+                    .child(square("after-chord", 4.)),
+            )
+            .child(
+                gpui::div()
+                    .flex()
+                    .child(Kbd::new().child(KbdContent::new().child("K")))
+                    .child(square("after-content", 4.)),
+            )
+            .into_any_element()
+    });
+
+    let chord_edge = need(cx, "after-chord").origin.x;
+    let content_edge = need(cx, "after-content").origin.x;
+    assert!(
+        chord_edge < content_edge,
+        "the chord key (ends at x={chord_edge}) must be wider than the \
+         content-only key (ends at x={content_edge}): the symbol occupies \
+         real width"
+    );
+}

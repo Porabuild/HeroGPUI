@@ -1168,6 +1168,8 @@ impl RenderOnce for DateRangePicker {
                 .when_some(self.locale.clone(), |cal, tag| cal.locale(tag))
                 .autofocus_grid(panel_open)
                 .inert(!panel_open)
+                // v3's `DateRangePicker.Popover` composes the year-picker trigger.
+                .year_picker(true)
                 .is_read_only(self.is_read_only)
                 .is_invalid(start_invalid || end_invalid);
             calendar = calendar.on_change(move |_start, _end, window, cx| {

@@ -12,6 +12,7 @@
 
 use std::collections::HashMap;
 
+use gpui::prelude::FluentBuilder;
 use gpui::{
     div, px, AnyElement, App, BorrowAppContext, ElementId, FocusHandle, InteractiveElement,
     IntoElement, KeyDownEvent, ParentElement, Pixels, RenderOnce, SharedString, Styled,
@@ -342,6 +343,10 @@ impl RenderOnce for Toolbar {
                 .p(px(4.))
                 .rounded(crate::util::control_radius(cx))
                 .bg(surface)
+                // Dark mode's `shadow-overlay` is the inset hairline alone.
+                .when_some(cx.layout().overlay_hairline, |el, hairline| {
+                    el.border(cx.layout().border_width).border_color(hairline)
+                })
                 .shadow(overlay_shadow);
         }
 
@@ -431,9 +436,10 @@ impl RenderOnce for Toolbar {
             // the app root owns one step of it, so the walk is ours: step
             // until the focus leaves the subtree, refusing the wrap at the
             // window's far end (a native Tab from the document's last
-            // focusable goes nowhere either). Stopping propagation also
-            // skips the root's `set_focus_visible`, so set it here — a Tab
-            // that moves without ringing looks like it did nothing. The
+            // focusable goes nowhere either). The root already records
+            // keyboard modality in its capture phase, ahead of this stop;
+            // setting it here too is harmless and keeps the ring honest — a
+            // Tab that moves without ringing looks like it did nothing. The
             // record of the leaving child was made by the frames while it
             // held the focus; the next render sees the departure.
             cx.stop_propagation();

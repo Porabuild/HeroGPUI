@@ -43,10 +43,12 @@ impl Gallery {
                             h::Card::new()
                                 .w(px(400.))
                                 .child(
-                                    gpui::svg()
+                                    // v3's `CircleDollar` glyph; the lucide set
+                                    // has no circled variant, so the plain
+                                    // dollar sign stands in at the same size.
+                                    h::Icon::new(h::IconName::DollarSign)
                                         .size(px(24.))
-                                        .path(h::icons::KEY)
-                                        .text_color(cx.colors().accent.color),
+                                        .color(cx.colors().accent.color),
                                 )
                                 .child(
                                     h::CardHeader::new()
@@ -59,7 +61,7 @@ impl Gallery {
                                     h::CardFooter::new().child(
                                         h::Link::new("card-usage-link")
                                             .label("Creator Hub")
-                                            .href("https://example.com")
+                                            .href("https://heroui.com")
                                             .icon(
                                                 gpui::svg()
                                                     .size(px(12.))
@@ -217,19 +219,63 @@ impl Gallery {
             crate::pages::Page::Separator.description(),
             crate::pages::Page::Separator.import_line(),
             vec![
-                ("Decorative", "Native separators are visual only: the pinned AccessKit version has no separator role.", col(vec![h::Separator::new().into_any_element()])),
-
                 (
                     "Usage",
-                    col(vec![gpui::div()
-                        .w_full()
+                    // v3's basic separator sits in a `max-w-md` column between
+                    // a heading block and a `Blog | Docs | Source` row.
+                    gpui::div()
+                        .max_w(px(448.))
                         .flex()
                         .flex_col()
-                        .gap(px(12.))
-                        .child(gpui::div().child("Above"))
-                        .child(h::Separator::new())
-                        .child(gpui::div().child("Below"))
-                        .into_any_element()]),
+                        .child(
+                            gpui::div()
+                                .flex()
+                                .flex_col()
+                                .gap(px(4.))
+                                .child(
+                                    gpui::div()
+                                        .text_size(px(16.))
+                                        .font_weight(gpui::FontWeight::MEDIUM)
+                                        .child("HeroUI v3 Components"),
+                                )
+                                .child(
+                                    gpui::div()
+                                        .text_size(px(14.))
+                                        .text_color(cx.colors().muted)
+                                        .child("Beautiful, fast and modern React UI library."),
+                                ),
+                        )
+                        .child(h::Separator::new().my(px(16.)))
+                        .child(
+                            gpui::div()
+                                .flex()
+                                .items_center()
+                                .gap(px(16.))
+                                .h(px(20.))
+                                .text_size(px(14.))
+                                .child("Blog")
+                                .child(h::Separator::new().orientation(Orientation::Vertical))
+                                .child("Docs")
+                                .child(h::Separator::new().orientation(Orientation::Vertical))
+                                .child("Source"),
+                        )
+                        .into_any_element(),
+                ),
+                (
+                    "Variants",
+                    col(h::SeparatorVariant::ALL
+                        .iter()
+                        .flat_map(|v| {
+                            vec![
+                                gpui::div()
+                                    .text_size(px(12.))
+                                    .text_color(cx.colors().muted)
+                                    .child(v.label())
+                                    .into_any_element(),
+                                h::Separator::new().variant(*v).into_any_element(),
+                            ]
+                        })
+                        .collect()),
                 ),
                 (
                     "With Surface",
@@ -239,6 +285,20 @@ impl Gallery {
                         .child(gpui::div().child("Notifications"))
                         .child(h::Separator::new())
                         .child(gpui::div().child("Privacy"))
+                        .into_any_element()]),
+                ),
+                (
+                    "Vertical",
+                    row(vec![gpui::div()
+                        .flex()
+                        .items_center()
+                        .gap(px(12.))
+                        .h(px(24.))
+                        .child("Docs")
+                        .child(h::Separator::new().orientation(Orientation::Vertical))
+                        .child("Blog")
+                        .child(h::Separator::new().orientation(Orientation::Vertical))
+                        .child("Support")
                         .into_any_element()]),
                 ),
                 (
@@ -282,36 +342,11 @@ impl Gallery {
                         )
                         .into_any_element()]),
                 ),
-                (
-                    "Variants",
-                    col(h::SeparatorVariant::ALL
-                        .iter()
-                        .flat_map(|v| {
-                            vec![
-                                gpui::div()
-                                    .text_size(px(12.))
-                                    .text_color(cx.colors().muted)
-                                    .child(v.label())
-                                    .into_any_element(),
-                                h::Separator::new().variant(*v).into_any_element(),
-                            ]
-                        })
-                        .collect()),
-                ),
-                (
-                    "Vertical",
-                    row(vec![gpui::div()
-                        .flex()
-                        .items_center()
-                        .gap(px(12.))
-                        .h(px(24.))
-                        .child("Docs")
-                        .child(h::Separator::new().orientation(Orientation::Vertical))
-                        .child("Blog")
-                        .child(h::Separator::new().orientation(Orientation::Vertical))
-                        .child("Support")
-                        .into_any_element()]),
-                ),
+                ("Decorative", "Native separators are visual only: the pinned AccessKit version has no separator role.", col(vec![gpui::div()
+                    .w(px(320.))
+                    .child(h::Separator::new())
+                    .into_any_element()])),
+
                 (
                     "Resizable Panels", "HeroGPUI extension, not a HeroUI v3 example: `ResizablePanelGroup` shares its space between `ResizablePanel`s by percentage, with a drag handle between each pair. Drag a handle, or Tab to it and use the arrow keys (Shift for a larger step, Home and End to the limits); each panel stays within its minimum and maximum. The right-hand panel holds a vertical group.",
                     specimen_body("sep-resizable", col(vec![
@@ -434,9 +469,28 @@ impl Gallery {
             vec![
                 (
                     "Usage",
+                    // v3: `flex min-w-[320px] flex-col gap-3 rounded-3xl p-6`
+                    // on the default variant, an `h3` and a muted `p` inside.
                     col(vec![h::Surface::new()
                         .padding(px(24.))
-                        .child(gpui::div().child("A surface groups related content."))
+                        .gap(px(12.))
+                        .sx(|el| el.min_w(px(320.)).rounded(px(24.)))
+                        .child(
+                            gpui::div()
+                                .text_size(px(16.))
+                                .font_weight(gpui::FontWeight::SEMIBOLD)
+                                .text_color(cx.colors().foreground)
+                                .child("Surface Content"),
+                        )
+                        .child(
+                            gpui::div()
+                                .text_size(px(14.))
+                                .text_color(cx.colors().muted)
+                                .child(
+                                    "This is a default surface variant. It uses bg-surface \
+                                     styling.",
+                                ),
+                        )
                         .into_any_element()]),
                 ),
                 (
@@ -512,27 +566,77 @@ impl Gallery {
             vec![
                 (
                     "Usage",
+                    // v3's toolbar: a multiple-selection ToggleButtonGroup of
+                    // icon-only Bold/Italic/Underline, a Separator, then a
+                    // tertiary ButtonGroup of icon-only Copy/Cut.
                     col(vec![h::Toolbar::new()
                         .id("tb-usage")
+                        .label("Text formatting")
                         .child(
-                            h::Button::new("tb-usage-1")
-                                .label("Cut")
-                                .variant(Variant::Tertiary)
-                                .size(Size::Sm),
+                            h::ToggleButtonGroup::new("tb-usage-styles")
+                                .selection_mode(SelectionMode::Multiple)
+                                .separators(true)
+                                .child_toggle(
+                                    h::ToggleButton::new("tb-usage-bold")
+                                        .is_icon_only(true)
+                                        .label("Bold")
+                                        .content(|_| {
+                                            h::Icon::new(h::IconName::Bold).into_any_element()
+                                        }),
+                                )
+                                .child_toggle(
+                                    h::ToggleButton::new("tb-usage-italic")
+                                        .is_icon_only(true)
+                                        .label("Italic")
+                                        .content(|_| {
+                                            h::Icon::new(h::IconName::Italic).into_any_element()
+                                        }),
+                                )
+                                .child_toggle(
+                                    h::ToggleButton::new("tb-usage-underline")
+                                        .is_icon_only(true)
+                                        .label("Underline")
+                                        .content(|_| {
+                                            h::Icon::new(h::IconName::Underline)
+                                                .into_any_element()
+                                        }),
+                                ),
                         )
+                        .separator()
                         .child(
-                            h::Button::new("tb-usage-2")
-                                .label("Copy")
+                            h::ButtonGroup::new()
                                 .variant(Variant::Tertiary)
-                                .size(Size::Sm),
-                        )
-                        .child(
-                            h::Button::new("tb-usage-3")
-                                .label("Paste")
-                                .variant(Variant::Tertiary)
-                                .size(Size::Sm),
+                                .separators(true)
+                                .button(
+                                    h::Button::new("tb-usage-copy")
+                                        .is_icon_only(true)
+                                        .label("Copy")
+                                        .content(|_| {
+                                            h::Icon::new(h::IconName::Copy).into_any_element()
+                                        }),
+                                )
+                                .button(
+                                    h::Button::new("tb-usage-cut")
+                                        .is_icon_only(true)
+                                        .label("Cut")
+                                        .content(|_| {
+                                            h::Icon::new(h::IconName::Scissors).into_any_element()
+                                        }),
+                                ),
                         )
                         .into_any_element()]),
+                ),
+                (
+                    "Vertical",
+                    col(vec![
+                        bar("v", false, Orientation::Vertical).into_any_element()
+                    ]),
+                ),
+                (
+                    "Attached",
+                    col(vec![
+                        bar("attached", true, Orientation::Horizontal).into_any_element()
+                    ]),
                 ),
                 (
                     "With ButtonGroup",
@@ -561,18 +665,6 @@ impl Gallery {
                     col(vec![bar("h", false, Orientation::Horizontal)
                         .full_width(true)
                         .into_any_element()]),
-                ),
-                (
-                    "Attached",
-                    col(vec![
-                        bar("attached", true, Orientation::Horizontal).into_any_element()
-                    ]),
-                ),
-                (
-                    "Vertical",
-                    col(vec![
-                        bar("v", false, Orientation::Vertical).into_any_element()
-                    ]),
                 ),
                 (
                     "Sized Controls", "HeroGPUI extension, not a HeroUI v3 example (after gpui-kit's toolbar): `Toolbar::size` reaches every control added with `sized_child`, whatever the order of the builder calls, so the whole bar is sized in one place; controls added with `child` keep their own size. `label` names the toolbar (or the group a nested toolbar becomes) for assistive technology.",

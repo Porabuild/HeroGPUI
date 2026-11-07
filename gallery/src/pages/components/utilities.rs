@@ -23,12 +23,28 @@ impl Gallery {
             vec![
                 (
                     "Usage",
-                    col(vec![h::ScrollShadow::new("ss-usage")
-                        .max_h(px(180.))
-                        .children((1..=14).map(|n| {
-                            gpui::div().py(px(6.)).child(format!("Row {n} of fourteen"))
-                        }),)
-                        .into_any_element()]),
+                    gpui::div()
+                        .w_full()
+                        .max_w(px(384.))
+                        .child(
+                            h::ScrollShadow::new("ss-usage")
+                                .max_h(px(240.))
+                                .gap(px(16.))
+                                // v3's `p-4` and the `sm:max-w-sm` frame width.
+                                .sx(|el| el.w_full().p(px(16.)))
+                                .children((1..=10).map(|_| {
+                                    gpui::div()
+                                        .child(concat!(
+                                            "Lorem ipsum dolor sit amet, consectetur ",
+                                            "adipiscing elit. Nullam pulvinar risus non ",
+                                            "risus hendrerit venenatis. Pellentesque sit ",
+                                            "amet hendrerit risus, sed porttitor quam. ",
+                                            "Morbi accumsan cursus enim, sed ultricies ",
+                                            "sapien.",
+                                        ))
+                                })),
+                        )
+                        .into_any_element(),
                 ),
                 (
                     "Orientation",

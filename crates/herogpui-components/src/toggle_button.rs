@@ -309,10 +309,15 @@ impl RenderOnce for ToggleButton {
         let focus_handle = self.group_focus_handle.clone().unwrap_or_else(|| {
             crate::util::tab_stop_handle(element_id::scoped(&self.id, "focus"), window, cx)
         });
-        // Where the hover and press a `content` closure is handed come from.
-        let interaction = self.content.as_ref().map(|_| {
-            crate::util::interaction(element_id::scoped(&self.id, "interaction"), window, cx)
-        });
+        // One keyed slot owns hover and press state for both render-prop and
+        // plain toggles, like Button: the hover fade reads the hover and
+        // press bits it records — including the keyboard press — and the
+        // press ramp reads the same slot instead of keying a second one.
+        let interaction = Some(crate::util::interaction(
+            element_id::scoped(&self.id, "interaction"),
+            window,
+            cx,
+        ));
         let colors = cx.colors().clone();
         let sem = colors.accent;
         let disabled_opacity = cx.layout().disabled_opacity;
@@ -420,14 +425,31 @@ impl RenderOnce for ToggleButton {
         el = crate::button::group_radius_any(el, self.group_edge, radius);
         el = crate::util::round_sx_corners(el, &sx_corners);
 
+        // The pressed endpoint both press paths resolve: the hover colour —
+        // v3's `:active` fill on a toggle is the same colour `:hover` paints.
+        // The hover fade eases to it while the interaction slot's pressed
+        // bit is set; the reduced-motion and no-fade paths paint it outright.
+        let hover_bg = if is_selected {
+            colors.accent.soft_hover()
+        } else {
+            match self.variant {
+                ToggleVariant::Default => colors.default.hover(),
+                ToggleVariant::Ghost => colors.default.color,
+            }
+        };
         if let Some(colors) = fade {
             let edge = self.group_edge;
-            el = crate::anim::hover_fade(
+            el = crate::anim::hover_fade_with_press(
                 el,
                 element_id::scoped(&self.id, "fade"),
                 colors,
-                interaction.as_ref(),
-                None,
+                // v3's `:active` fill is the `:hover` colour — the fade's own
+                // resolved endpoint, so a `hover_bg` override presses the
+                // colour hover actually paints.
+                colors.1,
+                interaction
+                    .as_ref()
+                    .expect("a toggle always creates its interaction slot"),
                 move |fill| {
                     crate::util::round_sx_corners(
                         crate::button::group_radius_any(fill, edge, radius),
@@ -471,14 +493,6 @@ impl RenderOnce for ToggleButton {
         // above the skin too) comes after every visual child: children added
         // after `pressed` land on the slot and fight the skin for width.
         if !self.is_disabled {
-            let hover_bg = if is_selected {
-                colors.accent.soft_hover()
-            } else {
-                match self.variant {
-                    ToggleVariant::Default => colors.default.hover(),
-                    ToggleVariant::Ghost => colors.default.color,
-                }
-            };
             el = crate::util::cursor_interactive(el, cx);
             if fade.is_none() {
                 el = el.hover(move |s| s.bg(hover_bg));
@@ -490,11 +504,15 @@ impl RenderOnce for ToggleButton {
             // Standalone, the press rides `pressed_with_background_ramp`:
             // `toggle-button.css` declares the press as a transition
             // (`transform 250ms var(--ease-smooth), background-color 100ms
-            // var(--ease-out)`), so the fill eases between the resting
-            // colour the hover fade holds and the pressed endpoint.
-            let press_endpoints = fade.map(|(idle, _)| (idle, hover_bg));
+            // var(--ease-out)`). The hover fade owns the colour whenever it
+            // is mounted — its pressed endpoint is the same `hover_bg` — so
+            // the ramp keeps only the transform track, the shape CloseButton's
+            // press takes; the grouped `.active` fill applies only where no
+            // fade owns the colour.
             if is_grouped {
-                el = el.active(move |style| style.bg(hover_bg));
+                el = el.when(fade.is_none(), |e| {
+                    e.active(move |style| style.bg(hover_bg))
+                });
             } else {
                 el = crate::anim::pressed_with_background_ramp(
                     el,
@@ -510,7 +528,7 @@ impl RenderOnce for ToggleButton {
                         shrink_x: true,
                         scale: press_scale,
                     },
-                    press_endpoints,
+                    None,
                     crate::anim::BUTTON_PRESS,
                     interaction.as_ref(),
                     window,
@@ -519,8 +537,12 @@ impl RenderOnce for ToggleButton {
             }
         }
 
-        if let Some(slot) = &interaction {
-            el = crate::util::track_interaction(el, slot);
+        // A disabled toggle mounts no fade for the slot to feed, so it
+        // tracks nothing — same gate Button's `interactive` applies.
+        if !self.is_disabled {
+            if let Some(slot) = &interaction {
+                el = crate::util::track_interaction(el, slot);
+            }
         }
 
         if !self.is_disabled

@@ -1388,6 +1388,7 @@ impl Autocomplete {
                     element_id::scoped(base_id, "trigger-hover-fade"),
                     (idle_bg, hover_bg),
                     None,
+                    None,
                     (!clear_hovered).then_some(hover_border),
                     clear_hovered,
                     |fill| fill.rounded(trigger_radius),

@@ -1139,6 +1139,83 @@ fn progress_circle_indeterminate_reports_no_value_text(cx: &mut TestAppContext) 
     );
 }
 
+/// Drives frames until every finite animation has had time to finish —
+/// 60 × 16ms covers the 300ms fill with margin — and returns the live
+/// animation count at the end. Each in-flight `with_animation` registers
+/// one next-frame callback per painted frame, so the steady-state count is
+/// the number of animations still running (a repeating spin never ends).
+/// Like `checkbox_motion`'s drain, no `refresh` is forced: the animation
+/// callbacks' own notifies drive the redraws.
+fn pending_animation_floor(cx: &mut VisualTestContext) -> usize {
+    let mut pending = 0;
+    for _ in 0..60 {
+        pending = cx.update(|window, cx| window.simulate_next_frame(cx));
+        cx.executor().advance_clock(Duration::from_millis(16));
+    }
+    pending
+}
+
+/// Two id-less rings must keep separate fill tweens. The old constant
+/// fallback key made every anonymous ring share one keyed slot -- one
+/// `Rc<Cell>` fraction -- so the two targets retargeted the slot every frame,
+/// the fill animation restarted forever, and (with an indeterminate sibling
+/// settling the shared cell at 0.25) determinate rings painted the quarter
+/// arc. `simulate_next_frame` counts live animation callbacks: with separate
+/// slots both fills settle on mount and nothing is left pending.
+#[gpui::test]
+fn idless_progress_circles_keep_separate_fill_tweens(cx: &mut TestAppContext) {
+    let cx = open_host(cx, || {
+        gpui::div()
+            .flex()
+            .gap(px(8.))
+            .children([
+                ProgressCircle::new().value(60.).into_any_element(),
+                ProgressCircle::new().value(30.).into_any_element(),
+                ProgressCircle::new()
+                    .is_indeterminate(true)
+                    .into_any_element(),
+            ])
+            .into_any_element()
+    });
+    harness::settle(cx);
+    // Only the indeterminate ring's endless spin may still be animating.
+    assert!(
+        pending_animation_floor(cx) <= 1,
+        "determinate fills must settle on their own keyed slots"
+    );
+}
+
+/// The per-instance fallback key must not cost the fill transition: an
+/// id-less ring whose value changes still eases to the new fraction instead
+/// of snapping, because the signature slot seeds the new tween from the
+/// fraction last painted.
+#[gpui::test]
+fn idless_progress_circle_value_change_still_eases(cx: &mut TestAppContext) {
+    let value = Rc::new(RefCell::new(25.0f32));
+    let for_view = value.clone();
+    let cx = open_host(cx, move || {
+        let now = *for_view.borrow();
+        ProgressCircle::new().value(now).into_any_element()
+    });
+    harness::settle(cx);
+    cx.update(|window, cx| {
+        window.simulate_next_frame(cx);
+    });
+
+    *value.borrow_mut() = 85.0;
+    harness::settle(cx);
+    let mid_flight = cx.update(|window, cx| window.simulate_next_frame(cx));
+    assert!(
+        mid_flight >= 1,
+        "an id-less value change must mount the fill animation, not snap"
+    );
+    assert_eq!(
+        pending_animation_floor(cx),
+        0,
+        "the fill animation must settle once it reaches the new fraction"
+    );
+}
+
 // ---------------------------------------------------------------------------
 // Spinner / Skeleton / Badge / Avatar: every documented variant renders
 // ---------------------------------------------------------------------------

@@ -816,8 +816,12 @@ impl RenderOnce for InputOTP {
             // every invalid slot keeps the focus background and receives
             // the danger outline, including the keyboard-active slot — which
             // is why the ring below is skipped once `invalid` holds.
-            let focus_ring = (!invalid && is_cursor_cell && crate::util::focus_visible(cx))
-                .then(|| crate::anim::focus_ring_endpoint(cx));
+            // v3's `[data-active]` slot rings on pointer focus too: `isActive`
+            // is "input focused && caret on this slot" on any modality, the
+            // same focus-within rule NumberField and Input already follow —
+            // `focus_visible` would wrongly gate it to keyboard.
+            let focus_ring =
+                (!invalid && is_cursor_cell).then(|| crate::anim::focus_ring_endpoint(cx));
             let idle = crate::anim::FieldChrome {
                 bg: if invalid {
                     colors.field.focus()
@@ -882,9 +886,10 @@ impl RenderOnce for InputOTP {
             );
             // The ramp owns the slot's border and ring past its first flip,
             // so the instant ones it painted above stop being cast there.
-            // The cell is not `overflow-hidden`, so the flag the ramp returns
-            // (whether it is painting the state ring) has no reader here.
-            (cell, _) = crate::anim::field_chrome_ramp(
+            // The cell is not `overflow-hidden`, so neither flag the ramp
+            // returns (whether it is painting the state ring, and the
+            // clip-escaping overlay it never builds here) has a reader.
+            (cell, _, _) = crate::anim::field_chrome_ramp(
                 cell,
                 &slot_id,
                 idle,
@@ -1199,6 +1204,28 @@ mod tests {
         assert!(source.contains(".absolute()"));
         assert!(source.contains(".top(px(12.))"));
         assert!(source.contains("value-in"));
+    }
+
+    #[test]
+    fn cursor_slot_ring_is_modality_free() {
+        let source = include_str!("input_otp.rs")
+            .split("#[cfg(test)]")
+            .next()
+            .expect("the implementation section is always present");
+        // v3 `.input-otp__slot[data-active="true"]` shows
+        // `status-focused-field` for pointer focus too: `isActive` is
+        // focused-input && caret-on-slot on any modality — the same
+        // focus-within rule NumberField and Input follow. Gating the ring on
+        // `focus_visible` would make it keyboard-only.
+        let ring_expr = source
+            .split("let focus_ring =")
+            .nth(1)
+            .expect("the slot focus ring is always computed");
+        assert!(ring_expr.contains("is_cursor_cell"));
+        assert!(
+            !ring_expr.contains("focus_visible"),
+            "the OTP cursor ring must not gate on keyboard modality"
+        );
     }
 }
 

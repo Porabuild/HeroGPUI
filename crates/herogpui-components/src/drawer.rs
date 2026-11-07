@@ -86,6 +86,146 @@ impl DrawerCloseTrigger {
 
 crate::modal::close_trigger_part!(DrawerCloseTrigger, "close-trigger");
 
+/// `Drawer.Handle` — the optional drag-to-dismiss affordance.
+///
+/// v3 spells visibility by composing or omitting the part: a composed
+/// [`DrawerHandle`] renders the `h-1 w-9 rounded-xs bg-separator` bar and,
+/// while the drawer is `is_dismissible`, wires its press into the same drag
+/// state the header and footer use; an omitted part leaves no bar, and a
+/// composed one on a `is_dismissible(false)` drawer paints without the
+/// gesture. The drawer pulls composed instances out of the body children —
+/// so the scrolling surface never swallows them — and mounts them at the
+/// sheet's content end for [`DrawerPlacement::Top`] (after the footer) and
+/// before the header on every other placement. Composed outside a [`Drawer`]
+/// the bar still paints but carries no drag wiring.
+pub struct DrawerHandle {
+    /// The owning drawer's placement, handed out during extraction; drives
+    /// the Top/Bottom padding split and the drag axis.
+    placement: Option<DrawerPlacement>,
+    /// The owning drawer's keyed drag state, present only while the drawer
+    /// is `is_dismissible`.
+    drag: Option<gpui::Entity<Option<DragState>>>,
+}
+
+impl DrawerHandle {
+    /// Creates a drag handle with no wiring; a [`Drawer`] supplies the
+    /// placement and drag state when it pulls the part out of its children.
+    pub fn new() -> Self {
+        Self {
+            placement: None,
+            drag: None,
+        }
+    }
+
+    /// Hands the part the drawer's placement and, while `is_dismissible`,
+    /// its keyed drag state. Called by [`Drawer::render`] on every composed
+    /// instance it extracts.
+    fn wire(&mut self, placement: DrawerPlacement, drag: Option<gpui::Entity<Option<DragState>>>) {
+        self.placement = Some(placement);
+        self.drag = drag;
+    }
+}
+
+impl Default for DrawerHandle {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl Element for DrawerHandle {
+    type RequestLayoutState = AnyElement;
+    type PrepaintState = ();
+
+    fn id(&self) -> Option<gpui::ElementId> {
+        None
+    }
+
+    fn source_location(&self) -> Option<&'static core::panic::Location<'static>> {
+        None
+    }
+
+    fn request_layout(
+        &mut self,
+        _: Option<&gpui::GlobalElementId>,
+        _: Option<&gpui::InspectorElementId>,
+        window: &mut Window,
+        cx: &mut App,
+    ) -> (gpui::LayoutId, Self::RequestLayoutState) {
+        // `.drawer__handle` is `flex items-center justify-center pb-2` with
+        // an `h-1 w-9 rounded-xs bg-separator` bar: the affordance that says
+        // the sheet can be dragged shut. `--top` removes the padding, leaving
+        // the bar flush with the moving edge.
+        let placement = self.placement.unwrap_or_default();
+        let colors = cx.colors();
+        let mut bar = gpui::div().flex().items_center().justify_center().child(
+            gpui::div()
+                .h(px(4.))
+                .w(px(36.))
+                .rounded(crate::util::hairline_radius(cx))
+                .bg(colors.separator),
+        );
+        bar = match placement {
+            DrawerPlacement::Top => bar.pb(px(0.)),
+            _ => bar.pb(px(8.)),
+        };
+        if let Some(drag) = self.drag.clone() {
+            bar = bar.on_mouse_down(
+                gpui::MouseButton::Left,
+                move |ev: &gpui::MouseDownEvent, _window, cx| {
+                    let at = drag_axis_position(placement, ev.position);
+                    drag.update(cx, |v, cx| {
+                        *v = Some(DragState {
+                            start: at,
+                            offset: 0.,
+                            last: at,
+                            last_at: Instant::now(),
+                            velocity: 0.,
+                            active: false,
+                        });
+                        cx.notify();
+                    });
+                },
+            );
+        }
+        let mut inner = bar.into_any_element();
+        let layout = inner.request_layout(window, cx);
+        (layout, inner)
+    }
+
+    fn prepaint(
+        &mut self,
+        _: Option<&gpui::GlobalElementId>,
+        _: Option<&gpui::InspectorElementId>,
+        _: Bounds<gpui::Pixels>,
+        state: &mut Self::RequestLayoutState,
+        window: &mut Window,
+        cx: &mut App,
+    ) -> Self::PrepaintState {
+        state.prepaint(window, cx);
+    }
+
+    fn paint(
+        &mut self,
+        _: Option<&gpui::GlobalElementId>,
+        _: Option<&gpui::InspectorElementId>,
+        _: Bounds<gpui::Pixels>,
+        state: &mut Self::RequestLayoutState,
+        _: &mut Self::PrepaintState,
+        window: &mut Window,
+        cx: &mut App,
+    ) {
+        state.paint(window, cx);
+    }
+}
+
+impl IntoElement for DrawerHandle {
+    type Element = Self;
+
+    fn into_element(self) -> Self {
+        self
+    }
+}
+
 /// HeroUI Drawer (controlled).
 #[must_use = "a component does nothing until it is rendered: add it as a child or return it from `render`"]
 #[derive(IntoElement)]
@@ -319,6 +459,25 @@ impl RenderOnce for Drawer {
             })
             .collect();
 
+        // v3's `Drawer.Handle` is an optional composed part like the close
+        // trigger: pull every composed instance out of the body children so
+        // the scrolling surface never swallows it, and hand each this
+        // drawer's placement plus — only while `is_dismissible` — its keyed
+        // drag state. The bars mount at the sheet's content end for `Top`
+        // (after the footer) and before the header on every other placement.
+        let placement_for_handle = self.placement;
+        let drag_for_handle = self.is_dismissible.then(|| drag.clone());
+        let mut handles = Vec::new();
+        self.body.retain_mut(|child| {
+            if let Some(part) = child.downcast_mut::<DrawerHandle>() {
+                part.wire(placement_for_handle, drag_for_handle.clone());
+                handles.push(std::mem::replace(child, gpui::div().into_any_element()));
+                false
+            } else {
+                true
+            }
+        });
+
         // `.drawer__header` is `flex flex-col gap-3` with no padding of its
         // own: the dialog's `p-6` is the inset, and the close trigger is
         // positioned against the dialog rather than sitting in the header.
@@ -357,42 +516,6 @@ impl RenderOnce for Drawer {
         }
 
         let has_body = !self.body.is_empty();
-        let mut handle = gpui::div().flex().items_center().justify_center().child(
-            gpui::div()
-                .h(px(4.))
-                .w(px(36.))
-                .rounded(crate::util::hairline_radius(cx))
-                .bg(colors.separator),
-        );
-        if self.is_dismissible {
-            let axis = self.placement;
-            let held_down = drag.clone();
-            handle = handle.on_mouse_down(
-                gpui::MouseButton::Left,
-                move |ev: &gpui::MouseDownEvent, _window, cx| {
-                    let at = drag_axis_position(axis, ev.position);
-                    held_down.update(cx, |v, cx| {
-                        *v = Some(DragState {
-                            start: at,
-                            offset: 0.,
-                            last: at,
-                            last_at: Instant::now(),
-                            velocity: 0.,
-                            active: false,
-                        });
-                        cx.notify();
-                    });
-                },
-            );
-        }
-        // The stylesheet keeps the base handle's bottom padding for the
-        // bottom sheet. The top sheet overrides the dialog's bottom padding
-        // and removes the handle padding, leaving the handle flush with the
-        // moving top edge while preserving the 8px sheet inset below content.
-        let handle = match self.placement {
-            DrawerPlacement::Top => handle.pb(px(0.)),
-            _ => handle.pb(px(8.)),
-        };
         let measured_bounds = panel_bounds.clone();
         let mut panel = gpui::div()
             // `drawer/drawer.js` is the modal's anatomy on an edge: RAC
@@ -410,6 +533,10 @@ impl RenderOnce for Drawer {
             })
             .bg(colors.overlay.background)
             .text_color(colors.foreground)
+            // Dark mode's `shadow-overlay` is the inset hairline alone.
+            .when_some(cx.layout().overlay_hairline, |panel, hairline| {
+                panel.border(cx.layout().border_width).border_color(hairline)
+            })
             .shadow(cx.layout().overlay_shadow.clone())
             .when(self.placement == DrawerPlacement::Bottom, |panel| {
                 panel
@@ -422,10 +549,6 @@ impl RenderOnce for Drawer {
                     .rounded_br(cx.layout().radius_2xl().min(px(32.)))
             })
             .overflow_hidden()
-            // `.drawer__handle` is `flex items-center justify-center pb-2` with
-            // an `h-1 w-9 rounded-xs bg-separator` bar: the affordance that says
-            // the sheet can be dragged shut. `--top` moves it to the bottom
-            // edge, which is the edge that moves.
             .child(
                 gpui::canvas(
                     move |bounds, _, cx| {
@@ -441,7 +564,13 @@ impl RenderOnce for Drawer {
                 .absolute()
                 .inset_0(),
             )
-            .child(handle)
+            // Composed `Drawer.Handle` parts sit before the header on every
+            // placement except Top, whose handles mount after the footer.
+            .children(if self.placement == DrawerPlacement::Top {
+                Vec::new()
+            } else {
+                std::mem::take(&mut handles)
+            })
             .when(has_header, |p| p.child(header))
             .when(has_body, |p| {
                 p.child(
@@ -519,6 +648,11 @@ impl RenderOnce for Drawer {
             }
             panel = panel.child(footer.child(footer_content));
         }
+
+        // For Top the composed handles follow the footer — v3's `--top`
+        // variant parks the bar at the sheet's far edge. Every other
+        // placement already mounted them before the header.
+        panel = panel.children(std::mem::take(&mut handles));
 
         // `.drawer__close-trigger` is `absolute end-4 top-4`. v3 renders a
         // close affordance only where the caller composes the part; an

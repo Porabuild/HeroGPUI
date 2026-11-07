@@ -8,60 +8,21 @@ impl Gallery {
     // -----------------------------------------------------------------------
 
     pub fn page_checkbox(&mut self, cx: &mut Context<'_, Self>) -> AnyElement {
-        let (basic, colored) = (self.cb_basic, self.cb_color);
         let cb_controlled = self.demo_flag("cb-controlled", false);
         component_doc_page!(
             "Checkbox",
             crate::pages::Page::Checkbox.description(),
             crate::pages::Page::Checkbox.import_line(),
             vec![
+                // v3's Usage is a single uncontrolled checkbox.
                 (
                     "Usage", "Label content uses 14px medium text with 20px lines, independent of surrounding line height. Toggling animates: the accent fill scales and fades in while the check stroke draws, and unselecting undraws it; reduced motion snaps.",
                     specimen_body("cb-main", col(vec![
-                        h::Checkbox::new("cb-1")
-                            .is_selected(basic)
-                            .hover_bg(cx.colors().accent.soft_hover())
-                            .label(gpui::div().child("Accept the terms"))
-                            .on_change(cx.listener(|this, v: &bool, _, cx| {
-                                this.cb_basic = *v;
-                                cx.notify();
-                            }))
-                            .into_any_element(),
-                        h::Checkbox::new("cb-2")
-                            .is_selected(colored)
-                            .variant(FieldVariant::Secondary)
-                            .label(gpui::div().child("Subscribe to updates"))
-                            .on_change(cx.listener(|this, v: &bool, _, cx| {
-                                this.cb_color = *v;
-                                cx.notify();
-                            }))
+                        h::Checkbox::new("cb-usage")
+                            .name("basic-terms")
+                            .label(gpui::div().child("Accept terms and conditions"))
                             .into_any_element(),
                     ]), cx),
-                ),
-                (
-                    "Label Size",
-                    "`text_size` replaces the label's `text-sm`; a 12/14/16px size takes v3's 16/20/24 leading. The control keeps its size step.",
-                    specimen_body("cb-label-size", h::Checkbox::new("cb-label-size")
-                        .text_size(px(16.))
-                        .label(gpui::div().child("Larger label"))
-                        .description("The 16px control is unchanged")
-                        .into_any_element(), cx),
-                ),
-                (
-                    "Sizes",
-                    "`size` is additive, not a v3 prop: `Md` is the pinned 16px control; `Sm` is a 14px control with a 10px indicator and 12px label text.",
-                    col(vec![
-                        specimen_body("cb-size-Sm", h::Checkbox::new("cb-sz-sm")
-                            .size(h::CheckboxSize::Sm)
-                            .label(gpui::div().child("Small"))
-                            .description("Supporting text aligns with this label")
-                            .into_any_element(), cx),
-                        specimen_body("cb-size-Md", h::Checkbox::new("cb-sz-md")
-                            .size(h::CheckboxSize::Md)
-                            .label(gpui::div().child("Medium"))
-                            .description("Supporting text aligns with this label")
-                            .into_any_element(), cx),
-                    ]),
                 ),
                 (
                     "Variants", "`radius(px)` replaces the control's default `rounded-md`; `is_round` keeps its documented circle either way.",
@@ -252,6 +213,39 @@ impl Gallery {
                             .into_any_element(), cx),
                     ]),
                 ),
+                (
+                    "Label Size",
+                    "`text_size` replaces the label's `text-sm`; a 12/14/16px size takes v3's 16/20/24 leading. The control keeps its size step.",
+                    specimen_body("cb-label-size", h::Checkbox::new("cb-label-size")
+                        .text_size(px(16.))
+                        .label(gpui::div().child("Larger label"))
+                        .description("The 16px control is unchanged")
+                        .into_any_element(), cx),
+                ),
+                (
+                    "Sizes",
+                    "`size` is additive, not a v3 prop: `Md` is the pinned 16px control; `Sm` is a 14px control with a 10px indicator and 12px label text.",
+                    col(vec![
+                        specimen_body("cb-size-Sm", h::Checkbox::new("cb-sz-sm")
+                            .size(h::CheckboxSize::Sm)
+                            .label(gpui::div().child("Small"))
+                            .description("Supporting text aligns with this label")
+                            .into_any_element(), cx),
+                        specimen_body("cb-size-Md", h::Checkbox::new("cb-sz-md")
+                            .size(h::CheckboxSize::Md)
+                            .label(gpui::div().child("Medium"))
+                            .description("Supporting text aligns with this label")
+                            .into_any_element(), cx),
+                    ]),
+                ),
+                (
+                    "Styling Overrides",
+                    "`hover_bg` replaces the row's hover fill.",
+                    specimen_body("cb-styling", col(vec![h::Checkbox::new("cb-styling")
+                        .label(gpui::div().child("Accept the terms"))
+                        .hover_bg(cx.colors().accent.soft_hover())
+                        .into_any_element()]), cx),
+                ),
             ],
             cx,
         )
@@ -272,11 +266,23 @@ impl Gallery {
             crate::pages::Page::CheckboxGroup.description(),
             crate::pages::Page::CheckboxGroup.import_line(),
             vec![
+                // v3's Usage: name="interests", a group label and
+                // description, then three options each with its own
+                // description.
                 (
                     "Usage", "Option labels use 14px/20px medium text; descriptions use 12px/16px regular text.",
-                    specimen_body("cbg-main", col(vec![h::CheckboxGroup::new("cbg-usage", group_options())
-                        .label("Notifications")
-                        .into_any_element()]), cx),
+                    specimen_body("cbg-main", col(vec![h::CheckboxGroup::new("cbg-usage", vec![
+                        h::CheckboxOption::new("coding", "Coding")
+                            .description("Love building software"),
+                        h::CheckboxOption::new("design", "Design")
+                            .description("Enjoy creating beautiful interfaces"),
+                        h::CheckboxOption::new("writing", "Writing")
+                            .description("Passionate about content creation"),
+                    ])
+                    .name("interests")
+                    .label("Select your interests")
+                    .description("Choose all that apply")
+                    .into_any_element()]), cx),
                 ),
                 (
                     "In Surface",
@@ -468,6 +474,119 @@ impl Gallery {
             crate::pages::Page::Fieldset.description(),
             crate::pages::Page::Fieldset.import_line(),
             vec![
+                // v3's Usage wraps the fieldset in a 384px Form: legend +
+                // description, a FieldGroup of three validated fields
+                // (the bio one a TextArea), and Submit/Cancel actions.
+                (
+                    "Usage", "Each field's validator reports its message on the field; a failing field blocks submission, and Cancel resets the form.",
+                    col(vec![
+                        gpui::div()
+                            .w(px(384.))
+                            .child({
+                                // v3's Usage fields own their state; the
+                                // shared `input_*` entities belong to the
+                                // Input page's demos.
+                                let name = self.demo_text("fs-name", "", cx);
+                                let email = self.demo_text("fs-email", "", cx);
+                                let bio = self.demo_text("fs-bio", "", cx);
+                                let form = h::Form::new()
+                                    .field(h::FormField::text(name.clone()).is_required(true))
+                                    .field(h::FormField::text(email.clone()).is_required(true))
+                                    .field(h::FormField::text_area(bio.clone()).is_required(true))
+                                    // v3's `onSubmit` alerts; the toast is the
+                                    // gallery's transient stand-in for it.
+                                    .on_submit(cx.listener(|_, _: &h::FormData, _, cx| {
+                                        h::Toast::new("Form submitted successfully!")
+                                            .push(
+                                                Some(std::time::Duration::from_secs(4)),
+                                                cx,
+                                            );
+                                    }))
+                                    .on_invalid(cx.listener(|_, _: &h::FormData, _, cx| {
+                                        h::Toast::new(
+                                            "Validation failed — see the field messages",
+                                        )
+                                        .push(
+                                            Some(std::time::Duration::from_secs(4)),
+                                            cx,
+                                        );
+                                    }));
+                                let submit = form.submit_handler();
+                                let reset = form.reset_handler();
+                                form.child(
+                                    h::Fieldset::new()
+                                        .child(h::FieldsetLegend::new("Profile Settings"))
+                                        .child(h::Description::new(
+                                            "Update your profile information.",
+                                        ))
+                                        .child(
+                                            h::FieldGroup::new()
+                                                .child(
+                                                    h::TextField::new(name)
+                                                        .name("name")
+                                                        .is_required(true)
+                                                        .label("Name")
+                                                        .placeholder("John Doe")
+                                                        .full_width()
+                                                        .validate(|value| {
+                                                            if value.len() < 3 {
+                                                                return Some(
+                                                                    "Name must be at least 3 characters"
+                                                                        .into(),
+                                                                );
+                                                            }
+                                                            None
+                                                        }),
+                                                )
+                                                .child(
+                                                    h::TextField::new(email)
+                                                        .name("email")
+                                                        .input_type(h::InputType::Email)
+                                                        .is_required(true)
+                                                        .label("Email")
+                                                        .placeholder("john@example.com")
+                                                        .full_width(),
+                                                )
+                                                .child(
+                                                    h::TextArea::new(bio)
+                                                        .name("bio")
+                                                        .is_required(true)
+                                                        .label("Bio")
+                                                        .placeholder("Tell us about yourself...")
+                                                        .full_width()
+                                                        .description("Minimum 10 characters")
+                                                        .validate(|value| {
+                                                            if value.len() < 10 {
+                                                                return Some(
+                                                                    "Bio must be at least 10 characters"
+                                                                        .into(),
+                                                                );
+                                                            }
+                                                            None
+                                                        }),
+                                                ),
+                                        )
+                                        .child(
+                                            h::FieldsetActions::new()
+                                                .child(
+                                                    h::Button::new("fs-submit")
+                                                        .child(icon(h::IconName::Save.path(), cx))
+                                                        .child("Save changes")
+                                                        .on_press(move |_, w, cx| submit(w, cx)),
+                                                )
+                                                .child(
+                                                    h::Button::new("fs-cancel")
+                                                        .label("Cancel")
+                                                        .variant(Variant::Secondary)
+                                                        .on_press(move |_, w, cx| reset(w, cx)),
+                                                ),
+                                        ),
+                                )
+                                .into_any_element()
+                            })
+                            .into_any_element(),
+                    ]),
+                ),
                 (
                     "In Surface",
                     field_col(vec![h::Surface::new()
@@ -497,34 +616,6 @@ impl Gallery {
                         )
                         .into_any_element()]),
                 ),
-                (
-                    "Usage",
-                    field_col(vec![h::Fieldset::new()
-                        .child(h::FieldsetLegend::new("Shipping address"))
-                        .child(
-                            h::FieldGroup::new()
-                                .child(
-                                    h::TextField::new(self.input_name.clone())
-                                        .label("Street")
-                                        .placeholder("221B Baker Street"),
-                                )
-                                .child(
-                                    h::TextField::new(self.input_email.clone())
-                                        .label("City")
-                                        .placeholder("London"),
-                                ),
-                        )
-                        .child(
-                            h::FieldsetActions::new()
-                                .child(
-                                    h::Button::new("fs-cancel")
-                                        .label("Cancel")
-                                        .variant(Variant::Tertiary),
-                                )
-                                .child(h::Button::new("fs-save").label("Save")),
-                        )
-                        .into_any_element()]),
-                ),
             ],
             cx,
         )
@@ -543,24 +634,6 @@ impl Gallery {
                         h::Description::new("We will never share your address.").into_any_element(),
                         h::ErrorMessage::new("Enter a valid email address.").into_any_element(),
                     ]),
-                ),
-                (
-                    "With Required Indicator",
-                    col(vec![h::Label::new("Email")
-                        .is_required(true)
-                        .into_any_element()]),
-                ),
-                (
-                    "With Disabled State",
-                    col(vec![h::Label::new("Email")
-                        .is_disabled(true)
-                        .into_any_element()]),
-                ),
-                (
-                    "With Invalid State",
-                    col(vec![h::Label::new("Email")
-                        .is_invalid(true)
-                        .into_any_element()]),
                 ),
                 (
                     "With Form Fields",
@@ -585,6 +658,24 @@ impl Gallery {
                                 .description("We will never share your email"),
                         ),
                     ]),
+                ),
+                (
+                    "With Required Indicator",
+                    col(vec![h::Label::new("Email")
+                        .is_required(true)
+                        .into_any_element()]),
+                ),
+                (
+                    "With Disabled State",
+                    col(vec![h::Label::new("Email")
+                        .is_disabled(true)
+                        .into_any_element()]),
+                ),
+                (
+                    "With Invalid State",
+                    col(vec![h::Label::new("Email")
+                        .is_invalid(true)
+                        .into_any_element()]),
                 ),
                 (
                     "Basic Validation",
@@ -668,91 +759,147 @@ impl Gallery {
     }
 
     pub fn page_form(&mut self, cx: &mut Context<'_, Self>) -> AnyElement {
-        let submitted = self.input_submitted.clone();
         component_doc_page!(
             "Form",
             crate::pages::Page::Form.description(),
             crate::pages::Page::Form.import_line(),
             vec![
+                // v3's Usage: a 384px form with a required email and
+                // password, per-field validators, and Submit/Reset.
                 (
-                    "Usage", "The wired Submit button and Enter in a focused field run the same submission: with the required Name empty, either door reports the invalid path instead.",
+                    "Usage", "The wired Submit button and Enter in a focused field run the same submission: each field's validator reports its message on the field, a failing field blocks submission, and Reset clears the form.",
                     col(vec![
-                        {
-                            // `name` rides on each field's state, so the form finds
-                            // it without the call site repeating the name.
-                            let form = h::Form::new()
-                                .field(
-                                    h::FormField::text(self.input_name.clone())
-                                        .is_required(true)
-                                        .default_text(self.input_name.clone(), ""),
-                                )
-                                .field(
-                                    h::FormField::text(self.input_email.clone())
-                                        .default_text(self.input_email.clone(), ""),
-                                )
-                                .on_submit(cx.listener(|this, data: &h::FormData, _, cx| {
-                                    this.input_submitted = data
-                                        .iter()
-                                        .map(|(n, v)| format!("{n}={}", v.as_text()))
-                                        .collect::<Vec<_>>()
-                                        .join(", ");
-                                    cx.notify();
-                                }))
-                                .on_invalid(cx.listener(|this, _: &h::FormData, _, cx| {
-                                    this.input_submitted = "Name is required".to_owned();
-                                    cx.notify();
-                                }))
-                                .on_reset({
-                                    let l = cx.listener(
-                                        |this: &mut Self, _: &(), _: &mut gpui::Window, cx| {
-                                            this.input_submitted = String::new();
-                                            cx.notify();
-                                        },
-                                    );
-                                    move |w: &mut gpui::Window, cx: &mut gpui::App| l(&(), w, cx)
-                                });
-                            let submit = form.submit_handler();
-                            let reset = form.reset_handler();
-                            form.child(
-                                h::TextField::new(self.input_name.clone())
-                                    .name("name")
-                                    .label("Name")
-                                    .placeholder("Ada Lovelace")
-                                    .is_required(true),
-                            )
-                            .child(
-                                h::TextField::new(self.input_email.clone())
-                                    .name("email")
-                                    .label("Email")
-                                    .placeholder("ada@example.com")
-                                    .description("We reply within a day."),
-                            )
-                            .child(
-                                gpui::div()
-                                    .flex()
-                                    .gap(px(8.))
-                                    .child(
-                                        h::Button::new("form-submit")
-                                            .label("Submit")
-                                            .on_press(move |_, w, cx| submit(w, cx)),
+                        gpui::div()
+                            .w(px(384.))
+                            .child({
+                                // The Usage fields own their state; the
+                                // shared `input_*` entities belong to the
+                                // Input/Fieldset page demos.
+                                let email = self.demo_text("form-email", "", cx);
+                                let password = self.demo_text("form-password", "", cx);
+                                let form = h::Form::new()
+                                    .field(h::FormField::text(email.clone()).is_required(true))
+                                    .field(
+                                        h::FormField::text(password.clone()).is_required(true),
                                     )
-                                    .child(
-                                        h::Button::new("form-reset")
-                                            .label("Reset")
-                                            .variant(Variant::Tertiary)
-                                            .on_press(move |_, w, cx| reset(w, cx)),
-                                    ),
-                            )
-                            .into_any_element()
-                        },
-                        para(
-                            &if submitted.is_empty() {
-                                "Nothing submitted yet".to_owned()
-                            } else {
-                                format!("Submitted: {submitted}")
-                            },
-                            cx,
-                        ),
+                                    // v3's `onSubmit` alerts; the toast is the
+                                    // gallery's transient stand-in for it.
+                                    .on_submit(cx.listener(|_, _: &h::FormData, _, cx| {
+                                        h::Toast::new("Form submitted successfully!")
+                                            .push(
+                                                Some(std::time::Duration::from_secs(4)),
+                                                cx,
+                                            );
+                                    }))
+                                    .on_invalid(cx.listener(|_, _: &h::FormData, _, cx| {
+                                        h::Toast::new(
+                                            "Validation failed — see the field messages",
+                                        )
+                                        .push(
+                                            Some(std::time::Duration::from_secs(4)),
+                                            cx,
+                                        );
+                                    }));
+                                let submit = form.submit_handler();
+                                let reset = form.reset_handler();
+                                form.child(
+                                    h::TextField::new(email)
+                                        .name("email")
+                                        .input_type(h::InputType::Email)
+                                        .is_required(true)
+                                        .label("Email")
+                                        .placeholder("john@example.com")
+                                        .full_width()
+                                        .validate(|value| {
+                                            // v3's /^[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}$/i.
+                                            let mut parts = value.split('@');
+                                            let local = parts.next().unwrap_or("");
+                                            let domain = parts.next();
+                                            let valid = parts.next().is_none()
+                                                && !local.is_empty()
+                                                && local.chars().all(|c| {
+                                                    c.is_ascii_alphanumeric()
+                                                        || "._%+-".contains(c)
+                                                })
+                                                && domain.is_some_and(|d| {
+                                                    d.rsplit_once('.').is_some_and(
+                                                        |(host, tld)| {
+                                                            !host.is_empty()
+                                                                && host.chars().all(|c| {
+                                                                    c.is_ascii_alphanumeric()
+                                                                        || "-.".contains(c)
+                                                                })
+                                                                && tld.len() >= 2
+                                                                && tld
+                                                                    .chars()
+                                                                    .all(|c| {
+                                                                        c.is_ascii_alphabetic()
+                                                                    })
+                                                        },
+                                                    )
+                                                });
+                                            if valid {
+                                                None
+                                            } else {
+                                                Some(
+                                                    "Please enter a valid email address".into(),
+                                                )
+                                            }
+                                        }),
+                                )
+                                .child(
+                                    h::TextField::new(password)
+                                        .name("password")
+                                        .input_type(h::InputType::Password)
+                                        .is_required(true)
+                                        .label("Password")
+                                        .placeholder("Enter your password")
+                                        .full_width()
+                                        .description(
+                                            "Must be at least 8 characters with 1 uppercase and 1 number",
+                                        )
+                                        .validate(|value| {
+                                            if value.len() < 8 {
+                                                return Some(
+                                                    "Password must be at least 8 characters"
+                                                        .into(),
+                                                );
+                                            }
+                                            if !value.chars().any(|c| c.is_ascii_uppercase()) {
+                                                return Some(
+                                                    "Password must contain at least one uppercase letter"
+                                                        .into(),
+                                                );
+                                            }
+                                            if !value.chars().any(|c| c.is_ascii_digit()) {
+                                                return Some(
+                                                    "Password must contain at least one number"
+                                                        .into(),
+                                                );
+                                            }
+                                            None
+                                        }),
+                                )
+                                .child(
+                                    gpui::div()
+                                        .flex()
+                                        .gap(px(8.))
+                                        .child(
+                                            h::Button::new("form-submit")
+                                                .child(icon(h::icons::CHECK, cx))
+                                                .child("Submit")
+                                                .on_press(move |_, w, cx| submit(w, cx)),
+                                        )
+                                        .child(
+                                            h::Button::new("form-reset")
+                                                .label("Reset")
+                                                .variant(Variant::Secondary)
+                                                .on_press(move |_, w, cx| reset(w, cx)),
+                                        ),
+                                )
+                                .into_any_element()
+                            })
+                            .into_any_element(),
                     ]),
                 ),
                 ("Server Errors", "`ValidationErrors` is a record of server errors keyed by field name. The Form routes each name into that field's own error slot: editing a field clears only its message while its sibling keeps theirs, Reset hides them all, and a re-render that passes the same record re-arms nothing. New response supplies a genuinely new record — identical content, fresh identity — so both messages re-arm.", {
@@ -862,6 +1009,13 @@ impl Gallery {
             crate::pages::Page::Input.import_line(),
             vec![
                 (
+                    "Usage",
+                    "Text adornments inherit the field's 14px text and 20px line height. Platform text replacement, composition updates, and paste use the same editable state as keyboard input.",
+                    specimen_body("in-main", field_col(vec![h::Input::new(self.demo_text("in-usage", "", cx))
+                        .placeholder("Enter your name")
+                        .into_any_element()]), cx),
+                ),
+                (
                     "Variants",
                     field_col(vec![
                         specimen_body(
@@ -883,14 +1037,6 @@ impl Gallery {
                             cx,
                         ),
                     ]),
-                ),
-                (
-                    "Usage",
-                    "Text adornments inherit the field's 14px text and 20px line height. Platform text replacement, composition updates, and paste use the same editable state as keyboard input.",
-                    specimen_body("in-main", field_col(vec![h::Input::new(self.demo_text("in-usage", "", cx))
-                        .label("Name")
-                        .placeholder("Enter your name")
-                        .into_any_element()]), cx),
                 ),
                 (
                     "In Surface",
@@ -1025,50 +1171,27 @@ impl Gallery {
             crate::pages::Page::InputGroup.description(),
             crate::pages::Page::InputGroup.import_line(),
             vec![
+                // v3's Usage: a 280px group labelled "Email address" with
+                // a muted envelope prefix and no default value.
                 (
                     "Usage",
                     "Prefix and suffix text uses 14px text with 20px lines alongside the input.",
-                    specimen_body("ig-main", field_col(vec![h::InputGroup::new()
-                        .label("Website")
-                        .prefix(h::InputAddon::new("https://"))
-                        .input(
-                            h::Input::new(self.demo_text("ig-usage", "", cx))
-                                // v3's group example seeds the input with
-                                // `defaultValue`; `value` is the controlled
-                                // spelling of the same thing.
-                                .default_value("example.com")
-                                .placeholder("example.com"),
-                        )
-                        .into_any_element()]), cx),
-                ),
-                (
-                    "Box Customisation",
-                    "`padding_x` overrides the held field's exposed edges only -- a side with an addon keeps the addon's inset -- `height` resizes the single-line group, and `is_bare` drops the group's chrome.",
-                    specimen_body("ig-box-customisation", field_col(vec![h::InputGroup::new()
-                        .label("Compact")
-                        .height(px(28.))
-                        .padding_x(px(8.))
-                        .is_bare(true)
-                        .font_family(crate::app::MONO_FONT)
-                        .prefix(h::InputAddon::new("$"))
-                        .input(
-                            h::Input::new(self.demo_text("ig-custom-box", "", cx))
-                                .placeholder("0.00"),
-                        )
-                        .into_any_element()]), cx),
-                ),
-                (
-                    "Hover Colour",
-                    "`group_hover_bg` names the fill the hovered group box fades to, in place of `--field-hover`; a focused, invalid or disabled group keeps its own chrome.",
-                    specimen_body("ig-hover-colour", field_col(vec![h::InputGroup::new()
-                        .label("Website")
-                        .group_hover_bg(cx.colors().accent.soft())
-                        .prefix(h::InputAddon::new("https://"))
-                        .input(
-                            h::Input::new(self.demo_text("ig-hover-colour", "", cx))
-                                .placeholder("example.com"),
-                        )
-                        .into_any_element()]), cx),
+                    specimen_body("ig-main", gpui::div()
+                        .w(px(280.))
+                        .child(h::InputGroup::new()
+                            .label("Email address")
+                            .full_width(true)
+                            .prefix(gpui::div()
+                                .child(gpui::svg()
+                                    .size(px(16.))
+                                    .path(h::icons::MAIL)
+                                    .text_color(cx.colors().muted)))
+                            .input(
+                                h::Input::new(self.demo_text("ig-usage", "", cx))
+                                    .placeholder("name@email.com"),
+                            )
+                            .into_any_element())
+                        .into_any_element(), cx),
                 ),
                 (
                     "Variants",
@@ -1384,6 +1507,35 @@ impl Gallery {
                         .into_any_element()]), cx),
                 ),
                 (
+                    "Box Customisation",
+                    "`padding_x` overrides the held field's exposed edges only -- a side with an addon keeps the addon's inset -- `height` resizes the single-line group, and `is_bare` drops the group's chrome.",
+                    specimen_body("ig-box-customisation", field_col(vec![h::InputGroup::new()
+                        .label("Compact")
+                        .height(px(28.))
+                        .padding_x(px(8.))
+                        .is_bare(true)
+                        .font_family(crate::app::MONO_FONT)
+                        .prefix(h::InputAddon::new("$"))
+                        .input(
+                            h::Input::new(self.demo_text("ig-custom-box", "", cx))
+                                .placeholder("0.00"),
+                        )
+                        .into_any_element()]), cx),
+                ),
+                (
+                    "Hover Colour",
+                    "`group_hover_bg` names the fill the hovered group box fades to, in place of `--field-hover`; a focused, invalid or disabled group keeps its own chrome.",
+                    specimen_body("ig-hover-colour", field_col(vec![h::InputGroup::new()
+                        .label("Website")
+                        .group_hover_bg(cx.colors().accent.soft())
+                        .prefix(h::InputAddon::new("https://"))
+                        .input(
+                            h::Input::new(self.demo_text("ig-hover-colour", "", cx))
+                                .placeholder("example.com"),
+                        )
+                        .into_any_element()]), cx),
+                ),
+                (
                     "Addons",
                     specimen_body("ig-addons", field_col(vec![h::InputGroup::new()
                         .label("Amount")
@@ -1422,46 +1574,26 @@ impl Gallery {
                 (
                     "Usage", "Custom slot content inherits 14px/20px text; the built-in digits use 18px/24px text.",
                     // v3 labels the field, explains where the code went, and
-                    // splits the six slots into two groups around a separator.
-                    specimen_body("otp-main", col(vec![
-                        h::Label::new("Verify account").into_any_element(),
-                        muted_para("We've sent a code to a****@gmail.com", cx),
-                        h::InputOTP::new(self.otp.clone())
+                    // splits the six slots into two groups around a separator,
+                    // all inside a 280px column.
+                    specimen_body("otp-main", gpui::div()
+                        .w(px(280.))
+                        .flex()
+                        .flex_col()
+                        .gap(px(8.))
+                        .child(h::Label::new("Verify account").into_any_element())
+                        .child(muted_para("We've sent a code to a****@gmail.com", cx))
+                        .child(h::InputOTP::new(self.demo_otp("otp-usage", 6, cx))
                             .separator()
-                            .slot_hover_bg(cx.colors().accent.soft())
-                            .radius(px(4.))
-                            .on_complete(cx.listener(|this, code: &str, _, cx| {
-                                this.otp_done = code.to_owned();
-                                cx.notify();
-                            }))
-                            .into_any_element(),
-                        gpui::div()
+                            .into_any_element())
+                        .child(gpui::div()
                             .flex()
                             .items_center()
                             .gap(px(5.))
-                            .child(muted_para(
-                                &if done.is_empty() {
-                                    "Didn't receive a code?".to_owned()
-                                } else {
-                                    format!("Complete: {done}")
-                                },
-                                cx,
-                            ))
+                            .child(muted_para("Didn't receive a code?", cx))
                             .child(h::Link::new("otp-resend").label("Resend").href("#"))
-                            .into_any_element(),
-                    ]), cx),
-                ),
-                (
-                    "Filled & Active",
-                    "Filled slots use the focus background and the active cursor slot keeps its caret and keyboard-visible ring.",
-                    specimen_body(
-                        "otp-filled-active",
-                        h::InputOTP::new(self.demo_otp("otp-filled-active", 6, cx))
-                            .value("123")
-                            .auto_focus(true)
-                            .into_any_element(),
-                        cx,
-                    ),
+                            .into_any_element())
+                        .into_any_element(), cx),
                 ),
                 (
                     "Variants",
@@ -1544,26 +1676,6 @@ impl Gallery {
                     ]), cx),
                 ),
                 (
-                    "Custom Slots",
-                    "The GPUI `slot` extension receives each slot's live index and character.",
-                    specimen_body("otp-custom-slots", col(vec![h::InputOTP::new(self.demo_otp(
-                        "otp-custom-slots",
-                        4,
-                        cx
-                    ))
-                    .slot(|index, value| {
-                        gpui::div()
-                            .flex()
-                            .flex_col()
-                            .items_center()
-                            .text_size(px(11.))
-                            .child(value.unwrap_or('·').to_string())
-                            .child(format!("#{index}"))
-                            .into_any_element()
-                    })
-                    .into_any_element(),]), cx),
-                ),
-                (
                     "Form Example",
                     specimen_body("otp-form-example", col(vec![{
                         let state = self.demo_otp("otp-form", 6, cx);
@@ -1612,6 +1724,38 @@ impl Gallery {
                             .into_any_element(),
                     ]), cx),
                 ),
+                (
+                    "Filled & Active",
+                    "Filled slots use the focus background and the active cursor slot keeps its caret and keyboard-visible ring.",
+                    specimen_body(
+                        "otp-filled-active",
+                        h::InputOTP::new(self.demo_otp("otp-filled-active", 6, cx))
+                            .value("123")
+                            .auto_focus(true)
+                            .into_any_element(),
+                        cx,
+                    ),
+                ),
+                (
+                    "Custom Slots",
+                    "The GPUI `slot` extension receives each slot's live index and character.",
+                    specimen_body("otp-custom-slots", col(vec![h::InputOTP::new(self.demo_otp(
+                        "otp-custom-slots",
+                        4,
+                        cx
+                    ))
+                    .slot(|index, value| {
+                        gpui::div()
+                            .flex()
+                            .flex_col()
+                            .items_center()
+                            .text_size(px(11.))
+                            .child(value.unwrap_or('·').to_string())
+                            .child(format!("#{index}"))
+                            .into_any_element()
+                    })
+                    .into_any_element(),]), cx),
+                ),
             ],
             cx,
         )
@@ -1633,7 +1777,7 @@ impl Gallery {
                         "nf-usage",
                         1024.,
                         0.,
-                        4096.,
+                        f64::MAX,
                         1.,
                         cx,
                     ))
@@ -1644,43 +1788,6 @@ impl Gallery {
                     .full_width(true)
                     .label("Width")
                     .into_any_element()]), cx),
-                ),
-                (
-                    "Box Customisation",
-                    "`height` resizes the group and the inner field together; `padding_x` moves the input's inset without touching the steppers; `is_bare` drops the group's paint.",
-                    specimen_body("nf-box-customisation", field_col(vec![h::NumberField::new(
-                        self.demo_number("nf-custom-box", 5., 0., 20., 1., cx),
-                    )
-                    .label("Compact")
-                    .height(px(28.))
-                    .padding_x(px(8.))
-                    .is_bare(true)
-                    .font_family(crate::app::MONO_FONT)
-                    .into_any_element()]), cx),
-                ),
-                (
-                    "Hover Colour",
-                    "`group_hover_bg` names the fill the hovered group fades to, in place of `--field-hover`; a focused, invalid or disabled group keeps its own chrome.",
-                    specimen_body("nf-hover-colour", field_col(vec![h::NumberField::new(
-                        self.demo_number("nf-hover-colour", 5., 0., 20., 1., cx),
-                    )
-                    .label("Quantity")
-                    .group_hover_bg(cx.colors().accent.soft())
-                    .into_any_element()]), cx),
-                ),
-                (
-                    "Without steppers",
-                    specimen_body("nf-without-steppers", col(vec![h::NumberField::new(self.number.clone())
-                        .label("Quantity")
-                        .hide_steppers(true)
-                        .into_any_element()]), cx),
-                ),
-                (
-                    "Format Options",
-                    specimen_body("nf-format-options", col(vec![h::NumberField::new(self.price.clone())
-                        .label("Price")
-                        .format_options(h::NumberFormat::currency("USD"))
-                        .into_any_element()]), cx),
                 ),
                 (
                     "Variants",
@@ -1807,6 +1914,13 @@ impl Gallery {
                     ]), cx),
                 ),
                 (
+                    "Format Options",
+                    specimen_body("nf-format-options", col(vec![h::NumberField::new(self.price.clone())
+                        .label("Price")
+                        .format_options(h::NumberFormat::currency("USD"))
+                        .into_any_element()]), cx),
+                ),
+                (
                     "Form Example",
                     specimen_body("nf-form-example", col(vec![{
                         let seats = self.demo_number("nf-form", 1., 1., 99., 1., cx);
@@ -1870,6 +1984,36 @@ impl Gallery {
                     )
                     .into_any_element()]), cx),
                 ),
+                (
+                    "Box Customisation",
+                    "`height` resizes the group and the inner field together; `padding_x` moves the input's inset without touching the steppers; `is_bare` drops the group's paint.",
+                    specimen_body("nf-box-customisation", field_col(vec![h::NumberField::new(
+                        self.demo_number("nf-custom-box", 5., 0., 20., 1., cx),
+                    )
+                    .label("Compact")
+                    .height(px(28.))
+                    .padding_x(px(8.))
+                    .is_bare(true)
+                    .font_family(crate::app::MONO_FONT)
+                    .into_any_element()]), cx),
+                ),
+                (
+                    "Hover Colour",
+                    "`group_hover_bg` names the fill the hovered group fades to, in place of `--field-hover`; a focused, invalid or disabled group keeps its own chrome.",
+                    specimen_body("nf-hover-colour", field_col(vec![h::NumberField::new(
+                        self.demo_number("nf-hover-colour", 5., 0., 20., 1., cx),
+                    )
+                    .label("Quantity")
+                    .group_hover_bg(cx.colors().accent.soft())
+                    .into_any_element()]), cx),
+                ),
+                (
+                    "Without steppers",
+                    specimen_body("nf-without-steppers", col(vec![h::NumberField::new(self.number.clone())
+                        .label("Quantity")
+                        .hide_steppers(true)
+                        .into_any_element()]), cx),
+                ),
             ],
             cx,
         )
@@ -1887,6 +2031,21 @@ impl Gallery {
         });
         let plans =
             || -> Vec<h::RadioOption> { vec!["Free".into(), "Pro".into(), "Enterprise".into()] };
+        // v3's Usage options: Basic/Premium/Business plans with per-option
+        // descriptions and `defaultValue="premium"`.
+        let v3_plans = || -> Vec<h::RadioOption> {
+            vec![
+                h::RadioOption::new("Basic Plan")
+                    .value("basic")
+                    .description("Includes 100 messages per month"),
+                h::RadioOption::new("Premium Plan")
+                    .value("premium")
+                    .description("Includes 200 messages per month"),
+                h::RadioOption::new("Business Plan")
+                    .value("business")
+                    .description("Unlimited messages"),
+            ]
+        };
         component_doc_page!(
             "Radio Group",
             crate::pages::Page::RadioGroup.description(),
@@ -1894,43 +2053,30 @@ impl Gallery {
             vec![
                 (
                     "Usage", "Option content uses 14px medium text with 20px lines, independent of surrounding line height.",
-                    specimen_body("rg-main", col(vec![h::RadioGroup::new("rg-usage", plans())
-                        .full_width(true)
-                        .default_value("Free")
+                    specimen_body("rg-main", col(vec![h::RadioGroup::new("rg-usage", v3_plans())
+                        .name("plan")
+                        .default_value("premium")
                         // v3's own example opens with the group's `<Label>` and
                         // `<Description>`, then a `<Description>` per `<Radio>`.
                         .label("Plan selection")
                         .description("Choose the plan that suits you best")
-                        .descriptions([
-                            Some("Includes 100 messages per month"),
-                            Some("Includes 200 messages per month"),
-                            None,
-                        ])
                         .into_any_element()]), cx),
                 ),
                 (
-                    "Label Size",
-                    "`text_size` replaces the option labels' `text-sm`; a 12/14/16px size takes v3's 16/20/24 leading. The circles, gap and descriptions keep their size step.",
-                    specimen_body("rg-label-size", h::RadioGroup::new("rg-label-size", plans())
-                        .text_size(px(16.))
-                        .default_value("Free")
-                        .into_any_element(), cx),
-                ),
-                (
-                    "Sizes",
-                    "`size` is additive, not a v3 prop: `Md` is the pinned 16px control; `Sm` is a 14px control with a 5px dot, 12px label text and a 10px row gap.",
-                    col(vec![
-                        specimen_body("rg-size-Sm", h::RadioGroup::new("rg-sz-sm", plans())
-                            .size(h::RadioSize::Sm)
-                            .descriptions([Some("100 messages"), Some("200 messages"), None])
-                            .default_value("Free")
-                            .into_any_element(), cx),
-                        specimen_body("rg-size-Md", h::RadioGroup::new("rg-sz-md", plans())
-                            .size(h::RadioSize::Md)
-                            .descriptions([Some("100 messages"), Some("200 messages"), None])
-                            .default_value("Free")
-                            .into_any_element(), cx),
-                    ]),
+                    "Horizontal Orientation",
+                    specimen_body("rg-horizontal", col(vec![h::RadioGroup::new("rg-h", options.clone())
+                        .value(selected_value.clone())
+                        .orientation(Orientation::Horizontal)
+                        .on_change(cx.listener(|this, value: &SharedString, _, cx| {
+                            this.radio_sel = match value.as_ref() {
+                                "Free" => Some(0),
+                                "Pro" => Some(1),
+                                "Enterprise" => Some(2),
+                                _ => None,
+                            };
+                            cx.notify();
+                        }))
+                        .into_any_element()]), cx),
                 ),
                 (
                     "Variants", "`radius(px)` rounds the control circle in place of `key_radius`; the pressed box scales the same value and the selected dot keeps its own.",
@@ -1954,6 +2100,59 @@ impl Gallery {
                                 .default_value("Free")
                                 .variant(FieldVariant::Secondary),
                         )
+                        .into_any_element()]), cx),
+                ),
+                (
+                    "Disabled",
+                    specimen_body("rg-disabled", col(vec![
+                        // v3's own example disables the whole group
+                        // (`<RadioGroup isDisabled>`); `Radio.isDisabled`
+                        // instead disables one option — dimmed, unclickable,
+                        // skipped by the arrows.
+                        h::RadioGroup::new("rg-d", options.clone())
+                            .value(selected_value.clone())
+                            .is_disabled(true)
+                            .into_any_element(),
+                        h::RadioGroup::new(
+                            "rg-d-opt",
+                            vec![
+                                h::RadioOption::new("Free").is_disabled(true),
+                                "Pro".into(),
+                                "Enterprise".into(),
+                            ],
+                        )
+                        .default_value("Enterprise")
+                        .into_any_element(),
+                    ]), cx),
+                ),
+                (
+                    "Controlled", "The selected plan lives in the caller: the group reads `value` and the caption prints the selected plan.",
+                    specimen_body("rg-controlled", col(vec![
+                        h::RadioGroup::new(
+                            "rg-controlled",
+                            vec![
+                                h::RadioOption::new("Starter"),
+                                h::RadioOption::new("Pro"),
+                                h::RadioOption::new("Teams"),
+                            ],
+                        )
+                        .label("Subscription plan")
+                        .value(self.radio_plan.clone())
+                        .on_change(cx.listener(|this, value: &SharedString, _, cx| {
+                            this.radio_plan = value.clone();
+                            cx.notify();
+                        }))
+                        .into_any_element(),
+                        para(
+                            &format!("Selected plan: {}", self.radio_plan),
+                            cx,
+                        ),
+                    ]), cx),
+                ),
+                (
+                    "Uncontrolled",
+                    specimen_body("rg-uncontrolled", col(vec![h::RadioGroup::new("rg-unc", options.clone())
+                        .default_value("Pro")
                         .into_any_element()]), cx),
                 ),
                 (
@@ -2022,6 +2221,30 @@ impl Gallery {
                     ]), cx),
                 ),
                 (
+                    "Label Size",
+                    "`text_size` replaces the option labels' `text-sm`; a 12/14/16px size takes v3's 16/20/24 leading. The circles, gap and descriptions keep their size step.",
+                    specimen_body("rg-label-size", h::RadioGroup::new("rg-label-size", plans())
+                        .text_size(px(16.))
+                        .default_value("Free")
+                        .into_any_element(), cx),
+                ),
+                (
+                    "Sizes",
+                    "`size` is additive, not a v3 prop: `Md` is the pinned 16px control; `Sm` is a 14px control with a 5px dot, 12px label text and a 10px row gap.",
+                    col(vec![
+                        specimen_body("rg-size-Sm", h::RadioGroup::new("rg-sz-sm", plans())
+                            .size(h::RadioSize::Sm)
+                            .descriptions([Some("100 messages"), Some("200 messages"), None])
+                            .default_value("Free")
+                            .into_any_element(), cx),
+                        specimen_body("rg-size-Md", h::RadioGroup::new("rg-sz-md", plans())
+                            .size(h::RadioSize::Md)
+                            .descriptions([Some("100 messages"), Some("200 messages"), None])
+                            .default_value("Free")
+                            .into_any_element(), cx),
+                    ]),
+                ),
+                (
                     "Vertical",
                     specimen_body("rg-vertical", col(vec![h::RadioGroup::new("rg-v", options.clone())
                         .value(selected_value.clone())
@@ -2036,82 +2259,12 @@ impl Gallery {
                         }))
                         .into_any_element()]), cx),
                 ),
-                (
-                    "Uncontrolled",
-                    specimen_body("rg-uncontrolled", col(vec![h::RadioGroup::new("rg-unc", options.clone())
-                        .default_value("Pro")
-                        .into_any_element()]), cx),
-                ),
-                (
-                    "Horizontal Orientation",
-                    specimen_body("rg-horizontal", col(vec![h::RadioGroup::new("rg-h", options.clone())
-                        .value(selected_value.clone())
-                        .orientation(Orientation::Horizontal)
-                        .on_change(cx.listener(|this, value: &SharedString, _, cx| {
-                            this.radio_sel = match value.as_ref() {
-                                "Free" => Some(0),
-                                "Pro" => Some(1),
-                                "Enterprise" => Some(2),
-                                _ => None,
-                            };
-                            cx.notify();
-                        }))
-                        .into_any_element()]), cx),
-                ),
-                (
-                    "Controlled", "The selected plan lives in the caller: the group reads `value` and the caption prints the selected plan.",
-                    specimen_body("rg-controlled", col(vec![
-                        h::RadioGroup::new(
-                            "rg-controlled",
-                            vec![
-                                h::RadioOption::new("Starter"),
-                                h::RadioOption::new("Pro"),
-                                h::RadioOption::new("Teams"),
-                            ],
-                        )
-                        .label("Subscription plan")
-                        .value(self.radio_plan.clone())
-                        .on_change(cx.listener(|this, value: &SharedString, _, cx| {
-                            this.radio_plan = value.clone();
-                            cx.notify();
-                        }))
-                        .into_any_element(),
-                        para(
-                            &format!("Selected plan: {}", self.radio_plan),
-                            cx,
-                        ),
-                    ]), cx),
-                ),
-                (
-                    "Disabled",
-                    specimen_body("rg-disabled", col(vec![
-                        // v3's own example disables the whole group
-                        // (`<RadioGroup isDisabled>`); `Radio.isDisabled`
-                        // instead disables one option — dimmed, unclickable,
-                        // skipped by the arrows.
-                        h::RadioGroup::new("rg-d", options)
-                            .value(selected_value)
-                            .is_disabled(true)
-                            .into_any_element(),
-                        h::RadioGroup::new(
-                            "rg-d-opt",
-                            vec![
-                                h::RadioOption::new("Free").is_disabled(true),
-                                "Pro".into(),
-                                "Enterprise".into(),
-                            ],
-                        )
-                        .default_value("Enterprise")
-                        .into_any_element(),
-                    ]), cx),
-                ),
             ],
             cx,
         )
     }
 
     pub fn page_search_field(&mut self, cx: &mut Context<'_, Self>) -> AnyElement {
-        let query = self.search_query.clone();
         // Each demo owns its state, the way v3's examples do.
         let surface = self.demo_text("sf-surface", "", cx);
         let described = self.demo_text("sf-desc", "", cx);
@@ -2132,39 +2285,22 @@ impl Gallery {
             crate::pages::Page::SearchField.description(),
             crate::pages::Page::SearchField.import_line(),
             vec![
+                // v3's Usage: label "Search", placeholder "Search...", a
+                // 280px input with the clear button.
                 (
                     "Usage",
                     specimen_body("sf-main", col(vec![
-                        demo_field(
-                            h::SearchField::new(self.search_state.clone())
-                                .label("Search docs")
-                                .placeholder("Search components")
-                                .on_change(cx.listener(|this, text: &str, _, cx| {
-                                    this.search_query = text.to_owned();
-                                    cx.notify();
-                                })),
-                        ),
-                        para(
-                            &if query.is_empty() {
-                                "Type to search".to_owned()
-                            } else {
-                                format!("Query: {query}")
-                            },
-                            cx,
-                        ),
+                        gpui::div()
+                            .w(px(280.))
+                            .child(demo_field(
+                                h::SearchField::new(self.search_state.clone())
+                                    .name("search")
+                                    .label("Search")
+                                    .placeholder("Search...")
+                                    .full_width(),
+                            ))
+                            .into_any_element(),
                     ]), cx),
-                ),
-                (
-                    "Box Customisation",
-                    "`height`, `padding_x` and `is_bare` reach the inner field; a 28px bare search box.",
-                    specimen_body("sf-box-customisation", field_col(vec![h::SearchField::new(self.demo_text("sf-custom-box", "", cx))
-                        .label("Compact")
-                        .placeholder("Search...")
-                        .height(px(28.))
-                        .padding_x(px(8.))
-                        .is_bare(true)
-                        .font_family(crate::app::MONO_FONT)
-                        .into_any_element()]), cx),
                 ),
                 (
                     "Variants",
@@ -2252,12 +2388,7 @@ impl Gallery {
                             h::SearchField::new(controlled)
                                 .label("Search")
                                 .placeholder("Search...")
-                                .on_change(|_, _, _| {})
-                                // Enter submits: v3's `onSubmit`.
-                                .on_submit(cx.listener(|this, text: &str, _, cx| {
-                                    this.search_query = text.to_owned();
-                                    cx.notify();
-                                })),
+                                .on_change(|_, _, _| {}),
                         ),
                         para(
                             &if controlled_text.is_empty() {
@@ -2268,6 +2399,81 @@ impl Gallery {
                             cx,
                         ),
                     ]), cx),
+                ),
+                (
+                    "Form Example",
+                    specimen_body("sf-form-example", field_col(vec![{
+                        let field = h::SearchField::new(form_field)
+                            .label("Search")
+                            .placeholder("Search products...")
+                            .name("query")
+                            .is_required(true)
+                            .validate(|value| {
+                                (value.chars().count() < 3)
+                                    .then(|| "Enter at least 3 characters".into())
+                            });
+                        h::Form::new()
+                            .field(h::FormField::text(self.demo_text("sf-form", "", cx)))
+                            // v3's `onSubmit` logs the query; the toast is the
+                            // gallery's transient stand-in for it.
+                            .on_submit(cx.listener(|_, data: &h::FormData, _, cx| {
+                                h::Toast::new(format!(
+                                    "Search submitted: {}",
+                                    data.text("query").unwrap_or_default()
+                                ))
+                                .push(Some(std::time::Duration::from_secs(4)), cx);
+                            }))
+                            .child(field)
+                            .child(h::Button::new("sf-form-submit").label("Search"))
+                            .into_any_element()
+                    }]), cx),
+                ),
+                (
+                    "With Validation", "`validate` is run by the component: it returns the message, and the field shows it. Type one or two characters.",
+                    specimen_body("sf-with-validation", col(vec![
+                        demo_field(
+                            h::SearchField::new(validated)
+                                .label("Search")
+                                .placeholder("Search...")
+                                .is_required(true)
+                                .description("Enter at least 3 characters to search")
+                                .validate(|value| {
+                                    (!value.is_empty() && value.chars().count() < 3).then(|| {
+                                        "Search query must be at least 3 characters".into()
+                                    })
+                                }),
+                        ),
+                    ]), cx),
+                ),
+                (
+                    "Custom Icons",
+                    specimen_body("sf-custom-icons", field_col(vec![h::SearchField::new(icons)
+                        .label("Search")
+                        .placeholder("Search...")
+                        .search_icon(icon(h::icons::GLOBE, cx))
+                        .clear_icon(icon(h::icons::CHECK, cx))
+                        .into_any_element()]), cx),
+                ),
+                (
+                    "With Keyboard Shortcut",
+                    specimen_body("sf-keyboard-shortcut", field_col(vec![h::SearchField::new(shortcut)
+                        .label("Search")
+                        .placeholder("Search...")
+                        .end_content(h::Kbd::new().child("Shift S"))
+                        .description("Press Shift+S to focus")
+                        .into_any_element()]), cx),
+                ),
+                (
+                    "Box Customisation",
+                    "`height`, `padding_x` and `is_bare` reach the inner field; a 28px bare search box.",
+                    specimen_body("sf-box-customisation", field_col(vec![h::SearchField::new(self.demo_text("sf-custom-box", "", cx))
+                        .label("Compact")
+                        .placeholder("Search...")
+                        .height(px(28.))
+                        .padding_x(px(8.))
+                        .is_bare(true)
+                        .font_family(crate::app::MONO_FONT)
+                        .into_any_element()]), cx),
                 ),
                 (
                     "Render Props",
@@ -2292,60 +2498,6 @@ impl Gallery {
                             .into_any_element()
                     }]), cx),
                 ),
-                (
-                    "With Validation", "`validate` is run by the component: it returns the message, and the field shows it. Type one or two characters.",
-                    specimen_body("sf-with-validation", col(vec![
-                        demo_field(
-                            h::SearchField::new(validated)
-                                .label("Search")
-                                .placeholder("Search...")
-                                .is_required(true)
-                                .description("Enter at least 3 characters to search")
-                                .validate(|value| {
-                                    (!value.is_empty() && value.chars().count() < 3).then(|| {
-                                        "Search query must be at least 3 characters".into()
-                                    })
-                                }),
-                        ),
-                    ]), cx),
-                ),
-                (
-                    "Form Example",
-                    specimen_body("sf-form-example", field_col(vec![{
-                        let field = h::SearchField::new(form_field)
-                            .label("Search")
-                            .placeholder("Search products...")
-                            .name("query")
-                            .is_required(true)
-                            .validate(|value| {
-                                (value.chars().count() < 3)
-                                    .then(|| "Enter at least 3 characters".into())
-                            });
-                        h::Form::new()
-                            .field(h::FormField::text(self.demo_text("sf-form", "", cx)))
-                            .child(field)
-                            .child(h::Button::new("sf-form-submit").label("Search"))
-                            .into_any_element()
-                    }]), cx),
-                ),
-                (
-                    "Custom Icons",
-                    specimen_body("sf-custom-icons", field_col(vec![h::SearchField::new(icons)
-                        .label("Search")
-                        .placeholder("Search...")
-                        .search_icon(icon(h::icons::GLOBE, cx))
-                        .clear_icon(icon(h::icons::CHECK, cx))
-                        .into_any_element()]), cx),
-                ),
-                (
-                    "With Keyboard Shortcut",
-                    specimen_body("sf-keyboard-shortcut", field_col(vec![h::SearchField::new(shortcut)
-                        .label("Search")
-                        .placeholder("Search...")
-                        .end_content(h::Kbd::new().child("Shift S"))
-                        .description("Press Shift+S to focus")
-                        .into_any_element()]), cx),
-                ),
             ],
             cx,
         )
@@ -2365,13 +2517,13 @@ impl Gallery {
                 (
                     "Usage",
                     "Platform edits support composed text and paste. Enter confirms active composition before inserting a newline.",
+                    // v3's `h-32 w-96`: a fixed 384×128 box.
                     specimen_body("ta-main", col(vec![fixed_demo(
                         384.,
                         h::TextArea::new(self.demo_text("ta-usage", "", cx))
                             .placeholder("Share a quick project update...")
-                            .cols(48)
-                            .rows(6)
-                            .full_width(),
+                            .full_width()
+                            .height(px(128.)),
                     )]), cx),
                 ),
                 (
@@ -2475,14 +2627,17 @@ impl Gallery {
             crate::pages::Page::TextField.description(),
             crate::pages::Page::TextField.import_line(),
             vec![
+                // v3's Usage: `name="email" type="email"`, label "Email",
+                // placeholder "Enter your email", `max-w-64`.
                 (
                     "Usage",
                     specimen_body(
                         "tf-main",
                         field_col(vec![h::TextField::new(self.demo_text("tf-usage", "", cx))
-                            .label("Full name")
-                            .placeholder("Ada Lovelace")
-                            .description("As it appears on your ID.")
+                            .name("email")
+                            .input_type(h::InputType::Email)
+                            .label("Email")
+                            .placeholder("Enter your email")
                             .into_any_element()]),
                         cx
                     ),
@@ -2600,39 +2755,6 @@ impl Gallery {
                     ),
                 ),
                 (
-                    "Render Props",
-                    specimen_body(
-                        "tf-render-props",
-                        field_col(vec![{
-                            let field = tf_render_props.clone();
-                            h::TextField::new(tf_render_props)
-                                .content(move |state| {
-                                    h::TextField::new(field.clone())
-                                        .label(format!(
-                                            "{} · {} · {}",
-                                            if state.is_required {
-                                                "required"
-                                            } else {
-                                                "optional"
-                                            },
-                                            if state.is_invalid { "invalid" } else { "valid" },
-                                            if state.is_focus_within {
-                                                "focused"
-                                            } else {
-                                                "unfocused"
-                                            },
-                                        ))
-                                        .placeholder("Enter your email")
-                                        .is_required(true)
-                                        .into_any_element()
-                                })
-                                .is_required(true)
-                                .into_any_element()
-                        }]),
-                        cx
-                    ),
-                ),
-                (
                     "Error Message",
                     specimen_body(
                         "tf-error-message",
@@ -2674,6 +2796,39 @@ impl Gallery {
                                 .input_type(h::InputType::Email)
                                 .into_any_element(),
                         ]),
+                        cx
+                    ),
+                ),
+                (
+                    "Render Props",
+                    specimen_body(
+                        "tf-render-props",
+                        field_col(vec![{
+                            let field = tf_render_props.clone();
+                            h::TextField::new(tf_render_props)
+                                .content(move |state| {
+                                    h::TextField::new(field.clone())
+                                        .label(format!(
+                                            "{} · {} · {}",
+                                            if state.is_required {
+                                                "required"
+                                            } else {
+                                                "optional"
+                                            },
+                                            if state.is_invalid { "invalid" } else { "valid" },
+                                            if state.is_focus_within {
+                                                "focused"
+                                            } else {
+                                                "unfocused"
+                                            },
+                                        ))
+                                        .placeholder("Enter your email")
+                                        .is_required(true)
+                                        .into_any_element()
+                                })
+                                .is_required(true)
+                                .into_any_element()
+                        }]),
                         cx
                     ),
                 ),

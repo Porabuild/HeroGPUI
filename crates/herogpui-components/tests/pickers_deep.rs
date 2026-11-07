@@ -77,8 +77,8 @@ use gpui::{
 };
 use harness::{click, events, open_host, press, probe as part_probe, Events};
 use herogpui_components::{
-    Autocomplete, ComboBox, Drawer, DrawerCloseTrigger, DrawerPlacement, Form, FormData, Input,
-    InputState, MenuTrigger, PickerItem, Select, SelectionMode,
+    Autocomplete, Button, ComboBox, Drawer, DrawerCloseTrigger, DrawerHandle, DrawerPlacement,
+    Form, FormData, Input, InputState, MenuTrigger, PickerItem, Select, SelectionMode,
 };
 
 /// An `InputState` entity for the search-field-backed controls, created before
@@ -3450,6 +3450,7 @@ fn drawer_close_button_reports_on_close_and_open_change(cx: &mut TestAppContext)
             .is_open(is_open)
             .placement(DrawerPlacement::Right)
             .title("Drag me shut")
+            .child(DrawerHandle::new())
             .child(DrawerCloseTrigger::new())
             .child(probe("pd-drawer-close-probe", "hit", hits))
             .on_close(move |reason, _, _| closes.borrow_mut().push(format!("{reason:?}")))
@@ -3683,6 +3684,7 @@ fn drawer_callback_less_close_trigger_renders_nothing(cx: &mut TestAppContext) {
             .is_open(true)
             .placement(DrawerPlacement::Right)
             .title("Drag me shut")
+            .child(DrawerHandle::new())
             .child(
                 DrawerCloseTrigger::new().child(
                     gpui::div()
@@ -3732,6 +3734,7 @@ fn drawer_footer_child_close_trigger_is_pulled_into_the_slot(cx: &mut TestAppCon
             .is_open(is_open)
             .placement(DrawerPlacement::Right)
             .title("Drag me shut")
+            .child(DrawerHandle::new())
             .child(probe("pd-drawer-footer-x-body", "body", body_probed))
             .footer_child(DrawerCloseTrigger::new())
             .on_open_change({
@@ -3838,6 +3841,7 @@ fn drawer_not_dismissible_ignores_outside_press_and_drag(cx: &mut TestAppContext
             .placement(DrawerPlacement::Right)
             .title("Drag me shut")
             .is_dismissible(false)
+            .child(DrawerHandle::new())
             .child(probe("pd-drawer-not-dismissible-probe", "hit", hits))
             .on_close(move |_, _, _| closes.borrow_mut().push("close".to_owned()))
             .on_open_change({
@@ -3904,6 +3908,7 @@ fn drawer_footer_sits_after_the_body_and_both_answer(cx: &mut TestAppContext) {
             .is_open(is_open)
             .placement(DrawerPlacement::Right)
             .title("Drag me shut")
+            .child(DrawerHandle::new())
             .child(probe("pd-drawer-footer-body", "body", hits.clone()))
             .footer_child(probe("pd-drawer-footer-foot", "footer", hits))
             .into_any_element()
@@ -6480,4 +6485,260 @@ fn autocomplete_row_padding_y_sizes_the_suggestion(cx: &mut TestAppContext) {
         let message = format!("row padding {pad:?} must size the suggestion");
         assert!(near_px(row.size.height, expected), "{message}, got {row:?}");
     }
+}
+
+/// `useSelect`/`useOption` run under `shouldFocusOnHover`: a pointer resting
+/// on a row seats the virtual cursor the next arrow continues from. Real
+/// focus stays on the trigger — only the cursor moves — and Enter still
+/// commits the row it lands on.
+#[gpui::test]
+fn select_hover_seats_the_cursor_for_the_next_arrow(cx: &mut TestAppContext) {
+    let changes = events();
+    let recorded = changes.clone();
+    let cx = open_host(cx, move || {
+        let changes = changes.clone();
+        Select::new(
+            "sel-hover-cursor",
+            keyed(&["Alpha", "Beta", "Gamma", "Delta"]),
+        )
+        .on_change(move |key, _, _| changes.borrow_mut().push(format!("{key:?}")))
+        .into_any_element()
+    });
+
+    click(cx, 60., 18.);
+    harness::settle(cx);
+    let row = cx
+        .debug_bounds(r#"select-list-Name("sel-hover-cursor")-opt-2"#)
+        .expect("the third option row must be laid out");
+    cx.simulate_mouse_move(row.center(), None, Modifiers::none());
+    // Down walks from the hovered row to the fourth; Enter reports Delta.
+    press(cx, "down");
+    press(cx, "enter");
+    assert_eq!(
+        recorded.borrow().as_slice(),
+        ["Some(\"Delta\")"],
+        "hover must seat the cursor so the next arrow continues from it"
+    );
+}
+
+/// Once a key has run (`focus_visible`), the same hover must not steal the
+/// cursor: `useOption.onHoverStart`'s guard keeps it where the arrows left
+/// it, so the next Down continues from the keyboard position.
+#[gpui::test]
+fn select_hover_keeps_a_keyboard_seated_cursor(cx: &mut TestAppContext) {
+    let changes = events();
+    let recorded = changes.clone();
+    let cx = open_host(cx, move || {
+        let changes = changes.clone();
+        Select::new(
+            "sel-hover-keyboard",
+            keyed(&["Alpha", "Beta", "Gamma", "Delta"]),
+        )
+        .on_change(move |key, _, _| changes.borrow_mut().push(format!("{key:?}")))
+        .into_any_element()
+    });
+
+    click(cx, 60., 18.);
+    harness::settle(cx);
+    // One Down seats the cursor on Alpha (row 0) and turns on focus-visible.
+    press(cx, "down");
+    // Resting the pointer on Gamma must not move it.
+    let row = cx
+        .debug_bounds(r#"select-list-Name("sel-hover-keyboard")-opt-2"#)
+        .expect("the third option row must be laid out");
+    cx.simulate_mouse_move(row.center(), None, Modifiers::none());
+    // Down continues from Alpha to Beta; Enter reports Beta — had the hover
+    // seated Gamma, the same keys would have reported Delta.
+    press(cx, "down");
+    press(cx, "enter");
+    assert_eq!(
+        recorded.borrow().as_slice(),
+        ["Some(\"Beta\")"],
+        "a keyboard session's cursor must survive pointer hover"
+    );
+}
+
+/// Select's popover is modal in React Aria: it renders a full-window
+/// underlay, so the outside press that closes the list is consumed and must
+/// not reach the control underneath. The sibling button stays unclicked
+/// while the open select dismisses.
+#[gpui::test]
+fn select_outside_press_does_not_reach_the_sibling(cx: &mut TestAppContext) {
+    let clicks = events();
+    let clicked = clicks.clone();
+    let cx = open_host(cx, move || {
+        let clicks = clicks.clone();
+        gpui::div()
+            .flex()
+            .flex_col()
+            .gap(px(8.))
+            .child(
+                gpui::div()
+                    .id("sel-outside-btn")
+                    .w(px(140.))
+                    .h(px(36.))
+                    .flex()
+                    .items_center()
+                    .justify_center()
+                    .debug_selector(|| "sel-outside-btn".to_owned())
+                    .child(
+                        Button::new("sel-outside-inner")
+                            .label("Outside")
+                            .on_press(move |_, _, _| clicks.borrow_mut().push("click".into())),
+                    )
+                    .into_any_element(),
+            )
+            .child(
+                Select::new("sel-modal", keyed(&["Alpha", "Beta"]))
+                    .default_open(true)
+                    .into_any_element(),
+            )
+            .into_any_element()
+    });
+    harness::settle(cx);
+
+    assert!(
+        cx.debug_bounds(r#"select-list-Name("sel-modal")-opt-0"#)
+            .is_some(),
+        "the select's panel must start open"
+    );
+
+    let button = cx
+        .debug_bounds("sel-outside-btn")
+        .expect("the sibling button must be laid out");
+    cx.simulate_click(button.center(), Modifiers::none());
+    harness::settle(cx);
+    // The dismissed panel keeps its exit frame for the close motion; let it
+    // finish before asserting it is gone.
+    harness::wait_ms(cx, 200);
+
+    assert!(
+        clicked.borrow().is_empty(),
+        "the modal underlay must consume the press: the button never sees it"
+    );
+    assert!(
+        cx.debug_bounds(r#"select-list-Name("sel-modal")-opt-0"#)
+            .is_none(),
+        "the same press still dismisses the open select"
+    );
+}
+
+/// The gallery's controlled Select: the parent owns `open` and feeds it back
+/// through `is_open`/`on_open_change`. A pointer click on the trigger must
+/// run the whole path -- trigger click, open callback, re-render, panel
+/// layout -- not just flip an internal flag.
+#[gpui::test]
+fn select_controlled_trigger_click_opens_the_panel(cx: &mut TestAppContext) {
+    let opens = events();
+    let opened = opens.clone();
+    let open_flag = Rc::new(RefCell::new(false));
+
+    let cx = open_host(cx, move || {
+        let opens = opens.clone();
+        let is_open = *open_flag.borrow();
+        Select::new("sel-controlled-open", keyed(&["Alpha", "Beta", "Gamma"]))
+            .is_open(is_open)
+            .on_open_change({
+                let open_flag = open_flag.clone();
+                move |v, window, _| {
+                    *open_flag.borrow_mut() = *v;
+                    opens.borrow_mut().push(format!("open:{v}"));
+                    window.refresh();
+                }
+            })
+            .into_any_element()
+    });
+    harness::settle(cx);
+
+    let trigger = cx
+        .debug_bounds(r#"select-trigger-Name("sel-controlled-open")"#)
+        .expect("the trigger must be laid out");
+    cx.simulate_click(trigger.center(), Modifiers::none());
+    harness::settle(cx);
+
+    assert_eq!(
+        opened.borrow().as_slice(),
+        ["open:true"],
+        "the trigger click must report the open through on_open_change"
+    );
+    assert!(
+        cx.debug_bounds(r#"select-list-Name("sel-controlled-open")-opt-0"#)
+            .is_some(),
+        "the controlled panel must lay out a row after the click"
+    );
+}
+
+/// `useComboBox`/`useOption` run under `shouldFocusOnHover` as well: pointer
+/// hover seats the virtual cursor for the next arrow, while the input keeps
+/// real focus and Enter commits the row it lands on.
+#[gpui::test]
+fn combo_box_hover_seats_the_cursor_for_the_next_arrow(cx: &mut TestAppContext) {
+    let changes = events();
+    let recorded = changes.clone();
+    let state = search_state(cx);
+    let entity_id = state.entity_id().as_u64();
+    let state_for_view = state;
+    let cx = open_host(cx, move || {
+        let changes = changes.clone();
+        ComboBox::new(
+            state_for_view.clone(),
+            keyed(&["Alpha", "Beta", "Gamma", "Delta"]),
+        )
+        .on_change(move |item, _, _| changes.borrow_mut().push(item.to_string()))
+        .into_any_element()
+    });
+
+    click(cx, 60., 18.);
+    harness::settle(cx);
+    let row = cx
+        .debug_bounds(combo_probe(format!("combobox-{entity_id}-item-Gamma")))
+        .expect("the Gamma row must be laid out");
+    cx.simulate_mouse_move(row.center(), None, Modifiers::none());
+    // Down walks from the hovered row to Delta; Enter reports it.
+    press(cx, "down");
+    press(cx, "enter");
+    assert_eq!(
+        recorded.borrow().as_slice(),
+        ["Delta"],
+        "hover must seat the cursor so the next arrow continues from it"
+    );
+}
+
+/// The ComboBox guard mirrors Select's: a keyboard-established cursor is not
+/// moved by pointer hover, so the next arrow continues from the keyboard row.
+#[gpui::test]
+fn combo_box_hover_keeps_a_keyboard_seated_cursor(cx: &mut TestAppContext) {
+    let changes = events();
+    let recorded = changes.clone();
+    let state = search_state(cx);
+    let entity_id = state.entity_id().as_u64();
+    let state_for_view = state;
+    let cx = open_host(cx, move || {
+        let changes = changes.clone();
+        ComboBox::new(
+            state_for_view.clone(),
+            keyed(&["Alpha", "Beta", "Gamma", "Delta"]),
+        )
+        .on_change(move |item, _, _| changes.borrow_mut().push(item.to_string()))
+        .into_any_element()
+    });
+
+    click(cx, 60., 18.);
+    harness::settle(cx);
+    // One Down seats the cursor on Alpha and turns on focus-visible.
+    press(cx, "down");
+    // Resting the pointer on Gamma must not move it.
+    let row = cx
+        .debug_bounds(combo_probe(format!("combobox-{entity_id}-item-Gamma")))
+        .expect("the Gamma row must be laid out");
+    cx.simulate_mouse_move(row.center(), None, Modifiers::none());
+    // Down continues from Alpha to Beta; Enter reports Beta — had the hover
+    // seated Gamma, the same keys would have reported Delta.
+    press(cx, "down");
+    press(cx, "enter");
+    assert_eq!(
+        recorded.borrow().as_slice(),
+        ["Beta"],
+        "a keyboard session's cursor must survive pointer hover"
+    );
 }

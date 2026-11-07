@@ -1276,9 +1276,15 @@ impl RenderOnce for ToastViewport {
                     region
                 }
             }
-            // Centred placements stretch and centre their children.
+            // Centred placements size the region to the clamped toast width
+            // and centre it on the viewport — v3's `.toast-region--bottom`
+            // is `left-1/2 -translate-x-1/2` around a region only as wide as
+            // the toasts, so hover counts only over the stack, not the whole
+            // window. `items_center` still centres the cards in the flex
+            // fallback path; the absolute slots centre them inside `width`.
             ToastPlacement::Top | ToastPlacement::Bottom => {
-                region.left_0().right_0().items_center()
+                let centre = px((f32::from(window.viewport_size().width) - f32::from(width)) / 2.);
+                region.w(width).left(centre).items_center()
             }
         };
 
@@ -1568,6 +1574,11 @@ impl RenderOnce for ToastCardEl {
             .rounded(radius)
             .bg(colors.surface.background)
             .text_color(colors.overlay.foreground)
+            // v3's `shadow-overlay` carries dark mode's inset hairline; the
+            // card has no permanent border.
+            .when_some(cx.layout().overlay_hairline, |c, hairline| {
+                c.border(cx.layout().border_width).border_color(hairline)
+            })
             .when(!cx.layout().overlay_shadow.is_empty(), |c| {
                 c.shadow(cx.layout().overlay_shadow.clone())
             });
@@ -2027,16 +2038,21 @@ mod tests {
     }
 
     #[test]
-    fn toast_card_does_not_add_a_border() {
+    fn toast_card_has_no_border_but_the_dark_hairline() {
         let card = implementation_source()
-            .split("let mut card =")
+            .split("let mut card = card")
             .nth(1)
             .expect("the card implementation is present")
             .split("// `.toast__indicator`")
             .next()
             .expect("the indicator implementation follows the card");
-        assert!(!card.contains(".border(cx.layout().border_width)"));
+        // v3's toast is `bg-surface shadow-overlay` with no border; dark
+        // mode's only edge is the inset hairline `overlay-shadow` carries,
+        // which the port paints as a conditional border — never a permanent
+        // one and never the theme's ordinary border colour.
+        assert!(card.contains("overlay_hairline"));
         assert!(!card.contains(".border_color(colors.border)"));
+        assert!(!card.contains(".border_color(colors.separator)"));
     }
 
     #[test]

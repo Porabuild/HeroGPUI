@@ -1966,13 +1966,14 @@ fn toggle_button_press_rides_the_pinned_ramp(cx: &mut TestAppContext) {
     );
 
     // Remaining source-text check: the grouped member's instant active swap
-    // to its hover fill. The pointer that presses it also hovers it, and the
-    // hover fade's layer paints over the skin, so the active endpoint is not
-    // separable from the fade on the painted scene.
+    // to its hover fill, gated on no fade being mounted — with the fade
+    // active its pressed endpoint is the same `hover_bg`, painted once on
+    // the fill.
+    let src = source_scan::component_src("toggle_button.rs");
     assert!(
-        source_scan::component_src("toggle_button.rs")
-            .contains("el.active(move |style| style.bg(hover_bg))"),
-        "a grouped member suppresses the scale and keeps the instant endpoint"
+        src.contains("e.active(move |style| style.bg(hover_bg))") && src.contains("fade.is_none()"),
+        "a grouped member suppresses the scale and keeps the instant endpoint \
+         only where no fade owns the colour"
     );
 }
 

@@ -30,6 +30,18 @@ version covers `herogpui`, `herogpui-core`, `herogpui-theme`,
 - Slider step dots and marks through `show_steps`, `marks` and `SliderMark`,
   with bounded decimal dot generation, custom labels and RTL input/geometry.
 - `CloseButton::aria_label` overrides the localized accessible name.
+- `KbdKey`, `KbdAbbr` and `KbdContent` port `Kbd.Abbr` and `Kbd.Content`:
+  HeroUI 3.2.7's 22 named keys, with `KbdKey::symbol()` and
+  `KbdKey::label()` taken from v3's `kbdKeysMap` and `kbdKeysLabelMap`.
+- `DrawerHandle` is the drawer's drag handle as an opt-in part, composed
+  where v3's examples compose `Drawer.Handle`.
+- `Calendar::year_picker` and `RangeCalendar::year_picker` compose the
+  year-picker trigger. `is_year_picker_open`, `default_year_picker_open` and
+  `on_year_picker_open_change` imply it, and `DatePicker` and
+  `DateRangePicker` turn it on, as their v3 popovers do.
+- `Alert::description_content` takes element content after the description
+  text (v3's `Alert.Description` accepts a ReactNode). `TextArea::height`
+  sets a pixel floor in place of the `rows`-derived one.
 
 ### Changed
 
@@ -59,6 +71,34 @@ version covers `herogpui`, `herogpui-core`, `herogpui-theme`,
   on narrow windows, and calendar weekday labels cannot widen their columns.
 - Overlay motion audits read HeroUI's named CSS animations. Drawer recovers
   when a pointer drag loses its button state.
+- Drawer draws no handle unless `DrawerHandle` is composed. A plain
+  `Calendar` or `RangeCalendar` heading is a label unless the year picker is
+  composed. `DateField` no longer adds a default "MM/DD/YYYY" description.
+- Input, TextArea, SearchField, InputGroup and ComboBox show validation the
+  way React Stately's `useFormValidationState` does. Under
+  `ValidationBehavior::Native`, `validate` and constraint errors appear from a
+  snapshot taken when the user changes the field and leaves it, or submits the
+  form, while controlled and server errors stay live. `Allow` shows
+  everything live, and a form reset clears what is shown. NumberField and
+  the non-text fields still show validation live.
+- Focused empty fields keep their placeholder, with the caret at its start,
+  as HTML inputs do.
+- Hovering a Select or ComboBox option moves the keyboard cursor, unless the
+  cursor was placed from the keyboard, as React Aria's `shouldFocusOnHover`
+  does. A press outside an open ComboBox closes it and also reaches the
+  control underneath (React Aria's non-modal popover).
+- Popover panels float above later page content instead of reserving layout
+  height. The Toast stack expands only while the pointer is over it.
+- In the dark theme, Toast, Toolbar, Sheet, Modal, Drawer and the date-picker
+  popover draw HeroUI's inset `shadow-overlay` hairline.
+- InputGroup slots own the 12px inset, so an icon prefix is padded like a
+  text addon.
+- Skeleton follows v3's shimmer: a soft full-width band crossing from -100%
+  to +200% over 2s, clipped to the rounded shape. The pulse follows
+  `animate-pulse`'s timing curve.
+- Gallery Usage examples port v3's basic Usage demos exactly, and custom
+  styling moves to a trailing "Styling Overrides" example on each page. Page
+  sections follow v3's order.
 
 ### Fixed
 
@@ -68,6 +108,30 @@ version covers `herogpui`, `herogpui-core`, `herogpui-theme`,
 - Focus rings on pill controls clamp their SVG corners to the fitted circular
   radius, keeping the glow and gap even around the control instead of stretching
   the corner arcs into ellipses.
+- The hover fade no longer paints its colour on both the element and its
+  fill. Translucent fills (Danger Soft, Outline, Ghost, Accordion, soft
+  Tabs) had stayed darker after one hover. Leaving mid-fade now reverses from
+  the colour on screen instead of snapping to the full hover colour. Button
+  and ToggleButton press colour is part of the same fill, so pointer and
+  keyboard presses both show it. Fills no longer cover labels in Pagination,
+  Tabs, Calendar, RangeCalendar and ColorField.
+- Arrow keys after a click show the focus ring: keyboard modality is
+  recorded before a component handles the key. Input OTP shows its ring after
+  a mouse click too.
+- Number Field keeps its value and steppers visible while focused. Pressed
+  steppers keep the rounded outer corners, and pressing one keeps the
+  field's focus.
+- Date and time fields highlight a segment only while the field is focused.
+- Color Swatch Picker draws a round selection ring with the field shadow, and
+  its arrow keys move focus after a click. Slider and swatch focus rings are
+  crisp outlines that follow the round thumb.
+- Progress Circle instances without an id no longer share one animation
+  slot. A determinate ring had painted a quarter arc next to an
+  indeterminate one.
+- Avatar images fill their box instead of shrinking into a pill.
+- Opening a gallery Modal, Drawer or Alert Dialog no longer pushes the page
+  down under the backdrop. Select and ComboBox demos start closed, so the
+  first click opens them.
 
 ## [0.14.0] - 2026-09-29
 

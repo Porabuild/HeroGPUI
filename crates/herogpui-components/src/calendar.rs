@@ -483,6 +483,9 @@ pub struct Calendar {
     /// seeded from `defaultYearPickerOpen`.
     year_picker_open: Option<bool>,
     default_year_picker_open: bool,
+    /// Whether the heading is the interactive `YearPickerTrigger` (v3 composes
+    /// it as a part) rather than the plain `Calendar.Heading` label.
+    year_picker: bool,
     /// `Calendar.YearPickerGrid.visibleYears` — `None` uses the v3 default:
     /// the full min/max span when both exist, otherwise 20.
     visible_years: Option<usize>,
@@ -597,6 +600,7 @@ impl Calendar {
             selection_alignment: SelectionAlignment::default(),
             year_picker_open: None,
             default_year_picker_open: false,
+            year_picker: false,
             visible_years: None,
             year_heading_offset_months: 0,
             on_year_picker_open_change: None,
@@ -758,8 +762,18 @@ impl Calendar {
         self
     }
 
+    /// Whether the heading is the interactive year-picker trigger (v3's
+    /// `Calendar.YearPickerTrigger`) instead of a plain `Calendar.Heading`
+    /// label. `is_year_picker_open` and `default_year_picker_open` imply it:
+    /// a picker state with no trigger could never open.
+    pub fn year_picker(mut self, v: bool) -> Self {
+        self.year_picker = v;
+        self
+    }
+
     /// `isYearPickerOpen` — swaps the day grid for a year grid.
     pub fn is_year_picker_open(mut self, v: bool) -> Self {
+        self.year_picker = true;
         self.year_picker_open = Some(v);
         self
     }
@@ -769,6 +783,7 @@ impl Calendar {
     /// Only consulted when `isYearPickerOpen` is not supplied; the component
     /// then owns the state and the heading toggles it directly.
     pub fn default_year_picker_open(mut self, v: bool) -> Self {
+        self.year_picker = true;
         self.default_year_picker_open = v;
         self
     }
@@ -1722,6 +1737,19 @@ impl RenderOnce for Calendar {
             );
             // The icon joins the skin before the press wrap: children added
             // after `pressed` land on the slot and fight the skin for width.
+            // The icon joins the skin after the fade's fill — the fill is
+            // appended and would paint over a child already present — and
+            // before the press wrap, whose slot would inherit children added
+            // after it.
+            let nav_icon = || {
+                gpui::svg()
+                    // `.calendar__nav-button-icon` is `size-4`.
+                    .size(px(16.))
+                    .path(icon_path)
+                    // `.calendar__nav-button` is `text-accent-soft-foreground`,
+                    // at rest and hovered alike.
+                    .text_color(colors.accent.soft_foreground(colors.foreground))
+            };
             let button = gpui::div()
                 .id(button_id.clone())
                 .debug_selector(move || selector)
@@ -1732,15 +1760,6 @@ impl RenderOnce for Calendar {
                 // `.calendar__nav-button` is `size-6 rounded-2xl`.
                 .size(px(24.))
                 .rounded(crate::util::soft_radius(cx))
-                .child(
-                    gpui::svg()
-                        // `.calendar__nav-button-icon` is `size-4`.
-                        .size(px(16.))
-                        .path(icon_path)
-                        // `.calendar__nav-button` is `text-accent-soft-foreground`,
-                        // at rest and hovered alike.
-                        .text_color(colors.accent.soft_foreground(colors.foreground)),
-                )
                 .when(!disabled && !inert, |b| {
                     let b = b
                         .cursor(crate::util::interactive_cursor(cx))
@@ -1761,8 +1780,10 @@ impl RenderOnce for Calendar {
                         window,
                         cx,
                     );
+                    let b = b.child(nav_icon());
                     crate::anim::pressed(b, press, cx)
                 })
+                .when(disabled || inert, |b| b.child(nav_icon()))
                 .when(disabled, |b| b.opacity(layout.disabled_opacity))
                 .when(year_picker_open, |b| b.invisible());
             let button = if inert {
@@ -1800,6 +1821,11 @@ impl RenderOnce for Calendar {
                 .line_height(px(20.))
                 .font_weight(gpui::FontWeight::MEDIUM)
                 .child(text);
+            // Without the composed `YearPickerTrigger` the heading is a plain
+            // label, whatever state or handler the picker props carry.
+            if !self.year_picker {
+                return label.into_any_element();
+            }
             let indicator_id =
                 element_id::scoped(&self.id, format!("year-picker-indicator-{index}"));
             match &self.on_year_picker_open_change {

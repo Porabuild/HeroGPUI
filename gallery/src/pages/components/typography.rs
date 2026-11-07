@@ -8,92 +8,257 @@ impl Gallery {
     // -----------------------------------------------------------------------
 
     pub fn page_kbd(&mut self, cx: &mut Context<'_, Self>) -> AnyElement {
+        let muted = cx.colors().muted;
+        // v3 `Kbd.Abbr keyValue` + `Kbd.Content` chord, and its abbr-only and
+        // content-only forms.
+        let chord = |key: h::KbdKey, letter: &'static str| {
+            h::Kbd::new()
+                .child(h::KbdAbbr::new(key))
+                .child(h::KbdContent::new().child(letter))
+                .into_any_element()
+        };
+        let abbr = |key: h::KbdKey| h::Kbd::new().child(h::KbdAbbr::new(key)).into_any_element();
+        let content = |text: &'static str| {
+            h::Kbd::new()
+                .child(h::KbdContent::new().child(text))
+                .into_any_element()
+        };
+        let light_chord = |key: h::KbdKey, letter: &'static str| {
+            h::Kbd::new()
+                .variant(h::KbdVariant::Light)
+                .child(h::KbdAbbr::new(key))
+                .child(h::KbdContent::new().child(letter))
+                .into_any_element()
+        };
+        // v3's inline `{" "}` joins have no inline flow in gpui, so each prose
+        // line is a wrapping items-center row with the word-space gap.
+        let prose = |children: Vec<AnyElement>| {
+            gpui::div()
+                .flex()
+                .flex_wrap()
+                .items_center()
+                .gap(px(4.))
+                .text_size(px(14.))
+                .children(children)
+                .into_any_element()
+        };
+        let word = |text: &'static str| gpui::div().child(text).into_any_element();
         component_doc_page!(
             "Kbd",
             crate::pages::Page::Kbd.description(),
             crate::pages::Page::Kbd.import_line(),
             vec![
                 (
-                    "Navigation Keys",
-                    row(vec![
-                        h::Kbd::new()
-                            .radius(px(3.))
-                            .child("\u{2190}")
+                    "Usage",
+                    gpui::div()
+                        .flex()
+                        .items_center()
+                        .gap(px(16.))
+                        .children(vec![
+                            chord(h::KbdKey::Command, "K"),
+                            chord(h::KbdKey::Shift, "P"),
+                            chord(h::KbdKey::Ctrl, "C"),
+                            chord(h::KbdKey::Option, "D"),
+                        ])
+                        .into_any_element(),
+                ),
+                (
+                    "Variants",
+                    col(vec![
+                        gpui::div()
+                            .flex()
+                            .items_center()
+                            .gap(px(8.))
+                            .child("Copy:")
+                            .child(chord(h::KbdKey::Command, "C"))
+                            .child(light_chord(h::KbdKey::Command, "C"))
                             .into_any_element(),
-                        h::Kbd::new()
-                            .radius(px(3.))
-                            .child("\u{2192}")
+                        gpui::div()
+                            .flex()
+                            .items_center()
+                            .gap(px(8.))
+                            .child("Paste:")
+                            .child(chord(h::KbdKey::Command, "V"))
+                            .child(light_chord(h::KbdKey::Command, "V"))
                             .into_any_element(),
-                        h::Kbd::new()
-                            .radius(px(3.))
-                            .child("\u{2191}")
+                        gpui::div()
+                            .flex()
+                            .items_center()
+                            .gap(px(8.))
+                            .child("Cut:")
+                            .child(chord(h::KbdKey::Command, "X"))
+                            .child(light_chord(h::KbdKey::Command, "X"))
                             .into_any_element(),
-                        h::Kbd::new()
-                            .radius(px(3.))
-                            .child("\u{2193}")
+                        gpui::div()
+                            .flex()
+                            .items_center()
+                            .gap(px(8.))
+                            .child("Undo:")
+                            .child(chord(h::KbdKey::Command, "Z"))
+                            .child(light_chord(h::KbdKey::Command, "Z"))
                             .into_any_element(),
-                        h::Kbd::new()
-                            .radius(px(3.))
-                            .child("Home")
+                        gpui::div()
+                            .flex()
+                            .items_center()
+                            .gap(px(8.))
+                            .child("Redo:")
+                            .child(
+                                h::Kbd::new()
+                                    .child(h::KbdAbbr::new(h::KbdKey::Command))
+                                    .child(h::KbdAbbr::new(h::KbdKey::Shift))
+                                    .child(h::KbdContent::new().child("Z")),
+                            )
+                            .child(
+                                h::Kbd::new()
+                                    .variant(h::KbdVariant::Light)
+                                    .child(h::KbdAbbr::new(h::KbdKey::Command))
+                                    .child(h::KbdAbbr::new(h::KbdKey::Shift))
+                                    .child(h::KbdContent::new().child("Z")),
+                            )
                             .into_any_element(),
-                        h::Kbd::new().radius(px(3.)).child("End").into_any_element(),
                     ]),
                 ),
                 (
-                    "Special Keys",
-                    row(vec![
-                        h::Kbd::new().child("\u{21e7}").into_any_element(),
-                        h::Kbd::new().child("\u{2318}").into_any_element(),
-                        h::Kbd::new().child("\u{2325}").into_any_element(),
-                        h::Kbd::new().child("\u{21b5}").into_any_element(),
-                        h::Kbd::new().child("\u{232b}").into_any_element(),
-                        h::Kbd::new().child("Esc").into_any_element(),
+                    "Navigation Keys",
+                    col(vec![
+                        gpui::div()
+                            .flex()
+                            .items_center()
+                            .gap(px(8.))
+                            .child(
+                                gpui::div()
+                                    .text_size(px(14.))
+                                    .text_color(muted)
+                                    .child("Arrow Keys:"),
+                            )
+                            .child(abbr(h::KbdKey::Up))
+                            .child(abbr(h::KbdKey::Down))
+                            .child(abbr(h::KbdKey::Left))
+                            .child(abbr(h::KbdKey::Right))
+                            .into_any_element(),
+                        gpui::div()
+                            .flex()
+                            .items_center()
+                            .gap(px(8.))
+                            .child(
+                                gpui::div()
+                                    .text_size(px(14.))
+                                    .text_color(muted)
+                                    .child("Page Navigation:"),
+                            )
+                            .child(abbr(h::KbdKey::PageUp))
+                            .child(abbr(h::KbdKey::PageDown))
+                            .child(abbr(h::KbdKey::Home))
+                            .child(abbr(h::KbdKey::End))
+                            .into_any_element(),
                     ]),
                 ),
                 (
                     "Inline Usage",
-                    col(vec![gpui::div()
-                        .flex()
-                        .items_center()
-                        .gap(px(6.))
-                        .text_size(px(14.))
-                        .child("Press")
-                        .child(h::Kbd::new().child("Ctrl"))
-                        .child(h::Kbd::new().child("K"))
-                        .child("to open the command palette.")
-                        .into_any_element()]),
-                ),
-                (
-                    "Instructional Text",
-                    col(vec![gpui::div()
-                        .flex()
-                        .items_center()
-                        .gap(px(6.))
-                        .text_size(px(13.5))
-                        .text_color(cx.colors().muted)
-                        .child("Save with")
-                        .child(
-                            h::Kbd::new()
-                                .variant(h::KbdVariant::Light)
-                                .child("\u{2318}"),
-                        )
-                        .child(h::Kbd::new().variant(h::KbdVariant::Light).child("S"))
-                        .into_any_element()]),
-                ),
-                (
-                    "Usage",
-                    row(vec![
-                        h::Kbd::new().child("Ctrl").into_any_element(),
-                        h::Kbd::new().child("Shift").into_any_element(),
-                        h::Kbd::new().child("K").into_any_element(),
+                    col(vec![
+                        prose(vec![
+                            word("Press"),
+                            content("Esc"),
+                            word("to close the dialog."),
+                        ]),
+                        prose(vec![
+                            word("Use"),
+                            chord(h::KbdKey::Command, "K"),
+                            word("to open the command palette."),
+                        ]),
+                        prose(vec![
+                            word("Navigate with"),
+                            abbr(h::KbdKey::Up),
+                            word("and"),
+                            abbr(h::KbdKey::Down),
+                            word("arrow keys."),
+                        ]),
+                        prose(vec![
+                            word("Save your work with"),
+                            chord(h::KbdKey::Command, "S"),
+                            word("regularly."),
+                        ]),
                     ]),
                 ),
                 (
-                    "Variants",
-                    row(h::KbdVariant::ALL
-                        .iter()
-                        .map(|v| spec(v.label(), h::Kbd::new().variant(*v).child("Esc"), cx))
-                        .collect()),
+                    "Instructional Text",
+                    gpui::div()
+                        .flex()
+                        .flex_col()
+                        .gap(px(8.))
+                        .rounded(cx.layout().radius_lg())
+                        .bg(cx.colors().surface.background)
+                        .p(px(16.))
+                        .child(
+                            gpui::div()
+                                .text_size(px(14.))
+                                .font_weight(gpui::FontWeight::SEMIBOLD)
+                                .child("Quick Actions"),
+                        )
+                        .children(
+                            [
+                                ("• Open search:", h::KbdKey::Command, "K"),
+                                ("• Toggle sidebar:", h::KbdKey::Command, "B"),
+                                ("• New file:", h::KbdKey::Command, "N"),
+                                ("• Quick save:", h::KbdKey::Command, "S"),
+                            ]
+                            .into_iter()
+                            .map(|(label, key, letter)| {
+                                prose(vec![
+                                    word(label),
+                                    chord(key, letter),
+                                ])
+                            })
+                            .collect::<Vec<_>>(),
+                        )
+                        .into_any_element(),
+                ),
+                (
+                    "Special Keys",
+                    col(vec![
+                        prose(vec![
+                            word("Press"),
+                            abbr(h::KbdKey::Enter),
+                            word("to confirm or"),
+                            abbr(h::KbdKey::Escape),
+                            word("to cancel."),
+                        ]),
+                        prose(vec![
+                            word("Use"),
+                            abbr(h::KbdKey::Tab),
+                            word("to navigate between form fields and"),
+                            h::Kbd::new()
+                                .child(h::KbdAbbr::new(h::KbdKey::Shift))
+                                .child(h::KbdAbbr::new(h::KbdKey::Tab))
+                                .into_any_element(),
+                            word("to go back."),
+                        ]),
+                        prose(vec![
+                            word("Hold"),
+                            abbr(h::KbdKey::Space),
+                            word("to temporarily enable panning mode."),
+                        ]),
+                    ]),
+                ),
+                (
+                    "Styling Overrides",
+                    "`radius(px)` replaces the `--radius-lg` corners; the arrow keys show it on the same symbols v3's Navigation Keys composes.",
+                    row(vec![
+                        h::KbdKey::Left,
+                        h::KbdKey::Right,
+                        h::KbdKey::Up,
+                        h::KbdKey::Down,
+                        h::KbdKey::Home,
+                        h::KbdKey::End,
+                    ]
+                    .into_iter()
+                    .map(|key| {
+                        h::Kbd::new()
+                            .radius(px(3.))
+                            .child(h::KbdAbbr::new(key))
+                            .into_any_element()
+                    })
+                    .collect()),
                 ),
             ],
             cx,
@@ -121,19 +286,31 @@ impl Gallery {
             vec![
                 (
                     "Usage",
-                    col(vec![h::Typography::new(
-                        "Typography sets the size, weight and line height of a run of text.",
-                    )
-                    .into_any_element()]),
-                ),
-                (
-                    "Render Props", "`Prose` provides only the `text-foreground` color. GPUI has no per-tag CSS selectors, so the per-tag descendant styles of a typographic stylesheet — `h1`–`h6`, `p`, `code`, `a`, lists — cannot be inherited; children must already be semantic elements.",
-                    col(vec![
-                        h::Prose::new()
-                            .child(h::Typography::paragraph(
-                                h::ParagraphSize::Base,
-                                "A paragraph inside `Prose` carries its own body metrics.",
-                            ))
+                    wide_col(vec![
+                        h::Typography::new("Build better interfaces")
+                            .kind(h::TypographyType::H1)
+                            .into_any_element(),
+                        h::Typography::new("Typography that stays semantic")
+                            .kind(h::TypographyType::H2)
+                            .into_any_element(),
+                        h::Typography::new("Composable by default")
+                            .kind(h::TypographyType::H3)
+                            .into_any_element(),
+                        h::Typography::new("Small heading")
+                            .kind(h::TypographyType::H4)
+                            .into_any_element(),
+                        h::Typography::new(
+                            "HeroUI Typography uses React Aria Components Text as the \
+                             primitive, with semantic typography types and render-prop \
+                             polymorphism.",
+                        )
+                        .into_any_element(),
+                        h::Typography::new("Smaller muted body copy for secondary descriptions.")
+                            .kind(h::TypographyType::BodySm)
+                            .color(h::TextColor::Muted)
+                            .into_any_element(),
+                        h::Typography::new("pnpm add @heroui/react")
+                            .kind(h::TypographyType::Code)
                             .into_any_element(),
                     ]),
                 ),
@@ -171,6 +348,43 @@ impl Gallery {
                                 )
                         })
                         .els()),
+                ),
+                (
+                    "Primitives",
+                    col(vec![
+                        h::Typography::heading(3, "Dashboard").into_any_element(),
+                        h::Typography::paragraph(
+                            h::ParagraphSize::Base,
+                            "Paragraph supports base, sm and xs sizes.",
+                        )
+                        .into_any_element(),
+                        // `radius(px)` rounds the `Code` chip alone; the other
+                        // kinds paint no box.
+                        h::Typography::code("cargo add herogpui")
+                            .radius(px(2.))
+                            .into_any_element(),
+                    ]),
+                ),
+                (
+                    "Prose",
+                    col(vec![h::Prose::new()
+                        .child(h::Typography::heading(4, "Body heading"))
+                        .child(h::Typography::paragraph(
+                            h::ParagraphSize::Base,
+                            "Prose applies the shared typographic rhythm to already-semantic children.",
+                        ))
+                        .into_any_element()]),
+                ),
+                (
+                    "Render Props", "`Prose` provides only the `text-foreground` color. GPUI has no per-tag CSS selectors, so the per-tag descendant styles of a typographic stylesheet — `h1`–`h6`, `p`, `code`, `a`, lists — cannot be inherited; children must already be semantic elements.",
+                    col(vec![
+                        h::Prose::new()
+                            .child(h::Typography::paragraph(
+                                h::ParagraphSize::Base,
+                                "A paragraph inside `Prose` carries its own body metrics.",
+                            ))
+                            .into_any_element(),
+                    ]),
                 ),
                 (
                     "Colors & weights",
@@ -215,32 +429,6 @@ impl Gallery {
                             )
                             .into_any_element(),
                     ]),
-                ),
-                (
-                    "Primitives",
-                    col(vec![
-                        h::Typography::heading(3, "Dashboard").into_any_element(),
-                        h::Typography::paragraph(
-                            h::ParagraphSize::Base,
-                            "Paragraph supports base, sm and xs sizes.",
-                        )
-                        .into_any_element(),
-                        // `radius(px)` rounds the `Code` chip alone; the other
-                        // kinds paint no box.
-                        h::Typography::code("cargo add herogpui")
-                            .radius(px(2.))
-                            .into_any_element(),
-                    ]),
-                ),
-                (
-                    "Prose",
-                    col(vec![h::Prose::new()
-                        .child(h::Typography::heading(4, "Body heading"))
-                        .child(h::Typography::paragraph(
-                            h::ParagraphSize::Base,
-                            "Prose applies the shared typographic rhythm to already-semantic children.",
-                        ))
-                        .into_any_element()]),
                 ),
             ],
             cx,

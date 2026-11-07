@@ -323,13 +323,14 @@ impl RenderOnce for Pagination {
                         // The resting ghost link is transparent and borderless.
                         btn = btn.text_color(colors.foreground);
                     }
-                    // The label joins the skin before the press wrap:
-                    // children added after `pressed` land on the slot and
-                    // fight the skin for width. `link` is v3's render prop on
-                    // `Pagination.Link`: it receives `isActive`, so a caller
-                    // can style the current page without re-deriving which
-                    // one it is.
-                    btn = match &self.link {
+                    // The label joins the skin after the fade's fill — the
+                    // fill is appended and would paint over a child already
+                    // present — and before the press wrap, whose slot would
+                    // inherit children added after it. `link` is v3's render
+                    // prop on `Pagination.Link`: it receives `isActive`, so a
+                    // caller can style the current page without re-deriving
+                    // which one it is.
+                    let paint_label = |btn: gpui::Stateful<gpui::Div>| match &self.link {
                         Some(render) => btn.child(render(n, active)),
                         None => btn.child(n.to_string()),
                     };
@@ -356,6 +357,7 @@ impl RenderOnce for Pagination {
                             window,
                             cx,
                         );
+                        btn = paint_label(btn);
                         btn = crate::anim::pressed_with_background(
                             btn,
                             crate::anim::PressBox {
@@ -373,6 +375,8 @@ impl RenderOnce for Pagination {
                             pressed_bg,
                             cx,
                         );
+                    } else {
+                        btn = paint_label(btn);
                     }
                     // `aria-current` identifies the active page without
                     // disabling its React Aria Button. Every enabled numeric
@@ -575,10 +579,7 @@ fn nav_button(
         .gap(px(6.))
         .px(padding_x)
         .rounded(radius)
-        .text_color(foreground)
-        // The icon joins the skin before the press wrap: children added
-        // after `pressed` land on the slot and fight the skin for width.
-        .child(icon);
+        .text_color(foreground);
     if enabled {
         let radius_for_hover = radius;
         btn = btn.cursor(crate::util::interactive_cursor(cx));
@@ -592,6 +593,11 @@ fn nav_button(
             window,
             cx,
         );
+        // The icon joins the skin after the fade's fill — the fill is
+        // appended and would paint over a child already present — and
+        // before the press wrap, whose slot would inherit children added
+        // after it.
+        btn = btn.child(icon);
         btn = crate::anim::pressed_with_background(
             btn,
             crate::anim::PressBox {
@@ -610,7 +616,7 @@ fn nav_button(
             cx,
         );
     } else {
-        btn = btn.opacity(disabled_opacity);
+        btn = btn.child(icon).opacity(disabled_opacity);
     }
     // A disabled control must leave the tab order — `track_focus` is what
     // puts it in, so gate it (v3 gives a disabled arrow `pointer-events-none`

@@ -806,6 +806,8 @@ impl RenderOnce for DatePicker {
                 .is_disabled(self.is_disabled)
                 .is_read_only(self.is_read_only)
                 .inert(!panel_open)
+                // v3's `DatePicker.Popover` composes `Calendar.YearPickerTrigger`.
+                .year_picker(true)
                 // React Aria moves the focus into the calendar as the popover
                 // opens, so the arrows work straight away.
                 .autofocus_grid(panel_open)
@@ -938,6 +940,10 @@ pub(super) fn picker_panel(
         .debug_selector(move || selector.to_owned())
         .bg(colors.overlay.background)
         .text_color(colors.overlay.foreground)
+        // Dark mode's `shadow-overlay` is the inset hairline alone.
+        .when_some(layout.overlay_hairline, |e, hairline| {
+            e.border(layout.border_width).border_color(hairline)
+        })
         .when(!layout.overlay_shadow.is_empty(), |e| {
             e.shadow(layout.overlay_shadow.clone())
         })

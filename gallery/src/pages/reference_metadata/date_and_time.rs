@@ -685,7 +685,7 @@ const CALENDAR_PARTS: &[PartDoc] = &[
     PartDoc {
         name: "Calendar.Heading",
         slot: "calendar-heading",
-        description: "Formatted heading for one visible month or linear range.",
+        description: "Formatted heading for one visible month or linear range; the default plain label.",
         rust_owner: "Calendar",
         status: ImplementationStatus::Implemented,
     },
@@ -741,7 +741,7 @@ const CALENDAR_PARTS: &[PartDoc] = &[
     PartDoc {
         name: "Calendar.YearPickerTrigger",
         slot: "calendar-year-picker-trigger",
-        description: "Focusable heading control that toggles year-picker mode.",
+        description: "Focusable heading control that toggles year-picker mode; composed with `year_picker(true)`, which `is_year_picker_open`/`default_year_picker_open` imply.",
         rust_owner: "Calendar",
         status: ImplementationStatus::Implemented,
     },
@@ -1134,7 +1134,7 @@ const RANGE_CALENDAR_PARTS: &[PartDoc] = &[
     PartDoc {
         name: "RangeCalendar.Heading",
         slot: "range-calendar-heading",
-        description: "Heading for one visible month or linear range.",
+        description: "Heading for one visible month or linear range; the default plain label.",
         rust_owner: "RangeCalendar",
         status: ImplementationStatus::Implemented,
     },
@@ -1190,7 +1190,7 @@ const RANGE_CALENDAR_PARTS: &[PartDoc] = &[
     PartDoc {
         name: "RangeCalendar.YearPickerTrigger",
         slot: "calendar-year-picker-trigger",
-        description: "Heading control that toggles year-picker mode.",
+        description: "Heading control that toggles year-picker mode; composed with `year_picker(true)`, which `is_year_picker_open`/`default_year_picker_open` imply.",
         rust_owner: "RangeCalendar",
         status: ImplementationStatus::Implemented,
     },

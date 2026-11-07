@@ -513,7 +513,7 @@ impl Page {
             Page::Pagination => "use herogpui::components::pagination::Pagination;",
             Page::Tabs => "use herogpui::components::tabs::{TabItem, Tabs};",
             Page::AlertDialog => "use herogpui::components::alert_dialog::{AlertDialog, AlertDialogCloseTrigger};",
-            Page::Drawer => "use herogpui::components::drawer::{Drawer, DrawerCloseTrigger, DrawerPlacement};",
+            Page::Drawer => "use herogpui::components::drawer::{Drawer, DrawerCloseTrigger, DrawerHandle, DrawerPlacement};",
             Page::Sheet => "use herogpui::components::sheet::{Sheet, SheetSnapPoint};",
             Page::Modal => "use herogpui::components::modal::{Modal, ModalCloseTrigger, ModalSize};",
             Page::Popover => "use herogpui::components::popover::{Popover, PopoverArrow, PopoverPlacement};",
@@ -522,7 +522,9 @@ impl Page {
             Page::Autocomplete => "use herogpui::components::autocomplete::Autocomplete;",
             Page::ComboBox => "use herogpui::components::combo_box::ComboBox;",
             Page::Select => "use herogpui::components::select::Select;",
-            Page::Kbd => "use herogpui::components::kbd::Kbd;",
+            Page::Kbd => {
+                "use herogpui::components::kbd::{Kbd, KbdAbbr, KbdContent, KbdKey};"
+            }
             Page::Typography => {
                 "use herogpui::components::typography::{Typography, TypographyType};"
             }

@@ -207,61 +207,46 @@ pub(super) struct ColorFocusRingMotionFrame {
     animate: bool,
 }
 
-fn color_focus_ring_shadows(
-    base: &[gpui::BoxShadow],
-    ring: &[gpui::BoxShadow],
-    opacity: f32,
-) -> Vec<gpui::BoxShadow> {
-    if opacity <= f32::EPSILON {
-        return base.to_vec();
-    }
-    let mut shadows = base.to_vec();
-    shadows.extend(ring.iter().cloned().map(|mut shadow| {
-        shadow.color = shadow.color.alpha(opacity);
-        shadow
-    }));
-    shadows
-}
-
 impl ColorFocusRingMotionFrame {
     fn render<T>(
         self,
         element: T,
         base_shadows: Vec<gpui::BoxShadow>,
+        radius: Pixels,
         offset: bool,
         cx: &App,
     ) -> gpui::AnyElement
     where
-        T: Styled + IntoElement + 'static,
+        T: Styled + ParentElement + IntoElement + 'static,
     {
-        let ring_shadows = util::focus_ring_shadows(offset, cx);
-        let paint = move |element: T, opacity: f32| {
-            element.shadow(color_focus_ring_shadows(
-                &base_shadows,
-                &ring_shadows,
-                opacity,
-            ))
-        };
+        // The ring is an overlay child, not a shadow: `focus_ring_shadows`
+        // keeps the element's corner radius under the spread, so on the round
+        // thumb and swatch it squared off. The element keeps only its own
+        // (non-ring) shadows -- `shadow()` replaces the list, which is also
+        // what drops any static ring an earlier pass painted.
+        let element = element.shadow(base_shadows);
+        let ring = util::focus_ring_overlay(radius, offset, cx);
         if !self.animate {
             self.opacity.set(self.to);
-            return paint(element, self.to).into_any_element();
+            return element.child(ring.opacity(self.to)).into_any_element();
         }
 
         let opacity = self.opacity;
         let from = self.from;
         let to = self.to;
-        element
+        let ring = ring
             .with_animation(
                 element_id::indexed(&self.base, "focus-ring", self.generation),
                 Animation::new(Duration::from_millis(COLOR_FOCUS_RING_TRANSITION_MS))
                     .with_easing(crate::anim::ease_out()),
-                move |element, delta| {
+                move |ring, delta| {
                     let next = from + (to - from) * delta;
                     opacity.set(next);
-                    paint(element, next)
+                    ring.opacity(next)
                 },
             )
-            .into_any_element()
+            .into_any_element();
+        element.child(ring).into_any_element()
     }
 }
 
@@ -814,6 +799,39 @@ pub(super) use swatch_picker::*;
 mod tests {
     use super::*;
 
+    /// Every colour-picker ring is the shared offset overlay: a spread shadow
+    /// keeps the element's corner radius, so on the round slider thumb and
+    /// swatches it squared the ring off. The motion frame animates the
+    /// overlay child's opacity, and each caller passes its part's radius.
+    #[test]
+    fn color_focus_rings_use_the_shared_overlay_geometry() {
+        let source = include_str!("mod.rs");
+        let implementation = source
+            .split("#[cfg(test)]")
+            .next()
+            .expect("the render implementation must precede this test module");
+        assert!(implementation.contains("util::focus_ring_overlay(radius, offset, cx)"));
+        assert!(
+            !implementation.contains("util::focus_ring_shadows"),
+            "the colour rings moved to the overlay; a shadow ring squares off round parts"
+        );
+
+        let swatch = include_str!("swatch_picker.rs");
+        assert!(swatch.contains("focus_motion.render(cell, Vec::new(), item_radius, true, cx)"));
+        let slider = include_str!("slider.rs");
+        let slider_render = slider
+            .split("focus_motion.render(")
+            .nth(1)
+            .expect("the slider thumb must render through the shared motion frame");
+        assert!(slider_render.contains("px(16.)"));
+        let picker = include_str!("picker.rs");
+        let trigger_render = picker
+            .split("trigger_focus_motion.render(")
+            .nth(1)
+            .expect("the trigger must render through the shared motion frame");
+        assert!(trigger_render.contains("util::hairline_radius(cx)"));
+    }
+
     #[test]
     fn hsl_and_hsb_saturation_differ_and_round_trip() {
         // Mid-brightness, half-saturated: the two spaces disagree here, which
@@ -1063,29 +1081,6 @@ mod tests {
             color_slider_thumb_transition_offset(0.25, 0.75, px(200.), true,),
             px(100.)
         );
-    }
-
-    #[test]
-    fn color_focus_ring_transition_preserves_depth_and_fades_ring_layers() {
-        let base = color_thumb_shadows();
-        let ring = vec![gpui::BoxShadow {
-            color: gpui::white(),
-            offset: gpui::point(px(0.), px(0.)),
-            blur_radius: px(1.),
-            spread_radius: px(2.),
-            inset: false,
-        }];
-
-        let resting = color_focus_ring_shadows(&base, &ring, 0.0);
-        assert_eq!(resting, base);
-
-        let halfway = color_focus_ring_shadows(&base, &ring, 0.5);
-        assert_eq!(halfway.len(), base.len() + 1);
-        assert!((halfway.last().expect("ring layer").color.a - 0.5).abs() < 1e-6);
-
-        let focused = color_focus_ring_shadows(&base, &ring, 1.0);
-        assert_eq!(focused.len(), base.len() + 1);
-        assert_eq!(focused.last().expect("ring layer").color, gpui::white());
     }
 
     #[test]

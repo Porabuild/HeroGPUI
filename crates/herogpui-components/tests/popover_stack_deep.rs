@@ -738,3 +738,68 @@ fn open_tooltip_inside_popover_answers_escape_before_its_parent(cx: &mut TestApp
         "after the tooltip consumes one Escape, the next must close its parent"
     );
 }
+
+/// v3 portals the popover above the page: an open panel must paint after
+/// later siblings, not in tree order underneath them. The sibling below is
+/// opaque and covers the whole panel region, so tree-order painting would
+/// hide the panel completely.
+#[gpui::test]
+fn open_popover_panel_paints_after_later_siblings(cx: &mut TestAppContext) {
+    still();
+    let cover = gpui::rgb(0xFF00FF);
+    let cx = open_host(cx, move || {
+        gpui::div()
+            .flex()
+            .flex_col()
+            .child(
+                Popover::new(Button::new("cover-trigger").label("Open"))
+                    .id("cover-popover")
+                    .default_open(true)
+                    .title("Panel")
+                    .child(gpui::div().child("panel body")),
+            )
+            .child(
+                gpui::div()
+                    .w(px(600.))
+                    .h(px(300.))
+                    .bg(cover)
+                    .debug_selector(|| "cover-sibling".to_owned()),
+            )
+            .into_any_element()
+    });
+    cx.run_until_parked();
+    let scene = harness::painted(cx);
+    let (panel_bg, cover_hsla) = cx.update(|_, cx| {
+        use herogpui_theme::ActiveTheme;
+        (cx.colors().overlay.background, gpui::Hsla::from(cover))
+    });
+    let cover_index = scene
+        .quads
+        .iter()
+        .position(|q| q.background.as_solid() == Some(cover_hsla))
+        .expect("the sibling must paint its cover");
+    // The panel is ~260px wide; filter out any full-window background quad
+    // that happens to share the overlay colour.
+    let panel_indices: Vec<usize> = scene
+        .quads
+        .iter()
+        .enumerate()
+        .filter(|(_, q)| {
+            q.background.as_solid() == Some(panel_bg) && {
+                let w = f32::from(scene.bounds(q).size.width);
+                (200.0..500.0).contains(&w)
+            }
+        })
+        .map(|(i, _)| i)
+        .collect();
+    assert!(
+        !panel_indices.is_empty(),
+        "the open panel must paint its background\n{}",
+        scene.describe()
+    );
+    assert!(
+        panel_indices.iter().all(|&i| i > cover_index),
+        "every panel-background quad must paint after the later sibling\n{}",
+        scene.describe()
+    );
+}
