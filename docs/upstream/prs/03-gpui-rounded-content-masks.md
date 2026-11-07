@@ -26,7 +26,8 @@ locally.
 
 Still needed at d89e9c2: yes. `ContentMask<P>` has only `bounds`,
 `Style::overflow_mask` returns a rectangle, and every renderer clips with
-`clip_distances` against a rectangle.
+`clip_distances` against a rectangle. Re-checked at `gpui-pre` 0.3.11
+(`zed@f816e1f`): `ContentMask` is still `{ bounds }` only (`window.rs:2455`).
 
 This is one PR, not four, because the GPU record layout of `ContentMask`
 changes. Splitting gpui from the renderers would leave intermediate commits

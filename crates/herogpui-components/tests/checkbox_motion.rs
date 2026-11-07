@@ -52,13 +52,14 @@ fn settle(cx: &mut VisualTestContext) {
         if pending_frames(cx) == 0 {
             return;
         }
-        std::thread::sleep(Duration::from_millis(10));
+        cx.executor().advance_clock(Duration::from_millis(10));
     }
     panic!("checkbox animations never settled");
 }
 
-fn sleep_mid_flight() {
-    std::thread::sleep(Duration::from_millis(MID_FLIGHT_MS));
+fn advance_mid_flight(cx: &mut VisualTestContext) {
+    cx.executor()
+        .advance_clock(Duration::from_millis(MID_FLIGHT_MS));
 }
 
 #[gpui::test]
@@ -100,7 +101,7 @@ fn selection_and_unselection_animate_and_settle(cx: &mut TestAppContext) {
     click(cx, 8., 8.);
     assert_eq!(recorded.borrow().as_slice(), ["true"]);
 
-    sleep_mid_flight();
+    advance_mid_flight(cx);
     assert!(
         pending_frames(cx) > 0,
         "selection must still be animating {MID_FLIGHT_MS}ms in"
@@ -112,7 +113,7 @@ fn selection_and_unselection_animate_and_settle(cx: &mut TestAppContext) {
     // Unselection runs the same layers backwards and settles too.
     click(cx, 8., 8.);
     assert_eq!(recorded.borrow().as_slice(), ["true", "false"]);
-    sleep_mid_flight();
+    advance_mid_flight(cx);
     assert!(
         pending_frames(cx) > 0,
         "unselection must still be animating {MID_FLIGHT_MS}ms in"
@@ -137,7 +138,7 @@ fn reversing_selection_mid_flight_still_animates_and_settles(cx: &mut TestAppCon
     // the motion slots: an animation is scheduled again right after the second
     // click and settles.
     click(cx, 8., 8.);
-    sleep_mid_flight();
+    advance_mid_flight(cx);
     click(cx, 8., 8.);
     flush_frame(cx);
     assert!(
@@ -236,13 +237,13 @@ fn controlled_selection_follows_external_state_only(cx: &mut TestAppContext) {
     // The caller moving the value is what animates, in both directions.
     selected.set(true);
     flush_frame(cx);
-    sleep_mid_flight();
+    advance_mid_flight(cx);
     assert!(pending_frames(cx) > 0, "an external selection must animate");
     settle(cx);
 
     selected.set(false);
     flush_frame(cx);
-    sleep_mid_flight();
+    advance_mid_flight(cx);
     assert!(
         pending_frames(cx) > 0,
         "an external unselection must animate"
@@ -272,7 +273,7 @@ fn indeterminate_transitions_animate_the_control_both_ways(cx: &mut TestAppConte
     // the check swaps for the dash, so the flip animates.
     indeterminate.set(true);
     flush_frame(cx);
-    sleep_mid_flight();
+    advance_mid_flight(cx);
     assert!(
         pending_frames(cx) > 0,
         "selected -> indeterminate must animate the control"
@@ -283,7 +284,7 @@ fn indeterminate_transitions_animate_the_control_both_ways(cx: &mut TestAppConte
     // returns.
     indeterminate.set(false);
     flush_frame(cx);
-    sleep_mid_flight();
+    advance_mid_flight(cx);
     assert!(
         pending_frames(cx) > 0,
         "indeterminate -> selected must animate the control"
@@ -317,7 +318,7 @@ fn disable_while_hovered_clears_the_stale_hover_colour(cx: &mut TestAppContext) 
     // accent.
     cx.simulate_mouse_move(point(px(8.), px(8.)), None, Modifiers::none());
     flush_frame(cx);
-    sleep_mid_flight();
+    advance_mid_flight(cx);
     assert!(pending_frames(cx) > 0, "hovering must ease the fill colour");
     settle(cx);
 
@@ -326,7 +327,7 @@ fn disable_while_hovered_clears_the_stale_hover_colour(cx: &mut TestAppContext) 
     // the fill easing back off the hover accent.
     disabled.set(true);
     flush_frame(cx);
-    sleep_mid_flight();
+    advance_mid_flight(cx);
     assert!(
         pending_frames(cx) > 0,
         "disabling a hovered checkbox must ease off the stale hover colour"
@@ -363,7 +364,7 @@ fn custom_indicator_keeps_the_fill_motion_and_sees_the_state(cx: &mut TestAppCon
     // component's own and still animates.
     assert_eq!(pending_frames(cx), 0);
     click(cx, 8., 8.);
-    sleep_mid_flight();
+    advance_mid_flight(cx);
     assert!(
         pending_frames(cx) > 0,
         "selection must animate the fill behind a custom indicator too"

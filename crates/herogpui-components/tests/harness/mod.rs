@@ -140,8 +140,9 @@ pub fn click(cx: &mut VisualTestContext, x: f32, y: f32) {
 pub fn press(cx: &mut VisualTestContext, keys: &str) {
     cx.simulate_keystrokes(keys);
     if let Some(last) = keys.split_whitespace().next_back() {
+        let os = cx.cx.read(|app| app.platform_info().os);
         cx.simulate_event(KeyUpEvent {
-            keystroke: Keystroke::parse(last).unwrap(),
+            keystroke: Keystroke::parse_with_os(last, os).unwrap(),
         });
     }
 }
@@ -250,10 +251,13 @@ pub fn settle(cx: &mut VisualTestContext) {
     }
 }
 
-/// Sleeps `ms` of real time, then settles: gpui's `Animation` runs on the
-/// real clock, which `advance_clock` does not move.
-pub fn wait_real(cx: &mut VisualTestContext, ms: u64) {
-    std::thread::sleep(std::time::Duration::from_millis(ms));
+/// Advances the test executor's clock by `ms`, then settles: since
+/// `gpui-pre` 0.3.11 gpui's `Animation` measures time on the background
+/// executor's clock, so motion is deterministic in tests and no real-time
+/// sleep is needed (or effective).
+pub fn wait_ms(cx: &mut VisualTestContext, ms: u64) {
+    cx.executor()
+        .advance_clock(std::time::Duration::from_millis(ms));
     settle(cx);
 }
 

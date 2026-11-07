@@ -12,7 +12,7 @@ exception this plan asked for), not here.
 Authority: [workflow](agents/workflow.md), [component guide](agents/components.md),
 [parity policy](agents/parity.md), and the root [AGENTS.md](../AGENTS.md).
 Upstream evidence comes from the checked-in HeroUI **v3.2.4** bundle/CSS and
-the unpacked **gpui-pre 0.3.5** registry sources. Recheck source symbols when
+the unpacked **gpui-pre 0.3.11** registry sources. Recheck source symbols when
 starting each phase; line numbers are not durable contracts.
 
 ## Status of Phases 0–6 (0.13 close-out)
@@ -481,7 +481,7 @@ to regenerate against (`web/DEPLOYMENT.md`, section 6).
 | Artifact check coverage | [manifest tests](../web/scripts/extract-rust-examples.test.mjs), [website commands](../web/package.json) |
 | Current verification and network behavior | [CI](../.github/workflows/ci.yml), [lint](../.shots/lint.sh), [demo audit](../.shots/demo_audit.py) |
 
-GPUI evidence: re-derive from the unpacked `gpui-pre-0.3.5` registry sources
+GPUI evidence: re-derive from the unpacked `gpui-pre-0.3.11` registry sources
 (the earlier `gpui-pre-0.3.3/src/style.rs` `corner_radii` reference was
 retired-fork API and no longer exists on vanilla), plus `src/geometry.rs`
 (`AbsoluteLength`) and `src/elements/div.rs` (`compute_style_internal`). Pagination CSS was checked directly in the pinned CSS archive,
@@ -618,7 +618,7 @@ to five days, L over a week.
 | P3 | Extensions from the gpui-kit gap list: Sidebar, TitleBar, CommandPalette, HoverCard, Toolbar extras, data-table extras | Done on the 0.13 line, including frozen table columns (see "Extensions from the gpui-kit gap list" above) | L | 0.13 |
 | P3 | ~~Frozen table columns~~ **Done (0.13):** `TableColumn::frozen` keeps the leading columns and selection column fixed with split header and row parts; plain and virtual paths are covered by `table_extras` | GPUI has no sticky positioning, so the table uses clipped scroll parts | M | 0.13 |
 | P3 | ~~Keyboard ContextMenu anchored at the focused element~~ **Done (0.13):** a focused-bounds registry anchors Shift+F10 below supported HeroGPUI controls, collection rows, MenuBar triggers and calendar grids; unrecorded application content and overlay scopes retain the area's corner fallback (design: [`docs/upstream/prs/context-menu-focus-anchor.md`](upstream/prs/context-menu-focus-anchor.md)) | M | 0.13 |
-| P3 | Upstream GPUI work: IME-mirror resync after paste, the retired patches, the `block` 0.1.6 future-incompatibility warning every macOS build prints (chain and requested fix in [`docs/upstream/gpui-block-future-incompat.md`](upstream/gpui-block-future-incompat.md)); multithreaded wasm. **0.13:** ready-to-submit patches and PR texts for the IME resync and the retired patches against zed@d89e9c2 in [`docs/upstream/prs/`](upstream/prs/README.md) (submission needs a maintainer with a Zed CLA); HeroGPUI's own `locale_config` edge to `block` is gone (replaced by `system_locale.rs`); multithreaded wasm evaluated and not adopted ([`docs/upstream/gpui-web-multithreaded.md`](upstream/gpui-web-multithreaded.md)) | External dependencies | M each | later |
+| P3 | Upstream GPUI work: IME-mirror resync after paste, the retired patches; multithreaded wasm. **0.13:** ready-to-submit patches and PR texts for the IME resync and the retired patches against zed@d89e9c2 in [`docs/upstream/prs/`](upstream/prs/README.md) (submission needs a maintainer with a Zed CLA); HeroGPUI's own `locale_config` edge to `block` is gone (replaced by `system_locale.rs`); multithreaded wasm evaluated and not adopted ([`docs/upstream/gpui-web-multithreaded.md`](upstream/gpui-web-multithreaded.md)). **0.14:** `gpui-pre` 0.3.11 drops `metal`/`cocoa`/`block` from the macOS graph, so the `block` 0.1.6 future-incompatibility warning is gone and its note is deleted | External dependencies | M each | later |
 
 Ordering: P1 is cheap, user-visible or process-critical and safe for a patch
 release; P2 is the 0.12.0 follow-ups and library-quality debt sized for one

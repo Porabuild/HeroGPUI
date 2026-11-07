@@ -16,10 +16,10 @@
 //! keyed state, which AGENTS.md records as a silent failure.
 //!
 //! One harness fact drives the closed-proof probes: the Dropdown plays its
-//! `[data-exiting]` run through `util::overlay_phase`, whose timer waits on the
-//! real clock. Under the test clock the exiting panel would stay mounted
-//! forever, so a probe that must not hit the old rows advances the clock past
-//! the 100ms exit before clicking.
+//! `[data-exiting]` run through `util::overlay_phase`, whose timer waits on
+//! the executor clock. Until it fires the exiting panel stays mounted, so a
+//! probe that must not hit the old rows advances the clock past the 100ms
+//! exit before clicking.
 
 use crate::harness;
 

@@ -171,7 +171,8 @@ fn settle(cx: &mut VisualTestContext) {
         if pending_frames(cx) == 0 {
             return;
         }
-        std::thread::sleep(std::time::Duration::from_millis(10));
+        cx.executor()
+            .advance_clock(std::time::Duration::from_millis(10));
     }
     panic!("button animations never settled");
 }
@@ -1723,7 +1724,8 @@ fn button_release_mid_press_resumes_from_the_painted_frame(cx: &mut TestAppConte
 
     cx.simulate_mouse_down(centre, MouseButton::Left, Modifiers::none());
     flush_frame(cx);
-    std::thread::sleep(std::time::Duration::from_millis(60));
+    cx.executor()
+        .advance_clock(std::time::Duration::from_millis(60));
     assert!(
         pending_frames(cx) > 0,
         "the press ramp is still running 60ms in"
@@ -1810,10 +1812,10 @@ fn resting_and_hovered_fills(
     });
     let resting = harness::painted(vcx).solids();
     vcx.simulate_mouse_move(point(px(30.), px(30.)), None, Modifiers::none());
-    harness::wait_real(vcx, 300);
+    harness::wait_ms(vcx, 300);
     let hovered = harness::painted(vcx).solids();
     vcx.simulate_mouse_move(point(px(600.), px(600.)), None, Modifiers::none());
-    harness::wait_real(vcx, 300);
+    harness::wait_ms(vcx, 300);
     let left = harness::painted(vcx).solids();
     (resting, hovered, left)
 }
@@ -1883,7 +1885,7 @@ fn press_boxes(
             .child(build())
             .into_any_element()
     });
-    harness::wait_real(vcx, 50);
+    harness::wait_ms(vcx, 50);
     let resting = pick(&harness::painted(vcx));
     let at = resting.center();
     vcx.simulate_mouse_move(at, None, Modifiers::none());
@@ -1892,7 +1894,7 @@ fn press_boxes(
     vcx.run_until_parked();
     let early_scene = harness::painted(vcx);
     let early = pick(&early_scene);
-    harness::wait_real(vcx, 400);
+    harness::wait_ms(vcx, 400);
     let settled = pick(&harness::painted(vcx));
     vcx.simulate_mouse_up(at, MouseButton::Left, Modifiers::none());
     (resting, early, settled, early_scene.solids())

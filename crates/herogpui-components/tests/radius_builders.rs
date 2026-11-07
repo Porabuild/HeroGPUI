@@ -18,7 +18,7 @@ use gpui::{
     point, prelude::*, px, AnyElement, App, Modifiers, MouseButton, Pixels, TestAppContext,
     VisualTestContext,
 };
-use harness::{open_host, painted, press, settle, still, wait_real, Painted};
+use harness::{open_host, painted, press, settle, still, wait_ms, Painted};
 use herogpui_components::extend::{
     container_radius, control_radius, field_radius, key_radius, small_radius, soft_radius,
 };
@@ -548,7 +548,7 @@ fn alert_dialog_entry_zoom_lands_on_the_resolved_radius(cx: &mut TestAppContext)
                 ))
                 .into_any_element()
         });
-        wait_real(vcx, 500);
+        wait_ms(vcx, 500);
         let scene = painted(vcx);
         let helper = vcx.update(|_, cx| f32::from(container_radius(cx)));
         match radius {
@@ -693,7 +693,7 @@ fn radio_control_press_follows_the_override_and_the_dot_does_not(cx: &mut TestAp
         .map(|q| resting.bounds(q))
         .expect("the selected control must paint the override");
     hold(vcx, control.center());
-    wait_real(vcx, 400);
+    wait_ms(vcx, 400);
     let scene = painted(vcx);
     assert!(
         !scene.rounded_exact(R * 0.95).is_empty(),
@@ -917,7 +917,7 @@ fn button_shapes_reconcile_sx_on_skin_fill_and_press(cx: &mut TestAppContext) {
             );
 
         vcx.simulate_mouse_move(skin.center(), None, Modifiers::none());
-        wait_real(vcx, 300);
+        wait_ms(vcx, 300);
         let hovered = painted(vcx);
         let layers = hovered
             .quads
@@ -943,7 +943,7 @@ fn button_shapes_reconcile_sx_on_skin_fill_and_press(cx: &mut TestAppContext) {
         }
 
         vcx.simulate_mouse_down(skin.center(), MouseButton::Left, Modifiers::none());
-        wait_real(vcx, 400);
+        wait_ms(vcx, 400);
         let pressed = painted(vcx);
         let want = TL * scale;
         assert!(

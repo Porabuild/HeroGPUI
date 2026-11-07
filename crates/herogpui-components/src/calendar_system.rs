@@ -38,7 +38,7 @@ impl CalendarSystem {
     /// The system named by one locale tag, or `None` if the tag is unparseable.
     pub(crate) fn for_locale(tag: &str) -> Option<Self> {
         let locale = tag.parse::<IcuLocale>().ok()?;
-        let kind = AnyCalendarKind::new((&locale).into());
+        let kind = AnyCalendarKind::try_new((&locale).into()).unwrap_or(AnyCalendarKind::Gregorian);
         Some(Self {
             kind,
             calendar: AnyCalendar::new(kind),

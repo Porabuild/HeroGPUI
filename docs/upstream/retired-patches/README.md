@@ -15,7 +15,8 @@ moved back to vanilla registry GPUI so that `cargo add herogpui` just works:
 - `gpui-pre-web-0.3.3.patch` — shift+wheel horizontal scroll, IME mirror
   resync after paste, and the `default = []` feature deviation.
 
-Verified still missing from vanilla `gpui-pre` 0.3.5 (`zed@d89e9c2`), so a
+Verified still missing from vanilla `gpui-pre` 0.3.5 (`zed@d89e9c2`) and
+0.3.11 (`zed@f816e1f`), so a
 version bump alone did not obsolete them. They are kept here for one purpose:
 as source material for the upstream PRs to `zed-industries/zed`
 (`crates/gpui*` / `crates/gpui_web`). The component-level replacements that

@@ -592,7 +592,7 @@ fn multi_month_view_scrolls_to_the_second_month_in_a_narrow_host(cx: &mut TestAp
             bounds.left() >= px(0.) && bounds.right() <= px(320.5),
             "keyboard return range={range}: {bounds:?}"
         );
-        cx.simulate_event(gpui::ScrollWheelEvent {
+        cx.simulate_event(gpui::ScrollEvent {
             position: point(px(160.), px(90.)),
             delta: gpui::ScrollDelta::Pixels(point(px(-500.), px(0.))),
             ..Default::default()
@@ -669,7 +669,7 @@ fn multi_month_year_picker_reveals_its_active_column(cx: &mut TestAppContext) {
                 };
                 gpui::div().w(px(320.)).child(content).into_any_element()
             });
-            cx.simulate_event(gpui::ScrollWheelEvent {
+            cx.simulate_event(gpui::ScrollEvent {
                 position: point(px(160.), px(90.)),
                 delta: gpui::ScrollDelta::Pixels(point(px(initial_scroll), px(0.))),
                 ..Default::default()

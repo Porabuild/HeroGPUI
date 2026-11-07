@@ -592,6 +592,9 @@ fn overlay_preview(page: Page, cx: &gpui::App) -> AnyElement {
         Page::Drawer => (72., 88., 0., 96.),
         Page::Popover => (112., 58., 18., 44.),
         Page::AlertDialog | Page::Modal => (128., 72., 8., 20.),
+        // Sheet's default placement is bottom: a full-width panel flush with
+        // the tile's bottom edge (168 - 8 - 152 = 8 of side margin).
+        Page::Sheet => (152., 48., 40., 8.),
         _ => unreachable!("non-overlay page"),
     };
     gpui::div()
@@ -1038,5 +1041,31 @@ fn preview_kind(page: Page) -> PreviewKind {
         | Page::Styling
         | Page::Icons
         | Page::DesignPrinciples => unreachable!("non-component page has no preview"),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use gpui::TestAppContext;
+    use herogpui_theme::{Theme, ThemeProvider};
+
+    /// Every component page must survive `component_preview`: a page missing
+    /// an arm in one of the preview matches panics when "All Components"
+    /// renders (`Page::Sheet` once had no `overlay_preview` arm). Building
+    /// each preview headlessly fails here in CI instead of at runtime.
+    #[gpui::test]
+    fn every_component_page_has_an_overview_preview(cx: &mut TestAppContext) {
+        cx.update(|cx| ThemeProvider::init_with(Theme::light(), cx));
+        cx.update(|cx| {
+            for section in nav_sections() {
+                for page in section.items {
+                    if page.import_line().is_empty() {
+                        continue;
+                    }
+                    let _ = component_preview(preview_kind(page), page, page.title(), cx);
+                }
+            }
+        });
     }
 }

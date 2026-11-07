@@ -2,10 +2,9 @@
 
 Each phrase below was once true, stopped being true, and then survived in a
 comment or guide long enough to mislead a contributor or an agent: a test
-binary count that tripled, "Git GPUI" after the move to the registry, a
-"stable" wasm32 build that has needed nightly since the web-platform fork was
-retired, the PowerShell-only lint gate. The fix for each was made once; this
-keeps it made.
+binary count that tripled, "Git GPUI" after the move to the registry, the
+dated wasm32 nightly pin that gpui-pre 0.3.10 retired, the PowerShell-only
+lint gate. The fix for each was made once; this keeps it made.
 
 It reads only files that state how the repository works *now* (see `SCANNED`).
 Dated history -- CHANGELOG.md, docs/parity/, docs/upstream/, the roadmap --
@@ -52,13 +51,14 @@ STALE = (
     (r'\bgit GPUI\b',
      'GPUI is a crates.io dependency; package_audit.py rejects a git source',
      ()),
-    (r'\bstable\s+wasm(?:32)?\b',
-     'the wasm32 build needs nightly (gpui-pre-web enables `multithreaded`, '
-     'which pulls in the #![feature] crate wasm_thread)',
+    (r'wasm-toolchain\.txt',
+     'the dated wasm32 nightly pin is retired: since gpui-pre 0.3.10 the '
+     'workspace turns off gpui_platform\'s `multithreaded` default, so the '
+     'web gallery builds on rust-toolchain.toml\'s stable',
      ()),
-    (r'back to a nightly pin',
-     'the wasm32 build is already on nightly; only a forked web platform could '
-     'take it back to stable',
+    (r'\bnightly-\d{4}-\d{2}-\d{2}\b',
+     'the wasm32 build no longer pins a dated nightly; it uses the stable '
+     'toolchain in rust-toolchain.toml',
      ()),
     (r'gpui_patches\.py',
      'the patch materializer is retired; there is no setup step',
@@ -114,14 +114,16 @@ def self_test():
             'all 70 test binaries finish in five seconds\n'
             'its 110+ test binaries\n'
             '# Git GPUI is not registry-publishable\n'
-            'and a stable wasm32 build\n'
-            'run .shots/lint.ps1 first\n',
+            'rustup toolchain install "$(cat .shots/wasm-toolchain.txt)"\n'
+            'run .shots/lint.ps1 first\n'
+            'key: wasm32-nightly-2026-08-30\n',
             encoding='utf-8')
         good = root / 'CONTRIBUTING.md'
         good.write_text(
             'every test binary finishes in seconds\n'
             'reported "24 test binaries announced" against a full-suite 68\n'
-            'the wasm32 build runs on nightly\n'
+            'the wasm32 build runs on the pinned stable toolchain\n'
+            'a stable wasm32 build; the opt-in multithreaded feature needs nightly\n'
             'run bash .shots/lint.sh first\n'
             '`.shots/lint.ps1` forwards to `.shots/lint.sh`\n',
             encoding='utf-8')
@@ -133,7 +135,7 @@ def self_test():
         for rel, number, _reason, _line in hits:
             by_file.setdefault(rel, []).append(number)
         # Line 3 carries two stale phrases, so it is reported twice.
-        if by_file.get('AGENTS.md') != [1, 2, 3, 3, 4, 5]:
+        if by_file.get('AGENTS.md') != [1, 2, 3, 3, 4, 5, 6]:
             failures.append('known-stale lines not all reported: %r' % by_file.get('AGENTS.md'))
         if 'CONTRIBUTING.md' in by_file:
             failures.append('current wording flagged: %r' % by_file['CONTRIBUTING.md'])

@@ -9,7 +9,8 @@ test-support`: 324 passed, including the new test.
 
 Still needed at d89e9c2: yes. `AriaProperties` has no `current` field,
 `StatefulInteractiveElement` has no setter, and `write_a11y_info` never calls
-`Node::set_aria_current`.
+`Node::set_aria_current`. Re-checked at `gpui-pre` 0.3.11 (`zed@f816e1f`):
+`aria_current` appears nowhere in its `src/`.
 
 ---
 

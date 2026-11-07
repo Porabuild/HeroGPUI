@@ -3,7 +3,7 @@
 # toolchain rather than carrying an older compatibility floor;
 # `.shots/package_audit.py` fails if this, `rust-version` and the pin in
 # rust-toolchain.toml disagree.
-msrv = "1.98"
+msrv = "1.99"
 
 # Pre-1.0: a signature fix ships in the next 0.x minor release, where
 # cargo-semver-checks (CI and the release) makes the break explicit, so clippy

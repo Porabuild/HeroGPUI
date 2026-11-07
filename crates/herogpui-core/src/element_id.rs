@@ -92,7 +92,7 @@ pub fn scoped(parent: &ElementId, part: impl Into<SharedString>) -> ElementId {
 /// is what separates two of the collection.
 ///
 /// The index rides as its own segment rather than as
-/// [`ElementId::NamedInteger`], because `gpui-pre` 0.3.3 has no variant carrying
+/// [`ElementId::NamedInteger`], because `gpui-pre` has no variant carrying
 /// both a parent `ElementId` and an integer: `NamedInteger`'s name is a
 /// `SharedString`, so using it here would mean flattening `parent` back into a
 /// string and reintroducing exactly the ambiguity this module exists to avoid.

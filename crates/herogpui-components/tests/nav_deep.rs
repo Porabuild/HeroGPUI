@@ -170,9 +170,9 @@ fn flush_frame(cx: &mut VisualTestContext) {
 /// while that transition runs, so tests that click the settled body or the
 /// trigger below it must advance the deterministic clock first.
 fn settle_collapsible(cx: &mut VisualTestContext) {
-    // GPUI's animation phase uses wall-clock `Instant`s; the test executor's
-    // virtual clock advances the retained panel timer but not that phase.
-    std::thread::sleep(Duration::from_millis(220));
+    // Since gpui-pre 0.3.11 GPUI's animation phase and the retained panel
+    // timer both run on the test executor's clock.
+    cx.executor().advance_clock(Duration::from_millis(220));
     cx.update(|window, cx| {
         window.simulate_next_frame(cx);
     });

@@ -65,9 +65,9 @@ Use the narrowest source that actually owns the contract:
 2. HeroUI v3.2.7 component code and styles for port parity.
 3. HeroUI's exact pinned dependencies for inherited interaction semantics:
    React Aria 3.53.1, React Stately 3.51.0, and React Aria Components 1.22.1.
-4. The `gpui-pre` 0.3.5 sources pinned in `Cargo.lock` for framework
+4. The `gpui-pre` 0.3.11 sources pinned in `Cargo.lock` for framework
    behavior and available APIs. Cargo unpacks them to
-   `~/.cargo/registry/src/index.crates.io-*/gpui-pre-0.3.5/`; read that tree,
+   `~/.cargo/registry/src/index.crates.io-*/gpui-pre-0.3.11/`; read that tree,
    not a Zed git checkout, not the older `gpui-unofficial` republish, and not
    the unrelated crates.io `gpui` 0.2.2 crate.
 5. Other Zed revisions, GPUI republish versions, or GPUI projects only as
@@ -130,8 +130,8 @@ command in a fresh clone is just `cargo`. Its jobs cover:
 - On pull requests, `cargo semver-checks` for the four library crates against
   their latest crates.io release; a deliberate break carries the
   `semver:breaking` label. The release repeats the check before publishing.
-- Rustdoc, gallery CLI installation from source, and a nightly wasm32 build
-  followed by the lockfile-matched wasm-bindgen pass.
+- Rustdoc, gallery CLI installation from source, and a wasm32 build on the
+  pinned toolchain followed by the lockfile-matched wasm-bindgen pass.
 
 Do not claim the full gate passed after running only a focused test or one audit.
 For documentation-only changes, verify the documentation directly rather than

@@ -13,7 +13,7 @@ use std::time::Duration;
 
 use gpui::{
     point, prelude::*, px, Modifiers, MouseButton, MouseDownEvent, MouseMoveEvent, MouseUpEvent,
-    ScrollDelta, ScrollWheelEvent, TestAppContext, VisualTestContext,
+    ScrollDelta, ScrollEvent, TestAppContext, VisualTestContext,
 };
 use herogpui_components::{NumberField, NumberState, Slider};
 
@@ -48,7 +48,7 @@ fn drag(cx: &mut VisualTestContext, from: (f32, f32), to: (f32, f32)) {
 }
 
 fn wheel(cx: &mut VisualTestContext, dy: f32) {
-    cx.simulate_event(ScrollWheelEvent {
+    cx.simulate_event(ScrollEvent {
         position: point(px(100.), px(18.)),
         delta: ScrollDelta::Pixels(point(px(0.), px(dy))),
         ..Default::default()
@@ -476,7 +476,7 @@ fn number_field_consumes_focused_horizontal_bound_wheel(cx: &mut TestAppContext)
     let cx = open_host(cx, move || {
         let bubbled = for_view.clone();
         gpui::div()
-            .on_scroll_wheel(move |_, _, _| bubbled.set(true))
+            .on_scroll(move |_, _, _| bubbled.set(true))
             .child(
                 NumberField::new(state_for_view.clone())
                     .min_value(0.)
@@ -487,7 +487,7 @@ fn number_field_consumes_focused_horizontal_bound_wheel(cx: &mut TestAppContext)
     });
 
     press(cx, "tab");
-    cx.simulate_event(ScrollWheelEvent {
+    cx.simulate_event(ScrollEvent {
         position: point(px(100.), px(18.)),
         delta: ScrollDelta::Pixels(point(px(1.), px(0.))),
         ..Default::default()

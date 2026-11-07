@@ -573,7 +573,7 @@ impl FrozenColumns {
         gpui::div()
             .flex()
             .flex_shrink_0()
-            .on_scroll_wheel(move |event, window, cx| {
+            .on_scroll(move |event, window, cx| {
                 let at = scroll.offset();
                 crate::util::shift_wheel_scroll_x(&scroll, event);
                 let delta = event.delta.pixel_delta(window.line_height());
@@ -2609,6 +2609,7 @@ impl RowKeyNav {
         let key_name = event.keystroke.key.as_str();
         let typed = event.keystroke.key_char.as_deref().unwrap_or(key_name);
         let modifiers = &event.keystroke.modifiers;
+        let is_mac = cx.platform_info().is_mac();
         let now = web_time::Instant::now();
         let is_space = key_name == "space" || typed == " ";
         let is_character = {
@@ -2629,11 +2630,11 @@ impl RowKeyNav {
         // multiple. The shortcut matches its modifiers exactly,
         // so any extra modifier lets the event fall through.
         if key_name == "a"
-            && event.keystroke.modifiers.secondary()
+            && event.keystroke.modifiers.secondary(cx)
             && !event.keystroke.modifiers.shift
             && !event.keystroke.modifiers.alt
             && !event.keystroke.modifiers.function
-            && if cfg!(target_os = "macos") {
+            && if is_mac {
                 !event.keystroke.modifiers.control
             } else {
                 !event.keystroke.modifiers.platform
@@ -2701,13 +2702,10 @@ impl RowKeyNav {
         // macOS, Alt- or platform-bearing elsewhere -- so the
         // whole event stays inert: no focus move, no selection,
         // no preventDefault, and no first-press settle either.
-        if matches!(key_name, "home" | "end")
-            && !home_end_registered(*modifiers, cfg!(target_os = "macos"))
-        {
+        if matches!(key_name, "home" | "end") && !home_end_registered(*modifiers, is_mac) {
             return;
         }
-        let initial_home_end_extends =
-            shift_home_end_extends("home", modifiers.control, cfg!(target_os = "macos"));
+        let initial_home_end_extends = shift_home_end_extends("home", modifiers.control, is_mac);
         let initial_shift_settle = from.is_none()
             && modifiers.shift
             && (key_name == "up"
@@ -3021,10 +3019,11 @@ impl RowKeyNav {
         cx: &mut App,
     ) {
         let keys = &self.keys;
+        let is_mac = cx.platform_info().is_mac();
         // Pinned `useSelectableCollection`: Shift extends a
         // multiple selection from the anchor with no other
         // chord, so plain Shift navigation is exact.
-        let exact_shift_navigation = if cfg!(target_os = "macos") {
+        let exact_shift_navigation = if is_mac {
             !modifiers.control && !modifiers.platform && !modifiers.function
         } else {
             !modifiers.alt && !modifiers.platform && !modifiers.function
@@ -3034,7 +3033,7 @@ impl RowKeyNav {
             && exact_shift_navigation
             && !initial_shift_settle
             && Some(next) != from
-            && shift_home_end_extends(key_name, modifiers.control, cfg!(target_os = "macos"));
+            && shift_home_end_extends(key_name, modifiers.control, is_mac);
         if extends_selection {
             if let Some(target) = keys.get(next) {
                 let range = self.selection_range.read(cx).clone();
@@ -3058,8 +3057,7 @@ impl RowKeyNav {
             }
         } else if self.select_on_focus
             && !modifiers.shift
-            && !((cfg!(target_os = "macos") && modifiers.alt)
-                || (!cfg!(target_os = "macos") && modifiers.control))
+            && !((is_mac && modifiers.alt) || (!is_mac && modifiers.control))
         {
             if let Some(target) = keys.get(next) {
                 let next_selection = vec![target.clone()];
@@ -3142,6 +3140,7 @@ impl RowKeyNav {
         cx: &mut App,
     ) {
         let mode = self.mode;
+        let is_mac = cx.platform_info().is_mac();
         let selected_now = &self.selected_now;
         let was_selected = selected_now.contains(key);
         let extends_selection = modifiers.shift && mode == SelectionMode::Multiple;
@@ -3155,7 +3154,7 @@ impl RowKeyNav {
                 key,
             )
         } else {
-            let non_contiguous = if cfg!(target_os = "macos") {
+            let non_contiguous = if is_mac {
                 modifiers.alt
             } else {
                 modifiers.control
@@ -5334,7 +5333,7 @@ impl RowCtx {
                             )
                         } else {
                             let modifiers = ev.modifiers();
-                            let non_contiguous = if cfg!(target_os = "macos") {
+                            let non_contiguous = if cx.platform_info().is_mac() {
                                 modifiers.alt
                             } else {
                                 modifiers.control

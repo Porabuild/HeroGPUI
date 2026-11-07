@@ -266,7 +266,7 @@ impl RenderOnce for ScrollShadow {
         // untouched: the helper is a web-only no-op elsewhere.
         if horizontal {
             let wheel_scroll = scroll.clone();
-            scroller = scroller.on_scroll_wheel(move |event, _window, _cx| {
+            scroller = scroller.on_scroll(move |event, _window, _cx| {
                 crate::util::shift_wheel_scroll_x(&wheel_scroll, event);
             });
         }

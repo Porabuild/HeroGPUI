@@ -25543,7 +25543,7 @@
         "prop": "alt",
         "type": "string",
         "default": "—",
-        "description": "Alternative text for the image. gpui-pre 0.3.3 has no accessibility tree to carry it.",
+        "description": "Alternative text for the image. gpui-pre 0.3.11's `img` element has no accessibility role, so there is no tree node to carry it.",
         "rustOwner": "Avatar",
         "rust": "—",
         "status": "unavailable"
@@ -25881,7 +25881,7 @@
       },
       {
         "token": ".avatar-group--clip",
-        "description": "Platform-limited: gpui-pre 0.3.5 has only rectangular content masks, so the transparent crescent cannot be cut. The port paints it instead — a 2px `--background` seam around each avatar that follows another — which matches on a solid background but is opaque over images or gradients.",
+        "description": "Platform-limited: gpui-pre 0.3.11 has only rectangular content masks, so the transparent crescent cannot be cut. The port paints it instead — a 2px `--background` seam around each avatar that follows another — which matches on a solid background but is opaque over images or gradients.",
         "rust": "AvatarGroupOverlap::Clip => follows (BoxShadow seam in colors.background)",
         "status": "partial"
       },

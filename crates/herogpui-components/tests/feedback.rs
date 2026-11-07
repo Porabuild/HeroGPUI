@@ -64,7 +64,7 @@ use herogpui_theme::SkeletonAnimation;
 
 /// Pins the toast card layout by enabling reduced motion **before** the first
 /// frame: a toast wraps itself in `entering_zoom`, whose animation runs on
-/// wall time the test clock does not drive, so without this the card would
+/// the executor clock this suite does not advance, so without this the card would
 /// sit at its t=0 pose for the whole test. Same rule the overlay suites
 /// learned; the harness applies the request before opening the host window.
 fn still() {

@@ -345,9 +345,9 @@ fn button_reaches_hover(cx: &mut TestAppContext, fade_ms: u64, wait_ms: u64) -> 
             .into_any_element()
     });
     themed(cx, |b| b.hover_fade_ms(fade_ms));
-    harness::wait_real(cx, 50);
+    harness::wait_ms(cx, 50);
     cx.simulate_mouse_move(point(px(20.), px(18.)), None, Modifiers::none());
-    harness::wait_real(cx, wait_ms);
+    harness::wait_ms(cx, wait_ms);
     // The fade sets the element's own fill to the endpoint at once and eases
     // an overlay fill across it, so the colour that shows is the last solid
     // painted over the element's box.
@@ -401,11 +401,11 @@ fn themed_tabs_hover_opacity_sets_the_wash_alpha(cx: &mut TestAppContext) {
         .into_any_element()
     });
     themed(cx, |b| b.tabs_hover_opacity(0.25).hover_fade_ms(0));
-    harness::wait_real(cx, 50);
+    harness::wait_ms(cx, 50);
     // Both tabs are 100px wide inside the tray's 4px inset, so "Beta" spans
     // x 104..204 of the 32px row.
     cx.simulate_mouse_move(point(px(150.), px(18.)), None, Modifiers::none());
-    harness::wait_real(cx, 50);
+    harness::wait_ms(cx, 50);
     let fills = harness::painted(cx).solids();
     assert!(
         harness::has_color(&fills, tray.alpha(0.75)),

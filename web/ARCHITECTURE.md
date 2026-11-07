@@ -146,7 +146,7 @@ snippets and GPUI mentions read them from here (`SITE` in `src/lib/nav.ts`).
 ```jsonc
 {
   "version": "0.12.0",
-  "gpuiVersion": "0.3.5",
+  "gpuiVersion": "0.3.11",
   "categories": [
     { "name": "Buttons", "slug": "buttons",
       "components": ["button", "button-group", "close-button", "toggle-button"] }

@@ -22,7 +22,7 @@ step below runs on a fresh clone with plain `cargo`.
 ## Why the GPUI pin is exact
 
 `[workspace.dependencies]` pins `gpui-pre` and `gpui-pre-platform` at
-`=0.3.5`, exactly as gpui-kit does. `gpui-pre` is a prerelease publish of the
+`=0.3.11`, exactly as gpui-kit does. `gpui-pre` is a prerelease publish of the
 Zed GPUI sources by crates.io user huacnlee (Jason Lee, the gpui-kit
 maintainer), and each 0.3.x is a snapshot of different Zed sources, so a
 caret would let a downstream build resolve GPUI code no HeroGPUI release was
@@ -80,7 +80,7 @@ is stored in GitHub.
    cargo package -p herogpui-gallery --allow-dirty --no-verify --list
    cargo publish --workspace --dry-run --allow-dirty --locked --no-verify
    # What the release's `semver` job runs (install: cargo install
-   # cargo-semver-checks --locked --version 0.50.0, the version CI pins):
+   # cargo-semver-checks --locked --version 0.51.0, the version CI pins):
    cargo semver-checks -p herogpui-core -p herogpui-theme -p herogpui-components -p herogpui
    ```
 

@@ -5,7 +5,7 @@
 //! reduced motion the zoom returns the panel untouched, so the chain is the
 //! only consumer there — the reduced-motion bounds test holds the resting
 //! panel to the resolved pair. With motion on, the popover's entry zoom and
-//! the toast's stack-exit zoom are observed on the real clock and must paint
+//! the toast's stack-exit zoom are observed on the executor clock and must paint
 //! the same pair.
 //!
 //! The popover panel carries no debug selector of its own, so the probe is
@@ -124,9 +124,9 @@ fn popover_padding_reaches_the_resting_panel_with_reduced_motion(cx: &mut TestAp
     assert_both_popovers(cx);
 }
 
-/// The motion path, observed on the real clock: gpui's `with_animation`
-/// measures wall-clock time, so the test sleeps past the entry instead of
-/// advancing the executor. The zoom sets the panel's padding itself on every
+/// The motion path, observed on the executor clock: gpui's `with_animation`
+/// measures background-executor time, so the test advances the executor past
+/// the entry. The zoom sets the panel's padding itself on every
 /// frame, including the settled one, so a zoom fed a second resolution of the
 /// padding (the stock 16px instead of the instance's 24px) would land the
 /// panel on the wrong inset. Mid-entry the panel is still scaled down, which
@@ -151,7 +151,7 @@ fn popover_entry_zoom_lands_on_the_resolved_padding(cx: &mut TestAppContext) {
         "mid-entry the zoom must still be scaling the panel and its 24px pair \
          down, the content measured {entering}px wide"
     );
-    harness::wait_real(cx, 400);
+    harness::wait_ms(cx, 400);
     assert_both_popovers(cx);
 }
 
@@ -181,7 +181,7 @@ fn toast_stack_exit_zoom_starts_from_the_resolved_padding(cx: &mut TestAppContex
     let cx = open_host(cx, || {
         ToastViewport::new().is_expanded(true).into_any_element()
     });
-    harness::wait_real(cx, 500);
+    harness::wait_ms(cx, 500);
 
     let inset = |cx: &mut VisualTestContext| {
         let probe = cx

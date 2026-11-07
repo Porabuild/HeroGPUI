@@ -89,7 +89,7 @@ implementation under `src/` instead, and are not listed here.
 | Module | Covers | Tests |
 |---|---|---|
 | `overlays` | Modal, Drawer, AlertDialog and related overlay component behaviour. | 35 |
-| `overlay_padding` | Overlay panel padding on the resting panel and through the entry/exit zoom (real clock). | 3 |
+| `overlay_padding` | Overlay panel padding on the resting panel and through the entry/exit zoom (executor clock). | 3 |
 | `panel_padding` | Phase 3 overlay panel padding: stock and overridden insets read off the painted panel. | 2 |
 | `overlay_stack_dialogs_deep` | Explicit overlay-stack behavior for Modal, Drawer, AlertDialog. | 4 |
 | `overlay_stack_menus_deep` | Nested Dropdown and Tooltip overlay-stack contracts. | 3 |
@@ -246,8 +246,9 @@ DEVELOPER_DIR=/Library/Developer/CommandLineTools cargo test -p herogpui-compone
   component's text there draws with. Shadows, paths and sprites (svg icons,
   the focus ring's rasterised band, glyphs) and the cursor are *not*
   exposed, and the `NoopTextSystem` resolves every font to one id.
-- **Motion on the real clock.** gpui's `Animation` measures wall time, so a
-  motion path is observed with `harness::wait_real` (sleep, then settle) and
+- **Motion on the executor clock.** Since gpui-pre 0.3.11 gpui's
+  `Animation` measures background-executor time, so a motion path is
+  observed with `harness::wait_ms` (advance the test clock, then settle) and
   the component's own timing is separated from the theme's by stretching the
   theme's `hover_fade_ms` to a minute (a component with a stylesheet-specific
   duration still settles within it; a Button is the positive control).

@@ -6,6 +6,13 @@ Evaluated for 0.13; **not adopted**. The gallery keeps starting the app with
 This note records what turning the multi-threaded platform on would take,
 and the exact blockers, so the question is not re-derived from scratch.
 
+Since `gpui-pre` 0.3.10 the workspace also builds the wasm32 target on the
+pinned stable toolchain: `gpui_platform` forwards `gpui_web`'s `multithreaded`
+default instead of forcing it (zed#65289), and this workspace sets
+`default-features = false` on that edge, so `wasm_thread` stays out of the
+graph unless the facade's opt-in `multithreaded` feature is enabled. The
+blockers below still hold at 0.3.11 for anyone who does enable it.
+
 ## What the multi-threaded platform needs
 
 From `gpui-pre-web` 0.3.5 (`zed@d89e9c2`):

@@ -270,11 +270,12 @@ so CI builds the artifact and the site build downloads it — with no secrets
 and no manual step:
 
 1. **CI builds it** — the `wasm` job in `.github/workflows/ci.yml`, on every
-   pull request and every master push, runs `.shots/build-wasm.sh`: nightly
-   wasm32 build, `wasm-bindgen`, `wasm-opt`, then `build-info.json` recording
+   pull request and every master push, runs `.shots/build-wasm.sh`: wasm32
+   build on `rust-toolchain.toml`'s pinned stable, `wasm-bindgen`, `wasm-opt`,
+   then `build-info.json` recording
    the **artifact key** — the SHA-256 over every wasm build input (the
-   component/theme/core/facade/web/gallery sources, the workspace manifests
-   the lockfile, dated nightly pin, build script and CI recipe;
+   component/theme/core/facade/web/gallery sources, the workspace manifests,
+   the lockfile, build script and CI recipe;
    `inputsHash` in `scripts/extract-wasm-sections.mjs`) —
    and the byte hashes.
 2. **CI publishes it on master pushes** — the `wasm-publish` job (a separate
@@ -351,7 +352,7 @@ publishing and pruning fail.
 The recipe is the one CI runs; from the repository root:
 
 ```bash
-rustup toolchain install "$(cat .shots/wasm-toolchain.txt)" --profile minimal -t wasm32-unknown-unknown
+rustup target add wasm32-unknown-unknown   # once, for the pinned toolchain
 cargo install -f wasm-bindgen-cli --version <the wasm-bindgen in Cargo.lock>
 # binaryen version_133 (github.com/WebAssembly/binaryen/releases) on PATH
 bash .shots/build-wasm.sh          # writes web/public/gallery/, stamped "local"
@@ -363,13 +364,15 @@ build, `pnpm run gallery:fetch` (or `pnpm run build`) installs CI's artifact
 for the checkout, or master's. Delete `public/gallery/herogpui_web*` to go
 back from a local build to CI's.
 
-- **The dated nightly is required.** Vanilla `gpui-pre-web` enables its
-  `multithreaded` feature by default, which pulls in `wasm_thread`, whose
-  `lib.rs` opens with `#![feature]`; stable fails with `error[E0554]`. No
-  downstream `default-features = false` edge can turn that default off (cargo
-  unions feature sets). Everything native stays on `rust-toolchain.toml`'s
-  pinned stable. There is no patch or materialization step: the retired fork
-  lives under `docs/upstream/retired-patches/` for the upstream-PR effort only.
+- **The pinned stable toolchain builds wasm32.** Since `gpui-pre` 0.3.10,
+  `gpui_platform` forwards `gpui_web`'s `multithreaded` default instead of
+  forcing it (zed#65289) and this workspace sets `default-features = false`
+  on that edge, so `wasm_thread` — the `#![feature]` crate that made stable
+  fail with `error[E0554]` — stays out of the graph. The facade's opt-in
+  `multithreaded` feature can still pull it back (it then needs a nightly
+  toolchain); nothing enables it here. There is no patch or materialization
+  step: the retired fork lives under `docs/upstream/retired-patches/` for
+  the upstream-PR effort only.
 - **The multi-threaded platform is unused.** The app starts with
   `gpui_platform::single_threaded_web()`; web workers over shared wasm memory
   need a cross-origin-isolated context. Why isolating even the standalone

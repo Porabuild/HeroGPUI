@@ -28,7 +28,7 @@ impl Render for MyApp {
 
 ## Installation
 
-Prerequisites: Rust 1.98 and the platform tooling GPUI needs (Xcode on macOS;
+Prerequisites: Rust 1.99 and the platform tooling GPUI needs (Xcode on macOS;
 Wayland/X11 dev packages on Linux; nothing extra on Windows).
 
 `herogpui` is published on crates.io. Add it with `cargo add herogpui`, or:
@@ -45,7 +45,7 @@ platform. Do not add `gpui` or `gpui_platform` to your own `Cargo.toml` — a
 second copy of GPUI is how versions drift apart. (Zed does not publish `gpui`
 under that name, which is why GPUI arrives as `gpui-pre`, a prerelease publish of the Zed GPUI
 sources by crates.io user huacnlee (Jason Lee, the gpui-kit maintainer).
-HeroGPUI pins it exactly (`=0.3.5`). The unrelated crates.io `gpui` 0.2.2
+HeroGPUI pins it exactly (`=0.3.11`). The unrelated crates.io `gpui` 0.2.2
 crate is a different library.)
 
 Each layer is also reachable by name, and each is a Cargo feature:
@@ -61,7 +61,10 @@ Each layer is also reachable by name, and each is a Cargo feature:
 
 Two more features only forward to GPUI: `test-support`
 (`gpui/test-support` + `gpui_platform/test-support`, for your own
-`#[gpui::test]`) and `profiler` (`gpui/profiler`). `serde` forwards
+`#[gpui::test]`) and `profiler` (`gpui/profiler`); `multithreaded` forwards
+`gpui_platform/multithreaded`, GPUI's multi-threaded web platform (wasm32
+only — it needs a nightly toolchain and a cross-origin-isolated page, and is
+off by default). `serde` forwards
 `herogpui-theme/serde` and is off by default: it is the sparse
 `ThemeDocument` JSON applied through `ThemeBuilder`, not a dump of a
 resolved `Theme`.
@@ -165,12 +168,12 @@ sources or git hooks.
 - `llms.txt` at the repository root: the full component API reference for
   agents. It is served verbatim at
   <https://porabuild.com/herogpui/llms.txt>.
+- [`docs/migration-0.15.md`](docs/migration-0.15.md): upgrading from 0.14
+  to 0.15, with before/after code for each breaking change.
 - [`docs/migration-0.13.md`](docs/migration-0.13.md): upgrading from 0.12
   to 0.13, with before/after code for each breaking change.
 - [`docs/migration-0.11.md`](docs/migration-0.11.md): upgrading from 0.10
   to 0.11, with before/after code for each breaking change.
-- [`docs/migration-0.13.md`](docs/migration-0.13.md): upgrading from 0.12
-  to 0.13.
 - `AGENTS.md` and `docs/agents/`: the contributor and agent guides.
 
 ## Verification

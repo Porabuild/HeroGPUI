@@ -1,7 +1,7 @@
 //! `TitleBar` and `WindowBorder` — custom window chrome for frameless windows
 //! (HeroGPUI extension; HeroUI v3 is a web library and has no window chrome).
 //! The platform split follows gpui-kit's `title_bar.rs` and
-//! `window_border.rs`, checked against the pinned `gpui-pre` 0.3.5 platform
+//! `window_border.rs`, checked against the pinned `gpui-pre` 0.3.11 platform
 //! sources.
 //!
 //! Open the window with [`TitleBar::window_options`] (or copy its fields into

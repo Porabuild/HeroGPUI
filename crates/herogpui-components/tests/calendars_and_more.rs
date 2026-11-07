@@ -77,10 +77,10 @@ fn keyed(labels: &[&str]) -> Vec<PickerItem> {
 }
 
 /// Drives the shared measured Disclosure panel to its settled endpoint before
-/// asserting the sibling's reflow. GPUI animations use wall time, while the
-/// retained exit timer uses the test executor clock.
+/// asserting the sibling's reflow. Since gpui-pre 0.3.11 GPUI animations and
+/// the retained exit timer both use the test executor clock.
 fn settle_collapsible(cx: &mut VisualTestContext) {
-    std::thread::sleep(Duration::from_millis(220));
+    cx.executor().advance_clock(Duration::from_millis(220));
     cx.update(|window, cx| {
         window.simulate_next_frame(cx);
     });
@@ -3337,7 +3337,7 @@ fn toolbar_held_arrow_repeats_stop_at_ends(cx: &mut TestAppContext) {
                 .into_any_element()
         });
 
-    let held = |cx: &mut VisualTestContext, key: &str| {
+    let held = |cx: &mut VisualTestContext, key: &'static str| {
         for _ in 0..6 {
             cx.simulate_event(KeyDownEvent {
                 keystroke: Keystroke::parse(key).unwrap(),

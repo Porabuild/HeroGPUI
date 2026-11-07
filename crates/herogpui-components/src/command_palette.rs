@@ -41,7 +41,7 @@
 //!         div()
 //!             .size_full()
 //!             .on_key_down(cx.listener(|this, event: &gpui::KeyDownEvent, _, cx| {
-//!                 if is_command_palette_shortcut(&event.keystroke) {
+//!                 if is_command_palette_shortcut(&event.keystroke, cx) {
 //!                     this.palette_open = !this.palette_open;
 //!                     cx.notify();
 //!                 }
@@ -101,9 +101,9 @@ const HEADING_HEIGHT: Pixels = px(28.);
 /// Whether `keystroke` is the conventional command-palette shortcut: Cmd-K on
 /// macOS, Ctrl-K elsewhere (GPUI's `secondary` modifier), with no other
 /// modifier held.
-pub fn is_command_palette_shortcut(keystroke: &gpui::Keystroke) -> bool {
+pub fn is_command_palette_shortcut(keystroke: &gpui::Keystroke, cx: &App) -> bool {
     let m = &keystroke.modifiers;
-    keystroke.key == "k" && m.secondary() && !m.alt && !m.shift && !(m.control && m.platform)
+    keystroke.key == "k" && m.secondary(cx) && !m.alt && !m.shift && !(m.control && m.platform)
 }
 
 /// One command of a [`CommandPalette`].
@@ -910,11 +910,44 @@ mod tests {
 
     #[test]
     fn the_shortcut_is_secondary_k_alone() {
-        let parse = |s: &str| gpui::Keystroke::parse(s).unwrap();
-        assert!(is_command_palette_shortcut(&parse("secondary-k")));
-        assert!(!is_command_palette_shortcut(&parse("k")));
-        assert!(!is_command_palette_shortcut(&parse("secondary-shift-k")));
-        assert!(!is_command_palette_shortcut(&parse("secondary-j")));
+        let mut cx = gpui::TestAppContext::single();
+        for (os, target, platform_chord, other_chord) in [
+            (
+                gpui::OperatingSystem::Mac,
+                gpui::PlatformTarget::Native,
+                "cmd-k",
+                "ctrl-k",
+            ),
+            (
+                gpui::OperatingSystem::Windows,
+                gpui::PlatformTarget::Web,
+                "ctrl-k",
+                "cmd-k",
+            ),
+        ] {
+            cx.set_platform_info(gpui::PlatformInfo { os, target });
+            cx.update(|cx| {
+                let parse = |s: &'static str| gpui::Keystroke::parse_with_os(s, os).unwrap();
+                assert!(
+                    is_command_palette_shortcut(&parse("secondary-k"), cx),
+                    "{os:?}/{target:?}"
+                );
+                assert!(
+                    is_command_palette_shortcut(&parse(platform_chord), cx),
+                    "{os:?}/{target:?}"
+                );
+                assert!(
+                    !is_command_palette_shortcut(&parse(other_chord), cx),
+                    "{os:?}/{target:?}"
+                );
+                assert!(!is_command_palette_shortcut(&parse("k"), cx));
+                assert!(!is_command_palette_shortcut(
+                    &parse("secondary-shift-k"),
+                    cx
+                ));
+                assert!(!is_command_palette_shortcut(&parse("secondary-j"), cx));
+            });
+        }
     }
 }
 

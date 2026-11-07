@@ -13,7 +13,7 @@ use std::collections::{HashMap, HashSet};
 use std::rc::Rc;
 
 use gpui::{
-    point, prelude::*, px, ScrollDelta, ScrollWheelEvent, SharedString, TestAppContext,
+    point, prelude::*, px, ScrollDelta, ScrollEvent, SharedString, TestAppContext,
     VisualTestContext,
 };
 use herogpui_components::{
@@ -34,7 +34,7 @@ fn flush_frame(cx: &mut VisualTestContext) {
 }
 
 fn wheel(cx: &mut VisualTestContext, x: f32, y: f32, dy: f32) {
-    cx.simulate_event(ScrollWheelEvent {
+    cx.simulate_event(ScrollEvent {
         position: point(px(x), px(y)),
         delta: ScrollDelta::Pixels(point(px(0.), px(dy))),
         ..Default::default()
@@ -188,6 +188,71 @@ fn list_box_multiple_selects_every_enabled_option_on_mod_a(cx: &mut TestAppConte
         ["alpha,gamma"],
         "Mod+A must select every enabled option in multiple mode"
     );
+}
+
+/// The Mod+A chord follows the runtime platform identity, not the
+/// compile-time host: `os: Mac` makes Cmd+A the chord even for a Web
+/// target, and `os: Windows` makes Ctrl+A the chord even on a Mac host --
+/// while the other convention's chord stays inert in each.
+#[gpui::test]
+fn list_box_mod_a_follows_the_runtime_platform(cx: &mut TestAppContext) {
+    for (os, target, select_chord, other_chord) in [
+        (
+            gpui::OperatingSystem::Mac,
+            gpui::PlatformTarget::Web,
+            "cmd-a",
+            "ctrl-a",
+        ),
+        (
+            gpui::OperatingSystem::Windows,
+            gpui::PlatformTarget::Native,
+            "ctrl-a",
+            "cmd-a",
+        ),
+    ] {
+        cx.set_platform_info(gpui::PlatformInfo { os, target });
+        let selected = Rc::new(RefCell::new(HashSet::<SharedString>::new()));
+        let recorded = events();
+        let selected_for_view = selected;
+        let for_view = recorded.clone();
+        let vcx = open_host(cx, move || {
+            let selected = selected_for_view.clone();
+            let held = selected.borrow().clone();
+            let recorded = for_view.clone();
+            ListBox::new(
+                "contract-list-mod-a-runtime",
+                vec![
+                    ListBoxItem::new("alpha", "Alpha"),
+                    ListBoxItem::new("beta", "Beta"),
+                    ListBoxItem::new("gamma", "Gamma"),
+                ],
+            )
+            .selection_mode(SelectionMode::Multiple)
+            .disabled_keys([SharedString::from("beta")])
+            .selected_keys(held)
+            .on_selection_change(move |keys, window, _| {
+                *selected.borrow_mut() = keys.clone();
+                recorded.borrow_mut().push(sorted_join(keys));
+                window.refresh();
+            })
+            .into_any_element()
+        });
+
+        click(vcx, 60., 22.);
+        flush_frame(vcx);
+        recorded.borrow_mut().clear();
+        press(vcx, other_chord);
+        assert!(
+            recorded.borrow().is_empty(),
+            "{os:?}/{target:?}: {other_chord} must not select all"
+        );
+        press(vcx, select_chord);
+        assert_eq!(
+            recorded.borrow().as_slice(),
+            ["alpha,gamma"],
+            "{os:?}/{target:?}: {select_chord} must select every enabled option"
+        );
+    }
 }
 
 /// Pinned `useSelectableCollection` extends a multiple selection from the last
@@ -1978,6 +2043,56 @@ fn tag_group_home_target_equal_to_focus_still_extends(cx: &mut TestAppContext) {
             recorded.borrow().as_slice(),
             ["gamma", "alpha,beta,gamma"],
             "the extension must run even though Home's target already holds the cursor, replacing the anchor's range"
+        );
+    }
+}
+
+/// The Home/End chord rule follows the runtime platform identity: with
+/// `os: Windows` the secondary chord is Ctrl, so Ctrl+Shift+Home extends the
+/// selection even on a Mac host; with `os: Mac` the Cmd-bearing chord is
+/// outside the macOS registration and stays entirely inert.
+#[gpui::test]
+fn tag_group_home_end_follows_the_runtime_platform(cx: &mut TestAppContext) {
+    for (os, target, expected) in [
+        (
+            gpui::OperatingSystem::Windows,
+            gpui::PlatformTarget::Native,
+            vec!["gamma", "alpha,beta,gamma"],
+        ),
+        (
+            gpui::OperatingSystem::Mac,
+            gpui::PlatformTarget::Web,
+            vec!["gamma"],
+        ),
+    ] {
+        cx.set_platform_info(gpui::PlatformInfo { os, target });
+        let recorded = events();
+        let for_view = recorded.clone();
+        let vcx = open_host(cx, move || {
+            let recorded = for_view.clone();
+            TagGroup::new(
+                "contract-tags-home-runtime",
+                vec![
+                    Tag::new("alpha", "Alpha"),
+                    Tag::new("beta", "Beta"),
+                    Tag::new("gamma", "Gamma"),
+                ],
+            )
+            .selection_mode(SelectionMode::Multiple)
+            .on_selection_change(move |keys, window, _| {
+                recorded.borrow_mut().push(sorted_join(keys));
+                window.refresh();
+            })
+            .into_any_element()
+        });
+
+        press(vcx, "tab right right space");
+        press(vcx, "secondary-home");
+        press(vcx, "secondary-shift-home");
+        assert_eq!(
+            recorded.borrow().as_slice(),
+            expected.as_slice(),
+            "{os:?}/{target:?}: the Home/End chord rule must follow the runtime platform"
         );
     }
 }

@@ -1119,7 +1119,7 @@ impl RenderOnce for NumberField {
             let wheel_validation_errors = self.validation_errors.clone();
             let wheel_validate = self.validate.clone();
             let wheel_focus = self.state.read(cx).input.read(cx).focus_handle.clone();
-            group = group.on_scroll_wheel(move |event, window, cx| {
+            group = group.on_scroll(move |event, window, cx| {
                 if !wheel_focus.contains_focused(window, cx) {
                     return;
                 }

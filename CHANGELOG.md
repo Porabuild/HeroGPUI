@@ -8,6 +8,16 @@ version covers `herogpui`, `herogpui-core`, `herogpui-theme`,
 
 ## [Unreleased]
 
+### Breaking
+
+- `is_command_palette_shortcut` takes `&App` as a second argument: GPUI's
+  `Modifiers::secondary()` now resolves Cmd-vs-Ctrl from the runtime
+  platform. `extend::shift_wheel_scroll_x` takes `&ScrollEvent` (GPUI
+  renamed `ScrollWheelEvent`). See
+  [`docs/migration-0.15.md`](docs/migration-0.15.md).
+- The minimum Rust version is 1.99 (was 1.98), matching
+  `rust-toolchain.toml`'s 1.99.1 pin.
+
 ### Added
 
 - HeroUI 3.2.7 `Sheet`: four placements, controlled and uncontrolled state,
@@ -23,6 +33,25 @@ version covers `herogpui`, `herogpui-core`, `herogpui-theme`,
 
 ### Changed
 
+- GPUI updated from `gpui-pre` 0.3.5 to 0.3.11 (`zed@f816e1f`) and Rust
+  from 1.98 to 1.99.1; ICU to 2.4.0, `syn` to 3.0.9. The wasm32 gallery
+  now builds on the pinned stable toolchain — since `gpui-pre` 0.3.10
+  `gpui_platform` forwards `gpui_web`'s `multithreaded` default, and this
+  workspace turns `gpui_platform`'s defaults off, so the nightly-only
+  `wasm_thread` stays out of the graph; the multi-threaded web platform is
+  the `herogpui` facade's opt-in `multithreaded` feature. GPUI animations
+  now run on the background executor's clock, so the component motion
+  tests advance the test clock deterministically instead of sleeping, and
+  `Sheet`'s transition interpolates on that same clock so its painted
+  position and `on_animation_end` timer cannot disagree. On macOS the
+  `block` 0.1.6 future-incompatibility warning is gone (0.3.11's graph
+  has no `metal`, `cocoa` or `block`). Select, ListBox, TagGroup and
+  Table read Cmd-vs-Ctrl from the runtime platform (`platform_info()`)
+  instead of `cfg!(target_os)`, so the web build on a Mac uses Cmd, as
+  React Aria does.
+- Website: Next.js 16.4.5 (security release), React 19.3.1, TypeScript 7,
+  shiki 4.5, lucide-react 1.65, oxlint 1.90, oxfmt 0.75, pnpm 10.34.9;
+  FontTools 4.68 for the web font subsets.
 - Pin HeroUI documentation, styles, demos and website dependencies to 3.2.7;
   inherited behavior uses React Aria 3.53.1 / Components 1.22.1 and Stately 3.51.0.
 - Picker popovers use the nested row radius; Dropdown keeps its minimum on
@@ -33,6 +62,9 @@ version covers `herogpui`, `herogpui-core`, `herogpui-theme`,
 
 ### Fixed
 
+- The gallery's All Components page no longer panics: `Page::Sheet` had no
+  overview preview tile. A gallery test now builds every component page's
+  preview headlessly, so a page missing a tile fails in CI.
 - Focus rings on pill controls clamp their SVG corners to the fitted circular
   radius, keeping the glow and gap even around the control instead of stretching
   the corner arcs into ellipses.

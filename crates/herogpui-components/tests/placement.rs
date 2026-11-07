@@ -17,8 +17,8 @@
 //!
 //! Two overlay facts this suite depends on (both learned by `overlays.rs`):
 //!
-//! - **Entry/exit animations run on wall time**, which the test clock does
-//!   not drive. The harness's reduced-motion request pins the layout before
+//! - **Entry/exit animations run on the executor clock**, which this suite
+//!   does not advance. The harness's reduced-motion request pins the layout before
 //!   the first frame, and the clock is advanced past `EXITING_MS` (100ms)
 //!   before any closed-proof probe — or the ghost frame answers it.
 //! - **A closed panel is only observable behaviourally**: gpui keeps an
@@ -32,7 +32,7 @@ use std::rc::Rc;
 use std::time::Duration;
 
 use gpui::{
-    point, prelude::*, px, ElementId, Modifiers, MouseButton, ScrollDelta, ScrollWheelEvent,
+    point, prelude::*, px, ElementId, Modifiers, MouseButton, ScrollDelta, ScrollEvent,
     TestAppContext, VisualTestContext,
 };
 use harness::{click, events, open_host, press, Events};
@@ -43,8 +43,8 @@ use herogpui_components::{
 
 /// Pins the layout by enabling reduced motion **before** the first frame.
 ///
-/// Every overlay in this suite plays an enter/exit animation on wall time,
-/// which the test clock does not drive; without this the panel sits at its
+/// Every overlay in this suite plays an enter/exit animation on the
+/// executor clock, which this suite does not advance; without this the panel sits at its
 /// t=0 pose for the whole test, and flipping the preference mid-test rebuilds
 /// the animated wrapper structure and swallows clicks. The overlay suite's
 /// `still()` rule applies to the Drawer, Popover, Tooltip and Modal tests;
@@ -101,7 +101,7 @@ fn slow_drag(cx: &mut VisualTestContext, from: (f32, f32), to: (f32, f32)) {
 /// arithmetic. Followed by a redraw so the next event sees the scrolled
 /// frame.
 fn wheel(cx: &mut VisualTestContext, x: f32, y: f32, dy: f32) {
-    cx.simulate_event(ScrollWheelEvent {
+    cx.simulate_event(ScrollEvent {
         position: point(px(x), px(y)),
         delta: ScrollDelta::Pixels(point(px(0.), px(dy))),
         ..Default::default()

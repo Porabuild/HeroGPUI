@@ -845,7 +845,7 @@ impl RenderOnce for ColorField {
                     let wheel_state = state;
                     let wheel_own = own;
                     let wheel_change = self.on_change;
-                    field = field.on_scroll_wheel(move |event, window, cx| {
+                    field = field.on_scroll(move |event, window, cx| {
                         if !wheel_state
                             .read(cx)
                             .focus_handle
@@ -987,7 +987,7 @@ impl RenderOnce for ColorField {
         ) {
             let value = self.value.unwrap_or_default();
             let space = self.color_space;
-            field = field.on_scroll_wheel(move |ev: &gpui::ScrollWheelEvent, window, cx| {
+            field = field.on_scroll(move |ev: &gpui::ScrollEvent, window, cx| {
                 let dy = match ev.delta {
                     gpui::ScrollDelta::Pixels(p) => f32::from(p.y),
                     gpui::ScrollDelta::Lines(p) => p.y,

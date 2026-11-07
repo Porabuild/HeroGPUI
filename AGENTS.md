@@ -1,12 +1,12 @@
 # HeroGPUI agent guide
 
 HeroGPUI is a native Rust/GPUI port of HeroUI v3.2.7. The repository targets
-Rust 1.98 and the published `gpui-pre` crates pinned in `Cargo.toml`
-and `Cargo.lock` at exactly `=0.3.5` — a prerelease publish of the Zed GPUI sources by
-crates.io user huacnlee (Jason Lee, the gpui-kit maintainer), 0.3.5 being a
-snapshot of `zed@d89e9c2`. `gpui-pre`'s
+Rust 1.99 and the published `gpui-pre` crates pinned in `Cargo.toml`
+and `Cargo.lock` at exactly `=0.3.11` — a prerelease publish of the Zed GPUI sources by
+crates.io user huacnlee (Jason Lee, the gpui-kit maintainer), 0.3.11 being a
+snapshot of `zed@f816e1f`. `gpui-pre`'s
 version numbers are its own; they do not track Zed release tags. The pin is
-exact (`=0.3.5`), as gpui-kit's is: `gpui-pre` is a 0.x prerelease snapshot,
+exact (`=0.3.11`), as gpui-kit's is: `gpui-pre` is a 0.x prerelease snapshot,
 so a caret would let any `0.3.x` snapshot of different Zed sources resolve in
 a downstream build. `.shots/package_audit.py` rejects a non-`=` requirement.
 
@@ -23,7 +23,7 @@ not wired into any build. Component-level replacements for them live in
 `util::inner_fill_radius`).
 
 Use the unpacked registry sources for API evidence —
-`~/.cargo/registry/src/index.crates.io-*/gpui-pre-0.3.5/`. That is neither a
+`~/.cargo/registry/src/index.crates.io-*/gpui-pre-0.3.11/`. That is neither a
 Zed git checkout, the older third-party `gpui-unofficial` republish this
 replaced, nor the unrelated crates.io `gpui` 0.2.2 crate.
 
@@ -104,38 +104,39 @@ own checkout and verifies its SHA-256 before `next build`. To build
 it locally instead (the site build then uses the local copy):
 
 ```bash
-rustup toolchain install "$(cat .shots/wasm-toolchain.txt)" --profile minimal -t wasm32-unknown-unknown
+rustup target add wasm32-unknown-unknown   # once, for the pinned toolchain
 cargo install -f wasm-bindgen-cli --version <the wasm-bindgen in Cargo.lock>
 # binaryen version_133's wasm-opt on PATH, or pass --no-opt
 bash .shots/build-wasm.sh          # -> web/public/gallery/ (gitignored)
 ```
 
-The dated nightly is required and is not a preference — `wasm_thread`, pulled
-in by the GPUI web platform's `multithreaded` default feature, opens its
-`lib.rs` with a `#![feature]` attribute, so stable fails with `error[E0554]`
-from a dependency this repository does not own. Two facts about how, because
-both are easy to get wrong:
+The wasm32 build runs on `rust-toolchain.toml`'s pinned stable like every
+other target. That became possible with `gpui-pre` 0.3.10: upstream's
+`gpui_platform` now forwards `gpui_web`'s `multithreaded` default instead of
+forcing it (zed#65289), and this workspace sets `default-features = false`
+on the `gpui_platform` edge, so `wasm_thread` — the `#![feature]` crate that
+used to fail stable with `error[E0554]` from a dependency this repository
+does not own — stays out of the wasm32 graph. `crates/herogpui-web` starts
+the app with `gpui_platform::single_threaded_web()`. Two facts about how,
+because both are easy to get wrong:
 
-- The switch is **not** `default-features = false` on a dependency edge of
-  ours. `gpui_platform` depends on `gpui_web` with default features on, so a
-  second edge from this workspace is unioned with that one and changes nothing.
-  Upstream's `multithreaded` default is therefore accepted as-is, which pulls
-  `wasm_thread` (a `#![feature]` crate) into the wasm32 graph: the `wasm` CI
-  job builds that target on nightly, while everything native stays on
-  `rust-toolchain.toml`'s pinned stable. See `docs/upstream/gpui-web-scroll-and-ime.md`.
-- Nothing was using it. `crates/herogpui-web` starts the app with
-  `gpui_platform::single_threaded_web()`, and the multi-threaded platform runs
+- The opt-in `multithreaded` feature on the `herogpui` facade
+  (`gpui_platform/multithreaded`) brings `wasm_thread` back and with it the
+  nightly requirement, plus the atomics/bulk-memory target features a
+  build-std wasm build needs; it is inert on native and off by default.
+- Nothing uses the multi-threaded platform even when it is built: it runs
   its background executors on web workers over shared wasm memory, which a
-  browser grants only in a cross-origin-isolated context — and the gallery is
-  served by the Vercel-hosted website (`web/DEPLOYMENT.md`), whose
+  browser grants only in a cross-origin-isolated context — and the gallery
+  is served by the Vercel-hosted website (`web/DEPLOYMENT.md`), whose
   `web/next.config.ts` sends no COOP/COEP headers. Verified in a browser at
   `gpui-pre` 0.3.3, when the since-retired fork still built this target on
   stable: that single-threaded artifact booted, rendered, pressed, focused,
   took keyboard input and resolved a `background_executor().timer()`,
   indistinguishably from the nightly/`multithreaded` artifact, which was
-  23 KB larger. So the default costs the nightly requirement and nothing
-  else; actually starting the multi-threaded platform needs a deployment that
-  can use web workers.
+  23 KB larger. So the single-threaded default costs nothing; actually
+  starting the multi-threaded platform needs a deployment that can use web
+  workers (why cross-origin isolation for it is not worth it is in
+  `docs/upstream/gpui-web-multithreaded.md`).
 
 Never set `RUSTFLAGS` for this target —
 `.cargo/config.toml` states `rustflags = []` there deliberately, and the

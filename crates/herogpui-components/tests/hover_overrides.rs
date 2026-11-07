@@ -4,7 +4,7 @@
 //! The field-trigger seams (`Select`/`Autocomplete::trigger_hover_bg`,
 //! `Autocomplete::clear_hover_bg`, `NumberField`/`InputGroup::group_hover_bg`)
 //! are checked on the painted scene instead, at the bottom of this file: the
-//! pointer hovers the part, the fade settles on the real clock and the frame
+//! pointer hovers the part, the fade settles on the executor clock and the frame
 //! must hold the override (and a disabled trigger must not).
 //!
 //! The drawn states are exercised by each owner's own behavior tests; these
@@ -254,14 +254,14 @@ fn paints_override(cx: &mut VisualTestContext) -> bool {
     harness::has_color(&harness::painted(cx).solids(), OVERRIDE)
 }
 
-/// Polls the real clock for up to two seconds until `want` holds: gpui runs
-/// the fade on wall time, so a loaded machine can take several frames.
+/// Steps the executor clock in 100ms increments (two seconds of clock
+/// time at most) until `want` holds.
 fn eventually(cx: &mut VisualTestContext, want: bool) -> bool {
     for _ in 0..20 {
         if paints_override(cx) == want {
             return true;
         }
-        harness::wait_real(cx, 100);
+        harness::wait_ms(cx, 100);
     }
     paints_override(cx) == want
 }

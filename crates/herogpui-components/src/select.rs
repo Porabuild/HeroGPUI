@@ -2288,6 +2288,7 @@ impl SelectTriggerKeys {
             .as_ref()
             .and_then(|k| row_keys.iter().position(|key| key == k));
         let modifiers = event.keystroke.modifiers;
+        let is_mac = cx.platform_info().is_mac();
         // Pinned React Aria 3.51.0 `useSelectableCollection`
         // answers `Mod+A` with `selectAll` -- multiple mode only,
         // and only while the list is open. Pinned SelectState
@@ -2297,10 +2298,10 @@ impl SelectTriggerKeys {
         // toggle, and a controlled owner's state is not this
         // keystroke's to mutate.
         if key == "a"
-            && modifiers.secondary()
+            && modifiers.secondary(cx)
             && !modifiers.shift
             && !modifiers.alt
-            && if cfg!(target_os = "macos") {
+            && if is_mac {
                 !modifiers.control
             } else {
                 !modifiers.platform
@@ -2460,6 +2461,7 @@ impl SelectTriggerKeys {
             multiple,
             ..
         } = *self;
+        let is_mac = cx.platform_info().is_mac();
         match next_move {
             crate::list_nav::Move::To(at) => {
                 // The pinned registrations install no Home/End
@@ -2468,9 +2470,7 @@ impl SelectTriggerKeys {
                 // elsewhere -- so in either mode the whole event
                 // stays inert: no cursor move, no selection, no
                 // preventDefault.
-                if matches!(key, "home" | "end")
-                    && !home_end_registered(modifiers, cfg!(target_os = "macos"))
-                {
+                if matches!(key, "home" | "end") && !home_end_registered(modifiers, is_mac) {
                     return;
                 }
                 // A Shift extension reaches from the cursor, and a
@@ -2507,12 +2507,11 @@ impl SelectTriggerKeys {
                 // end key again, so their repeated registered
                 // extension does report; and the page keys only
                 // reach here off the unchanged filter above.
-                let exact_shift_navigation =
-                    home_end_registered(modifiers, cfg!(target_os = "macos"));
+                let exact_shift_navigation = home_end_registered(modifiers, is_mac);
                 let extends_selection = multiple
                     && modifiers.shift
                     && exact_shift_navigation
-                    && shift_home_end_extends(key, modifiers.control, cfg!(target_os = "macos"))
+                    && shift_home_end_extends(key, modifiers.control, is_mac)
                     && (matches!(key, "home" | "end") || Some(at) != from);
                 if extends_selection {
                     let range = range_keys.read(cx).clone();

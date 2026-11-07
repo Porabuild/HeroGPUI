@@ -21,7 +21,8 @@
 //!
 //! This replaced the `locale_config` crate, whose macOS backend pulled in
 //! `objc` 0.2 and `objc-foundation` 0.1 and through them the `block` 0.1.6
-//! future-incompatibility warning (`docs/upstream/gpui-block-future-incompat.md`).
+//! future-incompatibility warning (retired with `gpui-pre` 0.3.11, whose
+//! macOS graph no longer contains `block`).
 //! The sources and their precedence are the ones `locale_config` read for its
 //! `time` category (less its CGI `HTTP_ACCEPT_LANGUAGE` probe, meaningless
 //! for a GUI), so the detected locale is unchanged. `sys-locale` alone is not

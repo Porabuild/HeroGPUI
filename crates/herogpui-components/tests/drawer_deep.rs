@@ -5,7 +5,7 @@ use crate::harness;
 use std::{cell::Cell, rc::Rc, time::Duration};
 
 use gpui::{
-    point, prelude::*, px, Modifiers, MouseButton, ScrollDelta, ScrollWheelEvent, TestAppContext,
+    point, prelude::*, px, Modifiers, MouseButton, ScrollDelta, ScrollEvent, TestAppContext,
     VisualTestContext,
 };
 use harness::{click, events, open_host, press, Events};
@@ -49,7 +49,7 @@ fn press_backward(cx: &mut VisualTestContext) {
 }
 
 fn wheel(cx: &mut VisualTestContext, x: f32, y: f32, dy: f32) {
-    cx.simulate_event(ScrollWheelEvent {
+    cx.simulate_event(ScrollEvent {
         position: point(px(x), px(y)),
         delta: ScrollDelta::Pixels(point(px(0.), px(dy))),
         ..Default::default()
