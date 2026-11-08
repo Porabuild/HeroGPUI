@@ -2,8 +2,8 @@
 # HeroGPUI parity coverage report
 
 Target: `v3.2.7` (`7cb1642606c6f96f424dad78a961ccf45436be72`)
-Inventory date: `2026-11-08`
-Inventory verification: `05fa425bdc5e7e200a3568e3f4a8d5fbdc565524bdb1db94117c5e1f1e04e7d2`
+Inventory date: `2026-11-09`
+Inventory verification: `1216ca0d78ab121747b34a899e795875c41013e784356680411768a4e4dd43dd`
 Last evidence commit: `(none recorded)`
 
 This is a maintainer work-queue summary. It does not turn gallery section headings, static audits, or successful builds into parity evidence.
