@@ -91,6 +91,8 @@ pub(super) fn date_field_form_state(entity_id: u64) -> DateFieldFormState {
             return state;
         }
         let state = Rc::new(RefCell::new(crate::form::LiveFormFieldState {
+            commit_validation: None,
+            reset_validation: None,
             value: crate::form::FormValue::Text(SharedString::default()),
             is_invalid: false,
             is_successful: true,
@@ -109,6 +111,8 @@ pub(super) fn date_picker_form_state(entity_id: u64) -> DateFieldFormState {
             return state;
         }
         let state = Rc::new(RefCell::new(crate::form::LiveFormFieldState {
+            commit_validation: None,
+            reset_validation: None,
             value: crate::form::FormValue::Text(SharedString::default()),
             is_invalid: false,
             is_successful: true,
@@ -130,6 +134,8 @@ pub(super) fn date_range_picker_form_state(entity_id: u64, end: bool) -> DateFie
             return state;
         }
         let state = Rc::new(RefCell::new(crate::form::LiveFormFieldState {
+            commit_validation: None,
+            reset_validation: None,
             value: crate::form::FormValue::Text(SharedString::default()),
             is_invalid: false,
             is_successful: true,

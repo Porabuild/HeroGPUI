@@ -220,6 +220,13 @@ pub(crate) struct LiveFormFieldState {
     pub(crate) is_successful: bool,
     pub(crate) focus: Option<FocusHandle>,
     pub(crate) restore: Option<Restore>,
+    /// Commits the control's commit-gated validation snapshot for display —
+    /// a form submission reaches every field at once. Written by the
+    /// control's render each frame; `None` on fields with no gated validity.
+    pub(crate) commit_validation: Option<CommitField>,
+    /// Clears that snapshot for reset — React Stately's `resetValidation`.
+    /// `None` wherever [`Self::commit_validation`] is.
+    pub(crate) reset_validation: Option<CommitField>,
 }
 
 /// A named field a [`Form`] reads on submit.
@@ -377,17 +384,14 @@ impl FormField {
             state_id: Some(state_id),
             commit_of: Some(Arc::new(move |cx: &mut App| {
                 commit_state.update(cx, |s, cx| {
-                    let changed = s.displayed() != s.pending();
-                    s.commit_display();
-                    if changed {
+                    if s.commit_display() {
                         cx.notify();
                     }
                 });
             })),
             reset_validation_of: Some(Arc::new(move |cx: &mut App| {
                 reset_validation_state.update(cx, |s, cx| {
-                    if s.displayed() != &crate::validation::Validity::default() {
-                        s.reset_display();
+                    if s.reset_display() {
                         cx.notify();
                     }
                 });
@@ -458,6 +462,8 @@ impl FormField {
         let routed_read_state = state.clone();
         let routed_set_state = state.clone();
         let routed_clear_state = state.clone();
+        let commit_state = state.clone();
+        let reset_state = state.clone();
         let state_id = state.entity_id();
         let focus_state = state;
         Self {
@@ -532,8 +538,20 @@ impl FormField {
                 read_only_state.read(cx).input.read(cx).is_read_only()
             })),
             state_id: Some(state_id),
-            commit_of: None,
-            reset_validation_of: None,
+            commit_of: Some(Arc::new(move |cx: &mut App| {
+                commit_state.update(cx, |s, cx| {
+                    if s.commit_validation() {
+                        cx.notify();
+                    }
+                });
+            })),
+            reset_validation_of: Some(Arc::new(move |cx: &mut App| {
+                reset_state.update(cx, |s, cx| {
+                    if s.reset_validation() {
+                        cx.notify();
+                    }
+                });
+            })),
             empty_keys_submits_empty: false,
         }
     }
@@ -652,6 +670,8 @@ impl FormField {
         let invalid_state = state.clone();
         let successful_state = state.clone();
         let restore_state = state.clone();
+        let commit_validation_state = state.clone();
+        let reset_validation_state = state.clone();
         let focus_state = state;
         Self {
             name: Some(name.into()),
@@ -661,6 +681,20 @@ impl FormField {
                 let restore = restore_state.borrow().restore.clone();
                 if let Some(restore) = restore {
                     restore(window, cx);
+                }
+            })),
+            // The control writes its commit/reset closures each render; a
+            // submission or reset reaches them through the shared state.
+            commit_of: Some(Arc::new(move |cx: &mut App| {
+                let commit = commit_validation_state.borrow().commit_validation.clone();
+                if let Some(commit) = commit {
+                    commit(cx);
+                }
+            })),
+            reset_validation_of: Some(Arc::new(move |cx: &mut App| {
+                let reset = reset_validation_state.borrow().reset_validation.clone();
+                if let Some(reset) = reset {
+                    reset(cx);
                 }
             })),
             is_required: false,
@@ -687,8 +721,6 @@ impl FormField {
             read_only_of: None,
             submits_on_enter_of: None,
             state_id: None,
-            commit_of: None,
-            reset_validation_of: None,
             empty_keys_submits_empty: false,
         }
     }
@@ -800,6 +832,7 @@ impl FormField {
         self.restore = Some(Arc::new(move |_, cx: &mut App| {
             state.update(cx, |s, cx| {
                 s.set_value(value, cx);
+                s.reset_validation();
                 cx.notify();
             });
         }));
@@ -924,7 +957,7 @@ impl FormField {
 
 type OnSubmit = Arc<dyn Fn(&FormData, &mut Window, &mut App) + 'static>;
 type OnReset = Arc<dyn Fn(&mut Window, &mut App) + 'static>;
-type CommitField = Arc<dyn Fn(&mut App)>;
+pub(crate) type CommitField = Arc<dyn Fn(&mut App)>;
 
 /// How invalid children are handled (`validationBehavior`).
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]

@@ -1820,6 +1820,9 @@ fn date_range_picker_content_uses_resolved_custom_validity(cx: &mut TestAppConte
         let seen = seen.clone();
         DateRangePicker::new(state_for_view.clone())
             .validate(|_| Some("That range is booked".into()))
+            // `Allow` keeps `validate` live; under the default Native commit
+            // gating a mounted range shows no error until a commit trigger.
+            .validation_behavior(ValidationBehavior::Allow)
             .content(move |field| {
                 seen.borrow_mut().push(field.is_invalid.to_string());
                 gpui::div().into_any_element()
@@ -1866,6 +1869,9 @@ fn color_field_content_hands_complete_field_state(cx: &mut TestAppContext) {
         )
         .is_disabled(true)
         .validate(|_| Some("Rejected color".into()))
+        // `Allow` keeps `validate` live; this read-only field has no Native
+        // commit trigger, so gating would hide the error from the render state.
+        .validation_behavior(ValidationBehavior::Allow)
         .is_read_only(true)
         .is_required(true)
         .content(move |field| {

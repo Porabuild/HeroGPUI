@@ -102,6 +102,8 @@ fn combo_box_form_state(entity_id: u64) -> ComboBoxFormState {
             return state;
         }
         let state = Rc::new(RefCell::new(crate::form::LiveFormFieldState {
+            commit_validation: None,
+            reset_validation: None,
             value: crate::form::FormValue::Keys(Vec::new()),
             is_invalid: false,
             is_successful: true,

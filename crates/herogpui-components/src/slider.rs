@@ -1697,6 +1697,8 @@ fn fill_cap(
 
 fn live_form_state() -> Rc<RefCell<crate::form::LiveFormFieldState>> {
     Rc::new(RefCell::new(crate::form::LiveFormFieldState {
+        commit_validation: None,
+        reset_validation: None,
         value: crate::form::FormValue::Number(0.0),
         is_invalid: false,
         is_successful: true,

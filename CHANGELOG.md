@@ -79,13 +79,19 @@ version covers `herogpui`, `herogpui-core`, `herogpui-theme`,
 - Drawer draws no handle unless `DrawerHandle` is composed. A plain
   `Calendar` or `RangeCalendar` heading is a label unless the year picker is
   composed. `DateField` no longer adds a default "MM/DD/YYYY" description.
-- Input, TextArea, SearchField, InputGroup and ComboBox show validation the
-  way React Stately's `useFormValidationState` does. Under
-  `ValidationBehavior::Native`, `validate` and constraint errors appear from a
-  snapshot taken when the user changes the field and leaves it, or submits the
-  form, while controlled and server errors stay live. `Allow` shows
-  everything live, and a form reset clears what is shown. NumberField and
-  the non-text fields still show validation live.
+- Input, TextArea, SearchField, InputGroup, ComboBox, NumberField, Checkbox,
+  Switch, TimeField, DateField, DatePicker, DateRangePicker and ColorField
+  show validation the way React Stately's `useFormValidationState` does.
+  Under `ValidationBehavior::Native`, `validate` and constraint errors appear
+  from a snapshot taken when the user commits the field, or submits the form,
+  while controlled and server errors stay live. Each field commits where
+  React Aria's does: text fields, TimeField and DateField when the user
+  changes the value and leaves the field; NumberField also on Enter and on
+  every step (stepper buttons, arrows, Home/End, wheel); ColorField on Enter,
+  every step, and on blur when the text changed or parses; Checkbox and
+  Switch on every toggle; DatePicker on a calendar pick; DateRangePicker once
+  a range is complete. `Allow` shows everything live, and a form reset clears
+  what is shown. See [`docs/migration-0.15.md`](docs/migration-0.15.md).
 - Focused empty fields keep their placeholder, with the caret at its start,
   as HTML inputs do.
 - Hovering a Select or ComboBox option moves the keyboard cursor, unless the

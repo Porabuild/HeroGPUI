@@ -12,7 +12,7 @@ use crate::harness;
 
 use std::{cell::RefCell, collections::HashSet, rc::Rc};
 
-use gpui::{prelude::*, px, SharedString, TestAppContext};
+use gpui::{prelude::*, px, SharedString, TestAppContext, VisualTestContext};
 use herogpui_components::{
     Button, Checkbox, CheckboxGroup, CheckboxOption, Form, FormData, Switch, ValidationBehavior,
 };
@@ -628,9 +628,10 @@ fn disabled_checked_checkbox_is_not_submitted_or_validated(cx: &mut TestAppConte
             .into_any_element()
     });
 
-    // The configured validation message occupies Checkbox's FieldError row,
-    // while disabled form semantics still omit the control.
-    click(cx, 60., 77.);
+    // Native validation is commit-gated, so the configured message no longer
+    // occupies the FieldError row at rest and the button sits one error row
+    // (~16px) higher; disabled form semantics still omit the control.
+    click(cx, 60., 61.);
     assert_eq!(recorded.borrow().as_slice(), ["submit:omitted"]);
 }
 
@@ -792,9 +793,10 @@ fn checkbox_native_custom_validation_blocks_and_focuses(cx: &mut TestAppContext)
             .into_any_element()
     });
 
-    // The validation message is part of the Checkbox field anatomy, so it
-    // shifts the following button below the 16px error line.
-    click(cx, 60., 77.);
+    // Native validation is commit-gated, so at rest there is no error line and
+    // the submit button sits one error row (~16px) higher than the live
+    // `Allow` layout the sibling test clicks.
+    click(cx, 60., 61.);
     press(cx, "space");
 
     assert_eq!(
@@ -977,4 +979,177 @@ fn group_disabled_skips_focus_while_read_only_keeps_it(cx: &mut TestAppContext) 
     press(cx, "tab");
     press(cx, "space");
     assert_eq!(recorded.borrow().as_slice(), ["switch"]);
+}
+
+// ---------------------------------------------------------------------------
+// Commit-gated validation display (React Stately native timing)
+// ---------------------------------------------------------------------------
+
+/// Height of a `debug_selector`-wrapped field: the error row adds ~16px plus
+/// the field's gap, so a gated error is invisible until a commit lands.
+fn gated_height(cx: &mut VisualTestContext, name: &'static str) -> f32 {
+    cx.debug_bounds(name)
+        .expect("field paints")
+        .size
+        .height
+        .into()
+}
+
+/// Clicks the top of a field's control band — above any error row — so the
+/// press lands on the label/control row that toggles the checkbox.
+fn click_control_band(cx: &mut VisualTestContext, name: &'static str) {
+    let b = cx.debug_bounds(name).expect("field paints");
+    // The field stretches to the window width but its clickable row is only
+    // content-wide at the left; press the label/control band near the top,
+    // above any error row.
+    let x = f32::from(b.origin.x) + 40.0;
+    let y = f32::from(b.origin.y) + 10.0;
+    click(cx, x, y);
+}
+
+#[gpui::test]
+fn checkbox_native_validate_is_gated_until_a_pointer_toggle_commits(cx: &mut TestAppContext) {
+    let cx = open_host(cx, move || {
+        gpui::div()
+            .flex()
+            .flex_col()
+            .child(
+                gpui::div().debug_selector(|| "cb".to_owned()).child(
+                    Checkbox::new("gated-checkbox")
+                        .label("Accept terms")
+                        .validate(|_| Some("Always invalid".into())),
+                ),
+            )
+            .into_any_element()
+    });
+    cx.run_until_parked();
+    let rest = gated_height(cx, "cb");
+    // Pointer toggle commits the gated snapshot on the next render.
+    click_control_band(cx, "cb");
+    harness::wait_ms(cx, 800);
+    let committed = gated_height(cx, "cb");
+    assert!(
+        committed > rest,
+        "a pointer toggle must commit the gated validation and show the error"
+    );
+}
+
+#[gpui::test]
+fn checkbox_native_validate_is_gated_until_a_space_toggle_commits(cx: &mut TestAppContext) {
+    let cx = open_host(cx, move || {
+        gpui::div()
+            .flex()
+            .flex_col()
+            .child(
+                gpui::div().debug_selector(|| "cb".to_owned()).child(
+                    Checkbox::new("gated-checkbox")
+                        .label("Accept terms")
+                        .validate(|_| Some("Always invalid".into())),
+                ),
+            )
+            .into_any_element()
+    });
+    cx.run_until_parked();
+    let rest = gated_height(cx, "cb");
+    press(cx, "tab");
+    press(cx, "space");
+    harness::wait_ms(cx, 800);
+    assert!(
+        gated_height(cx, "cb") > rest,
+        "a Space toggle must commit the gated validation and show the error"
+    );
+}
+
+#[gpui::test]
+fn checkbox_native_validate_controlled_parent_still_commits(cx: &mut TestAppContext) {
+    // A controlled checkbox whose owner ignores `on_change` keeps its value,
+    // but the toggle still queues the commit — the notify is what lands it.
+    let cx = open_host(cx, move || {
+        gpui::div()
+            .flex()
+            .flex_col()
+            .child(
+                gpui::div().debug_selector(|| "cb".to_owned()).child(
+                    Checkbox::new("controlled-checkbox")
+                        .is_selected(false)
+                        .label("Accept terms")
+                        .validate(|_| Some("Always invalid".into()))
+                        .on_change(|_, _, _| {}),
+                ),
+            )
+            .into_any_element()
+    });
+    cx.run_until_parked();
+    let rest = gated_height(cx, "cb");
+    click_control_band(cx, "cb");
+    harness::wait_ms(cx, 800);
+    assert!(
+        gated_height(cx, "cb") > rest,
+        "the commit must land even when a controlled parent ignores on_change"
+    );
+}
+
+#[gpui::test]
+fn checkbox_native_validate_toggle_back_to_valid_clears(cx: &mut TestAppContext) {
+    // Event-type field: the committed snapshot tracks the toggled value, so
+    // toggling back to a valid selection clears the displayed error.
+    let cx = open_host(cx, move || {
+        gpui::div()
+            .flex()
+            .flex_col()
+            .child(
+                gpui::div().debug_selector(|| "cb".to_owned()).child(
+                    Checkbox::new("clear-checkbox")
+                        .label("Accept terms")
+                        .validate(|selected| selected.then(|| "Checked is not allowed".into())),
+                ),
+            )
+            .into_any_element()
+    });
+    cx.run_until_parked();
+    let rest = gated_height(cx, "cb");
+    // unchecked -> checked: invalid, committed by the toggle.
+    click_control_band(cx, "cb");
+    harness::wait_ms(cx, 800);
+    let shown = gated_height(cx, "cb");
+    assert!(
+        shown > rest,
+        "checking the box must commit and show the error"
+    );
+    // checked -> unchecked: valid again, the next toggle's commit clears it.
+    click_control_band(cx, "cb");
+    harness::wait_ms(cx, 800);
+    assert_eq!(
+        gated_height(cx, "cb"),
+        rest,
+        "toggling back to a valid value must clear the displayed error"
+    );
+}
+
+#[gpui::test]
+fn checkbox_allow_validate_shows_live_at_rest(cx: &mut TestAppContext) {
+    let cx = open_host(cx, move || {
+        gpui::div()
+            .flex()
+            .flex_col()
+            .child(
+                gpui::div().debug_selector(|| "cb".to_owned()).child(
+                    Checkbox::new("allow-checkbox")
+                        .label("Accept terms")
+                        .validate(|selected| (!selected).then(|| "Terms are required".into()))
+                        .validation_behavior(ValidationBehavior::Allow),
+                ),
+            )
+            .child(
+                gpui::div()
+                    .debug_selector(|| "plain".to_owned())
+                    .child(Checkbox::new("plain-checkbox").label("Plain")),
+            )
+            .into_any_element()
+    });
+    cx.run_until_parked();
+    assert!(
+        gated_height(cx, "cb") > gated_height(cx, "plain"),
+        "Allow must paint the validate error live at rest"
+    );
 }

@@ -20,12 +20,12 @@ use std::process::Command;
 use std::rc::Rc;
 
 use gpui::{
-    prelude::*, Context, ElementId, Entity, Focusable, Render, TestAppContext, VisualTestContext,
-    Window,
+    prelude::*, px, Context, ElementId, Entity, Focusable, Render, TestAppContext,
+    VisualTestContext, Window,
 };
 use herogpui_components::{
-    DateField, DateSegment, HourCycle, InputState, NumberField, NumberState, SearchField, Time,
-    TimeField, TimeGranularity, TimeSegment, TimeState,
+    DateField, DateSegment, HourCycle, Input, InputState, NumberField, NumberState, SearchField,
+    Time, TimeField, TimeGranularity, TimeSegment, TimeState,
 };
 use herogpui_theme::ThemeProvider;
 
@@ -910,4 +910,91 @@ fn time_field_hidden_cleared_segments_do_not_suppress_visible_commits(cx: &mut T
     press(cx, "left");
     press(cx, "up");
     assert_eq!(changed.borrow().as_slice(), ["10:30", "11:30"]);
+}
+
+#[gpui::test]
+fn time_field_native_validate_is_gated_until_blur_commits(cx: &mut TestAppContext) {
+    let state = cx.new(|cx| TimeState::with_value(cx, Time::new(9, 30)));
+    let state_for_view = state;
+    let other = cx.new(|cx| InputState::new(cx));
+    let plain = other.clone();
+    let cx = open_host(cx, move || {
+        gpui::div()
+            .flex()
+            .flex_col()
+            .child(
+                gpui::div().debug_selector(|| "tf".to_owned()).child(
+                    TimeField::new(state_for_view.clone())
+                        .hour_cycle(HourCycle::H24)
+                        .validate(|_| Some("Always invalid".into())),
+                ),
+            )
+            .child(
+                gpui::div()
+                    .debug_selector(|| "other".to_owned())
+                    .child(Input::new(plain.clone()).label("Other")),
+            )
+            .into_any_element()
+    });
+    cx.run_until_parked();
+    let height = |cx: &mut VisualTestContext| {
+        f32::from(
+            cx.debug_bounds("tf")
+                .expect("time field paints")
+                .size
+                .height,
+        )
+    };
+    let rest = height(cx);
+    // Focus the field, move between segments and edit one: neither segment
+    // navigation nor an in-field edit is a commit trigger, so the gated error
+    // must stay hidden while the field holds focus.
+    press(cx, "tab");
+    press(cx, "right");
+    press(cx, "up");
+    harness::wait_ms(cx, 800);
+    assert_eq!(
+        height(cx),
+        rest,
+        "segment navigation and editing must not commit the gated validation"
+    );
+    // Leaving the field after the change commits the snapshot and shows it.
+    cx.update(|window, cx| {
+        let handle = other.read(cx).focus_handle(cx);
+        window.focus(&handle, cx);
+    });
+    harness::wait_ms(cx, 800);
+    assert!(
+        height(cx) > rest,
+        "blurring after a change must commit the gated validation and show the error"
+    );
+}
+
+#[gpui::test]
+fn time_field_allow_validate_shows_live_at_rest(cx: &mut TestAppContext) {
+    let state = cx.new(|cx| TimeState::with_value(cx, Time::new(9, 30)));
+    let state_for_view = state;
+    let cx = open_host(cx, move || {
+        gpui::div()
+            .debug_selector(|| "tf".to_owned())
+            .child(
+                TimeField::new(state_for_view.clone())
+                    .hour_cycle(HourCycle::H24)
+                    .validation_behavior(herogpui_components::ValidationBehavior::Allow)
+                    .validate(|_| Some("Always invalid".into())),
+            )
+            .into_any_element()
+    });
+    cx.run_until_parked();
+    harness::wait_ms(cx, 800);
+    let height = f32::from(
+        cx.debug_bounds("tf")
+            .expect("time field paints")
+            .size
+            .height,
+    );
+    assert!(
+        height > px(36.).into(),
+        "Allow must paint the live validation error at rest"
+    );
 }

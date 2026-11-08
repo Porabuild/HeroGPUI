@@ -1142,6 +1142,8 @@ pub(super) fn live_color_form_state(
     value: crate::form::FormValue,
 ) -> Rc<RefCell<crate::form::LiveFormFieldState>> {
     Rc::new(RefCell::new(crate::form::LiveFormFieldState {
+        commit_validation: None,
+        reset_validation: None,
         value,
         is_invalid: false,
         is_successful: true,

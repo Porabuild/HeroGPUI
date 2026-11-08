@@ -255,6 +255,8 @@ impl RadioGroup {
             id: id.into(),
             options,
             form_state: Rc::new(RefCell::new(crate::form::LiveFormFieldState {
+                commit_validation: None,
+                reset_validation: None,
                 value: crate::form::FormValue::Text(SharedString::default()),
                 is_invalid: false,
                 is_successful: true,

@@ -11,7 +11,9 @@ use std::collections::BTreeMap;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 
-use gpui::SharedString;
+use gpui::{App, ElementId, Entity, SharedString, Window};
+
+use crate::form::{CommitField, ValidationBehavior};
 
 /// Mints record identity: every *constructed or rebuilt* [`ValidationErrors`]
 /// is a new server response, while a `clone` keeps the revision it was copied
@@ -208,6 +210,170 @@ pub fn resolve(
     }
 }
 
+/// The commit-gated validity snapshot a field paints under
+/// [`ValidationBehavior::Native`] — React Stately's `nextValidation`
+/// (rewritten every render) and `currentValidity` (the last commit's copy).
+///
+/// `pending` is the gated half of the live resolution — `validate` and the
+/// built-in constraint/parse text, with no controlled or server sources —
+/// rewritten by [`Self::sync`] each render. `displayed` is what a commit last
+/// copied out of it. A [`Self::queue_commit`] defers the copy to the next
+/// render, so the snapshot sees the value the triggering event produced;
+/// [`Self::commit`] and [`Self::reset`] act immediately for the blur and form
+/// paths that run outside a render.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub(crate) struct ValidationDisplay {
+    pending: Validity,
+    displayed: Validity,
+    commit_queued: bool,
+}
+
+impl ValidationDisplay {
+    /// Render: record this frame's commit-gated validity; a queued commit
+    /// lands now, against the value the triggering event produced.
+    pub(crate) fn sync(&mut self, pending: Validity) {
+        self.pending = pending;
+        if self.commit_queued {
+            self.commit_queued = false;
+            self.displayed = self.pending.clone();
+        }
+    }
+
+    /// Event handlers (a toggle, a step, a calendar pick, Enter): commit on
+    /// the next render.
+    pub(crate) fn queue_commit(&mut self) {
+        self.commit_queued = true;
+    }
+
+    /// Commit immediately against the last rendered pending (a blur in
+    /// render, a form submit). Returns whether `displayed` changed.
+    pub(crate) fn commit(&mut self) -> bool {
+        self.commit_queued = false;
+        if self.displayed == self.pending {
+            return false;
+        }
+        self.displayed = self.pending.clone();
+        true
+    }
+
+    /// `resetValidation`: displayed back to valid, a queued commit cancelled.
+    /// Returns whether anything changed — the snapshot or a pending queue.
+    pub(crate) fn reset(&mut self) -> bool {
+        let was_queued = self.commit_queued;
+        self.commit_queued = false;
+        if self.displayed == Validity::default() && !was_queued {
+            return false;
+        }
+        self.displayed = Validity::default();
+        true
+    }
+
+    /// The commit-gated validity as last synced.
+    pub(crate) fn pending(&self) -> &Validity {
+        &self.pending
+    }
+
+    /// The displayed snapshot — what `Native` paints.
+    pub(crate) fn displayed(&self) -> &Validity {
+        &self.displayed
+    }
+}
+
+/// What a field paints and exposes — the chrome, the error text, the
+/// accessibility invalid flag, a render-prop `is_invalid`, the `is_invalid`
+/// handed to an inner field.
+///
+/// `Allow` (= React Aria's `aria` behavior) shows every source live,
+/// `validate` included, with no commit at all. `Native` keeps the controlled
+/// flag, the server messages and `errorMessage` live, but the
+/// validate/constraint half is the committed `displayed` snapshot — edits
+/// after a commit leave it untouched until the next commit.
+pub(crate) fn display_validity(
+    behavior: ValidationBehavior,
+    live: &Validity,
+    is_invalid: bool,
+    server_errors: &[SharedString],
+    displayed: &Validity,
+    error_message: Option<SharedString>,
+) -> Validity {
+    if behavior == ValidationBehavior::Allow {
+        return live.clone();
+    }
+    let mut display = resolve(is_invalid, server_errors, None, None);
+    display.messages.extend(displayed.messages.iter().cloned());
+    display.is_invalid |= displayed.is_invalid;
+    if display.messages.is_empty() && display.is_invalid {
+        if let Some(message) = error_message {
+            display.messages.push(message);
+        }
+    }
+    display
+}
+
+/// Change-on-blur tracking for commit-gated validation. Call every render
+/// with whether the control holds focus (`focus`-within for compound
+/// controls) and its current value; returns the value it held when focus
+/// arrived, on the one render where focus has just left — `None` otherwise.
+///
+/// The keyed state under `id` is `Some(value_at_arrival)` exactly while the
+/// control is focused, so presence doubles as the previous frame's focus.
+pub(crate) fn left_focus<V: Clone + PartialEq + 'static>(
+    id: ElementId,
+    focus_within: bool,
+    value: &V,
+    window: &mut Window,
+    cx: &mut App,
+) -> Option<V> {
+    let held = window.use_keyed_state(id, cx, |_, _| None::<V>);
+    if focus_within {
+        if held.read(cx).is_none() {
+            // Focus gained: remember the value — the blur below commits only
+            // when it differs, as the native `change` event does.
+            let arrival = value.clone();
+            held.update(cx, |slot, _| *slot = Some(arrival));
+        }
+        return None;
+    }
+    let arrival = held.read(cx).clone();
+    if arrival.is_some() {
+        held.update(cx, |slot, _| *slot = None);
+    }
+    arrival
+}
+
+/// Queue a commit on a component-owned [`ValidationDisplay`] and repaint: the
+/// commit lands on the next render's `sync`, the way a toggle or step commits
+/// upstream's single validation state.
+pub(crate) fn queue_commit(display: &Entity<ValidationDisplay>, cx: &mut App) {
+    display.update(cx, |d, cx| {
+        d.queue_commit();
+        cx.notify();
+    });
+}
+
+/// The `(commit, reset)` closures a [`LiveFormFieldState`](crate::form::LiveFormFieldState)
+/// stores so a `Form`'s submit/reset can reach the snapshot. Each notifies
+/// only when the displayed half actually changed.
+pub(crate) fn form_hooks(display: &Entity<ValidationDisplay>) -> (CommitField, CommitField) {
+    let commit_display = display.clone();
+    let commit: CommitField = Arc::new(move |cx: &mut App| {
+        commit_display.update(cx, |d, cx| {
+            if d.commit() {
+                cx.notify();
+            }
+        });
+    });
+    let reset_display = display.clone();
+    let reset: CommitField = Arc::new(move |cx: &mut App| {
+        reset_display.update(cx, |d, cx| {
+            if d.reset() {
+                cx.notify();
+            }
+        });
+    });
+    (commit, reset)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -322,5 +488,52 @@ mod tests {
         let built = ValidationErrors::default().set("email", "Taken");
         assert_ne!(built.revision(), 0);
         assert_ne!(built.revision(), ValidationErrors::default().revision());
+    }
+
+    fn invalid() -> Validity {
+        Validity {
+            is_invalid: true,
+            messages: vec![s("bad")],
+        }
+    }
+
+    #[test]
+    fn a_queued_commit_lands_on_the_next_sync() {
+        let mut display = ValidationDisplay::default();
+        display.sync(invalid());
+        // Nothing displayed until a commit.
+        assert_eq!(display.displayed(), &Validity::default());
+        display.queue_commit();
+        // Still nothing until the next render syncs the pending snapshot.
+        assert_eq!(display.displayed(), &Validity::default());
+        display.sync(invalid());
+        assert_eq!(display.displayed(), &invalid());
+    }
+
+    #[test]
+    fn commit_and_reset_report_whether_displayed_changed() {
+        let mut display = ValidationDisplay::default();
+        display.sync(invalid());
+        // pending -> displayed is a change.
+        assert!(display.commit());
+        assert_eq!(display.displayed(), &invalid());
+        // A second commit of the same pending is a no-op.
+        assert!(!display.commit());
+        // Reset clears the snapshot and reports the change; a second reset
+        // over an already-clean display does not.
+        assert!(display.reset());
+        assert_eq!(display.displayed(), &Validity::default());
+        assert!(!display.reset());
+    }
+
+    #[test]
+    fn reset_cancels_a_queued_commit() {
+        let mut display = ValidationDisplay::default();
+        display.sync(invalid());
+        display.queue_commit();
+        display.reset();
+        // The queued commit must not resurrect the snapshot on the next sync.
+        display.sync(invalid());
+        assert_eq!(display.displayed(), &Validity::default());
     }
 }

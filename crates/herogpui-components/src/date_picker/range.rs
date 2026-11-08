@@ -704,41 +704,132 @@ impl RenderOnce for DateRangePicker {
         let (parsed_end, end_constraint_error) = parse_live_value(&live_end_value);
         let range = parsed_start.zip(parsed_end);
         let custom_error = self.validate.as_ref().and_then(|validate| validate(&range));
-        let start_invalid = crate::validation::resolve(
+        // The live validity keeps feeding the blocking mirrors; the gated half
+        // (`validate` + each end's constraint text) is what each end's
+        // `ValidationDisplay` snapshots and commits.
+        let start_validity = crate::validation::resolve(
             self.is_invalid,
             &self.validation_errors,
             custom_error.clone(),
-            start_constraint_error,
-        )
-        .is_invalid;
-        let end_invalid = crate::validation::resolve(
+            start_constraint_error.clone(),
+        );
+        let end_validity = crate::validation::resolve(
             self.is_invalid,
             &self.validation_errors,
-            custom_error,
-            end_constraint_error,
-        )
-        .is_invalid;
+            custom_error.clone(),
+            end_constraint_error.clone(),
+        );
+        let start_invalid = start_validity.is_invalid;
+        let end_invalid = end_validity.is_invalid;
+        let pending_start =
+            crate::validation::resolve(false, &[], custom_error.clone(), start_constraint_error);
+        let pending_end =
+            crate::validation::resolve(false, &[], custom_error, end_constraint_error);
+        let start_display_state = window.use_keyed_state(
+            element_id::scoped(&base_id, "validation-start"),
+            cx,
+            |_, _| crate::validation::ValidationDisplay::default(),
+        );
+        let end_display_state = window.use_keyed_state(
+            element_id::scoped(&base_id, "validation-end"),
+            cx,
+            |_, _| crate::validation::ValidationDisplay::default(),
+        );
+        start_display_state.update(cx, |d, _| d.sync(pending_start));
+        end_display_state.update(cx, |d, _| d.sync(pending_end));
+
+        let start_focus = start_field_state.read(cx).focus_handle(cx);
+        let end_focus = end_field_state.read(cx).focus_handle(cx);
+        // Blur-within on either end commits BOTH picker snapshots — the range
+        // `validate` reads both ends, so one end's change can re-decide the
+        // other's display. Each end's own DateField commits its bound
+        // `InputState` snapshot. Runs before `display_validity` reads
+        // `displayed`, so the committing frame paints fresh.
+        if let Some(arrival) = crate::validation::left_focus(
+            element_id::scoped(&base_id, "left-focus-start"),
+            start_focus.contains_focused(window, cx),
+            &parsed_start,
+            window,
+            cx,
+        ) {
+            if arrival != parsed_start {
+                start_display_state.update(cx, |d, cx| {
+                    if d.commit() {
+                        cx.notify();
+                    }
+                });
+                end_display_state.update(cx, |d, cx| {
+                    if d.commit() {
+                        cx.notify();
+                    }
+                });
+            }
+        }
+        if let Some(arrival) = crate::validation::left_focus(
+            element_id::scoped(&base_id, "left-focus-end"),
+            end_focus.contains_focused(window, cx),
+            &parsed_end,
+            window,
+            cx,
+        ) {
+            if arrival != parsed_end {
+                start_display_state.update(cx, |d, cx| {
+                    if d.commit() {
+                        cx.notify();
+                    }
+                });
+                end_display_state.update(cx, |d, cx| {
+                    if d.commit() {
+                        cx.notify();
+                    }
+                });
+            }
+        }
+        let start_displayed = start_display_state.read(cx).displayed().clone();
+        let end_displayed = end_display_state.read(cx).displayed().clone();
+        let start_display = crate::validation::display_validity(
+            self.validation_behavior,
+            &start_validity,
+            self.is_invalid,
+            &self.validation_errors,
+            &start_displayed,
+            None,
+        );
+        let end_display = crate::validation::display_validity(
+            self.validation_behavior,
+            &end_validity,
+            self.is_invalid,
+            &self.validation_errors,
+            &end_displayed,
+            None,
+        );
         {
             let mut state = self.start_form_state.borrow_mut();
             state.value = crate::form::FormValue::Text(live_start_value.into());
             state.is_successful = !self.is_disabled;
             state.is_invalid = start_invalid;
+            state.focus = Some(start_focus.clone());
+            install_range_commit_closures(
+                &mut state,
+                &start_display_state,
+                &end_display_state,
+                &start_field_state,
+                &end_field_state,
+            );
         }
         {
             let mut state = self.end_form_state.borrow_mut();
             state.value = crate::form::FormValue::Text(live_end_value.into());
             state.is_successful = !self.is_disabled;
             state.is_invalid = end_invalid;
-        }
-        let start_focus = start_field_state.read(cx).focus_handle(cx);
-        let end_focus = end_field_state.read(cx).focus_handle(cx);
-        {
-            let mut state = self.start_form_state.borrow_mut();
-            state.focus = Some(start_focus.clone());
-        }
-        {
-            let mut state = self.end_form_state.borrow_mut();
             state.focus = Some(end_focus.clone());
+            install_range_commit_closures(
+                &mut state,
+                &start_display_state,
+                &end_display_state,
+                &start_field_state,
+                &end_field_state,
+            );
         }
         if let Some(render) = self.content.clone() {
             let content_scope = window
@@ -756,7 +847,7 @@ impl RenderOnce for DateRangePicker {
                 .track_focus(&content_scope)
                 .child(render(DateRangePickerRenderState {
                     is_disabled: self.is_disabled,
-                    is_invalid: start_invalid || end_invalid,
+                    is_invalid: start_display.is_invalid || end_display.is_invalid,
                     is_read_only: self.is_read_only,
                     is_required: self.is_required,
                     is_focus_within,
@@ -861,12 +952,12 @@ impl RenderOnce for DateRangePicker {
         let start_other_form_state = self.end_form_state.clone();
         let start_validate = self.validate.clone();
         let start_validation_errors = self.validation_errors.clone();
-        let start_field = DateField::new(start_field_state)
+        let start_field = DateField::new(start_field_state.clone())
             .embedded(true)
             .is_disabled(self.is_disabled)
             .is_required(self.is_required)
             .validation_behavior(self.validation_behavior)
-            .is_invalid(start_invalid)
+            .is_invalid(start_display.is_invalid)
             .auto_focus(self.auto_focus)
             .constraints(self.constraints.clone())
             .is_read_only(self.is_read_only)
@@ -928,12 +1019,12 @@ impl RenderOnce for DateRangePicker {
         let end_other_form_state = self.start_form_state.clone();
         let end_validate = self.validate.clone();
         let end_validation_errors = self.validation_errors.clone();
-        let end_field = DateField::new(end_field_state)
+        let end_field = DateField::new(end_field_state.clone())
             .embedded(true)
             .is_disabled(self.is_disabled)
             .is_required(self.is_required)
             .validation_behavior(self.validation_behavior)
-            .is_invalid(end_invalid)
+            .is_invalid(end_display.is_invalid)
             .constraints(self.constraints.clone())
             .is_read_only(self.is_read_only)
             .report_invalid_changes()
@@ -1001,7 +1092,7 @@ impl RenderOnce for DateRangePicker {
         field = crate::util::apply_field_chrome_overlay(
             field,
             herogpui_core::FieldVariant::Primary,
-            start_invalid || end_invalid,
+            start_display.is_invalid || end_display.is_invalid,
             start_focus.is_focused(window)
                 || end_focus.is_focused(window)
                 || trigger_focus.is_focused(window),
@@ -1114,7 +1205,7 @@ impl RenderOnce for DateRangePicker {
             root = root.child(
                 crate::field::Label::new(label.clone())
                     .is_required(self.is_required)
-                    .is_invalid(start_invalid || end_invalid),
+                    .is_invalid(start_display.is_invalid || end_display.is_invalid),
             );
         }
         root = root.child(field);
@@ -1163,6 +1254,13 @@ impl RenderOnce for DateRangePicker {
             let should_close_on_select = self.should_close_on_select;
             let panel_open_for_change = panel_open;
             let range_state = self.state.clone();
+            // A completed-range pick commits upstream's single validation
+            // state — both picker snapshots and both bound fields' — on the
+            // next render.
+            let pick_start_display = start_display_state.clone();
+            let pick_end_display = end_display_state.clone();
+            let pick_start_field = start_field_state.clone();
+            let pick_end_field = end_field_state.clone();
             let mut calendar = crate::range_calendar::RangeCalendar::new(self.state.clone())
                 .constraints(self.constraints.clone())
                 .when_some(self.locale.clone(), |cal, tag| cal.locale(tag))
@@ -1171,11 +1269,21 @@ impl RenderOnce for DateRangePicker {
                 // v3's `DateRangePicker.Popover` composes the year-picker trigger.
                 .year_picker(true)
                 .is_read_only(self.is_read_only)
-                .is_invalid(start_invalid || end_invalid);
+                .is_invalid(start_display.is_invalid || end_display.is_invalid);
             calendar = calendar.on_change(move |_start, _end, window, cx| {
                 if !panel_open_for_change {
                     return;
                 }
+                crate::validation::queue_commit(&pick_start_display, cx);
+                crate::validation::queue_commit(&pick_end_display, cx);
+                pick_start_field.update(cx, |s, cx| {
+                    s.queue_commit_display();
+                    cx.notify();
+                });
+                pick_end_field.update(cx, |s, cx| {
+                    s.queue_commit_display();
+                    cx.notify();
+                });
                 let state = range_state.read(cx);
                 let range = state.start.zip(state.end);
                 let custom_error = calendar_validate
@@ -1290,6 +1398,70 @@ impl RenderOnce for DateRangePicker {
 
         crate::util::apply_sx(root.track_focus(&blur_scope), &self.sx).into_any_element()
     }
+}
+
+/// A range field's submit/reset reach all four snapshots upstream treats as
+/// one validation state: both picker `ValidationDisplay`s and both bound
+/// `InputState`s. Written onto each end's live form state every render.
+fn install_range_commit_closures(
+    state: &mut crate::form::LiveFormFieldState,
+    start_display: &Entity<crate::validation::ValidationDisplay>,
+    end_display: &Entity<crate::validation::ValidationDisplay>,
+    start_field: &Entity<crate::input::InputState>,
+    end_field: &Entity<crate::input::InputState>,
+) {
+    let sd = start_display.clone();
+    let ed = end_display.clone();
+    let sf = start_field.clone();
+    let ef = end_field.clone();
+    state.commit_validation = Some(std::sync::Arc::new(move |cx: &mut App| {
+        sd.update(cx, |d, cx| {
+            if d.commit() {
+                cx.notify();
+            }
+        });
+        ed.update(cx, |d, cx| {
+            if d.commit() {
+                cx.notify();
+            }
+        });
+        sf.update(cx, |s, cx| {
+            if s.commit_display() {
+                cx.notify();
+            }
+        });
+        ef.update(cx, |s, cx| {
+            if s.commit_display() {
+                cx.notify();
+            }
+        });
+    }));
+    let sd = start_display.clone();
+    let ed = end_display.clone();
+    let sf = start_field.clone();
+    let ef = end_field.clone();
+    state.reset_validation = Some(std::sync::Arc::new(move |cx: &mut App| {
+        sd.update(cx, |d, cx| {
+            if d.reset() {
+                cx.notify();
+            }
+        });
+        ed.update(cx, |d, cx| {
+            if d.reset() {
+                cx.notify();
+            }
+        });
+        sf.update(cx, |s, cx| {
+            if s.reset_display() {
+                cx.notify();
+            }
+        });
+        ef.update(cx, |s, cx| {
+            if s.reset_display() {
+                cx.notify();
+            }
+        });
+    }));
 }
 
 // ---------------------------------------------------------------------------

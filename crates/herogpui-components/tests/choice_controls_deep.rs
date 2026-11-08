@@ -28,7 +28,7 @@ use std::rc::Rc;
 use gpui::{prelude::*, px, SharedString, TestAppContext, VisualTestContext};
 use herogpui_components::{
     Button, Form, Orientation, RadioGroup, RadioOption, SelectionMode, Size, Switch, ToggleButton,
-    ToggleButtonGroup, Toolbar,
+    ToggleButtonGroup, Toolbar, ValidationBehavior,
 };
 
 use harness::{click, events, open_host, press};
@@ -173,7 +173,10 @@ fn switch_content_receives_complete_field_state(cx: &mut TestAppContext) {
             .is_selected(true)
             .is_read_only(true)
             .is_required(true)
+            // `Allow` keeps `validate` live; under the default Native commit
+            // gating a read-only switch has no commit trigger to reveal it.
             .validate(|_| Some("Invalid selection".into()))
+            .validation_behavior(ValidationBehavior::Allow)
             .content(move |state| {
                 states.borrow_mut().push(format!(
                     "selected={}:readonly={}:invalid={}:required={}",
@@ -1901,4 +1904,60 @@ fn choice_content_keeps_twenty_pixel_lines(cx: &mut TestAppContext) {
             );
         }
     }
+}
+
+fn gated_switch_height(cx: &mut VisualTestContext, name: &'static str) -> f32 {
+    f32::from(cx.debug_bounds(name).expect("switch paints").size.height)
+}
+
+#[gpui::test]
+fn switch_native_validate_is_gated_until_a_toggle_commits(cx: &mut TestAppContext) {
+    let cx = open_host(cx, move || {
+        gpui::div()
+            .flex()
+            .flex_col()
+            .child(
+                gpui::div().debug_selector(|| "sw".to_owned()).child(
+                    Switch::new("gated-switch")
+                        .label("Enable alerts")
+                        .validate(|_| Some("Always invalid".into())),
+                ),
+            )
+            .into_any_element()
+    });
+    cx.run_until_parked();
+    let rest = gated_switch_height(cx, "sw");
+    press(cx, "tab");
+    press(cx, "space");
+    harness::wait_ms(cx, 800);
+    assert!(
+        gated_switch_height(cx, "sw") > rest,
+        "a toggle must commit the gated validation and show the error"
+    );
+}
+
+#[gpui::test]
+fn switch_allow_validate_shows_live_at_rest(cx: &mut TestAppContext) {
+    let cx = open_host(cx, move || {
+        gpui::div()
+            .flex()
+            .flex_col()
+            .child(
+                gpui::div().debug_selector(|| "sw".to_owned()).child(
+                    Switch::new("allow-switch")
+                        .label("Enable alerts")
+                        .validation_behavior(ValidationBehavior::Allow)
+                        .validate(|_| Some("Always invalid".into())),
+                ),
+            )
+            .into_any_element()
+    });
+    cx.run_until_parked();
+    harness::wait_ms(cx, 800);
+    // Allow paints the live validity at rest, so the error row is present
+    // without any commit.
+    assert!(
+        gated_switch_height(cx, "sw") > px(20.).into(),
+        "Allow must paint the live validation error at rest"
+    );
 }

@@ -1060,26 +1060,80 @@ impl RenderOnce for DateField {
 
         // v3 order: the controlled flag, then server errors, then `validate`,
         // then whichever constraint the date breaks.
+        let validate_result = self.validate.as_ref().and_then(|f| f(&parsed));
+        let constraint_msg: Option<SharedString> = rejection.map(Into::into);
         let validity = crate::validation::resolve(
             self.is_invalid,
             &self.validation_errors,
-            self.validate.as_ref().and_then(|f| f(&parsed)),
-            rejection.map(Into::into),
+            validate_result.clone(),
+            constraint_msg.clone(),
         );
-        let is_invalid = validity.is_invalid;
+        // React Stately's commit-gated display: `validate` and the built-in
+        // constraint text are the pending half, synced into the bound
+        // `InputState`'s snapshot every render; focus leaving the field after
+        // a change commits it. `display_validity` composes what paints — the
+        // controlled flag and server messages stay live, the gated half is
+        // the snapshot.
         let validity_state = self.state.clone();
+        let pending = crate::validation::resolve(false, &[], validate_result, constraint_msg);
+        validity_state.update(cx, |state, _| state.set_pending(pending));
+
+        let focus_handle = self.state.read(cx).focus_handle.clone();
+        // Blur-within commits only when the parsed date changed since focus
+        // entered; moving between segments keeps focus within, so it never
+        // commits. Runs before `display_validity` reads `displayed`, so the
+        // committing frame already paints the fresh snapshot.
+        if let Some(arrival) = crate::validation::left_focus(
+            element_id::scoped(&base_id, "left-focus"),
+            focus_handle.contains_focused(window, cx),
+            &parsed,
+            window,
+            cx,
+        ) {
+            if arrival != parsed {
+                self.state.update(cx, |state, _| state.commit_display());
+            }
+        }
+
+        let displayed = validity_state.read(cx).displayed().clone();
+        let shown = crate::validation::display_validity(
+            validity_state.read(cx).validation_behavior(),
+            &validity,
+            self.is_invalid,
+            &self.validation_errors,
+            &displayed,
+            None,
+        );
+        // Painted and exposed state follows the snapshot; the form's blocking
+        // mirror below stays on the live `validity`.
+        let is_invalid = shown.is_invalid;
         if validity_state.read(cx).validity() != &validity {
             validity_state.update(cx, |state, _| state.set_validity(validity.clone()));
         }
         if let Some(form_state) = form_state.as_ref() {
             let mut state = form_state.borrow_mut();
             state.value = crate::form::FormValue::Text(text.clone().into());
-            state.is_invalid = is_invalid;
+            state.is_invalid = validity.is_invalid;
             state.is_successful = !self.is_disabled;
             state.focus = Some(self.state.read(cx).focus_handle.clone());
+            let commit_state = self.state.clone();
+            let reset_state = self.state.clone();
+            state.commit_validation = Some(std::sync::Arc::new(move |cx: &mut App| {
+                commit_state.update(cx, |s, cx| {
+                    if s.commit_display() {
+                        cx.notify();
+                    }
+                });
+            }));
+            state.reset_validation = Some(std::sync::Arc::new(move |cx: &mut App| {
+                reset_state.update(cx, |s, cx| {
+                    if s.reset_display() {
+                        cx.notify();
+                    }
+                });
+            }));
         }
 
-        let focus_handle = self.state.read(cx).focus_handle.clone();
         if self.auto_focus {
             crate::util::focus_once(
                 window,
@@ -1199,7 +1253,7 @@ impl RenderOnce for DateField {
             .id(base_id.clone())
             .a11y_named(
                 a11y::Role::Group,
-                &a11y::Name::field(self.label.as_ref(), self.description.as_ref(), &validity),
+                &a11y::Name::field(self.label.as_ref(), self.description.as_ref(), &shown),
             )
             .flex()
             .flex_row()
@@ -1672,7 +1726,7 @@ impl RenderOnce for DateField {
         el = el.child(row);
         // v3's `date-field.tsx` renders only the caller's `children` here —
         // no format hint appears unless the caller supplies a description.
-        match validity.first() {
+        match shown.first() {
             Some(message) => el = el.child(crate::field::ErrorMessage::new(message)),
             None => {
                 if let Some(description) = self.description.clone() {

@@ -530,12 +530,34 @@ impl RenderOnce for ColorField {
         );
         self.value = resolved;
         // v3 order: the controlled flag, then server errors, then `validate`.
+        let validate_result = self
+            .validate
+            .as_ref()
+            .and_then(|f| self.value.as_ref().and_then(|value| f(value)));
         let validity = crate::validation::resolve(
             self.is_invalid,
             &self.validation_errors,
-            self.validate
-                .as_ref()
-                .and_then(|f| self.value.as_ref().and_then(|value| f(value))),
+            validate_result.clone(),
+            None,
+        );
+        // React Stately's commit-gated display: `validate` alone is the
+        // pending half, synced into a keyed snapshot every render; blur,
+        // Enter and every channel step commit it. `display_validity` composes
+        // what the field paints — the controlled flag and server messages
+        // stay live, the gated half is the snapshot.
+        let pending = crate::validation::resolve(false, &[], validate_result, None);
+        let validation_display =
+            window.use_keyed_state(element_id::scoped(&self.id, "validation"), cx, |_, _| {
+                crate::validation::ValidationDisplay::default()
+            });
+        validation_display.update(cx, |d, _| d.sync(pending));
+        let displayed = validation_display.read(cx).displayed().clone();
+        let display = crate::validation::display_validity(
+            self.validation_behavior,
+            &validity,
+            self.is_invalid,
+            &self.validation_errors,
+            &displayed,
             None,
         );
         if let Some(render) = self.content.clone() {
@@ -550,7 +572,7 @@ impl RenderOnce for ColorField {
                 .is_some_and(|s| s.read(cx).focus_handle.contains_focused(window, cx));
             return render(ColorFieldRenderState {
                 is_disabled: self.is_disabled,
-                is_invalid: validity.is_invalid,
+                is_invalid: display.is_invalid,
                 is_read_only: self.is_read_only,
                 is_required: self.is_required,
                 is_focused: focused,
@@ -580,6 +602,14 @@ impl RenderOnce for ColorField {
             !self.is_disabled,
             validity.is_invalid,
         );
+        // The form's submit/reset reach the snapshot through these closures;
+        // `commit`/`reset` notify only when they changed the displayed half.
+        {
+            let (commit, reset) = crate::validation::form_hooks(&validation_display);
+            let mut form = self.form_state.borrow_mut();
+            form.commit_validation = Some(commit);
+            form.reset_validation = Some(reset);
+        }
         let restore_own = own.clone();
         let restore_on_change = self.on_change.clone();
         // The field stores this callback; owning it back would retain every
@@ -657,9 +687,19 @@ impl RenderOnce for ColorField {
                 cx,
                 |_, _| None::<gpui::Subscription>,
             );
+            // The text the field held when focus arrived; the blur commit
+            // below compares it to the departing text, as the native `change`
+            // event does. `Some` doubles as "a focus session is open".
+            let focus_text = window.use_keyed_state(
+                element_id::scoped(&self.id, "field-focus-text"),
+                cx,
+                |_, _| None::<String>,
+            );
             let revert: Rc<dyn Fn(&mut Window, &mut App)> = {
                 let hook = self.on_blur.clone();
                 let seen = blur_seen.clone();
+                let focus_entry = focus_text.clone();
+                let commit_display = validation_display.clone();
                 let input = state.downgrade();
                 let committed = self.value;
                 let channel = self.channel;
@@ -675,6 +715,24 @@ impl RenderOnce for ColorField {
                         return;
                     };
                     let text = input.read(cx).value().to_owned();
+                    // Commit-gated display: the blur commits the snapshot when
+                    // the text moved from its focus-entry value, or when it is
+                    // non-empty and parses — React Aria's `commit` on blur.
+                    // This runs ahead of the revert so it sees the raw text,
+                    // and consumes the entry so one blur commits once.
+                    let entry = focus_entry.read(cx).clone();
+                    focus_entry.update(cx, |slot, _| *slot = None);
+                    let changed = entry.is_some_and(|arrival| arrival != text);
+                    let parses = !text.is_empty()
+                        && parse_color_field(committed.unwrap_or_default(), channel, space, &text)
+                            .is_some();
+                    if changed || parses {
+                        commit_display.update(cx, |d, cx| {
+                            if d.commit() {
+                                cx.notify();
+                            }
+                        });
+                    }
                     // An emptied field is React Aria's committed null: the
                     // text stays empty instead of restoring the old colour.
                     if text.is_empty()
@@ -713,6 +771,12 @@ impl RenderOnce for ColorField {
                 blur_subscription.update(cx, |slot, _| *slot = Some(listener));
                 if blur_focus.is_focused(window) {
                     blur_seen.update(cx, |seen, _| *seen = true);
+                    // Remember the focus-entry text once per focus session;
+                    // the blur commit compares the departing text against it.
+                    if focus_text.read(cx).is_none() {
+                        let entry = state.read(cx).value().to_owned();
+                        focus_text.update(cx, |slot, _| *slot = Some(entry));
+                    }
                 } else if *blur_seen.read(cx)
                     && window.focused(cx).is_some_and(|focused| focused.tab_stop)
                 {
@@ -735,7 +799,8 @@ impl RenderOnce for ColorField {
                 .is_disabled(self.is_disabled)
                 .is_read_only(self.is_read_only)
                 .is_required(self.is_required)
-                .is_invalid(validity.is_invalid)
+                .is_invalid(display.is_invalid)
+                .display_override(display.clone())
                 .validation_errors(self.validation_errors.clone())
                 .auto_focus(self.auto_focus);
             if let Some(value) = self.value {
@@ -754,7 +819,7 @@ impl RenderOnce for ColorField {
                 Some(radius) => input.radius(radius),
                 None => input,
             };
-            if let Some(message) = validity.first() {
+            if let Some(message) = display.first() {
                 input = input.error_message(message);
             }
             if let Some(ph) = self.placeholder.clone() {
@@ -803,12 +868,25 @@ impl RenderOnce for ColorField {
                 });
             }
             let rendered = input.render(window, cx).into_any_element();
-            let Some(channel) = self.channel else {
-                return rendered;
-            };
             if self.is_disabled || self.is_read_only {
                 return rendered;
             }
+            let Some(channel) = self.channel else {
+                // A hex field has no channel to step, but Enter still commits
+                // the gated display; the key is not swallowed, so a form's
+                // implicit submit still sees it.
+                let enter_commit = validation_display.clone();
+                return div()
+                    .id(element_id::scoped(&self.id, "hex-events"))
+                    .child(rendered)
+                    .when(self.full_width, |el| el.w_full())
+                    .on_key_down(move |event, _window, cx| {
+                        if event.keystroke.key == "enter" {
+                            crate::validation::queue_commit(&enter_commit, cx);
+                        }
+                    })
+                    .into_any_element();
+            };
 
             let mut field = div()
                 .id(element_id::scoped(&self.id, "channel-events"))
@@ -819,7 +897,14 @@ impl RenderOnce for ColorField {
                 let key_state = state.clone();
                 let key_own = own.clone();
                 let key_change = self.on_change.clone();
+                let key_commit = validation_display.clone();
                 field = field.on_key_down(move |event, window, cx| {
+                    // Enter commits the gated display but is not swallowed, so
+                    // a surrounding form's implicit submit still sees it.
+                    if event.keystroke.key == "enter" {
+                        crate::validation::queue_commit(&key_commit, cx);
+                        return;
+                    }
                     let direction = match event.keystroke.key.as_str() {
                         "up" => 1.0,
                         "down" => -1.0,
@@ -836,6 +921,7 @@ impl RenderOnce for ColorField {
                         window,
                         cx,
                     );
+                    crate::validation::queue_commit(&key_commit, cx);
                     cx.stop_propagation();
                 });
 
@@ -845,6 +931,7 @@ impl RenderOnce for ColorField {
                     let wheel_state = state;
                     let wheel_own = own;
                     let wheel_change = self.on_change;
+                    let wheel_commit = validation_display.clone();
                     field = field.on_scroll(move |event, window, cx| {
                         if !wheel_state
                             .read(cx)
@@ -874,6 +961,7 @@ impl RenderOnce for ColorField {
                             window,
                             cx,
                         );
+                        crate::validation::queue_commit(&wheel_commit, cx);
                         cx.stop_propagation();
                     });
                 }
@@ -920,7 +1008,7 @@ impl RenderOnce for ColorField {
             // HeroUI's invalid color-input group keeps the danger chrome and
             // swaps the surface to the field-focus endpoint. Secondary uses
             // its neutral default focus endpoint, just like InputGroup.
-            if validity.is_invalid {
+            if display.is_invalid {
                 field = field.bg(match self.variant {
                     FieldVariant::Primary => colors.field.focus(),
                     FieldVariant::Secondary => colors.default.color,
@@ -989,6 +1077,7 @@ impl RenderOnce for ColorField {
         ) {
             let value = self.value.unwrap_or_default();
             let space = self.color_space;
+            let scroll_commit = validation_display.clone();
             field = field.on_scroll(move |ev: &gpui::ScrollEvent, window, cx| {
                 let dy = match ev.delta {
                     gpui::ScrollDelta::Pixels(p) => f32::from(p.y),
@@ -1007,10 +1096,11 @@ impl RenderOnce for ColorField {
                     window,
                     cx,
                 );
+                crate::validation::queue_commit(&scroll_commit, cx);
             });
         }
 
-        if validity.is_invalid && !field_box.is_bare {
+        if display.is_invalid && !field_box.is_bare {
             field = field.border_1().border_color(colors.danger.color);
         }
         // A read-only field is legible but not interactive, so it reads the
@@ -1027,7 +1117,7 @@ impl RenderOnce for ColorField {
         // that composes `Input` lets that field carry the node instead.
         field = field.a11y_named(
             a11y::Role::TextInput,
-            &a11y::Name::field(self.name.as_ref(), None, &validity),
+            &a11y::Name::field(self.name.as_ref(), None, &display),
         );
 
         // `.color-field` is `flex flex-col gap-1`.

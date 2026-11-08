@@ -384,6 +384,8 @@ impl Switch {
             hover_bg: None,
             recipes: Vec::new(),
             form_state: Rc::new(RefCell::new(crate::form::LiveFormFieldState {
+                commit_validation: None,
+                reset_validation: None,
                 value: crate::form::FormValue::Flag(false),
                 is_invalid: false,
                 is_successful: true,
@@ -623,10 +625,30 @@ impl RenderOnce for Switch {
         let thumb_motion = thumb_motion(&self.id, checked, window, cx);
 
         // v3 order: the controlled flag, then server errors, then `validate`.
+        let validate_result = self.validate.as_ref().and_then(|f| f(&checked));
         let validity = crate::validation::resolve(
             self.is_invalid,
             &self.validation_errors,
-            self.validate.as_ref().and_then(|f| f(&checked)),
+            validate_result.clone(),
+            None,
+        );
+        // React Stately's commit-gated display: `validate` alone is the
+        // pending half, synced every render; a toggle queues the commit that
+        // the next render's sync lands. `display_validity` composes what the
+        // field paints — the controlled flag and server messages stay live,
+        // the gated half is the snapshot.
+        let pending = crate::validation::resolve(false, &[], validate_result, None);
+        let validation_display =
+            window.use_keyed_state(element_id::scoped(&self.id, "validation"), cx, |_, _| {
+                crate::validation::ValidationDisplay::default()
+            });
+        validation_display.update(cx, |d, _| d.sync(pending));
+        let display = crate::validation::display_validity(
+            self.validation_behavior,
+            &validity,
+            self.is_invalid,
+            &self.validation_errors,
+            validation_display.read(cx).displayed(),
             None,
         );
         {
@@ -637,6 +659,11 @@ impl RenderOnce for Switch {
             };
             state.is_invalid = validity.is_invalid;
             state.is_successful = !self.is_disabled;
+            // The form's submit/reset reach the snapshot through these
+            // closures; `commit`/`reset` notify only when they changed it.
+            let (commit, reset) = crate::validation::form_hooks(&validation_display);
+            state.commit_validation = Some(commit);
+            state.reset_validation = Some(reset);
         }
 
         // `.switch__control` and `.switch__thumb` state their sizes in `rem`,
@@ -701,7 +728,7 @@ impl RenderOnce for Switch {
         // `Switch.Content` is the interactive, labelled button in v3. Keep
         // the role and focus target on the row so a click on the label has the
         // same result as a click on the track; the track itself is visual.
-        let name = a11y::Name::field(None, self.description.as_ref(), &validity);
+        let name = a11y::Name::field(None, self.description.as_ref(), &display);
         let mut track = gpui::div()
             .id(element_id::scoped(&self.id, "control"))
             .relative()
@@ -861,7 +888,7 @@ impl RenderOnce for Switch {
                 is_selected: checked,
                 is_disabled: self.is_disabled,
                 is_read_only: self.is_read_only,
-                is_invalid: validity.is_invalid,
+                is_invalid: display.is_invalid,
                 is_required: self.is_required,
             })
         });
@@ -902,7 +929,13 @@ impl RenderOnce for Switch {
         }
         if !self.is_disabled && !self.is_read_only && (self.on_change.is_some() || own.is_some()) {
             let on_change = self.on_change;
+            let click_validation = validation_display.clone();
             el = el.on_click(move |_, window, cx| {
+                // A toggle commits the gated validity on the next render —
+                // React Stately's `commitValidation` on every change. The
+                // notify re-renders the owning view even when a controlled
+                // parent ignores `on_change`.
+                crate::validation::queue_commit(&click_validation, cx);
                 // Uncontrolled: flip our own copy, or nothing could change it.
                 if let Some(held) = &own {
                     held.update(cx, |v, cx| {
@@ -935,7 +968,7 @@ impl RenderOnce for Switch {
                         .child(crate::field::Description::new(description)),
                 )
             });
-        let error = validity.first();
+        let error = display.first();
         if let Some(error) = crate::anim::field_error_panel(&self.id, error, window, cx) {
             root = root.child(gpui::div().pl(indent).child(error));
         }
