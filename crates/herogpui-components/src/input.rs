@@ -63,21 +63,13 @@ pub struct InputState {
     /// messages must never rewind the receipt, or the next frame's clone
     /// would resurrect what the edit answered.
     routed_revision: u64,
-    /// The commit-gated part of the live validity — `validate`'s message and
-    /// the HTML5 attribute flag, with no controlled or server sources. React
-    /// Stately's `nextValidation`: rewritten every render, displayed only
-    /// once a commit copies it into [`Self::displayed`].
-    pending: crate::validation::Validity,
-    /// The validity snapshot a commit last displayed — React Stately's
-    /// `currentValidity`. Under `ValidationBehavior::Native` the field paints
-    /// this, not the live result: typing after a commit leaves the shown
-    /// error untouched until the next commit (a change-blur or a submit).
-    /// `Allow` ignores it and shows the live validity in real time.
-    displayed: crate::validation::Validity,
-    /// The value the field held when it took focus. A native `change` event —
-    /// and so a validation commit — fires on blur only when the value
-    /// differs from this; a focus→blur with no edit commits nothing.
-    focus_value: Option<String>,
+    /// The commit-gated validity snapshot — React Stately's `nextValidation`
+    /// (rewritten every render) and `currentValidity` (the last commit's
+    /// copy). Under `ValidationBehavior::Native` the field paints the
+    /// displayed half, not the live result: typing after a commit leaves the
+    /// shown error untouched until the next commit (a change-blur or a
+    /// submit). `Allow` ignores it and shows the live validity in real time.
+    validation_display: crate::validation::ValidationDisplay,
 }
 
 impl InputState {
@@ -99,9 +91,7 @@ impl InputState {
             is_read_only: false,
             routed_errors: Vec::new(),
             routed_revision: 0,
-            pending: crate::validation::Validity::default(),
-            displayed: crate::validation::Validity::default(),
-            focus_value: None,
+            validation_display: crate::validation::ValidationDisplay::default(),
         }
     }
 
@@ -155,44 +145,41 @@ impl InputState {
     }
 
     /// Records the commit-gated validity, written by `Input::render` every
-    /// frame; a commit copies it into [`Self::displayed`].
+    /// frame; a commit copies it into the displayed snapshot.
     pub(crate) fn set_pending(&mut self, pending: crate::validation::Validity) {
-        self.pending = pending;
+        self.validation_display.sync(pending);
     }
 
     /// The commit-gated validity as last written by `Input::render`.
     pub(crate) fn pending(&self) -> &crate::validation::Validity {
-        &self.pending
+        self.validation_display.pending()
     }
 
     /// The displayed validity snapshot — what `ValidationBehavior::Native`
     /// paints. Committed by a change-blur or a form submission.
     pub(crate) fn displayed(&self) -> &crate::validation::Validity {
-        &self.displayed
+        self.validation_display.displayed()
     }
 
     /// A commit: the pending gated validity becomes the displayed snapshot.
     /// Called by `Input::render`'s focus tracking and by `FormField::commit`.
-    pub(crate) fn commit_display(&mut self) {
-        if self.displayed != self.pending {
-            self.displayed = self.pending.clone();
-        }
+    /// Returns whether the displayed half changed, so callers can notify.
+    pub(crate) fn commit_display(&mut self) -> bool {
+        self.validation_display.commit()
+    }
+
+    /// Queue a commit that lands on the next render's sync — a compound
+    /// field's calendar pick or step commits the bound state's snapshot the
+    /// same way its own event handlers do.
+    pub(crate) fn queue_commit_display(&mut self) {
+        self.validation_display.queue_commit();
     }
 
     /// `resetValidation` — the display returns to valid without committing;
     /// the next render's pending result waits for the next commit again.
-    pub(crate) fn reset_display(&mut self) {
-        self.displayed = crate::validation::Validity::default();
-    }
-
-    /// The value the field held at focus, for the change-since-focus commit
-    /// rule. Written by `Input::render`'s focus tracking.
-    pub(crate) fn focus_value(&self) -> Option<&str> {
-        self.focus_value.as_deref()
-    }
-
-    pub(crate) fn set_focus_value(&mut self, value: Option<String>) {
-        self.focus_value = value;
+    /// Returns whether the displayed half changed, so callers can notify.
+    pub(crate) fn reset_display(&mut self) -> bool {
+        self.validation_display.reset()
     }
 
     pub(crate) fn is_successful(&self) -> bool {
@@ -1302,6 +1289,11 @@ pub struct Input {
     placeholder: Option<SharedString>,
     description: Option<SharedString>,
     error_message: Option<SharedString>,
+    /// Crate-internal: a compound field (NumberField, the pickers' inner
+    /// field) that owns its own commit-gated validity hands the result here
+    /// so this input paints that snapshot instead of composing its own.
+    /// `None` — every standalone input — keeps the computed display.
+    display_override: Option<crate::validation::Validity>,
     /// `validate` — run by the component, not the caller.
     validate: Option<crate::validation::Validator<str>>,
     /// `validationErrors` — messages from a server round-trip.
@@ -1468,6 +1460,7 @@ impl Input {
             placeholder: None,
             description: None,
             error_message: None,
+            display_override: None,
             validate: None,
             validation_errors: Vec::new(),
             variant: FieldVariant::Primary,
@@ -1758,6 +1751,15 @@ impl Input {
     /// spelling, and it remains ignored inside a group.
     pub(crate) fn group_padding_x(mut self, padding_x: impl Into<Pixels>) -> Self {
         self.group_padding_x = Some(padding_x.into());
+        self
+    }
+
+    /// A compound field's already commit-gated validity, painted in place of
+    /// the display this input would compose for itself. The live `validity`
+    /// and `pending` writes are untouched, so a `Form`'s blocked decision
+    /// still reads the real value.
+    pub(crate) fn display_override(mut self, validity: crate::validation::Validity) -> Self {
+        self.display_override = Some(validity);
         self
     }
 
@@ -2096,29 +2098,18 @@ impl RenderOnce for Input {
         // submit, which `FormField::commit` reaches for every field. Until a
         // commit the gated half stays internal: `pending` still feeds a
         // `Form`'s blocked decision through `validity`, but the field paints
-        // only the live sources plus the last committed snapshot.
-        let was_focused =
-            window.use_keyed_state(element_id::scoped(&base_id, "was-focused"), cx, |_, _| {
-                false
-            });
-        let had_focus = *was_focused.read(cx);
-        if had_focus != focused {
-            was_focused.update(cx, |had, _| *had = focused);
-            if focused {
-                // Focus gained: remember the value — the blur below commits
-                // only when it differs, as the native `change` event does.
-                let value = value_now.clone();
-                self.state
-                    .update(cx, |state, _| state.set_focus_value(Some(value)));
-            } else {
-                let changed =
-                    self.state.read(cx).focus_value().map(str::to_owned) != Some(value_now.clone());
-                self.state.update(cx, |state, _| {
-                    state.set_focus_value(None);
-                    if changed {
-                        state.commit_display();
-                    }
-                });
+        // only the live sources plus the last committed snapshot. `left_focus`
+        // returns the value the field held at focus on the one render focus
+        // has just left.
+        if let Some(arrival) = crate::validation::left_focus(
+            element_id::scoped(&base_id, "left-focus"),
+            focused,
+            &value_now,
+            window,
+            cx,
+        ) {
+            if arrival != value_now {
+                self.state.update(cx, |state, _| state.commit_display());
             }
         }
         // What the field paints. `Allow` (= React Aria's `aria` behavior)
@@ -2127,22 +2118,16 @@ impl RenderOnce for Input {
         // `errorMessage` live, but the validate/HTML5 half is the committed
         // `displayed` snapshot — edits after a commit leave it untouched
         // until the next commit.
-        let display_validity = if self.state.read(cx).validation_behavior()
-            == crate::form::ValidationBehavior::Allow
-        {
-            validity.clone()
-        } else {
-            let mut display =
-                crate::validation::resolve(self.is_invalid, &server_errors, None, None);
-            let displayed = self.state.read(cx).displayed().clone();
-            display.messages.extend(displayed.messages.iter().cloned());
-            display.is_invalid |= displayed.is_invalid;
-            if display.messages.is_empty() && display.is_invalid {
-                if let Some(message) = &self.error_message {
-                    display.messages.push(message.clone());
-                }
-            }
-            display
+        let display_validity = match &self.display_override {
+            Some(overridden) => overridden.clone(),
+            None => crate::validation::display_validity(
+                self.state.read(cx).validation_behavior(),
+                &validity,
+                self.is_invalid,
+                &server_errors,
+                self.state.read(cx).displayed(),
+                self.error_message.clone(),
+            ),
         };
         if !focused && self.state.read(cx).marked.is_some() {
             self.state.update(cx, |state, _| state.marked = None);

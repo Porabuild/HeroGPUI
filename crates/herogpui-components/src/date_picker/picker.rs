@@ -491,23 +491,98 @@ impl RenderOnce for DatePicker {
             };
             (parsed, error)
         };
-        let field_invalid = crate::validation::resolve(
+        let validate_result = self
+            .validate
+            .as_ref()
+            .and_then(|validate| validate(&parsed));
+        // React Stately's commit-gated display: `validate` and the constraint
+        // text are the pending half, synced into a keyed snapshot every
+        // render; a calendar pick or a blur-with-changed-value commits it.
+        let pending = crate::validation::resolve(
+            false,
+            &[],
+            validate_result.clone(),
+            constraint_error.clone(),
+        );
+        let field_validity = crate::validation::resolve(
             self.is_invalid,
             &self.validation_errors,
-            self.validate
-                .as_ref()
-                .and_then(|validate| validate(&parsed)),
+            validate_result,
             constraint_error,
-        )
-        .is_invalid;
+        );
+        let field_invalid = field_validity.is_invalid;
+        let validation_display =
+            window.use_keyed_state(element_id::scoped(&base_id, "validation"), cx, |_, _| {
+                crate::validation::ValidationDisplay::default()
+            });
+        validation_display.update(cx, |d, _| d.sync(pending));
+
+        let field_focus = field_state.read(cx).focus_handle(cx);
+        // Blur-within commits the picker snapshot when the parsed date changed
+        // since focus entered; the inner DateField's own left_focus commits
+        // its bound `InputState` snapshot. Runs before `display_validity`
+        // reads `displayed`, so the committing frame paints fresh.
+        if let Some(arrival) = crate::validation::left_focus(
+            element_id::scoped(&base_id, "left-focus"),
+            field_focus.contains_focused(window, cx),
+            &parsed,
+            window,
+            cx,
+        ) {
+            if arrival != parsed {
+                validation_display.update(cx, |d, cx| {
+                    if d.commit() {
+                        cx.notify();
+                    }
+                });
+            }
+        }
+        let displayed = validation_display.read(cx).displayed().clone();
+        let display = crate::validation::display_validity(
+            self.validation_behavior,
+            &field_validity,
+            self.is_invalid,
+            &self.validation_errors,
+            &displayed,
+            None,
+        );
         {
             let mut state = self.form_state.borrow_mut();
             state.value = crate::form::FormValue::Text(live_field_value.into());
             state.is_successful = !self.is_disabled;
             state.is_invalid = field_invalid;
+            state.focus = Some(field_focus.clone());
+            // Upstream has one validation state: the form's submit/reset reach
+            // both the picker snapshot and the bound field's.
+            let commit_picker = validation_display.clone();
+            let commit_field = field_state.clone();
+            state.commit_validation = Some(std::sync::Arc::new(move |cx: &mut App| {
+                commit_picker.update(cx, |d, cx| {
+                    if d.commit() {
+                        cx.notify();
+                    }
+                });
+                commit_field.update(cx, |s, cx| {
+                    if s.commit_display() {
+                        cx.notify();
+                    }
+                });
+            }));
+            let reset_picker = validation_display.clone();
+            let reset_field = field_state.clone();
+            state.reset_validation = Some(std::sync::Arc::new(move |cx: &mut App| {
+                reset_picker.update(cx, |d, cx| {
+                    if d.reset() {
+                        cx.notify();
+                    }
+                });
+                reset_field.update(cx, |s, cx| {
+                    if s.reset_display() {
+                        cx.notify();
+                    }
+                });
+            }));
         }
-        let field_focus = field_state.read(cx).focus_handle(cx);
-        self.form_state.borrow_mut().focus = Some(field_focus.clone());
         if let Some(render) = self.content.clone() {
             let content_scope = window
                 .use_keyed_state(
@@ -524,7 +599,7 @@ impl RenderOnce for DatePicker {
                 .track_focus(&content_scope)
                 .child(render(DatePickerRenderState {
                     is_disabled: self.is_disabled,
-                    is_invalid: field_invalid,
+                    is_invalid: display.is_invalid,
                     is_read_only: self.is_read_only,
                     is_required: self.is_required,
                     is_focus_within,
@@ -683,14 +758,14 @@ impl RenderOnce for DatePicker {
         if !self.is_disabled && !self.is_read_only {
             trigger = crate::util::record_focus_bounds(trigger, &trigger_focus, window, cx);
         }
-        let mut date_field = DateField::new(field_state)
+        let mut date_field = DateField::new(field_state.clone())
             .embedded(false)
             .full_width(true)
             .is_disabled(self.is_disabled)
             .is_read_only(self.is_read_only)
             .is_required(self.is_required)
             .validation_behavior(self.validation_behavior)
-            .is_invalid(field_invalid)
+            .is_invalid(display.is_invalid)
             .auto_focus(self.auto_focus)
             .constraints(self.constraints.clone())
             .report_invalid_changes()
@@ -811,7 +886,7 @@ impl RenderOnce for DatePicker {
                 // React Aria moves the focus into the calendar as the popover
                 // opens, so the arrows work straight away.
                 .autofocus_grid(panel_open)
-                .is_invalid(field_invalid);
+                .is_invalid(display.is_invalid);
             // The calendar reports the chosen date; the picker owns the open
             // flag, so closing belongs here, in the picker's own reaction to
             // that report, not inside the calendar (a bare `Calendar` has
@@ -825,10 +900,19 @@ impl RenderOnce for DatePicker {
             let calendar_validation_errors = self.validation_errors.clone();
             let should_close_on_select = self.should_close_on_select;
             let panel_open_for_change = panel_open;
+            // A pick commits upstream's single validation state — both the
+            // picker snapshot and the bound field's — on the next render.
+            let pick_validation = validation_display.clone();
+            let pick_field_state = field_state.clone();
             cal = cal.on_change(move |d, window, cx| {
                 if !panel_open_for_change {
                     return;
                 }
+                crate::validation::queue_commit(&pick_validation, cx);
+                pick_field_state.update(cx, |s, cx| {
+                    s.queue_commit_display();
+                    cx.notify();
+                });
                 let mut form_state = form_state.borrow_mut();
                 form_state.value = crate::form::FormValue::Text(
                     d.map(|date| date.format_iso()).unwrap_or_default().into(),

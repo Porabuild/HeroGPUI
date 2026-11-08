@@ -3060,6 +3060,8 @@ impl SelectRows {
 
 fn live_form_state() -> Rc<RefCell<crate::form::LiveFormFieldState>> {
     Rc::new(RefCell::new(crate::form::LiveFormFieldState {
+        commit_validation: None,
+        reset_validation: None,
         value: crate::form::FormValue::Text(SharedString::default()),
         is_invalid: false,
         is_successful: true,

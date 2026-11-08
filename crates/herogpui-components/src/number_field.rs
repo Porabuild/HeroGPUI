@@ -26,6 +26,11 @@ pub struct NumberState {
     /// `formatOptions`, written in by [`NumberField::format_options`]. The
     /// state owns it because the state is what turns a value into text.
     format: Option<NumberFormat>,
+    /// React Stately's commit-gated validity snapshot for this field's
+    /// `validate`. The inner `InputState`'s own display belongs to the inner
+    /// `Input`, which rewrites it every frame, so the number field keeps its
+    /// own — committed by blur-change, Enter, and every increment/decrement.
+    validation_display: crate::validation::ValidationDisplay,
 }
 
 impl NumberState {
@@ -45,6 +50,7 @@ impl NumberState {
             has_max: false,
             step: 1.0,
             format: None,
+            validation_display: crate::validation::ValidationDisplay::default(),
         }
     }
 
@@ -59,6 +65,18 @@ impl NumberState {
     /// The current numeric value.
     pub fn value(&self) -> f64 {
         self.value
+    }
+
+    /// `FormField::number`'s submit commit: the pending gated validity becomes
+    /// the displayed snapshot. Returns whether the display changed.
+    pub(crate) fn commit_validation(&mut self) -> bool {
+        self.validation_display.commit()
+    }
+
+    /// `FormField::number`'s reset: the display returns to valid and a queued
+    /// commit is cancelled. Returns whether anything changed.
+    pub(crate) fn reset_validation(&mut self) -> bool {
+        self.validation_display.reset()
     }
 
     /// Writes a clamped value and syncs the text field.
@@ -696,10 +714,11 @@ impl RenderOnce for NumberField {
         let value_now = self.state.read(cx).value();
         let mut server_errors = input_state.read(cx).routed_errors().to_vec();
         server_errors.extend(self.validation_errors.iter().cloned());
+        let validate_result = self.validate.as_ref().and_then(|f| f(&value_now));
         let validity = crate::validation::resolve(
             self.is_invalid,
             &server_errors,
-            self.validate.as_ref().and_then(|f| f(&value_now)),
+            validate_result.clone(),
             None,
         );
         if input_state.read(cx).validity() != &validity {
@@ -707,7 +726,51 @@ impl RenderOnce for NumberField {
             input_state.update(cx, |state, _| state.set_validity(validity));
         }
 
+        // React Stately's commit-gated display: `validate` alone is the
+        // pending half, synced into the state's snapshot every render; the
+        // commit triggers (blur-change, Enter, every increment/decrement)
+        // queue the commit that the next render's sync lands.
+        // `display_validity` composes what the field paints — the controlled
+        // flag and server messages stay live, the gated half is the snapshot.
+        let behavior = input_state.read(cx).validation_behavior();
+        let pending = crate::validation::resolve(false, &[], validate_result, None);
+        self.state
+            .update(cx, |state, _| state.validation_display.sync(pending));
+
         let focus_handle = input_state.read(cx).focus_handle.clone();
+        // v3 commits a field's validation on blur — but only when the text
+        // changed since focus, mirroring the native `change` event. `left_focus`
+        // returns the text the input held at focus on the one render focus has
+        // just left; a difference commits the gated snapshot immediately. This
+        // runs before `display_validity` reads `displayed`, so the committing
+        // frame already paints the fresh snapshot.
+        let inner_text = input_state.read(cx).value().to_owned();
+        if let Some(arrival) = crate::validation::left_focus(
+            element_id::scoped(&base_id, "left-focus"),
+            focus_handle.is_focused(window),
+            &inner_text,
+            window,
+            cx,
+        ) {
+            if arrival != inner_text {
+                self.state.update(cx, |state, cx| {
+                    if state.validation_display.commit() {
+                        cx.notify();
+                    }
+                });
+            }
+        }
+
+        let displayed = self.state.read(cx).validation_display.displayed().clone();
+        let display = crate::validation::display_validity(
+            behavior,
+            &validity,
+            self.is_invalid,
+            &server_errors,
+            &displayed,
+            None,
+        );
+
         if self.auto_focus {
             crate::util::focus_once(
                 window,
@@ -725,7 +788,7 @@ impl RenderOnce for NumberField {
             let (min_value, max_value) = state.bounds();
             return render(NumberFieldRenderState {
                 is_disabled: self.is_disabled,
-                is_invalid: validity.is_invalid,
+                is_invalid: display.is_invalid,
                 is_read_only: self.is_read_only,
                 is_required: self.is_required,
                 is_focused: focused,
@@ -760,7 +823,10 @@ impl RenderOnce for NumberField {
             .is_required(self.is_required)
             .auto_focus(self.auto_focus)
             .when_some(self.font_family.clone(), |f, family| f.font_family(family))
+            // The live flag feeds the `InputState::validity` mirror a `Form`'s
+            // blocked decision reads; the gated snapshot is what paints.
             .is_invalid(validity.is_invalid)
+            .display_override(display.clone())
             .when_some(self.label.clone(), |f, label| f.a11y_label(label))
             .on_change(move |_text: &str, w, cx| {
                 // The Input already wrote its own text; re-parse here.
@@ -807,7 +873,7 @@ impl RenderOnce for NumberField {
         // (`role: null`) before it reaches the input, so nothing here is a
         // spin button.
         let a11y_name =
-            crate::a11y::Name::field(self.label.as_ref(), self.description.as_ref(), &validity);
+            crate::a11y::Name::field(self.label.as_ref(), self.description.as_ref(), &display);
         // The group's settled state ring, parked for the non-clipping carrier
         // at the tail of this render; see the chrome call below. Once the
         // ramp owns the ring it hands back the animated overlay element for
@@ -840,11 +906,11 @@ impl RenderOnce for NumberField {
             // the group takes the chrome without it and the ring hangs on
             // `util::field_ring_carrier` below, outside the clip.
             settled_ring =
-                crate::util::field_ring_color(validity.is_invalid, focused, show_focus_ring, cx);
+                crate::util::field_ring_color(display.is_invalid, focused, show_focus_ring, cx);
             group = crate::util::apply_field_chrome_ringless(
                 group,
                 self.variant,
-                validity.is_invalid,
+                display.is_invalid,
                 focused,
                 show_focus_ring,
                 None,
@@ -864,7 +930,7 @@ impl RenderOnce for NumberField {
             // The shared helper's chain is an else-if: a ringed group carries
             // no border at all (the ring replaces the chrome), and an invalid
             // group that is not ringed carries the one-pixel danger outline.
-            let outlined = validity.is_invalid && !ringed;
+            let outlined = display.is_invalid && !ringed;
             let idle = crate::anim::FieldChrome {
                 bg: match self.variant {
                     // `--field-focus: var(--field-background)` — focus and
@@ -885,7 +951,7 @@ impl RenderOnce for NumberField {
                     layout.field_border_width
                 },
                 ring: if ringed {
-                    Some(if validity.is_invalid {
+                    Some(if display.is_invalid {
                         crate::anim::danger_ring_endpoint(cx)
                     } else {
                         crate::anim::focus_ring_endpoint(cx)
@@ -894,7 +960,7 @@ impl RenderOnce for NumberField {
                     None
                 },
             };
-            let hovered = (!self.is_disabled && !validity.is_invalid && !focused).then(|| {
+            let hovered = (!self.is_disabled && !display.is_invalid && !focused).then(|| {
                 crate::anim::FieldChrome {
                     bg: self.group_hover_bg.unwrap_or(match self.variant {
                         FieldVariant::Primary => colors.field.hover(),
@@ -1078,12 +1144,27 @@ impl RenderOnce for NumberField {
             let (min_value, max_value) = self.state.read(cx).bounds();
             group = group.on_key_down(move |ev: &gpui::KeyDownEvent, window, cx| {
                 let dir = match ev.keystroke.key.as_str() {
+                    // Enter commits the gated validity, then falls through —
+                    // a `Form`'s implicit Enter submit must still see the key.
+                    "enter" => {
+                        key_state.update(cx, |state, cx| {
+                            state.validation_display.queue_commit();
+                            cx.notify();
+                        });
+                        return;
+                    }
                     "up" | "pageup" => 1.0,
                     "down" | "pagedown" => -1.0,
                     "home" => {
                         let Some(min) = min_value else {
                             return;
                         };
+                        // `incrementToMin`/`decrementToMin` commit even when the
+                        // bound does not move the value.
+                        key_state.update(cx, |state, cx| {
+                            state.validation_display.queue_commit();
+                            cx.notify();
+                        });
                         if set_number_value(&key_state, min, cx) {
                             suppress_routed_server_errors(
                                 &key_state,
@@ -1102,6 +1183,10 @@ impl RenderOnce for NumberField {
                         let Some(max) = max_value else {
                             return;
                         };
+                        key_state.update(cx, |state, cx| {
+                            state.validation_display.queue_commit();
+                            cx.notify();
+                        });
                         if set_number_value(&key_state, max, cx) {
                             suppress_routed_server_errors(
                                 &key_state,
@@ -1178,7 +1263,7 @@ impl RenderOnce for NumberField {
             el = el.child(
                 crate::field::Label::new(label.clone())
                     .is_required(self.is_required)
-                    .is_invalid(validity.is_invalid)
+                    .is_invalid(display.is_invalid)
                     .is_disabled(self.is_disabled),
             );
         }
@@ -1202,7 +1287,7 @@ impl RenderOnce for NumberField {
         // Every message, space-joined in upstream order — React Aria's
         // `FieldError` default — not just the first. The shared feedback row
         // retains the last message while its height and opacity settle out.
-        let error = (!validity.messages.is_empty()).then(|| validity.joined().into());
+        let error = (!display.messages.is_empty()).then(|| display.joined().into());
         if let Some(error) = crate::anim::field_error_panel(&base_id, error, window, cx) {
             el = el.child(error);
         } else if let Some(description) = self.description.clone() {
@@ -1500,10 +1585,11 @@ fn report_bump(
     cx: &mut App,
 ) -> bool {
     let next = state.update(cx, |state, cx| {
+        // Upstream commits on every increment/decrement attempt — even one
+        // the bounds clamp to no movement — so the queue lands unconditionally.
+        state.validation_display.queue_commit();
         let next = state.bump(dir, cx);
-        if next.is_some() {
-            cx.notify();
-        }
+        cx.notify();
         next
     });
     let Some(next) = next else { return false };

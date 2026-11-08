@@ -12,8 +12,8 @@ use std::rc::Rc;
 use std::time::Duration;
 
 use gpui::{
-    point, prelude::*, px, Modifiers, MouseButton, MouseDownEvent, MouseMoveEvent, MouseUpEvent,
-    ScrollDelta, ScrollEvent, TestAppContext, VisualTestContext,
+    point, prelude::*, px, Focusable, Modifiers, MouseButton, MouseDownEvent, MouseMoveEvent,
+    MouseUpEvent, ScrollDelta, ScrollEvent, TestAppContext, VisualTestContext,
 };
 use herogpui_components::{NumberField, NumberState, Slider};
 
@@ -634,5 +634,187 @@ fn number_field_value_builder_seeds_once_and_outranks_default_value(cx: &mut Tes
     assert_eq!(
         stepped, 10.,
         "a re-render must not re-apply the value seed over the stepped state"
+    );
+}
+
+fn nf_height(cx: &mut VisualTestContext, name: &'static str) -> f32 {
+    f32::from(
+        cx.debug_bounds(name)
+            .expect("number field paints")
+            .size
+            .height,
+    )
+}
+
+fn nf_validate_field(
+    cx: &mut TestAppContext,
+    value: f64,
+    behavior: Option<herogpui_components::ValidationBehavior>,
+) -> &mut VisualTestContext {
+    let state = cx.new(|cx| NumberState::new(cx, value));
+    let state_for_view = state;
+    open_host(cx, move || {
+        let field = NumberField::new(state_for_view.clone())
+            .min_value(0.)
+            .max_value(100.)
+            .step(1.)
+            .validate(|v| (*v < 10.).then(|| "Too small".into()));
+        let field = match behavior {
+            Some(b) => field.validation_behavior(b),
+            None => field,
+        };
+        gpui::div()
+            .debug_selector(|| "nf".to_owned())
+            .child(field)
+            .into_any_element()
+    })
+}
+
+#[gpui::test]
+fn number_field_native_validate_is_gated_until_a_stepper_commits(cx: &mut TestAppContext) {
+    let cx = nf_validate_field(cx, 5., None);
+    cx.run_until_parked();
+    let rest = nf_height(cx, "nf");
+    // Increment button (right edge of the 220px field) commits on click.
+    cx.simulate_click(point(px(200.), px(18.)), Modifiers::none());
+    flush_frame(cx);
+    harness::wait_ms(cx, 800);
+    assert!(
+        nf_height(cx, "nf") > rest,
+        "a stepper click must commit the gated validation and show the error"
+    );
+}
+
+#[gpui::test]
+fn number_field_native_validate_arrow_up_commits(cx: &mut TestAppContext) {
+    let cx = nf_validate_field(cx, 5., None);
+    cx.run_until_parked();
+    let rest = nf_height(cx, "nf");
+    press(cx, "tab");
+    press(cx, "up");
+    harness::wait_ms(cx, 800);
+    assert!(
+        nf_height(cx, "nf") > rest,
+        "ArrowUp must commit the gated validation and show the error"
+    );
+}
+
+#[gpui::test]
+fn number_field_native_validate_home_end_commit(cx: &mut TestAppContext) {
+    let cx = nf_validate_field(cx, 5., None);
+    cx.run_until_parked();
+    let rest = nf_height(cx, "nf");
+    press(cx, "tab");
+    // Home/End step the value to a bound and either commits the gated
+    // snapshot. End would land on max_value 100, which passes `validate`, so
+    // Home lands on min_value 0, which fails it and makes the commit visible.
+    press(cx, "home");
+    harness::wait_ms(cx, 800);
+    assert!(
+        nf_height(cx, "nf") > rest,
+        "Home must commit the gated validation and show the error"
+    );
+}
+
+#[gpui::test]
+fn number_field_blur_without_edit_does_not_commit(cx: &mut TestAppContext) {
+    let cx = nf_validate_field(cx, 5., None);
+    cx.run_until_parked();
+    let rest = nf_height(cx, "nf");
+    press(cx, "tab");
+    // Move focus away without editing: left_focus compares the unchanged text,
+    // so nothing commits and the gated error stays hidden.
+    press(cx, "tab");
+    harness::wait_ms(cx, 800);
+    assert_eq!(
+        nf_height(cx, "nf"),
+        rest,
+        "focus then blur with no edit must not commit the gated validation"
+    );
+}
+
+#[gpui::test]
+fn number_field_type_then_blur_commits(cx: &mut TestAppContext) {
+    let state = cx.new(|cx| NumberState::new(cx, 20.));
+    let state_for_view = state;
+    let other = cx.new(|cx| herogpui_components::InputState::new(cx));
+    let plain = other.clone();
+    let cx = open_host(cx, move || {
+        gpui::div()
+            .flex()
+            .flex_col()
+            .child(
+                gpui::div().debug_selector(|| "nf".to_owned()).child(
+                    NumberField::new(state_for_view.clone())
+                        .min_value(0.)
+                        .max_value(100.)
+                        .step(1.)
+                        .validate(|v| (*v < 10.).then(|| "Too small".into())),
+                ),
+            )
+            .child(
+                gpui::div()
+                    .debug_selector(|| "other".to_owned())
+                    .child(herogpui_components::Input::new(plain.clone()).label("Other")),
+            )
+            .into_any_element()
+    });
+    cx.run_until_parked();
+    let rest = nf_height(cx, "nf");
+    // Focus the number input, replace the value with an invalid one, then move
+    // focus to the other field: the blur commits the gated snapshot.
+    cx.simulate_click(point(px(60.), px(18.)), Modifiers::none());
+    cx.simulate_keystrokes("ctrl-a");
+    cx.simulate_input("5");
+    cx.update(|window, cx| {
+        let handle = other.read(cx).focus_handle(cx);
+        window.focus(&handle, cx);
+    });
+    harness::wait_ms(cx, 800);
+    assert!(
+        nf_height(cx, "nf") > rest,
+        "editing then blurring must commit the gated validation and show the error"
+    );
+}
+
+#[gpui::test]
+fn number_field_typing_after_commit_keeps_display_until_enter(cx: &mut TestAppContext) {
+    let cx = nf_validate_field(cx, 5., None);
+    cx.run_until_parked();
+    let rest = nf_height(cx, "nf");
+    // Commit the invalid value with ArrowUp (5 -> 6, still < 10).
+    press(cx, "tab");
+    press(cx, "up");
+    harness::wait_ms(cx, 800);
+    let shown = nf_height(cx, "nf");
+    assert!(shown > rest, "ArrowUp must commit and show the error");
+    // Type a now-valid value while focused: live validity turns valid but the
+    // displayed snapshot stays stale, so the error row must remain.
+    cx.simulate_keystrokes("ctrl-a");
+    cx.simulate_input("15");
+    cx.run_until_parked();
+    assert_eq!(
+        nf_height(cx, "nf"),
+        shown,
+        "typing after a commit must not refresh the displayed error"
+    );
+    // Enter is the commit trigger that lands the now-valid snapshot.
+    press(cx, "enter");
+    harness::wait_ms(cx, 800);
+    assert_eq!(
+        nf_height(cx, "nf"),
+        rest,
+        "Enter must commit the fresh valid snapshot and clear the error"
+    );
+}
+
+#[gpui::test]
+fn number_field_allow_validate_shows_live_at_rest(cx: &mut TestAppContext) {
+    let cx = nf_validate_field(cx, 5., Some(herogpui_components::ValidationBehavior::Allow));
+    cx.run_until_parked();
+    harness::wait_ms(cx, 800);
+    assert!(
+        nf_height(cx, "nf") > px(36.).into(),
+        "Allow must paint the live validation error at rest"
     );
 }

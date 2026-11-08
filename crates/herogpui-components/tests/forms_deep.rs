@@ -70,10 +70,10 @@ use crate::harness;
 
 use gpui::{prelude::*, px, Focusable, SharedString, TestAppContext};
 use herogpui_components::{
-    Button, ComboBox, ComboBoxFormValue, Description, FieldGroup, Fieldset, FieldsetActions,
-    FieldsetLegend, Form, FormData, FormField, Input, InputOTP, InputState, NumberField,
-    NumberState, OtpPattern, OtpState, PickerItem, SearchField, Select, SelectionMode, Switch,
-    TextArea, ValidationBehavior, ValidationErrors,
+    Button, Checkbox, ComboBox, ComboBoxFormValue, Date, DateField, Description, FieldGroup,
+    Fieldset, FieldsetActions, FieldsetLegend, Form, FormData, FormField, Input, InputOTP,
+    InputState, NumberField, NumberState, OtpPattern, OtpState, PickerItem, SearchField, Select,
+    SelectionMode, Switch, TextArea, ValidationBehavior, ValidationErrors,
 };
 
 use harness::{click, events, open_host, press};
@@ -2054,6 +2054,144 @@ fn form_submit_commits_the_display_and_reset_clears_it(cx: &mut TestAppContext) 
         rest,
         "reset must clear the displayed validation back to valid"
     );
+}
+
+#[gpui::test]
+fn form_mixed_fields_commit_every_gated_error_on_submit_and_reset_clears(cx: &mut TestAppContext) {
+    // One Form mixing a text field, a number field, a checkbox and a date
+    // field: submission commits every field's pending validity into its
+    // displayed snapshot at once — so all four gated errors paint together —
+    // while the live validity still blocks the submit; reset clears them all.
+    let input_state = cx.new(|cx| InputState::new(cx));
+    let number_state = cx.new(|cx| NumberState::new(cx, 5.));
+    let date_state = cx.new(|cx| InputState::new(cx));
+    let submits = events();
+    let submitted = submits.clone();
+    let invalids = events();
+    let invalid = invalids.clone();
+    let submit_slot = handler_slot();
+    let submit_for_view = submit_slot.clone();
+    let reset_slot = handler_slot();
+    let reset_for_view = reset_slot.clone();
+    let cx = open_host(cx, move || {
+        let submits = submits.clone();
+        let invalids = invalids.clone();
+        let input_state = input_state.clone();
+        let number_state = number_state.clone();
+        let date_state = date_state.clone();
+        let input = Input::new(input_state.clone())
+            .name("name")
+            .label("Name")
+            .validate(|_| Some("bad name".into()));
+        let number = NumberField::new(number_state.clone())
+            .name("amount")
+            .validate(|value: &f64| (*value < 18.).then(|| "too small".into()));
+        let checkbox = Checkbox::new("mixed-check")
+            .name("agree")
+            .label("Agree")
+            .validate(|checked: &bool| (!*checked).then(|| "must agree".into()));
+        let date = DateField::new(date_state)
+            .name("day")
+            .validate(|value: &Option<Date>| value.is_none().then(|| "pick a date".into()));
+        let form = Form::new()
+            .field(FormField::text(input_state))
+            .field(FormField::number(number_state))
+            .field(checkbox.form_field().expect("named checkbox field"))
+            .field(date.form_field().expect("named date field"))
+            .on_submit(move |data: &FormData, _, _| {
+                submits.borrow_mut().push(record_data(data));
+            })
+            .on_invalid(move |data: &FormData, _, _| {
+                invalids
+                    .borrow_mut()
+                    .push(record_missing(data, &["name", "amount", "agree", "day"]));
+            });
+        *submit_for_view.borrow_mut() = Some(form.submit_handler());
+        *reset_for_view.borrow_mut() = Some(form.reset_handler());
+        form.child(
+            gpui::div()
+                .debug_selector(|| "f-name".to_owned())
+                .child(input),
+        )
+        .child(
+            gpui::div()
+                .debug_selector(|| "f-amount".to_owned())
+                .child(number),
+        )
+        .child(
+            gpui::div()
+                .debug_selector(|| "f-agree".to_owned())
+                .child(checkbox),
+        )
+        .child(
+            gpui::div()
+                .debug_selector(|| "f-day".to_owned())
+                .child(date),
+        )
+        .into_any_element()
+    });
+    cx.run_until_parked();
+    harness::wait_ms(cx, 800);
+    let height = |cx: &mut gpui::VisualTestContext, name: &'static str| {
+        f32::from(cx.debug_bounds(name).expect("field paints").size.height)
+    };
+    let rest = [
+        height(cx, "f-name"),
+        height(cx, "f-amount"),
+        height(cx, "f-agree"),
+        height(cx, "f-day"),
+    ];
+    // Untouched and failing: nothing paints yet.
+    assert!(
+        invalid.borrow().is_empty() && submitted.borrow().is_empty(),
+        "no submission has run yet"
+    );
+    // Submit commits every gated snapshot at once: all four error rows paint
+    // together and the live validity still blocks the submit.
+    run_handler(&submit_slot, cx);
+    harness::wait_ms(cx, 800);
+    let shown = [
+        height(cx, "f-name"),
+        height(cx, "f-amount"),
+        height(cx, "f-agree"),
+        height(cx, "f-day"),
+    ];
+    for (name, (before, after)) in ["name", "amount", "agree", "day"]
+        .iter()
+        .zip(rest.iter().zip(shown.iter()))
+    {
+        assert!(
+            after > before,
+            "submit must commit the {name} field's gated error into the display"
+        );
+    }
+    assert!(
+        submitted.borrow().is_empty(),
+        "the all-invalid form must still block the submit"
+    );
+    assert_eq!(
+        invalid.borrow().len(),
+        1,
+        "the blocked submit routes to onInvalid once"
+    );
+    // Reset clears every displayed snapshot; all four error rows animate out.
+    run_handler(&reset_slot, cx);
+    harness::wait_ms(cx, 800);
+    for (name, before) in ["name", "amount", "agree", "day"].iter().zip(rest.iter()) {
+        assert_eq!(
+            height(
+                cx,
+                match *name {
+                    "name" => "f-name",
+                    "amount" => "f-amount",
+                    "agree" => "f-agree",
+                    _ => "f-day",
+                }
+            ),
+            *before,
+            "reset must clear the {name} field's displayed error"
+        );
+    }
 }
 
 #[gpui::test]

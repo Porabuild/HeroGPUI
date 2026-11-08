@@ -13,11 +13,13 @@ use std::{
     rc::Rc,
 };
 
-use gpui::{prelude::*, px, TestAppContext, VisualTestContext};
+use gpui::{prelude::*, px, Focusable, TestAppContext, VisualTestContext};
 use herogpui_components::{
-    CalendarState, Date, DateField, DatePicker, DateRangePicker, DateRangeState, DateSegment,
-    FieldSegment, Form, Granularity, HourCycle, InputState, TimeSegment, ValidationBehavior,
+    CalendarState, Date, DateConstraints, DateField, DatePicker, DateRangePicker, DateRangeState,
+    DateSegment, FieldSegment, Form, Granularity, HourCycle, Input, InputState, TimeSegment,
+    ValidationBehavior,
 };
+use herogpui_theme::ActiveTheme;
 
 use harness::{click, events, focus_date_segment, open_host, press, system_date_order, type_date};
 
@@ -1712,5 +1714,396 @@ fn date_field_suffix_pins_to_the_fields_end(cx: &mut TestAppContext) {
         (inset - expected).abs() < 1.5,
         "the suffix must sit at the field's end: inset {inset} vs expected {expected}\n{}",
         scene.describe()
+    );
+}
+
+#[gpui::test]
+fn date_field_native_validate_is_gated_until_blur_commits(cx: &mut TestAppContext) {
+    let state = cx.new(|cx| InputState::with_value(cx, "2025-10-15"));
+    let state_for_view = state;
+    let other = cx.new(|cx| InputState::new(cx));
+    let plain = other.clone();
+    let cx = open_host(cx, move || {
+        gpui::div()
+            .flex()
+            .flex_col()
+            .child(gpui::div().debug_selector(|| "df".to_owned()).child(
+                DateField::new(state_for_view.clone()).validate(|_| Some("Always invalid".into())),
+            ))
+            .child(
+                gpui::div()
+                    .debug_selector(|| "other".to_owned())
+                    .child(Input::new(plain.clone()).label("Other")),
+            )
+            .into_any_element()
+    });
+    cx.run_until_parked();
+    let height = |cx: &mut VisualTestContext| {
+        f32::from(
+            cx.debug_bounds("df")
+                .expect("date field paints")
+                .size
+                .height,
+        )
+    };
+    let rest = height(cx);
+    // Focus the field and change the parsed date via a segment key: still
+    // focused, so nothing commits and the gated error stays hidden.
+    press(cx, "tab");
+    focus_date_segment(cx, DateSegment::Year);
+    press(cx, "up");
+    harness::wait_ms(cx, 800);
+    assert_eq!(
+        height(cx),
+        rest,
+        "editing a segment while focused must not commit the gated validation"
+    );
+    // Leaving the field after the change commits the snapshot.
+    cx.update(|window, cx| {
+        let handle = other.read(cx).focus_handle(cx);
+        window.focus(&handle, cx);
+    });
+    harness::wait_ms(cx, 800);
+    assert!(
+        height(cx) > rest,
+        "blurring after a change must commit the gated validation and show the error"
+    );
+}
+
+#[gpui::test]
+fn date_field_incomplete_segment_blur_commits_nothing(cx: &mut TestAppContext) {
+    // Fix B: blur compares the parsed date value, not the segment display. A
+    // single cleared segment is an incomplete local edit — the underlying ISO
+    // text and parsed date are unchanged, so blurring commits nothing.
+    let state = cx.new(|cx| InputState::with_value(cx, "2025-10-15"));
+    let state_for_view = state;
+    let other = cx.new(|cx| InputState::new(cx));
+    let plain = other.clone();
+    let cx = open_host(cx, move || {
+        gpui::div()
+            .flex()
+            .flex_col()
+            .child(gpui::div().debug_selector(|| "df".to_owned()).child(
+                DateField::new(state_for_view.clone()).validate(|_| Some("Always invalid".into())),
+            ))
+            .child(
+                gpui::div()
+                    .debug_selector(|| "other".to_owned())
+                    .child(Input::new(plain.clone()).label("Other")),
+            )
+            .into_any_element()
+    });
+    cx.run_until_parked();
+    let height = |cx: &mut VisualTestContext| {
+        f32::from(
+            cx.debug_bounds("df")
+                .expect("date field paints")
+                .size
+                .height,
+        )
+    };
+    let rest = height(cx);
+    press(cx, "tab");
+    press(cx, "delete");
+    cx.update(|window, cx| {
+        let handle = other.read(cx).focus_handle(cx);
+        window.focus(&handle, cx);
+    });
+    harness::wait_ms(cx, 800);
+    assert_eq!(
+        height(cx),
+        rest,
+        "an incomplete segment edit leaves the parsed date unchanged, so blur must not commit"
+    );
+}
+
+#[gpui::test]
+fn date_field_allow_validate_shows_live_at_rest(cx: &mut TestAppContext) {
+    let state = cx.new(|cx| InputState::with_value(cx, "2025-10-15"));
+    let state_for_view = state;
+    let cx = open_host(cx, move || {
+        gpui::div()
+            .debug_selector(|| "df".to_owned())
+            .child(
+                DateField::new(state_for_view.clone())
+                    .validation_behavior(ValidationBehavior::Allow)
+                    .validate(|_| Some("Always invalid".into())),
+            )
+            .into_any_element()
+    });
+    cx.run_until_parked();
+    harness::wait_ms(cx, 800);
+    let height = f32::from(
+        cx.debug_bounds("df")
+            .expect("date field paints")
+            .size
+            .height,
+    );
+    assert!(
+        height > px(36.).into(),
+        "Allow must paint the live validation error at rest"
+    );
+}
+
+/// The pickers forward only the invalid *flag* to their chrome (custom
+/// `validate` text is never painted — a pre-existing gap), so the gated state
+/// is observed through the danger border/outline. The outline animates in on
+/// the border-color track; GPUI animations only advance on
+/// `simulate_next_frame`, which `harness::settle`/`wait_ms` never call, so
+/// drain the animation frames before reading the painted scene.
+fn pending_frames(cx: &mut VisualTestContext) -> usize {
+    cx.update(|window, cx| window.simulate_next_frame(cx))
+}
+
+fn settle_frames(cx: &mut VisualTestContext) {
+    for _ in 0..200 {
+        if pending_frames(cx) == 0 {
+            return;
+        }
+        cx.executor()
+            .advance_clock(std::time::Duration::from_millis(10));
+    }
+}
+
+/// `painted_quads` reflects the last frame `Window::draw` produced; neither
+/// `refresh` nor `simulate_next_frame` draws, so force one explicitly after
+/// the animation clock has settled.
+fn draw_frame(cx: &mut VisualTestContext) {
+    cx.update(|window, _| window.refresh());
+    cx.update(|window, cx| {
+        window.draw(cx).clear(cx);
+    });
+}
+
+/// The pickers forward only the invalid *flag* to their chrome (custom
+/// `validate` text is never painted — a pre-existing gap), so the gated state
+/// is observed through the danger border. A *blurred* invalid field paints the
+/// border as a quad; a focused one paints a rasterised ring the pinned GPUI
+/// never exposes, so callers must move focus off the field first.
+fn danger_quads(cx: &mut VisualTestContext) -> usize {
+    settle_frames(cx);
+    draw_frame(cx);
+    let danger = cx.update(|_window, cx| cx.colors().danger.color);
+    let (quads, scale) = cx.update(|window, _| (window.painted_quads(), window.scale_factor()));
+    let scene = harness::Painted { quads, scale };
+    scene
+        .quads
+        .iter()
+        .filter(|q| {
+            let reddish = |c: gpui::Hsla| {
+                c.a > 0.3 && c.s > 0.3 && {
+                    let dh = (c.h - danger.h).abs();
+                    dh.min(1.0 - dh) < 0.05 && (c.s - danger.s).abs() < 0.4
+                }
+            };
+            reddish(q.border_color) || q.background.as_solid().is_some_and(reddish)
+        })
+        .count()
+}
+
+fn cal_cell_selector(entity_id: u64, year: i32, month: u32, day: u32) -> String {
+    format!(r#"NamedInteger("cal", {entity_id})-{year}-{month}-d{day}"#)
+}
+
+fn range_cell_selector(entity_id: u64, year: i32, month: u32, day: u32) -> String {
+    format!(r#"NamedInteger("range-cal", {entity_id})-{year}-{month}-day-{day}"#)
+}
+
+fn click_cell(cx: &mut VisualTestContext, key: String) {
+    let bounds = cx
+        .debug_bounds(Box::leak(key.into_boxed_str()))
+        .expect("calendar day cell paints");
+    click(
+        cx,
+        f32::from(bounds.center().x),
+        f32::from(bounds.center().y),
+    );
+    cx.run_until_parked();
+}
+
+#[gpui::test]
+fn date_picker_native_validate_is_gated_until_a_calendar_pick_commits(cx: &mut TestAppContext) {
+    let state = cx.new(|cx| CalendarState::with_selected(cx, Date::new(2025, 6, 15)));
+    let id = state.entity_id().as_u64();
+    let state_for_view = state;
+    let cx = open_host(cx, move || {
+        DatePicker::new(state_for_view.clone())
+            .validate(|_| Some("Always invalid".into()))
+            .into_any_element()
+    });
+    cx.run_until_parked();
+    harness::wait_ms(cx, 800);
+    assert_eq!(
+        danger_quads(cx),
+        0,
+        "a failing `validate` must not paint danger chrome at rest"
+    );
+    // Open the calendar and pick a different day: the pick commits both the
+    // picker and inner-field snapshots, surfacing the gated invalid chrome.
+    press(cx, "tab");
+    press(cx, "alt-down");
+    cx.run_until_parked();
+    click_cell(cx, cal_cell_selector(id, 2025, 6, 20));
+    // Close the calendar and move focus off the field: a *focused* invalid
+    // field paints a rasterised ring (invisible to `painted_quads`), while a
+    // blurred one paints the danger border quad this test reads.
+    press(cx, "escape");
+    click(cx, 8., 320.);
+    harness::wait_ms(cx, 800);
+    assert!(
+        danger_quads(cx) > 0,
+        "a calendar pick must commit the gated validation and paint the danger chrome"
+    );
+}
+
+#[gpui::test]
+fn date_picker_controlled_invalid_shows_danger_at_rest(cx: &mut TestAppContext) {
+    let state = cx.new(|cx| CalendarState::with_selected(cx, Date::new(2025, 6, 15)));
+    let state_for_view = state;
+    let cx = open_host(cx, move || {
+        DatePicker::new(state_for_view.clone())
+            .is_invalid(true)
+            .into_any_element()
+    });
+    cx.run_until_parked();
+    harness::wait_ms(cx, 800);
+    assert!(
+        danger_quads(cx) > 0,
+        "a controlled `is_invalid` must paint the danger chrome at rest"
+    );
+}
+
+#[gpui::test]
+fn date_picker_allow_validate_shows_danger_at_rest(cx: &mut TestAppContext) {
+    let state = cx.new(|cx| CalendarState::with_selected(cx, Date::new(2025, 6, 15)));
+    let state_for_view = state;
+    let cx = open_host(cx, move || {
+        DatePicker::new(state_for_view.clone())
+            .validation_behavior(ValidationBehavior::Allow)
+            .validate(|_| Some("Always invalid".into()))
+            .into_any_element()
+    });
+    cx.run_until_parked();
+    harness::wait_ms(cx, 800);
+    assert!(
+        danger_quads(cx) > 0,
+        "Allow must paint the live invalid chrome at rest"
+    );
+}
+
+#[gpui::test]
+fn date_range_picker_commits_only_on_a_completed_range(cx: &mut TestAppContext) {
+    let state = cx.new(|cx| {
+        DateRangeState::with_range(
+            cx,
+            Some(Date::new(2025, 6, 15)),
+            Some(Date::new(2025, 6, 20)),
+        )
+    });
+    let id = state.entity_id().as_u64();
+    let state_for_view = state;
+    let cx = open_host(cx, move || {
+        DateRangePicker::new(state_for_view.clone())
+            .validate(|_| Some("Always invalid".into()))
+            .into_any_element()
+    });
+    cx.run_until_parked();
+    harness::wait_ms(cx, 800);
+    assert_eq!(
+        danger_quads(cx),
+        0,
+        "a failing `validate` must not paint danger chrome at rest"
+    );
+    // Open the range calendar and pick only the start: an incomplete range is
+    // not a commit trigger, so no danger chrome appears.
+    press(cx, "tab");
+    press(cx, "alt-down");
+    cx.run_until_parked();
+    click_cell(cx, range_cell_selector(id, 2025, 6, 10));
+    harness::wait_ms(cx, 800);
+    assert_eq!(
+        danger_quads(cx),
+        0,
+        "the first click of a range (start only) must not commit the gated validation"
+    );
+    // Completing the range commits all four snapshots and paints the chrome.
+    // Move focus off the fields so the invalid chrome is the border quad.
+    click_cell(cx, range_cell_selector(id, 2025, 6, 25));
+    press(cx, "escape");
+    click(cx, 8., 320.);
+    harness::wait_ms(cx, 800);
+    assert!(
+        danger_quads(cx) > 0,
+        "completing the range must commit the gated validation and paint the danger chrome"
+    );
+}
+
+#[gpui::test]
+fn date_picker_valid_calendar_pick_clears_a_committed_field_error(cx: &mut TestAppContext) {
+    // The inner DateField is embedded inside the picker, so it never paints
+    // constraint text — but its danger chrome still follows the snapshot the
+    // picker's `queue_commit_display` commits on a calendar pick. Seed an
+    // out-of-range value and submit the form to commit the error into both
+    // snapshots without dirtying the field (a typed edit would mark it dirty
+    // and stop it following the selection), then pick an in-range date: the
+    // pick must clear the committed danger chrome too.
+    let state = cx.new(|cx| CalendarState::with_selected(cx, Date::new(202, 6, 20)));
+    let id = state.entity_id().as_u64();
+    let constraints = DateConstraints {
+        min_value: Some(Date::new(202, 6, 26)),
+        max_value: Some(Date::new(202, 7, 5)),
+        ..Default::default()
+    };
+    let picker = DatePicker::new(state.clone())
+        .constraints(constraints.clone())
+        .name("date");
+    let form_field = cx.update(|cx| picker.form_field(cx).expect("named picker field"));
+    let form = Form::new().field(form_field);
+    let submit = form.submit_handler();
+    let picker = Rc::new(RefCell::new(Some(picker)));
+    let picker_for_view = picker;
+    let state_for_view = state;
+    let cx = open_host(cx, move || {
+        picker_for_view
+            .borrow_mut()
+            .take()
+            .unwrap_or_else(|| {
+                DatePicker::new(state_for_view.clone())
+                    .constraints(constraints.clone())
+                    .name("date")
+            })
+            .into_any_element()
+    });
+    cx.run_until_parked();
+    harness::wait_ms(cx, 800);
+    // Submit commits the gated constraint error into the picker and inner-field
+    // snapshots; the seeded value stays clean so it still follows the calendar.
+    // An invalid submit focuses the field, so blur it: a focused invalid field
+    // paints a rasterised ring `painted_quads` cannot see, a blurred one a
+    // danger border quad.
+    cx.update(|window, cx| submit(window, cx));
+    press(cx, "escape");
+    click(cx, 8., 320.);
+    harness::wait_ms(cx, 800);
+    assert!(
+        danger_quads(cx) > 0,
+        "a committed out-of-range value must paint the danger chrome"
+    );
+    // Focus the field and open the calendar, then pick an in-range date.
+    press(cx, "tab");
+    press(cx, "alt-down");
+    cx.run_until_parked();
+    harness::wait_ms(cx, 800);
+    settle_frames(cx);
+    draw_frame(cx);
+    cx.run_until_parked();
+    click_cell(cx, cal_cell_selector(id, 202, 6, 28));
+    press(cx, "escape");
+    click(cx, 8., 320.);
+    harness::wait_ms(cx, 800);
+    assert_eq!(
+        danger_quads(cx),
+        0,
+        "a valid calendar pick must clear the committed field error's danger chrome"
     );
 }

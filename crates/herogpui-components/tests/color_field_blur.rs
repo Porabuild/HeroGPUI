@@ -20,7 +20,7 @@ use crate::harness;
 use crate::source_scan;
 
 use gpui::{prelude::*, px, TestAppContext, VisualTestContext};
-use herogpui_components::{ColorChannel, ColorField, InputState, PickerColor};
+use herogpui_components::{ColorChannel, ColorField, InputState, PickerColor, ValidationBehavior};
 use source_scan::{component_src, scope_contains};
 
 use harness::{click, events, open_host, press};
@@ -490,5 +490,129 @@ fn the_focus_out_listener_disarms_on_fire_so_every_frame_re_arms_fresh() {
     assert!(
         source[leg_at..leg_at + disabled_at].contains("window.defer(cx"),
         "the render-time leg must defer the revert out of render"
+    );
+}
+
+fn gated_color_height(cx: &mut VisualTestContext, name: &'static str) -> f32 {
+    f32::from(
+        cx.debug_bounds(name)
+            .expect("color field paints")
+            .size
+            .height,
+    )
+}
+
+/// An editable ColorField (bound `InputState` -> inner `Input` with
+/// `display_override`) plus a sibling to receive focus on blur.
+fn editable_gated_color<'a>(
+    cx: &'a mut TestAppContext,
+    text: &'static str,
+    channel: Option<ColorChannel>,
+    behavior: Option<ValidationBehavior>,
+) -> &'a mut VisualTestContext {
+    let red = PickerColor::from_hex("#FF0000").expect("red");
+    let green = PickerColor::from_hex("#00FF00").expect("green");
+    let state = cx.new(|cx| InputState::with_value(cx, text));
+    let state_for_view = state;
+    let sibling = cx.new(|cx| InputState::with_value(cx, "#00FF00"));
+    let sibling_for_view = sibling;
+    open_host(cx, move || {
+        let mut field = ColorField::new("cf-gated", red)
+            .default_value(red)
+            .state(state_for_view.clone())
+            .validate(|_| Some("Always invalid".into()));
+        if let Some(channel) = channel {
+            field = field.channel(channel);
+        }
+        if let Some(behavior) = behavior {
+            field = field.validation_behavior(behavior);
+        }
+        gpui::div()
+            .flex()
+            .flex_col()
+            .gap(px(20.))
+            .child(gpui::div().debug_selector(|| "cf".to_owned()).child(field))
+            .child(
+                gpui::div().debug_selector(|| "target".to_owned()).child(
+                    ColorField::new("cf-target", green)
+                        .default_value(green)
+                        .state(sibling_for_view.clone()),
+                ),
+            )
+            .into_any_element()
+    })
+}
+
+#[gpui::test]
+fn color_field_native_validate_is_gated_until_blur_commits(cx: &mut TestAppContext) {
+    let cx = editable_gated_color(cx, "#FF0000", None, None);
+    cx.run_until_parked();
+    let rest = gated_color_height(cx, "cf");
+    // Change the hex text then leave the field: blur commits the gated
+    // snapshot and the inner Input's error row appears.
+    click(cx, 60., 18.);
+    press(cx, "ctrl-a");
+    cx.simulate_input("00FF00");
+    press(cx, "tab");
+    harness::wait_ms(cx, 800);
+    assert!(
+        gated_color_height(cx, "cf") > rest,
+        "editing then blurring must commit the gated validation and show the error"
+    );
+}
+
+#[gpui::test]
+fn color_field_native_validate_enter_commits(cx: &mut TestAppContext) {
+    let cx = editable_gated_color(cx, "#FF0000", None, None);
+    cx.run_until_parked();
+    let rest = gated_color_height(cx, "cf");
+    click(cx, 60., 18.);
+    press(cx, "enter");
+    harness::wait_ms(cx, 800);
+    assert!(
+        gated_color_height(cx, "cf") > rest,
+        "Enter must commit the gated validation and show the error"
+    );
+}
+
+#[gpui::test]
+fn color_field_native_validate_channel_step_commits(cx: &mut TestAppContext) {
+    let cx = editable_gated_color(cx, "128", Some(ColorChannel::Red), None);
+    cx.run_until_parked();
+    let rest = gated_color_height(cx, "cf");
+    click(cx, 60., 18.);
+    press(cx, "up");
+    harness::wait_ms(cx, 800);
+    assert!(
+        gated_color_height(cx, "cf") > rest,
+        "ArrowUp on a channel field must commit the gated validation and show the error"
+    );
+}
+
+#[gpui::test]
+fn color_field_blur_without_edit_on_empty_text_commits_nothing(cx: &mut TestAppContext) {
+    let cx = editable_gated_color(cx, "", None, None);
+    cx.run_until_parked();
+    let rest = gated_color_height(cx, "cf");
+    // Focus then blur with the text still empty: neither "changed" nor
+    // "non-empty and parses" holds, so nothing commits.
+    click(cx, 60., 18.);
+    press(cx, "tab");
+    harness::wait_ms(cx, 800);
+    assert_eq!(
+        gated_color_height(cx, "cf"),
+        rest,
+        "focus then blur on empty, unedited text must not commit the gated validation"
+    );
+}
+
+#[gpui::test]
+fn color_field_allow_validate_shows_live_at_rest(cx: &mut TestAppContext) {
+    let cx = editable_gated_color(cx, "#FF0000", None, Some(ValidationBehavior::Allow));
+    cx.run_until_parked();
+    harness::wait_ms(cx, 800);
+    assert!(
+        gated_color_height(cx, "cf") > px(36.).into(),
+        "Allow must paint the live validation error at rest"
     );
 }

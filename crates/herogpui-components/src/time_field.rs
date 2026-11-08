@@ -533,6 +533,10 @@ pub struct TimeState {
     /// the replacement field it draws must share one handle, or the closure
     /// reads a handle Tab and clicks never reach.
     pub(crate) focus_handle: gpui::FocusHandle,
+    /// React Stately's commit-gated validity snapshot for this field's
+    /// `validate`. Committed when focus leaves the whole field after the
+    /// value changed; segment edits never commit on their own.
+    validation_display: crate::validation::ValidationDisplay,
 }
 
 impl TimeState {
@@ -547,6 +551,7 @@ impl TimeState {
             last_controlled: None,
             // A field is a tab stop: the handle carries that, not the element.
             focus_handle: cx.focus_handle().tab_stop(true),
+            validation_display: crate::validation::ValidationDisplay::default(),
         }
     }
 
@@ -560,7 +565,20 @@ impl TimeState {
             segment_order: Vec::new(),
             last_controlled: None,
             focus_handle: cx.focus_handle().tab_stop(true),
+            validation_display: crate::validation::ValidationDisplay::default(),
         }
+    }
+
+    /// `FormField::live`'s submit commit: the pending gated validity becomes
+    /// the displayed snapshot. Returns whether the display changed.
+    pub(crate) fn commit_validation(&mut self) -> bool {
+        self.validation_display.commit()
+    }
+
+    /// `FormField::live`'s reset: the display returns to valid and a queued
+    /// commit is cancelled. Returns whether anything changed.
+    pub(crate) fn reset_validation(&mut self) -> bool {
+        self.validation_display.reset()
     }
 
     /// Adjusts the focused segment, seeding an empty field from `seed`.
@@ -698,6 +716,8 @@ fn time_field_form_state(entity_id: u64) -> TimeFieldFormState {
             return state;
         }
         let state = Rc::new(RefCell::new(crate::form::LiveFormFieldState {
+            commit_validation: None,
+            reset_validation: None,
             value: crate::form::FormValue::Text(SharedString::default()),
             is_invalid: false,
             is_successful: true,
@@ -1291,22 +1311,79 @@ impl RenderOnce for TimeField {
 
         // v3 order: the controlled flag, then server errors, then `validate`,
         // with `errorMessage` as the fallback.
+        let validate_result = self.validate.as_ref().and_then(|f| f(&value));
         let validity = crate::validation::resolve(
             self.is_invalid,
             &self.validation_errors,
-            self.validate.as_ref().and_then(|f| f(&value)),
+            validate_result.clone(),
             self.error_message.clone(),
         );
-        let is_invalid = validity.is_invalid;
+        // React Stately's commit-gated display: `validate` alone is the
+        // pending half (`errorMessage` stays live, so it is not pending),
+        // synced into the state's snapshot every render; focus leaving the
+        // whole field after a change commits it. `display_validity` composes
+        // what the field paints — the controlled flag, server messages and
+        // `errorMessage` stay live, the gated half is the snapshot.
+        let pending = crate::validation::resolve(false, &[], validate_result, None);
+        self.state
+            .update(cx, |state, _| state.validation_display.sync(pending));
+        // Blur-within commits only when the value changed since focus entered;
+        // moving between segments keeps focus within, so it never commits. This
+        // runs before `display_validity` reads `displayed`, so the committing
+        // frame already paints the fresh snapshot.
+        if let Some(arrival) = crate::validation::left_focus(
+            element_id::scoped(&base_id, "left-focus"),
+            focus_handle.contains_focused(window, cx),
+            &value,
+            window,
+            cx,
+        ) {
+            if arrival != value {
+                self.state.update(cx, |state, cx| {
+                    if state.commit_validation() {
+                        cx.notify();
+                    }
+                });
+            }
+        }
+        let displayed = self.state.read(cx).validation_display.displayed().clone();
+        let display = crate::validation::display_validity(
+            self.validation_behavior,
+            &validity,
+            self.is_invalid,
+            &self.validation_errors,
+            &displayed,
+            self.error_message.clone(),
+        );
+        // Painted and exposed state follows the snapshot; the form's blocking
+        // mirror below stays on the live `validity`.
+        let is_invalid = display.is_invalid;
         if let Some(form_state) = registered_time_field_form_state(entity_id) {
             sync_time_field_form(
                 &form_state,
                 &self.state,
                 self.is_disabled,
-                is_invalid,
+                validity.is_invalid,
                 self.granularity,
                 cx,
             );
+            let commit_state = self.state.clone();
+            let reset_state = self.state.clone();
+            let mut live = form_state.borrow_mut();
+            live.commit_validation = Some(Arc::new(move |cx: &mut App| {
+                commit_state.update(cx, |s, cx| {
+                    if s.commit_validation() {
+                        cx.notify();
+                    }
+                });
+            }));
+            live.reset_validation = Some(Arc::new(move |cx: &mut App| {
+                reset_state.update(cx, |s, cx| {
+                    if s.reset_validation() {
+                        cx.notify();
+                    }
+                });
+            }));
         }
         if let Some(render) = self.content.clone() {
             let focused = focus_handle.is_focused(window);
@@ -1378,7 +1455,7 @@ impl RenderOnce for TimeField {
             .id(base_id.clone())
             .a11y_named(
                 a11y::Role::Group,
-                &a11y::Name::field(self.label.as_ref(), self.description.as_ref(), &validity),
+                &a11y::Name::field(self.label.as_ref(), self.description.as_ref(), &display),
             )
             .flex()
             .flex_row()
@@ -1731,7 +1808,7 @@ impl RenderOnce for TimeField {
         root = root.child(group);
 
         if is_invalid {
-            if let Some(message) = validity.first() {
+            if let Some(message) = display.first() {
                 root = root.child(crate::field::ErrorMessage::new(message));
             }
         } else if let Some(description) = self.description {

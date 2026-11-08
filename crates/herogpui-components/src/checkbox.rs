@@ -593,6 +593,8 @@ impl Checkbox {
             children: Vec::new(),
             on_change: None,
             form_state: Rc::new(RefCell::new(crate::form::LiveFormFieldState {
+                commit_validation: None,
+                reset_validation: None,
                 value: crate::form::FormValue::Flag(false),
                 is_invalid: false,
                 is_successful: true,
@@ -786,10 +788,30 @@ impl RenderOnce for Checkbox {
             });
 
         // v3 order: the controlled flag, then server errors, then `validate`.
+        let validate_result = self.validate.as_ref().and_then(|f| f(&checked));
         let validity = crate::validation::resolve(
             self.is_invalid,
             &self.validation_errors,
-            self.validate.as_ref().and_then(|f| f(&checked)),
+            validate_result.clone(),
+            self.error_message.clone(),
+        );
+        // React Stately's commit-gated display: `validate` alone is the
+        // pending half, synced every render; a toggle queues the commit that
+        // the next render's sync lands. `display_validity` composes what the
+        // field paints — the controlled flag, server messages and
+        // `errorMessage` stay live, the gated half is the snapshot.
+        let pending = crate::validation::resolve(false, &[], validate_result, None);
+        let validation_display =
+            window.use_keyed_state(element_id::scoped(&self.id, "validation"), cx, |_, _| {
+                crate::validation::ValidationDisplay::default()
+            });
+        validation_display.update(cx, |d, _| d.sync(pending));
+        let display = crate::validation::display_validity(
+            self.validation_behavior,
+            &validity,
+            self.is_invalid,
+            &self.validation_errors,
+            validation_display.read(cx).displayed(),
             self.error_message.clone(),
         );
         {
@@ -800,6 +822,11 @@ impl RenderOnce for Checkbox {
             };
             state.is_invalid = validity.is_invalid;
             state.is_successful = !self.is_disabled;
+            // The form's submit/reset reach the snapshot through these
+            // closures; `commit`/`reset` notify only when they changed it.
+            let (commit, reset) = crate::validation::form_hooks(&validation_display);
+            state.commit_validation = Some(commit);
+            state.reset_validation = Some(reset);
         }
 
         // v3 focuses the checkbox and rings `.checkbox__control`, so the two sit
@@ -815,7 +842,7 @@ impl RenderOnce for Checkbox {
         // take `cx` mutably. `isInvalid` outranks the colour role, as it does
         // on every field: the danger role is chosen here and nowhere else.
         let (accent_color, accent_hover, accent_foreground) = {
-            let sem = if validity.is_invalid {
+            let sem = if display.is_invalid {
                 cx.role(Color::Danger)
             } else {
                 cx.role(Color::Accent)
@@ -915,7 +942,7 @@ impl RenderOnce for Checkbox {
             is_indeterminate: self.is_indeterminate,
             is_disabled: self.is_disabled,
             is_read_only: self.is_read_only,
-            is_invalid: validity.is_invalid,
+            is_invalid: display.is_invalid,
             is_required: self.is_required,
         };
 
@@ -963,7 +990,7 @@ impl RenderOnce for Checkbox {
         // `status-invalid-field` draws a 1px danger outline over the fill, and
         // v3 applies it only while the box is neither selected nor
         // indeterminate.
-        if validity.is_invalid && !fill_visible && !self.is_indeterminate {
+        if display.is_invalid && !fill_visible && !self.is_indeterminate {
             boxel = boxel.border_1().border_color(cx.colors().danger.color);
         }
 
@@ -1041,7 +1068,7 @@ impl RenderOnce for Checkbox {
         let name = a11y::Name::field(
             self.label_text.as_ref(),
             self.description.as_ref(),
-            &validity,
+            &display,
         );
         let row = gpui::div()
             .id(self.id.clone())
@@ -1080,6 +1107,7 @@ impl RenderOnce for Checkbox {
             && (self.on_change.is_some() || own.is_some())
         {
             let on_change = self.on_change;
+            let click_validation = validation_display.clone();
             row.on_click(move |event, window, cx| {
                 if matches!(
                     event,
@@ -1088,6 +1116,11 @@ impl RenderOnce for Checkbox {
                 ) {
                     return;
                 }
+                // A toggle commits the gated validity on the next render —
+                // React Stately's `commitValidation` on every change. The
+                // notify re-renders the owning view even when a controlled
+                // parent ignores `on_change`.
+                crate::validation::queue_commit(&click_validation, cx);
                 // Uncontrolled: flip our own copy, or nothing could ever
                 // change it.
                 if let Some(held) = &own {
@@ -1105,7 +1138,7 @@ impl RenderOnce for Checkbox {
             row.into_any_element()
         };
 
-        let message = validity.first();
+        let message = display.first();
         let mut root = gpui::div()
             .flex()
             .flex_col()
@@ -1230,6 +1263,8 @@ impl CheckboxGroup {
             is_required: false,
             on_change: None,
             form_state: Rc::new(RefCell::new(crate::form::LiveFormFieldState {
+                commit_validation: None,
+                reset_validation: None,
                 value: crate::form::FormValue::Keys(Vec::new()),
                 is_invalid: false,
                 is_successful: true,

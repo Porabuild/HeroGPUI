@@ -63,3 +63,25 @@ Select-all and the Home/End chords in `Select`, `ListBox`, `TagGroup` and
 (`cfg!(target_os = "macos")`). They now read `App::platform_info()` at
 runtime, matching React Aria: the WebAssembly build running on a Mac uses
 Cmd, and the same build elsewhere uses Ctrl. Native builds are unchanged.
+
+## Validation errors wait for a commit
+
+Under the default `ValidationBehavior::Native`, a field's `validate` result
+and its built-in constraint errors (a date outside `min_value`/`max_value`,
+an unavailable date) used to paint as soon as the field rendered. They now
+appear once the user commits the field, as React Aria's do: changing the
+value and leaving the field, Enter or a step in NumberField and ColorField,
+a toggle in Checkbox and Switch, a calendar pick in DatePicker and
+DateRangePicker, or submitting the form. This applies to every field that
+takes `validate`, the text fields included, except `InputOTP`: HeroUI's
+InputOTP has no React Stately validation state, so its errors stay live.
+
+Submission is unchanged: a native form still blocks on the live result, so
+an untouched invalid field still stops the submit and receives focus, and
+the submit then shows its error. Controlled `is_invalid` and server
+`validation_errors` still show immediately.
+
+If a screen or a test relied on seeing a `validate` message at rest, commit
+the field first (interact with it, then move focus away) or pass
+`.validation_behavior(ValidationBehavior::Allow)`, which shows every error
+live and does not block submission.
