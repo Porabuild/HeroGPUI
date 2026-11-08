@@ -67,6 +67,12 @@ reason in the parity audit.
   internal handle.
 - Roving controls use one focus handle whose `track_focus` owner moves. A handle
   per row loses the collection's single-tab-stop semantics.
+- Popup lists (Select, ComboBox, Autocomplete, Dropdown) route their keyboard,
+  typeahead, page keys and hover-to-cursor through `list_core::ListCore`, which
+  owns the cursor entity, the typeahead buffer, the page-key target and the
+  scroll reveal. Fix list-navigation behaviour there, not per component; a
+  component only declares its `PageKeys`, `typeahead`, `wrap` and `ListScroll`
+  and interprets the returned `ListKey`.
 - Pointer coordinates are window-relative. Subtract the element's laid-out
   origin before converting a point into a local value.
 - A drag that can leave its hitbox needs keyed drag state and paint-time

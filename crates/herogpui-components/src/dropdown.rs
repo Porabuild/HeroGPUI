@@ -689,10 +689,11 @@ impl RenderOnce for Menu {
                 .read(cx)
                 .clone()
         });
-        let cursor = window.use_keyed_state(element_id::scoped(&base_id, "cursor"), cx, |_, _| {
-            None::<usize>
-        });
-        let mut cursor_at = *cursor.read(cx);
+        // The keyboard's cursor is the shared list core's keyed cursor: it
+        // holds the focused item's *key*, so it follows the item across a
+        // reorder and clears when the item is disabled rather than repairing
+        // to a neighbour.
+        let cursor = crate::list_core::ListCore::cursor_state(&base_id, window, cx);
         // `.dropdown__popover` is `overflow-y-auto`, and React Aria keeps the
         // focused row in view. `use_keyed_state` takes `cx` mutably, so the
         // handle precedes the theme.
@@ -701,9 +702,17 @@ impl RenderOnce for Menu {
                 gpui::ScrollHandle::new()
             });
         let menu_scroll_now = menu_scroll.read(cx).clone();
-        let typed = window.use_keyed_state(element_id::scoped(&base_id, "typed"), cx, |_, _| {
-            crate::list_nav::Typeahead::default()
-        });
+        // The menu does not wrap its arrows and pages to the enabled ends;
+        // its letters typeahead through the shared buffer.
+        let core = crate::list_core::ListCore::new(
+            cursor.clone(),
+            Some(crate::list_core::ListCore::typeahead_state(
+                &base_id, window, cx,
+            )),
+            false,
+            crate::list_core::PageKeys::Ends,
+            crate::list_core::ListScroll::Panel(menu_scroll_now.clone()),
+        );
         // One hover/press slot per item, for an `item_content` or
         // `item_start_content` closure. The slots exist only when one is set:
         // `track_interaction`'s handlers cost a frame of state, and the
@@ -767,30 +776,6 @@ impl RenderOnce for Menu {
             })
             .map(|(i, _)| i)
             .collect();
-        if let Some(stale) = cursor_at.filter(|index| !stops.contains(index)) {
-            cursor_at = stops
-                .iter()
-                .copied()
-                .find(|index| *index > stale)
-                .or_else(|| stops.iter().rev().copied().find(|index| *index < stale))
-                .or_else(|| stops.first().copied());
-            cursor.update(cx, |value, cx| {
-                *value = cursor_at;
-                cx.notify();
-            });
-        }
-        if focus_first {
-            if let Some(first) = stops.first().copied() {
-                cursor.update(cx, |value, cx| {
-                    *value = Some(first);
-                    cx.notify();
-                });
-                cursor_at = Some(first);
-            }
-            if let Some(state) = &self.focus_first {
-                state.update(cx, |value, _| *value = false);
-            }
-        }
         let labels: Vec<String> = self
             .items
             .iter()
@@ -832,6 +817,28 @@ impl RenderOnce for Menu {
                 _ => false,
             })
             .collect();
+        // The cursor resolves through the shared core: its key locates the
+        // row, and a key that is no longer a stop -- its item was disabled or
+        // vanished -- resolves to no cursor rather than repairing to the
+        // nearest enabled row the way an index did.
+        let rows_view = crate::list_core::ListRows {
+            keys: &item_keys,
+            stops: &stops,
+            labels: &labels,
+        };
+        let mut cursor_at = core.cursor_at(&rows_view, cx);
+        if cursor.read(cx).is_some() && cursor_at.is_none() {
+            core.set_cursor(None, cx);
+        }
+        if focus_first {
+            if let Some(first) = stops.first().copied() {
+                core.set_cursor(Some(item_keys[first].clone()), cx);
+                cursor_at = Some(first);
+            }
+            if let Some(state) = &self.focus_first {
+                state.update(cx, |value, _| *value = false);
+            }
+        }
         let item_bounds = self
             .items
             .iter()
@@ -987,13 +994,12 @@ impl RenderOnce for Menu {
         }
 
         if !stops.is_empty() {
-            let held = cursor.clone();
+            let core_for_keys = core.clone();
             let stops_for_keys = stops;
-            let typed_keys = typed;
+            let labels_for_keys = labels;
             let on_action = self.on_action.clone();
             let on_selection_change = self.on_selection_change.clone();
             let selection_own_for_keys = selection_own.clone();
-            let key_scroll = menu_scroll_now;
             let mode = self.selection_mode;
             let disallow_empty = self.disallow_empty_selection;
             let selected_now = self.selected_keys.clone();
@@ -1010,7 +1016,13 @@ impl RenderOnce for Menu {
             let interaction_for_keys = interaction.clone();
             panel = panel.on_key_down(move |event, window, cx| {
                 let key = event.keystroke.key.as_str();
-                let from = (*held.read(cx)).filter(|index| stops_for_keys.contains(index));
+                // The rows the shared core answers to, borrowed for this key.
+                let rows_view = crate::list_core::ListRows {
+                    keys: &keys,
+                    stops: &stops_for_keys,
+                    labels: &labels_for_keys,
+                };
+                let from = core_for_keys.cursor_at(&rows_view, cx);
                 if key == "left" {
                     if let Some(cb) = &on_back {
                         local_submenu.update(cx, |value, cx| {
@@ -1046,38 +1058,20 @@ impl RenderOnce for Menu {
                     }
                     return;
                 }
-                // Pinned React Aria 3.51.0 binds PageUp/PageDown through the
-                // menu's `useSelectableCollection`, which only runs while the
-                // panel is mounted: a closed trigger answers no page key at
-                // all. The handlers also require `manager.focusedKey != null`
-                // -- a mouse-opened menu has a null cursor until an arrow (or
-                // a keyboard open's focus-first) seats one, and the page keys
-                // must stay inert until then. With a cursor the list is
-                // non-scrollable -- HeroUI v3.2.4 puts the overflow scrolling
-                // on the Popover while the Menu element is `overflow-clip` --
-                // so a page takes the enabled end: `stops` already omits
-                // disabled rows, whatever the menu's length or scroll state.
-                let page_move = match key {
-                    "pagedown" if from.is_some() => stops_for_keys.last().copied(),
-                    "pageup" if from.is_some() => stops_for_keys.first().copied(),
-                    _ => None,
-                }
-                .filter(|next| Some(*next) != from);
-                match page_move.map_or_else(
-                    || crate::list_nav::resolve(&stops_for_keys, from, key, false),
-                    crate::list_nav::Move::To,
-                ) {
-                    crate::list_nav::Move::To(next) => {
-                        held.update(cx, |v, cx| {
-                            *v = Some(next);
-                            cx.notify();
-                        });
-                        // Keep the focused row on screen: a highlight that walks
-                        // out of the panel reads as the arrows having stopped.
-                        key_scroll.scroll_to_item(next);
-                    }
-                    crate::list_nav::Move::Activate => {
-                        let Some(i) = from else {
+                // The page keys, arrows, Home/End, activation and the
+                // typeahead buffer are the shared list core's. Pinned React
+                // Aria 3.51.0 binds PageUp/PageDown through the menu's
+                // `useSelectableCollection`, which only runs while the panel
+                // is mounted, and its handlers require `manager.focusedKey !=
+                // null` -- a mouse-opened menu has a null cursor until an
+                // arrow (or a keyboard open's focus-first) seats one, so the
+                // page keys stay inert until then. The menu is non-scrollable
+                // (`PageKeys::Ends`), so a page takes the enabled end:
+                // `stops` already omits disabled rows.
+                match core_for_keys.key_down(&rows_view, key, &event.keystroke.modifiers, cx) {
+                    crate::list_core::ListKey::Moved { .. } => {}
+                    crate::list_core::ListKey::Activate(at) => {
+                        let Some(i) = at else {
                             return;
                         };
                         let Some(item_key) = keys.get(i).cloned() else {
@@ -1143,28 +1137,7 @@ impl RenderOnce for Menu {
                             }
                         }
                     }
-                    crate::list_nav::Move::Ignore => {
-                        if !crate::list_nav::is_typeahead_key(key) {
-                            return;
-                        }
-                        let now = web_time::Instant::now();
-                        let (query, repeat) = typed_keys.update(cx, |t, _| {
-                            let query = t.push(key, now);
-                            (query, t.is_repeat())
-                        });
-                        if let Some(found) = crate::list_nav::typeahead(
-                            &labels,
-                            &stops_for_keys,
-                            from,
-                            &query,
-                            repeat,
-                        ) {
-                            held.update(cx, |v, cx| {
-                                *v = Some(found);
-                                cx.notify();
-                            });
-                        }
-                    }
+                    crate::list_core::ListKey::Unhandled => {}
                 }
             });
         }
@@ -1325,26 +1298,24 @@ impl RenderOnce for Menu {
                         // `.menu-item:hover` fills with `bg-default`, the full
                         // token, not the soft wash.
                         row = row.hover(move |s| s.bg(row_hover_bg));
-                        let pointer_cursor = cursor.clone();
+                        // A press seats the keyboard cursor on this item's key.
+                        let click_core = core.clone();
+                        let click_key = key.clone();
                         let pointer_focus = focus_handle.clone();
                         row = row.on_mouse_down(gpui::MouseButton::Left, move |_, window, cx| {
                             window.focus(&pointer_focus, cx);
-                            pointer_cursor.update(cx, |value, cx| {
-                                *value = Some(i);
-                                cx.notify();
-                            });
+                            click_core.set_cursor(Some(click_key.clone()), cx);
                         });
-                        let hover_cursor = cursor.clone();
+                        // Pointer hover moves real focus to the panel and, via
+                        // the shared core, seats the cursor on this item's key
+                        // for the next arrow. `seat_on_hover_with` keeps the
+                        // focus call and the seat in one gated listener --
+                        // GPUI runs same-element bubble listeners in reverse
+                        // registration order, so a separate focus listener
+                        // would see the cursor already seated and skip.
                         let hover_focus = focus_handle.clone();
-                        row = row.on_mouse_move(move |_, window, cx| {
-                            if crate::util::focus_visible(cx) || *hover_cursor.read(cx) == Some(i) {
-                                return;
-                            }
+                        row = core.seat_on_hover_with(row, key.clone(), move |window, cx| {
                             window.focus(&hover_focus, cx);
-                            hover_cursor.update(cx, |value, cx| {
-                                *value = Some(i);
-                                cx.notify();
-                            });
                         });
                     }
                     row = when_selected(row, is_selected, sem_primary(cx));

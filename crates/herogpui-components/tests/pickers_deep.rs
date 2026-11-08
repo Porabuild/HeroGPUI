@@ -6742,3 +6742,181 @@ fn combo_box_hover_keeps_a_keyboard_seated_cursor(cx: &mut TestAppContext) {
         "a keyboard session's cursor must survive pointer hover"
     );
 }
+
+/// The Autocomplete guard mirrors ComboBox's and Select's: a pointer hover
+/// over an enabled row seats the list cursor, so the next arrow continues from
+/// the hovered row rather than from wherever the cursor last sat.
+#[gpui::test]
+fn autocomplete_hover_seats_the_cursor_for_the_next_arrow(cx: &mut TestAppContext) {
+    let changes = events();
+    let recorded = changes.clone();
+    let state = search_state(cx);
+    let entity_id = state.entity_id().as_u64();
+    let state_for_view = state;
+    let cx = open_host(cx, move || {
+        let changes = changes.clone();
+        Autocomplete::new(
+            state_for_view.clone(),
+            keyed(&["Alpha", "Beta", "Gamma", "Delta"]),
+        )
+        .on_change(move |item, _, _| changes.borrow_mut().push(item.to_string()))
+        .into_any_element()
+    });
+
+    click(cx, 60., 18.);
+    flush_frame(cx);
+    let row = cx
+        .debug_bounds(combo_probe(format!("autocomplete-{entity_id}-list-Gamma")))
+        .expect("the Gamma row must be laid out");
+    cx.simulate_mouse_move(row.center(), None, Modifiers::none());
+    // Down walks from the hovered row to Delta; Enter reports it.
+    press(cx, "down");
+    press(cx, "enter");
+    assert_eq!(
+        recorded.borrow().as_slice(),
+        ["Delta"],
+        "hover must seat the cursor so the next arrow continues from it"
+    );
+}
+
+/// The Autocomplete guard mirrors Select's and ComboBox's: a keyboard-
+/// established cursor is not moved by pointer hover, so the next arrow
+/// continues from the keyboard row.
+#[gpui::test]
+fn autocomplete_hover_keeps_a_keyboard_seated_cursor(cx: &mut TestAppContext) {
+    let changes = events();
+    let recorded = changes.clone();
+    let state = search_state(cx);
+    let entity_id = state.entity_id().as_u64();
+    let state_for_view = state;
+    let cx = open_host(cx, move || {
+        let changes = changes.clone();
+        Autocomplete::new(
+            state_for_view.clone(),
+            keyed(&["Alpha", "Beta", "Gamma", "Delta"]),
+        )
+        .on_change(move |item, _, _| changes.borrow_mut().push(item.to_string()))
+        .into_any_element()
+    });
+
+    click(cx, 60., 18.);
+    flush_frame(cx);
+    // One Down seats the cursor on Alpha and turns on focus-visible.
+    press(cx, "down");
+    // Resting the pointer on Gamma must not move it.
+    let row = cx
+        .debug_bounds(combo_probe(format!("autocomplete-{entity_id}-list-Gamma")))
+        .expect("the Gamma row must be laid out");
+    cx.simulate_mouse_move(row.center(), None, Modifiers::none());
+    // Down continues from Alpha to Beta; Enter reports Beta — had the hover
+    // seated Gamma, the same keys would have reported Delta.
+    press(cx, "down");
+    press(cx, "enter");
+    assert_eq!(
+        recorded.borrow().as_slice(),
+        ["Beta"],
+        "a keyboard session's cursor must survive pointer hover"
+    );
+}
+
+/// A typeahead match in an open Select must scroll its row into view, the way
+/// React Aria keeps the focused key visible. The list here is taller than the
+/// capped panel, so the matched last row starts below the fold; one letter
+/// finds it by its unique initial and the reveal must bring it on screen.
+#[gpui::test]
+fn select_typeahead_scrolls_the_found_row_into_view(cx: &mut TestAppContext) {
+    still();
+    let page_scroll = gpui::ScrollHandle::new();
+    let page_for_view = page_scroll;
+    let cx = open_host(cx, move || {
+        let page_scroll = page_for_view.clone();
+        // Thirteen plain rows plus a last row with a unique initial, so a
+        // single letter resolves to it unambiguously and it starts below the
+        // capped panel.
+        let mut options: Vec<PickerItem> = (0..13)
+            .map(|i| {
+                let label = format!("Row {i:02}");
+                PickerItem::new(label.clone(), label)
+            })
+            .collect();
+        let last = "Zebra Final".to_owned();
+        options.push(PickerItem::new(last.clone(), last));
+        select_in_page(408., Select::new("sel-ta-scroll", options), page_scroll)
+    });
+    settle_select(cx, 640., 480.);
+    click(cx, 200., 426.);
+    settle_select(cx, 640., 480.);
+
+    let panel = cx
+        .debug_bounds("select-list-Name(\"sel-ta-scroll\")-panel")
+        .expect("the open panel must be laid out");
+    let hidden = cx
+        .debug_bounds("select-list-Name(\"sel-ta-scroll\")-opt-13")
+        .expect("the last row must be laid out");
+    assert!(
+        f32::from(hidden.top()) >= f32::from(panel.bottom()),
+        "the last row must start out of view in a capped panel: row={hidden:?} panel={panel:?}"
+    );
+
+    // "z" typeaheads to the last row; the reveal must scroll it into view.
+    press(cx, "z");
+    cx.update(|window, _| window.refresh());
+    cx.run_until_parked();
+    let revealed = cx
+        .debug_bounds("select-list-Name(\"sel-ta-scroll\")-opt-13")
+        .expect("the last row must still be laid out");
+    assert!(
+        f32::from(revealed.top()) < f32::from(panel.bottom())
+            && f32::from(revealed.bottom()) > f32::from(panel.top()),
+        "typeahead must scroll the found row into the panel: row={revealed:?} panel={panel:?}"
+    );
+}
+
+/// A Shift+letter typeahead is `useTypeSelect`'s `setFocusedKey`: it moves the
+/// cursor but must not extend a multiple selection the way Shift+Arrow does.
+/// Selecting Alpha first seats the anchor; Shift+D must move the cursor to
+/// Delta without reporting a range, and the next Enter then toggles Delta on
+/// its own — proof the cursor really sat on Delta.
+#[gpui::test]
+fn select_multiple_shift_letter_typeahead_moves_without_extending(cx: &mut TestAppContext) {
+    let picks = events();
+    let picked = picks.clone();
+    let cx = open_host(cx, move || {
+        let picks = picks.clone();
+        Select::new("sel-shift-ta", keyed(&["Alpha", "Beta", "Gamma", "Delta"]))
+            .selection_mode(SelectionMode::Multiple)
+            .default_open(true)
+            .on_selection_change_all(move |keys, _, _| {
+                picks.borrow_mut().push(
+                    keys.iter()
+                        .map(ToString::to_string)
+                        .collect::<Vec<_>>()
+                        .join(","),
+                );
+            })
+            .into_any_element()
+    });
+
+    // Tab reaches the trigger, Down seats the cursor on Alpha, and Enter
+    // toggles it into the selection and leaves the anchor there.
+    press(cx, "tab down enter");
+    assert_eq!(picked.borrow().as_slice(), ["Alpha"]);
+
+    // Shift+D typeaheads to Delta. A real arrow extension would report the
+    // whole Alpha..Delta range; a typeahead move must report nothing.
+    press(cx, "shift-d");
+    assert_eq!(
+        picked.borrow().as_slice(),
+        ["Alpha"],
+        "Shift+letter typeahead must move the cursor without extending the selection"
+    );
+
+    // Enter toggles the row the cursor landed on: Delta joins Alpha alone, not
+    // the range a Shift extension would have selected.
+    press(cx, "enter");
+    assert_eq!(
+        picked.borrow().as_slice(),
+        ["Alpha", "Alpha,Delta"],
+        "the typeahead cursor must sit on Delta for the next Enter"
+    );
+}
