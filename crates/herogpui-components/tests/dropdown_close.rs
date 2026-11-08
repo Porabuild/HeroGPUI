@@ -1486,3 +1486,236 @@ fn panel_union_tracks_a_moved_composite_between_frames(cx: &mut TestAppContext) 
     );
     assert_eq!(last(&opened), "open:false", "the pick must dismiss");
 }
+
+/// A Ctrl or Cmd chord is a command, not a letter: the list's typeahead must
+/// ignore it, while a plain letter still walks the cursor to its match. The
+/// rows give "b" two candidates (Banana then Blueberry), so a chord that
+/// wrongly typeahead'd would leave the cursor one row further on and Enter
+/// would report Blueberry instead of Banana.
+#[gpui::test]
+fn dropdown_typeahead_ignores_control_and_command_chords(cx: &mut TestAppContext) {
+    let actions = events();
+    let fired = actions.clone();
+
+    let cx = open_host(cx, move || {
+        let actions = actions.clone();
+        gpui::div()
+            .child(
+                Dropdown::uncontrolled(
+                    "dd-chord",
+                    Button::new("dd-chord-trigger").label("Pick"),
+                    vec![
+                        MenuItem::new("apple", "Apple"),
+                        MenuItem::new("banana", "Banana"),
+                        MenuItem::new("blueberry", "Blueberry"),
+                        MenuItem::new("cherry", "Cherry"),
+                    ],
+                )
+                .id("dd-chord")
+                .on_action(move |key, _, _| actions.borrow_mut().push(key.to_string())),
+            )
+            .into_any_element()
+    });
+
+    click(cx, 40., 18.);
+    press(cx, "down");
+    // Both chords must leave the cursor on Apple; only the plain "b" moves it,
+    // and it lands on the first b-row, Banana.
+    press(cx, "ctrl-b");
+    press(cx, "cmd-b");
+    press(cx, "b");
+    press(cx, "enter");
+    assert_eq!(
+        fired.borrow().as_slice(),
+        ["banana"],
+        "Ctrl/Cmd chords must not typeahead; a plain letter must reach Banana"
+    );
+}
+
+/// The cursor is held as the item's *key*, not its row index, so a reorder
+/// that moves the item keeps the cursor on it. Beta starts at index 1; after
+/// the reorder it sits at index 2 beside Gamma and Alpha, and Enter must still
+/// report Beta — an index cursor would have landed on Alpha.
+#[gpui::test]
+fn dropdown_cursor_follows_its_item_when_rows_reorder(cx: &mut TestAppContext) {
+    let reordered = Rc::new(Cell::new(false));
+    let reorder_for_render = reordered.clone();
+    let actions = events();
+    let fired = actions.clone();
+
+    let cx = open_host(cx, move || {
+        let actions = actions.clone();
+        let items = if reorder_for_render.get() {
+            vec![
+                MenuItem::new("gamma", "Gamma"),
+                MenuItem::new("alpha", "Alpha"),
+                MenuItem::new("beta", "Beta"),
+            ]
+        } else {
+            vec![
+                MenuItem::new("alpha", "Alpha"),
+                MenuItem::new("beta", "Beta"),
+                MenuItem::new("gamma", "Gamma"),
+            ]
+        };
+        gpui::div()
+            .child(
+                Dropdown::uncontrolled(
+                    "dd-reorder",
+                    Button::new("dd-reorder-trigger").label("Pick"),
+                    items,
+                )
+                .id("dd-reorder")
+                .on_action(move |key, _, _| actions.borrow_mut().push(key.to_string())),
+            )
+            .into_any_element()
+    });
+
+    click(cx, 40., 18.);
+    press(cx, "down");
+    press(cx, "down");
+    reordered.set(true);
+    cx.update(|window, _| window.refresh());
+    press(cx, "enter");
+    assert_eq!(
+        fired.borrow().as_slice(),
+        ["beta"],
+        "the cursor must follow its item key across the reorder"
+    );
+}
+
+/// A cursor whose item turns disabled resolves to no stop rather than
+/// repairing to a neighbour: Enter must fire nothing. Beta is the cursor after
+/// two Downs; disabling it and pressing Enter would report Alpha or Gamma had
+/// the cursor been repaired onto an enabled row.
+#[gpui::test]
+fn dropdown_cursor_clears_when_its_item_becomes_disabled(cx: &mut TestAppContext) {
+    let disabled = Rc::new(Cell::new(false));
+    let disabled_for_render = disabled.clone();
+    let actions = events();
+    let fired = actions.clone();
+
+    let cx = open_host(cx, move || {
+        let actions = actions.clone();
+        let disabled_keys: Vec<SharedString> = if disabled_for_render.get() {
+            vec!["beta".into()]
+        } else {
+            Vec::new()
+        };
+        gpui::div()
+            .child(
+                Dropdown::uncontrolled(
+                    "dd-disable",
+                    Button::new("dd-disable-trigger").label("Pick"),
+                    vec![
+                        MenuItem::new("alpha", "Alpha"),
+                        MenuItem::new("beta", "Beta"),
+                        MenuItem::new("gamma", "Gamma"),
+                    ],
+                )
+                .id("dd-disable")
+                .disabled_keys(disabled_keys)
+                .on_action(move |key, _, _| actions.borrow_mut().push(key.to_string())),
+            )
+            .into_any_element()
+    });
+
+    click(cx, 40., 18.);
+    press(cx, "down");
+    press(cx, "down");
+    disabled.set(true);
+    cx.update(|window, _| window.refresh());
+    press(cx, "enter");
+    assert!(
+        fired.borrow().is_empty(),
+        "a cursor whose item turned disabled must clear, not repair: {:?}",
+        fired.borrow().as_slice()
+    );
+}
+
+/// Hovering an enabled parent row must hand keyboard focus back to the parent
+/// menu even while a hovered submenu holds it. GPUI runs bubble-phase mouse
+/// listeners in reverse registration order, so seating the cursor and moving
+/// focus have to happen inside one listener or the seat wins the race and the
+/// panel is never focused.
+#[gpui::test]
+fn hovering_a_parent_row_takes_focus_back_from_a_hovered_submenu(cx: &mut TestAppContext) {
+    let actions = events();
+    let fired = actions.clone();
+    let cx = open_host(cx, move || {
+        let actions = actions.clone();
+        gpui::div()
+            .child(
+                Dropdown::uncontrolled(
+                    "dd-sub-focus",
+                    Button::new("dd-sub-focus-trigger").label("Share"),
+                    vec![
+                        MenuItem::new("share", "Share").submenu(vec![
+                            MenuItem::new("sms", "SMS"),
+                            MenuItem::new("email", "Email"),
+                        ]),
+                        MenuItem::new("other", "Other"),
+                    ],
+                )
+                .id("dd-sub-focus")
+                .item_content(|key, _| {
+                    let selector = format!("ddsf-item-{key}");
+                    gpui::div()
+                        .debug_selector(move || selector)
+                        .child(key.clone())
+                        .into_any_element()
+                })
+                .on_action(move |key, _, _| actions.borrow_mut().push(key.to_string())),
+            )
+            .into_any_element()
+    });
+
+    click(cx, 40., 18.);
+    cx.update(|window, _| window.refresh());
+    cx.run_until_parked();
+    // The open parent menu autofocuses its panel; that handle is the one the
+    // parent row must hand focus back to.
+    let parent_focus = cx.update(|window, cx| window.focused(cx));
+
+    // Hover the submenu-bearing row to open its panel, then hover a real
+    // submenu row so the child panel takes focus away from the parent.
+    let share = cx
+        .debug_bounds("ddsf-item-share")
+        .expect("the submenu row must be laid out");
+    cx.simulate_mouse_move(share.center(), None::<MouseButton>, Modifiers::none());
+    cx.update(|window, _| window.refresh());
+    cx.run_until_parked();
+    cx.debug_bounds("dropdown-submenu")
+        .expect("hovering the row must open its submenu");
+    let sms = cx
+        .debug_bounds("ddsf-item-sms")
+        .expect("the submenu row must be laid out");
+    cx.simulate_mouse_move(sms.center(), None::<MouseButton>, Modifiers::none());
+    cx.update(|window, _| window.refresh());
+    cx.run_until_parked();
+    let submenu_focus = cx.update(|window, cx| window.focused(cx));
+    assert!(
+        submenu_focus.is_some() && submenu_focus != parent_focus,
+        "hovering a submenu row must move focus off the parent panel: {submenu_focus:?} vs {parent_focus:?}"
+    );
+
+    // Hovering a different enabled parent row seats its cursor and must return
+    // focus to the parent panel, so Enter then activates that row.
+    let other = cx
+        .debug_bounds("ddsf-item-other")
+        .expect("the sibling row must be laid out");
+    cx.simulate_mouse_move(other.center(), None::<MouseButton>, Modifiers::none());
+    cx.update(|window, _| window.refresh());
+    cx.run_until_parked();
+    let focus_after = cx.update(|window, cx| window.focused(cx));
+    assert_eq!(
+        focus_after, parent_focus,
+        "hovering a parent row must take focus back from the submenu"
+    );
+    press(cx, "enter");
+    assert_eq!(
+        fired.borrow().as_slice(),
+        ["other"],
+        "Enter on the refocused parent menu must activate the hovered row"
+    );
+}

@@ -133,30 +133,6 @@ struct FocusOpen {
     was_open: bool,
 }
 
-/// Which suggestion the keyboard is on, held as the item's *key* so the
-/// cursor stays on the same item when the query filters the list or the
-/// caller reorders the collection. `hidden_query` retains the cursor across a
-/// multiple-mode pick, which clears the query before the next frame can
-/// re-derive the row: while the query equals the retained value the cursor
-/// stays alive even when the capped or filtered list no longer renders its
-/// item.
-#[derive(Clone, Debug, PartialEq, Eq)]
-struct ComboCursor {
-    key: SharedString,
-    hidden_query: Option<String>,
-}
-
-fn cursor_for(rows: &[PickerItem], index: usize, hidden_query: Option<String>) -> ComboCursor {
-    ComboCursor {
-        key: rows[index].key().clone(),
-        hidden_query,
-    }
-}
-
-fn cursor_position(rows: &[PickerItem], cursor: &ComboCursor) -> Option<usize> {
-    rows.iter().position(|item| item.key() == &cursor.key)
-}
-
 /// The label an item key resolves to, or `None` when the key has no item in
 /// the collection (still loading, or already removed).
 fn label_of_key<'a>(items: &'a [PickerItem], key: &SharedString) -> Option<&'a SharedString> {
@@ -860,7 +836,8 @@ struct ComboFrame {
     focus_handle: gpui::FocusHandle,
     show_all_items: Entity<bool>,
     display_full_collection: bool,
-    cursor: Entity<Option<ComboCursor>>,
+    core: crate::list_core::ListCore,
+    retained: Entity<Option<(SharedString, String)>>,
     matches: Rc<[PickerItem]>,
     focus_open: Option<Entity<FocusOpen>>,
     inside_pressed: Rc<Cell<bool>>,
@@ -1109,12 +1086,22 @@ impl ComboBox {
         let display_full_collection =
             *show_all_items.read(cx) || (self.menu_trigger == MenuTrigger::Manual && !open_state);
 
-        // Which suggestion the keyboard is on. Input edits clear it, matching
-        // React Stately's focused-key reset before the filtered list changes.
+        // Which suggestion the keyboard is on, held as the item's *key* so the
+        // cursor stays on the same item when the query filters or the caller
+        // reorders the collection. Input edits clear it, matching React
+        // Stately's focused-key reset before the filtered list changes.
         // Created ahead of the matches: the idle gate below reads it.
-        let cursor = window.use_keyed_state(element_id::scoped(base_id, "cursor"), cx, |_, _| {
-            None::<ComboCursor>
-        });
+        let cursor = crate::list_core::ListCore::cursor_state(base_id, window, cx);
+        // A cursor picked in `multiple` mode survives the query reset its pick
+        // performs, but only for that one edit: the pair `(key, query)` says
+        // "this key was retained while the query read `query`". Any other
+        // cursor write clears it, so a stale pair cannot resurrect a cursor
+        // the user has since moved.
+        let retained = window.use_keyed_state(
+            element_id::scoped(base_id, "cursor-retained"),
+            cx,
+            |_, _| None::<(SharedString, String)>,
+        );
 
         let matches = self.matches(
             &controlled,
@@ -1133,19 +1120,18 @@ impl ComboBox {
         // presses keep the list open, and the chevron or a row owns its click.
         let inside_pressed = Rc::new(Cell::new(false));
 
-        let stale_cursor = cursor.read(cx).as_ref().is_some_and(|focused| {
-            let visible = cursor_position(&matches, focused).is_some();
-            let retained_hidden = focused.hidden_query.as_deref() == Some(raw_query.as_str())
-                && items.iter().any(|item| item.key() == &focused.key);
-            self.disabled_keys.contains(&focused.key) || (!visible && !retained_hidden)
+        // A cursor is stale when its key is disabled, or when it is neither a
+        // visible match nor retained across the current query by the
+        // `(key, query)` pair a multiple-mode pick left behind.
+        let stale_cursor = cursor.read(cx).as_ref().is_some_and(|key| {
+            let visible = matches.iter().any(|item| item.key() == key);
+            let retained_hidden = retained
+                .read(cx)
+                .as_ref()
+                .is_some_and(|(retained_key, query)| retained_key == key && query == &raw_query)
+                && items.iter().any(|item| item.key() == key);
+            self.disabled_keys.contains(key) || (!visible && !retained_hidden)
         });
-        if stale_cursor {
-            cursor.update(cx, |value, _| *value = None);
-        }
-        let cursor_at = cursor
-            .read(cx)
-            .as_ref()
-            .and_then(|focused| cursor_position(&matches, focused));
         // React Aria keeps the focused row in view; the panel scrolls and the
         // virtual list scrolls itself. `use_keyed_state` takes `cx` mutably.
         let list_scroll =
@@ -1158,6 +1144,51 @@ impl ComboBox {
             });
         let list_scroll_now = list_scroll.read(cx).clone();
         let panel_scroll_now = panel_scroll.read(cx).clone();
+        // The list's shared navigation core owns the keyed cursor, the move
+        // resolution, and the reveal scroll. ComboBox keeps its own gates in
+        // front of it -- the page keys are gated on the list being open, Tab
+        // maps to Enter, and a custom value commits on Enter -- but every
+        // cursor read and write, every move, and every reveal routes through
+        // here. Its text field owns the query,
+        // so the list carries no typeahead buffer; its page keys take the
+        // enabled ends, matching the non-scrolling suggestion list.
+        let list_core = crate::list_core::ListCore::new(
+            cursor.clone(),
+            None,
+            self.should_focus_wrap,
+            crate::list_core::PageKeys::Ends,
+            if self.row_height.is_some() {
+                crate::list_core::ListScroll::Virtual(list_scroll_now.clone())
+            } else {
+                crate::list_core::ListScroll::Panel(panel_scroll_now.clone())
+            },
+        );
+        // A stale cursor clears through the core, ahead of the resolution
+        // below that reads it.
+        if stale_cursor {
+            list_core.set_cursor(None, cx);
+            retained.update(cx, |value, _| *value = None);
+        }
+        // The row the cursor's key lands on in the rendered matches, resolved
+        // through the same core the keys use.
+        let match_keys: Vec<SharedString> = matches.iter().map(|item| item.key().clone()).collect();
+        let match_stops: Vec<usize> = (0..matches.len())
+            .filter(|i| {
+                matches
+                    .get(*i)
+                    .is_some_and(|item| !self.disabled_keys.contains(item.key()))
+            })
+            .collect();
+        let match_labels: Vec<String> = matches
+            .iter()
+            .map(|item| item.label().to_string())
+            .collect();
+        let match_rows = crate::list_core::ListRows {
+            keys: &match_keys,
+            stops: &match_stops,
+            labels: &match_labels,
+        };
+        let cursor_at = list_core.cursor_at(&match_rows, cx);
 
         let commit_value = self.commit_action(&controlled);
         let blur_close = close_open.clone();
@@ -1203,7 +1234,8 @@ impl ComboBox {
             focus_handle,
             show_all_items,
             display_full_collection,
-            cursor,
+            core: list_core,
+            retained,
             matches,
             focus_open,
             inside_pressed,
@@ -1334,7 +1366,7 @@ impl ComboBox {
         controlled: &ComboControlled,
         raw_query: &str,
         display_full_collection: bool,
-        cursor: &Entity<Option<ComboCursor>>,
+        cursor: &Entity<Option<SharedString>>,
         window: &mut Window,
         cx: &mut App,
     ) -> Rc<[PickerItem]> {
@@ -1664,11 +1696,13 @@ impl ComboBox {
             ref raw_query,
             is_invalid,
             ref show_all_items,
-            ref cursor,
+            ref core,
+            ref retained,
             ref focus_open,
             ..
         } = *frame;
-        let cursor_on_change = cursor.clone();
+        let core_on_change = core.clone();
+        let retained_on_change = retained.clone();
         let validate = self.validate.clone();
         let mut input = Input::new(self.state.clone())
             .variant(self.variant)
@@ -1706,7 +1740,8 @@ impl ComboBox {
             if let Some(cb) = &input_change {
                 cb(text, window, cx);
             }
-            cursor_on_change.update(cx, |v, _| *v = None);
+            core_on_change.set_cursor(None, cx);
+            retained_on_change.update(cx, |v, _| *v = None);
 
             if selection_mode_on_change == SelectionMode::Single
                 && !input_value_on_change.is_empty()
@@ -1863,10 +1898,9 @@ impl ComboBox {
             ref raw_query,
             ref show_all_items,
             display_full_collection,
-            ref cursor,
+            ref core,
+            ref retained,
             ref matches,
-            ref list_scroll_now,
-            ref panel_scroll_now,
             ref blur_scope,
             ..
         } = *frame;
@@ -1888,11 +1922,8 @@ impl ComboBox {
                     .is_some_and(|item| !self.disabled_keys.contains(item.key()))
             })
             .collect();
-        let held = cursor.clone();
-        let wrap = self.should_focus_wrap;
-        let virtual_rows = self.row_height.is_some();
-        let key_list_scroll = list_scroll_now.clone();
-        let key_panel_scroll = panel_scroll_now.clone();
+        let key_core = core.clone();
+        let key_retained = retained.clone();
         let rows = key_rows;
         let state = self.state.clone();
         let allows_custom_value = self.allows_custom_value;
@@ -1918,11 +1949,8 @@ impl ComboBox {
         let handler = ComboKeys {
             rows,
             stops,
-            held,
-            wrap,
-            virtual_rows,
-            key_list_scroll,
-            key_panel_scroll,
+            core: key_core,
+            retained: key_retained,
             state,
             allows_custom_value,
             was_open,
@@ -2063,7 +2091,8 @@ impl ComboBox {
             layout,
             container_radius,
             close_open,
-            cursor,
+            core,
+            retained,
             matches,
             inside_pressed,
             cursor_at,
@@ -2129,7 +2158,8 @@ impl ComboBox {
         let row_input_change = self.on_input_change.clone();
         let on_change_one = self.on_selection_change.clone();
         let row_state = self.state.clone();
-        let row_cursor = cursor;
+        let row_core = core;
+        let row_retained = retained;
         let selection_own = selection_own;
         let row_open_own = open_own;
         let row_open_state = open_state;
@@ -2162,7 +2192,8 @@ impl ComboBox {
             row_input_change,
             on_change_one,
             row_state,
-            row_cursor,
+            row_core,
+            row_retained,
             selection_own,
             row_open_own,
             row_open_state,
@@ -2251,11 +2282,8 @@ impl ComboBox {
 struct ComboKeys {
     rows: Rc<[PickerItem]>,
     stops: Vec<usize>,
-    held: Entity<Option<ComboCursor>>,
-    wrap: bool,
-    virtual_rows: bool,
-    key_list_scroll: crate::VirtualListHandle,
-    key_panel_scroll: gpui::ScrollHandle,
+    core: crate::list_core::ListCore,
+    retained: Entity<Option<(SharedString, String)>>,
     state: Entity<InputState>,
     allows_custom_value: bool,
     was_open: bool,
@@ -2281,13 +2309,13 @@ struct ComboKeys {
 
 impl ComboKeys {
     fn on_key_down(&self, event: &gpui::KeyDownEvent, window: &mut Window, cx: &mut App) {
-        // An owned handle, so the pinned `cursor_position(&rows, ..)` reads
-        // the collection the way the closure that held it did.
+        // An owned handle, so the row collection reads the way the closure
+        // that held it did.
         let rows = Rc::clone(&self.rows);
         let Self {
             ref stops,
-            ref held,
-            wrap,
+            ref core,
+            ref retained,
             ref state,
             allows_custom_value,
             was_open,
@@ -2312,7 +2340,7 @@ impl ComboKeys {
         let is_open = open_own_keys
             .as_ref()
             .map_or(was_open, |held| *held.read(cx));
-        let stale_cursor = held.read(cx).as_ref().is_some_and(|focused| {
+        let stale_cursor = core.cursor_key(cx).is_some_and(|key| {
             let current_query = state.read(cx).value().to_owned();
             let display_full = (current_query == *key_query && *show_all_items.read(cx))
                 || (key_menu_trigger == MenuTrigger::Manual && !is_open);
@@ -2339,13 +2367,20 @@ impl ComboKeys {
                     )
                     .into()
                 };
-            let visible = cursor_position(&current_rows, focused).is_some();
-            let retained_hidden = focused.hidden_query.as_deref() == Some(current_query.as_str())
-                && key_items.iter().any(|item| item.key() == &focused.key);
-            key_disabled.contains(&focused.key) || (!visible && !retained_hidden)
+            let visible = current_rows.iter().any(|item| item.key() == &key);
+            let retained_hidden =
+                retained
+                    .read(cx)
+                    .as_ref()
+                    .is_some_and(|(retained_key, query)| {
+                        *retained_key == key && query == &current_query
+                    })
+                    && key_items.iter().any(|item| item.key() == &key);
+            key_disabled.contains(&key) || (!visible && !retained_hidden)
         });
         if stale_cursor {
-            held.update(cx, |value, _| *value = None);
+            core.set_cursor(None, cx);
+            retained.update(cx, |value, _| *value = None);
         }
         // `allowsCustomValue` is the promise behind the drawn hint
         // "Press Enter to use this value". A no-match query has no
@@ -2363,10 +2398,9 @@ impl ComboKeys {
         if allows_custom_value
             && key == "enter"
             && !state.read(cx).value().is_empty()
-            && held
-                .read(cx)
-                .as_ref()
-                .is_none_or(|focused| stale_cursor || cursor_position(&rows, focused).is_none())
+            && core
+                .cursor_key(cx)
+                .is_none_or(|key| stale_cursor || !rows.iter().any(|item| item.key() == &key))
         {
             let selected_label = selected_now
                 .first()
@@ -2387,7 +2421,8 @@ impl ComboKeys {
                     }
                 }
             }
-            held.update(cx, |v, _| *v = None);
+            core.set_cursor(None, cx);
+            retained.update(cx, |value, _| *value = None);
             key_close(window, cx);
             // Pinned React Aria 3.51.0's `Enter` shortcut prevents
             // the default only while the menu is open
@@ -2399,7 +2434,7 @@ impl ComboKeys {
             }
             return;
         }
-        if key == "enter" && (stale_cursor || held.read(cx).is_none()) {
+        if key == "enter" && (stale_cursor || core.cursor_key(cx).is_none()) {
             let reset_value = if key_multiple {
                 String::new()
             } else {
@@ -2431,11 +2466,17 @@ impl ComboKeys {
             }
             return;
         }
-        let from = held
-            .read(cx)
-            .as_ref()
-            .and_then(|focused| cursor_position(&rows, focused));
-        let nav_key = if key == "tab" && is_open && held.read(cx).is_some() {
+        // The rows the key event resolves over: the rendered collection's
+        // keys, its enabled stops, and each row's typeahead label. The core
+        // resolves the cursor's key to a stop the same way the frame does.
+        let row_keys: Vec<SharedString> = rows.iter().map(|item| item.key().clone()).collect();
+        let row_labels: Vec<String> = rows.iter().map(|item| item.label().to_string()).collect();
+        let rows_view = crate::list_core::ListRows {
+            keys: &row_keys,
+            stops,
+            labels: &row_labels,
+        };
+        let nav_key = if key == "tab" && is_open && core.cursor_key(cx).is_some() {
             "enter"
         } else {
             key
@@ -2446,164 +2487,149 @@ impl ComboKeys {
         // keys must not open it and must not move a retained cursor.
         // Open, those handlers require `manager.focusedKey != null` --
         // a mouse-opened, selection-less ComboBox has a null cursor
-        // and must answer nothing until an arrow establishes one.
-        // With a cursor the list is non-scrollable -- HeroUI v3.2.4
-        // puts the overflow scrolling on the Popover while the ListBox
-        // element is `overflow-clip` -- so a page takes the enabled
-        // end: `stops` already omits disabled rows, whatever the
-        // list's length or scroll state.
-        let page_move = match nav_key {
-            "pagedown" if is_open && from.is_some() => stops.last().copied(),
-            "pageup" if is_open && from.is_some() => stops.first().copied(),
-            _ => None,
+        // and must answer nothing until an arrow establishes one (the
+        // core's page keys answer only with a cursor). With a cursor
+        // the list is non-scrollable -- HeroUI v3.2.4 puts the
+        // overflow scrolling on the Popover while the ListBox element
+        // is `overflow-clip` -- so a page takes the enabled end
+        // (`PageKeys::Ends`): `stops` already omits disabled rows,
+        // whatever the list's length or scroll state.
+        if matches!(nav_key, "pagedown" | "pageup") && !is_open {
+            return;
         }
-        .filter(|next| Some(*next) != from);
-        let next_move = page_move.map_or_else(
-            || crate::list_nav::resolve(stops, from, nav_key, wrap),
-            crate::list_nav::Move::To,
-        );
-        self.apply_move(next_move, key, window, cx);
+        match core.key_down(&rows_view, nav_key, &event.keystroke.modifiers, cx) {
+            crate::list_core::ListKey::Moved { .. } => self.moved(window, cx),
+            crate::list_core::ListKey::Activate(_) => self.activate(key, window, cx),
+            crate::list_core::ListKey::Unhandled => {}
+        }
     }
 
-    /// The open list's answer to a resolved move: walk the cursor (opening
-    /// the list), or take the cursor row.
-    fn apply_move(
-        &self,
-        next_move: crate::list_nav::Move,
-        key: &str,
-        window: &mut Window,
-        cx: &mut App,
-    ) {
+    /// The list's answer to a cursor the core walked (and already wrote and
+    /// revealed): drop any retention and open the list.
+    fn moved(&self, window: &mut Window, cx: &mut App) {
         let Self {
-            ref rows,
-            ref held,
-            virtual_rows,
-            ref key_list_scroll,
-            ref key_panel_scroll,
-            ref state,
+            ref retained,
             was_open,
             ref show_all_items,
+            ref open_own_keys,
+            ref on_open_change,
+            ..
+        } = *self;
+        // A fresh seat clears any retention a multiple-mode pick left:
+        // the cursor now answers for the row it visibly sits on.
+        retained.update(cx, |value, _| *value = None);
+        // Walking the list opens it, which is what typing does.
+        if let Some(held) = &open_own_keys {
+            held.update(cx, |v, cx| {
+                *v = true;
+                cx.notify();
+            });
+        }
+        if !was_open {
+            show_all_items.update(cx, |v, _| *v = true);
+            if let Some(cb) = &on_open_change {
+                cb(&true, window, cx);
+            }
+        }
+    }
+
+    /// The list's answer to Enter (or a Tab mapped to it): take the cursor
+    /// row.
+    fn activate(&self, key: &str, window: &mut Window, cx: &mut App) {
+        let Self {
+            ref core,
+            ref retained,
+            ref state,
             ref on_selection_change,
             ref on_selection_change_all,
             ref on_input_change,
             ref selected_now,
             ref key_items,
-            ref open_own_keys,
-            ref on_open_change,
             ref key_selection_own,
             ref key_close,
             ref key_blur,
             key_multiple,
             ..
         } = *self;
-        match next_move {
-            crate::list_nav::Move::To(next) => {
-                let next_cursor = Some(cursor_for(rows, next, None));
+        // The activation reads the cursor's key, not the
+        // rendered row: a cursor retained across a query reset
+        // (the multiple-mode pick above) can sit on an item
+        // the capped or filtered list no longer renders, and
+        // Enter must still toggle it.
+        let Some(item_key) = core.cursor_key(cx) else {
+            return;
+        };
+        let item_label = label_of_key(key_items, &item_key)
+            .cloned()
+            .unwrap_or_default();
+        // An Enter that picks a row is the list's, not an
+        // enclosing form's. A Tab mapped here keeps its
+        // native motion: only Enter is stopped.
+        if key == "enter" {
+            cx.stop_propagation();
+        }
+        if key_multiple {
+            let had_query = !state.read(cx).value().is_empty();
+            state.update(cx, |st, cx| {
+                st.set_value(String::new());
+                cx.notify();
+            });
+            // The pick resets the query; retain the cursor on this
+            // key across that one edit so the next arrow still knows
+            // where it was.
+            retained.update(cx, |value, _| {
+                *value = Some((item_key.clone(), String::new()));
+            });
+            let mut next = selected_now.clone();
+            toggle_key(&mut next, &item_key);
+            if let Some(held) = &key_selection_own {
+                let next = next.clone();
                 held.update(cx, |v, cx| {
-                    *v = next_cursor;
+                    *v = next;
                     cx.notify();
                 });
-                if virtual_rows {
-                    key_list_scroll.scroll_to_item(next, crate::VirtualListScroll::Center);
-                } else {
-                    key_panel_scroll.scroll_to_item(next);
-                }
-                // Walking the list opens it, which is what typing does.
-                if let Some(held) = &open_own_keys {
-                    held.update(cx, |v, cx| {
-                        *v = true;
-                        cx.notify();
-                    });
-                }
-                if !was_open {
-                    show_all_items.update(cx, |v, _| *v = true);
-                    if let Some(cb) = &on_open_change {
-                        cb(&true, window, cx);
-                    }
+            }
+            if let Some(cb) = &on_selection_change_all {
+                cb(&next, window, cx);
+            }
+            if had_query {
+                if let Some(cb) = &on_input_change {
+                    cb("", window, cx);
                 }
             }
-            crate::list_nav::Move::Activate => {
-                // The activation reads the held cursor's key, not the
-                // rendered row: a cursor retained across a query reset
-                // (the multiple-mode pick above) can sit on an item
-                // the capped or filtered list no longer renders, and
-                // Enter must still toggle it.
-                let Some(item_key) = held.read(cx).as_ref().map(|focused| focused.key.clone())
-                else {
-                    return;
-                };
-                let item_label = label_of_key(key_items, &item_key)
-                    .cloned()
-                    .unwrap_or_default();
-                // An Enter that picks a row is the list's, not an
-                // enclosing form's. A Tab mapped here keeps its
-                // native motion: only Enter is stopped.
-                if key == "enter" {
-                    cx.stop_propagation();
-                }
-                if key_multiple {
-                    let had_query = !state.read(cx).value().is_empty();
-                    state.update(cx, |st, cx| {
-                        st.set_value(String::new());
-                        cx.notify();
-                    });
-                    held.update(cx, |v, _| {
-                        if let Some(focused) = v {
-                            focused.hidden_query = Some(String::new());
-                        }
-                    });
-                    let mut next = selected_now.clone();
-                    toggle_key(&mut next, &item_key);
-                    if let Some(held) = &key_selection_own {
-                        let next = next.clone();
-                        held.update(cx, |v, cx| {
-                            *v = next;
-                            cx.notify();
-                        });
-                    }
-                    if let Some(cb) = &on_selection_change_all {
-                        cb(&next, window, cx);
-                    }
-                    if had_query {
-                        if let Some(cb) = &on_input_change {
-                            cb("", window, cx);
-                        }
-                    }
-                    return;
-                }
-                // Taking a suggestion fills the field with the row's
-                // label and closes the list, the way a click does.
-                // Close first so the retained exit frame does not
-                // re-run the custom filter for the value we are about
-                // to copy into the input.
-                key_close(window, cx);
-                state.update(cx, |st, cx| {
-                    st.set_value(item_label.to_string());
-                    cx.notify();
-                });
-                // Uncontrolled: record the pick in the selection too,
-                // or `ComboBox.Value` would never see it.
-                if let Some(held) = &key_selection_own {
-                    let next = vec![item_key.clone()];
-                    held.update(cx, |v, cx| {
-                        *v = next;
-                        cx.notify();
-                    });
-                }
-                held.update(cx, |v, _| *v = None);
-                if key == "tab" {
-                    key_blur.consume(cx);
-                }
-                if selected_now.first() != Some(&item_key) {
-                    if let Some(cb) = &on_selection_change_all {
-                        cb(std::slice::from_ref(&item_key), window, cx);
-                    }
-                }
-                if let Some(cb) = &on_selection_change {
-                    cb(&item_key, window, cx);
-                }
+            return;
+        }
+        // Taking a suggestion fills the field with the row's
+        // label and closes the list, the way a click does.
+        // Close first so the retained exit frame does not
+        // re-run the custom filter for the value we are about
+        // to copy into the input.
+        key_close(window, cx);
+        state.update(cx, |st, cx| {
+            st.set_value(item_label.to_string());
+            cx.notify();
+        });
+        // Uncontrolled: record the pick in the selection too,
+        // or `ComboBox.Value` would never see it.
+        if let Some(held) = &key_selection_own {
+            let next = vec![item_key.clone()];
+            held.update(cx, |v, cx| {
+                *v = next;
+                cx.notify();
+            });
+        }
+        core.set_cursor(None, cx);
+        retained.update(cx, |value, _| *value = None);
+        if key == "tab" {
+            key_blur.consume(cx);
+        }
+        if selected_now.first() != Some(&item_key) {
+            if let Some(cb) = &on_selection_change_all {
+                cb(std::slice::from_ref(&item_key), window, cx);
             }
-            crate::list_nav::Move::Ignore => {}
+        }
+        if let Some(cb) = &on_selection_change {
+            cb(&item_key, window, cx);
         }
     }
 }
@@ -2628,7 +2654,8 @@ struct ComboRows {
     row_input_change: Option<OnInputChange>,
     on_change_one: Option<OnSelectionChange>,
     row_state: Entity<InputState>,
-    row_cursor: Entity<Option<ComboCursor>>,
+    row_core: crate::list_core::ListCore,
+    row_retained: Entity<Option<(SharedString, String)>>,
     selection_own: Option<Entity<Vec<SharedString>>>,
     row_open_own: Option<Entity<bool>>,
     row_open_state: bool,
@@ -2659,7 +2686,8 @@ impl ComboRows {
             row_read_only,
             ref row_selected_keys,
             ref indicator,
-            ref row_cursor,
+            ref row_core,
+            ref row_retained,
             row_disabled_opacity,
             ref row_base,
             row_virtualized,
@@ -2757,24 +2785,12 @@ impl ComboRows {
             // `useOption.onHoverStart` with `shouldFocusOnHover`: pointer
             // hover seats the virtual cursor for the next arrow key, but a
             // keyboard-active session (`focus_visible`) keeps it. The input
-            // keeps real focus — only the cursor moves.
+            // keeps real focus — only the cursor moves. A fresh seat clears
+            // any retention a multiple-mode pick left behind.
             if panel_interactive {
-                let hover_cursor = row_cursor.clone();
-                let next_cursor = cursor_for(rows, index, None);
-                let hover_key = item.key().clone();
-                row = row.on_mouse_move(move |_, _window, cx| {
-                    if util::focus_visible(cx)
-                        || hover_cursor
-                            .read(cx)
-                            .as_ref()
-                            .is_some_and(|cursor| cursor.key == hover_key)
-                    {
-                        return;
-                    }
-                    hover_cursor.update(cx, |v, cx| {
-                        *v = Some(next_cursor.clone());
-                        cx.notify();
-                    });
+                let retained_for_hover = row_retained.clone();
+                row = row_core.seat_on_hover_with(row, item.key().clone(), move |_, cx| {
+                    retained_for_hover.update(cx, |value, _| *value = None);
                 });
             }
         }
@@ -2864,7 +2880,8 @@ impl ComboRows {
             ref on_change_all,
             ref row_input_change,
             ref row_state,
-            ref row_cursor,
+            ref row_core,
+            ref row_retained,
             ref selection_own,
             ..
         } = *self;
@@ -2874,8 +2891,8 @@ impl ComboRows {
             let current = row_selected_keys.clone();
             let value = item.key().clone();
             let state = row_state.clone();
-            let cursor = row_cursor.clone();
-            let next_cursor = cursor_for(&rows, index, Some(String::new()));
+            let core = row_core.clone();
+            let retained = row_retained.clone();
             let input_change = row_input_change.clone();
             row = row.on_click(move |_, window, cx| {
                 let had_query = !state.read(cx).value().is_empty();
@@ -2885,7 +2902,10 @@ impl ComboRows {
                     st.set_value(String::new());
                     cx.notify();
                 });
-                cursor.update(cx, |v, _| *v = Some(next_cursor.clone()));
+                // The pick resets the query; seat the cursor on this key and
+                // retain it across that one edit.
+                core.set_cursor(Some(value.clone()), cx);
+                retained.update(cx, |v, _| *v = Some((value.clone(), String::new())));
                 let mut next = current.clone();
                 toggle_key(&mut next, &value);
                 // Uncontrolled: keep the new set, or picking an

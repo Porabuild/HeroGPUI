@@ -19,6 +19,7 @@ on the page, so a component whose Accessibility section is short is asked less.
 That is why an unmapped claim is an error rather than a skip -- the mapping table
 is where the reading gets pinned down.
 """
+import collections
 import io
 import os
 import re
@@ -190,7 +191,7 @@ SELECT_PAGING = ('Select',)
 # the Dropdown's panel handler exists only while open, but the ComboBox drives
 # open and navigation from one root handler, so its mapping must also demand
 # the open state or a closed field with a retained cursor would move -- and
-# its `Move::To` path would even reopen the list.
+# its `Moved` path would even reopen the list.
 POPUP_PAGING = ('ComboBox', 'Dropdown')
 
 # Autocomplete is the exception: `autocomplete.css` styles the composed
@@ -398,6 +399,86 @@ RECORD_IDENTITY = (
     r'.*?fn eq\(&self, other: &Self\) -> bool \{\s*self\.entries == other\.entries'
 )
 
+# The popup lists' shared navigation core. Select, ComboBox, Autocomplete and
+# Dropdown route their open list's keys through `ListCore::key_down`, so the
+# mechanism behind their arrows, Home/End, typeahead, reveal and paging lives
+# in `list_core.rs`, and DELEGATED_EVIDENCE below requires each component's
+# own production source to call it, configured the way its claim needs. Like
+# every delegated mechanism, these are read from the shared module's
+# production source: comments blanked, test modules removed.
+LIST_CORE = 'list_core.rs'
+# Stays inside one `impl` method (its body ends at a 4-space-indented brace).
+_IN_METHOD = r'(?:(?!\n    \}).)*?'
+# Stays inside one arm of `viewport_target`'s scroller match.
+_IN_SCROLL_ARM = r'(?:(?!\n            \}).)*?'
+# Arrows and Home/End: the core's key path resolves through `list_nav`, with
+# the list's own wrap flag.
+LIST_CORE_RESOLVE = (
+    r'(?s)fn key_down\(' + _IN_METHOD
+    + r'list_nav::resolve\(rows\.stops, from, key, self\.wrap\)'
+)
+# Typeahead: a key the arrows ignore reaches the buffer, but only after the
+# chord filter -- pinned React Aria `useTypeSelect` returns early on
+# `ctrlKey || metaKey || altKey`, so a command chord never types.
+LIST_CORE_TYPEAHEAD = (
+    r'(?s)\A(?=.*list_nav::Move::Ignore => self\.typeahead_key\(rows, from, key, modifiers, cx\))'
+    r'(?=.*fn typeahead_key\(' + _IN_METHOD
+    + r'if modifiers\.control \|\| modifiers\.alt \|\| modifiers\.platform \{'
+    r'\s*return ListKey::Unhandled;\s*\}' + _IN_METHOD
+    + r'list_nav::typeahead\(rows\.labels, rows\.stops, from, &query, repeat\))'
+)
+# Scroll into view: every scroller kind reveals its row, and both keyboard
+# moves -- an arrow/page/Home/End move and a typeahead match -- reveal the row
+# they seat (pinned `useSelectableCollection` scrolls the focused key into
+# view on every keyboard-modality focus change).
+LIST_CORE_REVEAL = (
+    r'(?s)\A(?=.*impl ListScroll \{\s*pub\(crate\) fn reveal\(&self, index: usize\) \{'
+    r'\s*match self \{\s*ListScroll::Panel\(scroll\) => scroll\.scroll_to_item\(index\),'
+    r'\s*ListScroll::Uniform \{ handle, \.\. \} => \{'
+    r'\s*handle\.scroll_to_item\(index, gpui::ScrollStrategy::Center\);?\s*\}'
+    r'\s*ListScroll::Virtual\(handle\) => handle\.scroll_to_item\(index, VirtualListScroll::Center\),)'
+    r'(?=.*fn key_down\(' + _IN_METHOD
+    + r'list_nav::Move::To\(to\) => \{'
+    r'\s*self\.set_cursor\(Some\(rows\.keys\[to\]\.clone\(\)\), cx\);\s*self\.scroll\.reveal\(to\);)'
+    r'(?=.*fn typeahead_key\(' + _IN_METHOD
+    + r'Some\(to\) => \{'
+    r'\s*self\.set_cursor\(Some\(rows\.keys\[to\]\.clone\(\)\), cx\);\s*self\.scroll\.reveal\(to\);)'
+)
+# The page keys answer only with a cursor (`manager.focusedKey != null`): the
+# page target is computed from the cursor alone, a target equal to the cursor
+# is no move, and anything else falls through to `resolve`.
+_LIST_CORE_PAGE_GATE = (
+    r'(?=.*let page_move = from\s*\.and_then\(\|from\| self\.page_target\(rows, from, key\)\)'
+    r'\s*\.filter\(\|next\| Some\(\*next\) != from\);'
+    r'\s*let next_move = page_move\.map_or_else\(\s*\|\| list_nav::resolve\()'
+)
+# `PageKeys::Ends`: the enabled ends, straight off the stops -- no viewport
+# step or rectangle geometry in that arm, and none of ListBox's page machinery
+# in the module (`bounds_for_item` is the Viewport arm's own measurement, so
+# the arm shape, not a module-wide ban, keeps it out of Ends).
+LIST_CORE_PAGE_ENDS = (
+    r'(?s)\A(?!.*fixed_page_step)(?!.*variable_page_move)'
+    r'(?!.*plain_page_move)(?!.*max_offset)' + _LIST_CORE_PAGE_GATE
+    + r'(?=.*PageKeys::Ends => match key \{'
+    r'\s*"pagedown" => rows\.stops\.last\(\)\.copied\(\),'
+    r'\s*"pageup" => rows\.stops\.first\(\)\.copied\(\),\s*_ => None,\s*\},)'
+)
+# `PageKeys::Viewport`: real measured geometry -- whole-row steps across the
+# uniform list's actual laid-out viewport (`base_handle.bounds()` height,
+# never a fixed ruler), and the laid-out `bounds_for_item` rect walk from the
+# cursor row for a panel list.
+LIST_CORE_PAGE_VIEWPORT = (
+    r'(?s)\A' + _LIST_CORE_PAGE_GATE
+    + r'(?=.*PageKeys::Viewport => self\.viewport_target\(rows, from, key\),)'
+    r'(?=.*fn viewport_target\(' + _IN_METHOD
+    + r'ListScroll::Uniform \{ handle, row_height \} => \{' + _IN_SCROLL_ARM
+    + r'handle\.0\.borrow\(\)\.base_handle\.bounds\(\)\.size\.height' + _IN_SCROLL_ARM
+    + r'f32::from\(\*row_height\))'
+    r'(?=.*fn viewport_target\(' + _IN_METHOD
+    + r'ListScroll::Panel\(scroll\) => \{\s*let current = scroll\.bounds_for_item\(from\)\?;'
+    r'\s*let viewport_height = scroll\.bounds\(\)\.size\.height;)'
+)
+
 
 # (component, claim) -> (module, a pattern that must appear in it).
 #
@@ -406,21 +487,24 @@ RECORD_IDENTITY = (
 EVIDENCE = {
     # Sheet's CloseTrigger composes the real CloseButton, including its keyboard activation.
     ('Sheet', 'activation'): ('close_button.rs', r'tab_stop_handle'),
-    ('Dropdown', 'arrows'): ('dropdown.rs', r'list_nav::resolve'),
-    ('Dropdown', 'home-end'): ('dropdown.rs', r'list_nav::resolve'),
-    ('Dropdown', 'typeahead'): ('dropdown.rs', r'list_nav::typeahead'),
+    # The four popup lists' arrows, Home/End and typeahead are the shared
+    # list core's (see LIST_CORE above); DELEGATED_EVIDENCE requires each
+    # component to route its keys through it.
+    ('Dropdown', 'arrows'): (LIST_CORE, LIST_CORE_RESOLVE),
+    ('Dropdown', 'home-end'): (LIST_CORE, LIST_CORE_RESOLVE),
+    ('Dropdown', 'typeahead'): (LIST_CORE, LIST_CORE_TYPEAHEAD),
     ('Dropdown', 'long-press'): ('dropdown.rs', r'long_press|LONG_PRESS'),
     ('Dropdown', 'submenu'): ('dropdown.rs', r'submenu'),
     ('ListBox', 'arrows'): ('list_box.rs', r'list_nav::resolve'),
     ('ListBox', 'typeahead'): ('list_box.rs', r'list_nav::typeahead'),
-    ('Select', 'arrows'): ('select.rs', r'list_nav::resolve'),
-    ('Select', 'typeahead'): ('select.rs', r'list_nav::typeahead'),
-    ('ComboBox', 'arrows'): ('combo_box.rs', r'list_nav::resolve'),
+    ('Select', 'arrows'): (LIST_CORE, LIST_CORE_RESOLVE),
+    ('Select', 'typeahead'): (LIST_CORE, LIST_CORE_TYPEAHEAD),
+    ('ComboBox', 'arrows'): (LIST_CORE, LIST_CORE_RESOLVE),
     # A combo box's typeahead *is* its text field: React Aria filters the list
     # from what is typed into the input, rather than jumping a cursor. The filter
     # is what implements it.
     ('ComboBox', 'typeahead'): ('combo_box.rs', r'fn filter'),
-    ('Autocomplete', 'arrows'): ('autocomplete.rs', r'list_nav::resolve'),
+    ('Autocomplete', 'arrows'): (LIST_CORE, LIST_CORE_RESOLVE),
     ('Slider', 'arrows'): ('slider.rs', r'"right" \| "up"'),
     ('Slider', 'home-end'): ('slider.rs', r'"home"'),
     ('Slider', 'page-up-down'): ('slider.rs', r'"pageup"'),
@@ -599,58 +683,37 @@ EVIDENCE = {
         r'(?=.*"pagedown")(?=.*"pageup")',
     ),
     # The cursor-gated enabled-end mapping is required, and the discarded
-    # viewport geometry must be gone: the negative lookaheads fail the file if
-    # the step / rectangle paging (`fixed_page_step`, the `*_page_move`
-    # machinery, or the panel's `bounds_for_item` / `max_offset` reads) ever
-    # returns, and the required lookaheads demand the `from.is_some()` gate so
-    # an unconditional end mapping -- one that would move a mouse-opened,
+    # viewport geometry must be gone. The mechanism is the shared core's
+    # `PageKeys::Ends` arm behind its cursor gate (`from.and_then`), so an
+    # unconditional end mapping -- one that would move a mouse-opened,
     # cursor-less list, contrary to pinned React Aria's
     # `manager.focusedKey != null` requirement -- cannot satisfy the claim.
-    ('Select', 'select-paging'): (
-        'select.rs',
-        r'(?s)\A(?!.*fixed_page_step)(?!.*variable_page_move)'
-        r'(?!.*plain_page_move)(?!.*bounds_for_item)(?!.*max_offset)'
-        r'(?=.*"pagedown" if from\.is_some\(\) => stops\.last\(\))'
-        r'(?=.*"pageup" if from\.is_some\(\) => stops\.first\(\))',
-    ),
+    # DELEGATED_EVIDENCE then demands that Select builds its core with
+    # `PageKeys::Ends`, rejects `PageKeys::Viewport` outright, and fails the
+    # file if the step / rectangle paging (`fixed_page_step`, the
+    # `*_page_move` machinery, or the panel's `bounds_for_item` /
+    # `max_offset` reads) ever returns to it.
+    ('Select', 'select-paging'): (LIST_CORE, LIST_CORE_PAGE_ENDS),
     # The same load-bearing shape as Select's evidence, per popup owner: the
-    # negative lookaheads fail the file if viewport-step paging machinery ever
-    # returns, and the required lookaheads demand the cursor gate (plus, for
-    # the ComboBox's single root handler, the open gate) so an unconditional
-    # end mapping -- which would move a mouse-opened, cursor-less list, or
-    # move and even reopen a closed ComboBox with a retained cursor --
-    # cannot satisfy the claim.
-    ('ComboBox', 'popup-paging'): (
-        'combo_box.rs',
-        r'(?s)\A(?!.*fixed_page_step)(?!.*variable_page_move)'
-        r'(?!.*plain_page_move)(?!.*bounds_for_item)(?!.*max_offset)'
-        r'(?=.*"pagedown" if is_open && from\.is_some\(\) => stops\.last\(\))'
-        r'(?=.*"pageup" if is_open && from\.is_some\(\) => stops\.first\(\))',
-    ),
+    # core's cursor-gated Ends arm, and a delegation that builds the core with
+    # `PageKeys::Ends`, rejects `PageKeys::Viewport` and the viewport-step
+    # machinery -- plus, for the ComboBox's single root handler, the open
+    # gate in front of the core, so a closed ComboBox with a retained cursor
+    # can neither move nor be reopened (by the `Moved` path) by a page key.
+    ('ComboBox', 'popup-paging'): (LIST_CORE, LIST_CORE_PAGE_ENDS),
     # The load-bearing shape in the opposite direction from Select/ComboBox/
     # Dropdown's: Autocomplete's list element is itself the scroller, so the
-    # required lookaheads demand the cursor gate (`page_move = from.and_then`)
+    # mechanism demands the core's cursor gate (`page_move = from.and_then`)
     # and the real measured geometry -- whole-row steps across the actual
     # laid-out `UniformListScrollHandle` viewport (`base_handle.bounds()` height,
     # never a fixed 320px ruler) for a `rowHeight` list and the laid-out
     # `bounds_for_item` rect walk to a viewport-sized boundary for the default
     # rows, taking the enabled end only when the walk runs out -- while the
-    # negative lookaheads fail the file if the cursor-gated enabled-end
-    # end-jump mapping ever returns.
-    ('Autocomplete', 'autocomplete-paging'): (
-        'autocomplete.rs',
-        r'(?s)\A(?!.*"pagedown" if from\.is_some\(\) => stops\.last\(\))'
-        r'(?!.*"pageup" if from\.is_some\(\) => stops\.first\(\))'
-        r'(?=.*page_move = from\.and_then)(?=.*base_handle\.bounds\(\)\.size\.height)'
-        r'(?=.*bounds_for_item)',
-    ),
-    ('Dropdown', 'popup-paging'): (
-        'dropdown.rs',
-        r'(?s)\A(?!.*fixed_page_step)(?!.*variable_page_move)'
-        r'(?!.*plain_page_move)(?!.*bounds_for_item)(?!.*max_offset)'
-        r'(?=.*"pagedown" if from\.is_some\(\) => stops_for_keys\.last\(\))'
-        r'(?=.*"pageup" if from\.is_some\(\) => stops_for_keys\.first\(\))',
-    ),
+    # delegation demands `PageKeys::Viewport` and fails the file if the
+    # enabled-end `PageKeys::Ends` mapping, or a local cursor-gated end-jump
+    # arm, ever returns.
+    ('Autocomplete', 'autocomplete-paging'): (LIST_CORE, LIST_CORE_PAGE_VIEWPORT),
+    ('Dropdown', 'popup-paging'): (LIST_CORE, LIST_CORE_PAGE_ENDS),
     ('Tooltip', 'focus-open'): ('tooltip.rs', r'contains_focused'),
     ('Tooltip', 'global-sequence'): (
         'tooltip.rs',
@@ -728,10 +791,14 @@ EVIDENCE = {
         r'(?s)if submit \{\s*if let Some\(cb\) = &on_submit \{(?:(?!if cleared).)*?cx\.stop_propagation\(\);',
     ),
     # An open ComboBox answers Enter by picking: the list keeps the key, and
-    # a closed one — with nothing to commit or revert — lets it bubble.
+    # a closed one — with nothing to commit or revert — lets it bubble. The
+    # core's `Activate` answer routes to the handler's `activate` with the
+    # original key, and the stop stays inside that method's own body.
     ('Form', 'combobox-enter-suppression'): (
         'combo_box.rs',
-        r'(?s)crate::list_nav::Move::Activate => \{(?:(?!Move::Ignore).)*?if key == "enter" \{\s*cx\.stop_propagation\(\);',
+        r'(?s)crate::list_core::ListKey::Activate\(_\) => self\.activate\(key, window, cx\)'
+        r'.*?fn activate\(&self, key: &str, window: &mut Window, cx: &mut App\) \{'
+        r'(?:(?!\n    \}).)*?if key == "enter" \{\s*cx\.stop_propagation\(\);',
     ),
     # Constraint validation bars a read-only field: no required emptiness, no
     # stored error, no first-invalid nomination — while its value still
@@ -858,11 +925,13 @@ EVIDENCE = {
         'calendar_keys.rs',
         r'(?s)(?=.*calendar_view::section_start)(?=.*calendar_view::section_end)',
     ),
-    ('Select', 'scroll-into-view'): ('select.rs', r'scroll_to_item'),
-    ('ComboBox', 'scroll-into-view'): ('combo_box.rs', r'scroll_to_item'),
-    ('Autocomplete', 'scroll-into-view'): ('autocomplete.rs', r'scroll_to_item'),
+    # The popup lists reveal through the shared core's scroller (see
+    # LIST_CORE_REVEAL); ListBox still scrolls its own list.
+    ('Select', 'scroll-into-view'): (LIST_CORE, LIST_CORE_REVEAL),
+    ('ComboBox', 'scroll-into-view'): (LIST_CORE, LIST_CORE_REVEAL),
+    ('Autocomplete', 'scroll-into-view'): (LIST_CORE, LIST_CORE_REVEAL),
     ('ListBox', 'scroll-into-view'): ('list_box.rs', r'scroll_to_item'),
-    ('Dropdown', 'scroll-into-view'): ('dropdown.rs', r'scroll_to_item'),
+    ('Dropdown', 'scroll-into-view'): (LIST_CORE, LIST_CORE_REVEAL),
     # A sortable header is a tab stop so gpui fires its click listeners for
     # Enter and Space; a plain one is focusable but not a stop.
     ('Table', 'sort-keys'): ('table.rs', r'crate::util::tab_stop_handle\(id, window, cx\)'),
@@ -996,30 +1065,36 @@ EVIDENCE = {
     # instance id) so it survives closing and reopening the popover, the
     # extension gate that
     # extends from plain Shift on the arrows and pages but only from
-    # Control+Shift Home/End off macOS and reuses the registration map, the
-    # mode-independent registration gate that leaves an unregistered chord
-    # entirely inert in either mode, the null-cursor Shift+Home/End guard
-    # before cursor seating, the pointer cursor seat for the following
-    # keyboard move, and the Shift+Click route.
+    # Control+Shift Home/End off macOS and reuses the registration map --
+    # and never from a typeahead match, which pinned `useTypeSelect` answers
+    # with `setFocusedKey` alone -- the mode-independent registration gate
+    # that leaves an unregistered chord entirely inert in either mode, the
+    # null-cursor Shift+Home/End guard, both ahead of the shared core that
+    # would otherwise seat the cursor, the core's `Moved` answer (with its
+    # typeahead flag) routed into the extension, the pointer cursor seat for
+    # the following keyboard move, and the Shift+Click route.
     ('Select', 'shift-range'): (
         'select.rs',
         r'(?s)\A(?=.*fn extend_selection_range\()(?=.*if range\.is_all \{)'
         r'(?=.*range\.anchor\.as_ref\(\)\.unwrap_or\(target\))'
         r'(?=.*range\.current\.as_ref\(\)\.unwrap_or\(target\))'
         r'(?=.*use_keyed_state\(element_id::scoped\(&self\.id, "range"\), cx)'
-        r'(?=.*let extends_selection = multiple\s*\n\s*&& modifiers\.shift)'
+        r'(?=.*let extends_selection = !typed\s*\n\s*&& multiple\s*\n\s*&& modifiers\.shift)'
         r'(?=.*fn home_end_registered\(modifiers: gpui::Modifiers, macos: bool\) -> bool \{)'
         r'(?=.*if macos \{\s*\n\s*!modifiers\.control && !modifiers\.platform\s*\n\s*\} else \{\s*\n\s*!modifiers\.alt && !modifiers\.platform\s*\n\s*\})'
-        r'(?=.*if matches!\(key, "home" \| "end"\)\s*&& !home_end_registered\(modifiers, is_mac\)\s*\{\s*\n\s*return;)'
-        r'(?=.*if matches!\(key, "home" \| "end"\)\s*&& modifiers\.shift\s*&& from\.is_none\(\)\s*\{\s*\n\s*return;)'
+        r'(?=.*if matches!\(key, "home" \| "end"\) \{\s*\n\s*if !home_end_registered\(modifiers, is_mac\) \{\s*\n\s*return;\s*\n\s*\}'
+        r'\s*\n\s*if modifiers\.shift && from\.is_none\(\) \{\s*\n\s*return;\s*\n\s*\}\s*\n\s*\}'
+        r'\s*\n\s*match core\.key_down\(&rows, key, &modifiers, cx\) \{'
+        r'\s*crate::list_core::ListKey::Moved \{\s*from,\s*to,\s*typed,?\s*\} => \{'
+        r'\s*self\.moved\(to, from, typed, key, modifiers, window, cx\);)'
         r'(?=.*let exact_shift_navigation =\s*home_end_registered\(modifiers, is_mac\);)'
         r'(?=.*fn shift_home_end_extends\(key_name: &str, control: bool, macos: bool\) -> bool \{)'
         r'(?=.*!matches!\(key_name, "home" \| "end"\) \|\| \(!macos && control\))'
         r'(?=.*shift_home_end_extends\(\s*key,\s*modifiers\.control,\s*is_mac,?\s*\))'
         r'(?=.*range\.current = Some\(next\);)'
         r'(?=.*range\.is_all = false;)'
-        r'(?=.*let cursor_click = cursor_rows\.clone\(\);)'
-        r'(?=.*cursor_click\.update\(cx, \|v, cx\| \{\s*\n\s*\*v = Some\(picked_key\.clone\(\)\);)'
+        r'(?=.*let click_core = self\.core\.clone\(\);)'
+        r'(?=.*click_core\.set_cursor\(Some\(picked_key\.clone\(\)\), cx\);)'
         r'(?=.*ev\.modifiers\(\)\.shift)',
     ),
     # Select's select-all is the one member that must stay silent: pinned
@@ -1079,27 +1154,37 @@ EVIDENCE = {
         'combo_box.rs',
         r'(?s)multiple-mode.{0,80}?custom input independent from the selected items'
         r'.*?if allows_custom_value\s*&& key == "enter"'
-        r'.{0,800}?is_none_or\(.{0,500}?cursor_position\(&rows, focused\).{0,200}?\{'
+        r'.{0,800}?core\s*\.cursor_key\(cx\)\s*\.is_none_or\(.{0,200}?'
+        r'stale_cursor \|\| !rows\.iter\(\)\.any\(\|item\| item\.key\(\) == &key\).{0,200}?\{'
         r'.{0,600}?if !key_multiple && selected_label != state\.read\(cx\)\.value\(\)'
         r'.{0,800}?key_selection_own.{0,800}?had_selection'
         r'.{0,400}?on_selection_change_all.{0,800}?key_close\(window, cx\)',
     ),
+    # Enter on a focused row: the core's `Activate` answer reaches the
+    # handler's `activate`, which toggles the row, clears the query, and
+    # retains the cursor on that key across the cleared query
+    # (`(key, String::new())`).
     ('ComboBox', 'multiple-row-keys'): (
         'combo_box.rs',
-        r'(?s)\A(?=.*Move::Activate => \{)(?=.*if key_multiple \{)'
+        r'(?s)\A(?=.*ListKey::Activate\(_\) => self\.activate\(key, window, cx\))'
+        r'(?=.*fn activate\(&self, key: &str, window: &mut Window, cx: &mut App\) \{)'
+        r'(?=.*if key_multiple \{)'
         r'(?=.*set_value\(String::new\(\)\))'
-        r'(?=.*held\.update)(?=.*hidden_query = Some\(String::new\(\)\))'
+        r'(?=.*held\.update)'
+        r'(?=.*retained\.update\(cx, \|value, _\| \{\s*\*value = Some\(\(item_key\.clone\(\), String::new\(\)\)\);)'
         r'(?=.*selected_now\.clone\(\))(?=.*toggle_key\(&mut next, &item_key\))'
         r'(?=.*key_selection_own)(?=.*on_selection_change_all)(?=.*on_input_change)',
     ),
+    # A row press: the same toggle, with the press seating the core's cursor
+    # on the pressed key and retaining it across the cleared query.
     ('ComboBox', 'multiple-row-pointer'): (
         'combo_box.rs',
         r'(?s)\A(?=.*Multiple mode toggles membership)(?=.*if multiple)'
         r'(?=.*selection_own\.clone\(\))(?=.*row_state\.clone\(\))'
-        r'(?=.*cursor_for\(&rows, index, Some\(String::new\(\)\)\))'
         r'(?=.*on_click)(?=.*focus_handle\.focus\(window[^)]*\))'
         r'(?=.*set_value\(String::new\(\)\))'
-        r'(?=.*cursor\.update[^;]*Some\(next_cursor\.clone\(\)\))'
+        r'(?=.*core\.set_cursor\(Some\(value\.clone\(\)\), cx\);'
+        r'\s*retained\.update\(cx, \|v, _\| \*v = Some\(\(value\.clone\(\), String::new\(\)\)\)\);)'
         r'(?=.*toggle_key\(&mut next, &value\))'
         r'(?=.*if let Some\(held\) = &own)(?=.*if let Some\(cb\) = &cb)'
         r'(?=.*if let Some\(cb\) = &input_change)',
@@ -1223,34 +1308,142 @@ def table_resize_keys_evidence(source):
     ))
 
 
-# (component, claim) -> (component module, pattern) for evidence that lives in
-# a shared module: the shared module must carry the EVIDENCE pattern *and* the
-# component's own (non-test) source must delegate its key presses to it, so a
-# component that stops calling the shared code still fails.
+# (component, claim) -> Delegation for evidence that lives in a shared module:
+# the shared module's production source must carry the EVIDENCE pattern *and*
+# the component's own production source must delegate its key presses to it,
+# so a component that stops calling the shared code still fails.
+#
+# `pattern` is searched in the component's source with comments blanked, test
+# modules removed and string literals masked. `tokens` are the literal source
+# texts the delegation rests on; the self-test in `main()` removes each one,
+# moves it into a test module, and buries it in a string literal, and every
+# mutant must fail. `forbids` are source texts whose production presence must
+# fail the delegation (a mutant adds each). A delegation whose shape needs its
+# string literals (ComboBox's closed-list page-key gate) names it in
+# `literal`, searched in the same source with literals intact; a hit counts
+# only where it begins and ends on code rather than inside a literal.
+Delegation = collections.namedtuple(
+    'Delegation', 'module pattern tokens forbids literal', defaults=((), None))
+
+_DAY_GRID_TOKEN = 'grid.key_target(key, at, shift)'
 _DAY_GRID_DELEGATION = r'grid\.key_target\(key, at, shift\)'
+
+# The popup lists' delegation to the shared list core: the open list's keys
+# go through `ListCore::key_down`.
+_KEY_DOWN_TOKEN = '.key_down('
+_LIST_CORE_KEYS = r'\.key_down\('
+# Typeahead also needs the core built over the keyed typeahead buffer (a core
+# with `None` there never types).
+_LIST_CORE_TYPEAHEAD_DELEGATION = (
+    r'(?s)\A(?=.*\.key_down\()'
+    r'(?=.*ListCore::new\(\s*cursor(?:\.clone\(\))?,\s*Some\()'
+    r'(?=.*typeahead_state\()'
+)
+# Ends paging: the core is built with `PageKeys::Ends`; `PageKeys::Viewport`
+# and ListBox's viewport-step / rectangle paging machinery may not appear.
+_LIST_CORE_ENDS_DELEGATION = (
+    r'(?s)\A(?!.*PageKeys::Viewport)(?!.*fixed_page_step)(?!.*variable_page_move)'
+    r'(?!.*plain_page_move)(?!.*bounds_for_item)(?!.*max_offset)'
+    r'(?=.*\.key_down\()(?=.*ListCore::new\([^;]*?PageKeys::Ends)'
+)
+# Viewport paging (Autocomplete): the reverse -- `PageKeys::Viewport`, with
+# neither `PageKeys::Ends` nor a local cursor-gated end-jump arm (masked
+# literals leave `if from.is_some() => stops.last()` of one).
+_LIST_CORE_VIEWPORT_DELEGATION = (
+    r'(?s)\A(?!.*PageKeys::Ends)(?!.*if from\.is_some\(\) => stops\.(?:last|first)\(\))'
+    r'(?=.*\.key_down\()(?=.*ListCore::new\([^;]*?PageKeys::Viewport)'
+)
+# ComboBox drives open and navigation from one root handler, so a closed
+# field's page keys must return before the core: they may neither move a
+# retained cursor nor reopen the list through the `Moved` path.
+_COMBO_PAGE_GATE_TOKEN = 'matches!(nav_key, "pagedown" | "pageup") && !is_open'
+_COMBO_PAGE_GATE = (
+    r'if matches!\(nav_key, "pagedown" \| "pageup"\) && !is_open \{\s*return;\s*\}'
+    r'\s*match core\.key_down\(&rows_view, nav_key,'
+)
+
+
+def _list_core_keys(module):
+    return Delegation(module, _LIST_CORE_KEYS, (_KEY_DOWN_TOKEN,))
+
+
+def _list_core_typeahead(module, *tokens):
+    return Delegation(module, _LIST_CORE_TYPEAHEAD_DELEGATION,
+                      (_KEY_DOWN_TOKEN, 'typeahead_state(') + tokens)
+
+
+def _list_core_ends(module, *tokens, literal=None):
+    return Delegation(module, _LIST_CORE_ENDS_DELEGATION,
+                      (_KEY_DOWN_TOKEN, 'PageKeys::Ends') + tokens,
+                      ('crate::list_core::PageKeys::Viewport',), literal)
+
+
 DELEGATED_EVIDENCE = {
-    ('Calendar', 'calendar-paging'): ('calendar.rs', _DAY_GRID_DELEGATION),
-    ('RangeCalendar', 'calendar-paging'): ('range_calendar.rs', _DAY_GRID_DELEGATION),
-    ('Calendar', 'calendar-section-bounds'): ('calendar.rs', _DAY_GRID_DELEGATION),
-    ('RangeCalendar', 'calendar-section-bounds'): ('range_calendar.rs', _DAY_GRID_DELEGATION),
+    ('Calendar', 'calendar-paging'): Delegation(
+        'calendar.rs', _DAY_GRID_DELEGATION, (_DAY_GRID_TOKEN,)),
+    ('RangeCalendar', 'calendar-paging'): Delegation(
+        'range_calendar.rs', _DAY_GRID_DELEGATION, (_DAY_GRID_TOKEN,)),
+    ('Calendar', 'calendar-section-bounds'): Delegation(
+        'calendar.rs', _DAY_GRID_DELEGATION, (_DAY_GRID_TOKEN,)),
+    ('RangeCalendar', 'calendar-section-bounds'): Delegation(
+        'range_calendar.rs', _DAY_GRID_DELEGATION, (_DAY_GRID_TOKEN,)),
+    ('Select', 'arrows'): _list_core_keys('select.rs'),
+    ('Select', 'typeahead'): _list_core_typeahead('select.rs', 'Some(typeahead.clone())'),
+    ('Select', 'select-paging'): _list_core_ends('select.rs'),
+    ('Select', 'scroll-into-view'): _list_core_keys('select.rs'),
+    ('ComboBox', 'arrows'): _list_core_keys('combo_box.rs'),
+    ('ComboBox', 'popup-paging'): _list_core_ends(
+        'combo_box.rs', _COMBO_PAGE_GATE_TOKEN, literal=_COMBO_PAGE_GATE),
+    ('ComboBox', 'scroll-into-view'): _list_core_keys('combo_box.rs'),
+    ('Autocomplete', 'arrows'): _list_core_keys('autocomplete.rs'),
+    ('Autocomplete', 'autocomplete-paging'): Delegation(
+        'autocomplete.rs', _LIST_CORE_VIEWPORT_DELEGATION,
+        (_KEY_DOWN_TOKEN, 'PageKeys::Viewport'), ('crate::list_core::PageKeys::Ends',)),
+    ('Autocomplete', 'scroll-into-view'): _list_core_keys('autocomplete.rs'),
+    ('Dropdown', 'arrows'): _list_core_keys('dropdown.rs'),
+    ('Dropdown', 'home-end'): _list_core_keys('dropdown.rs'),
+    ('Dropdown', 'typeahead'): _list_core_typeahead('dropdown.rs'),
+    ('Dropdown', 'popup-paging'): _list_core_ends('dropdown.rs'),
+    ('Dropdown', 'scroll-into-view'): _list_core_keys('dropdown.rs'),
 }
 
 
+def code_search(pattern, code):
+    """Whether `pattern` hits `code` (literals intact) at a span that begins
+    and ends on code: a hit whose first or last character is whitespace, or
+    lies inside a string literal, does not count."""
+    masked = mask_literals(code)
+    for hit in re.finditer(pattern, code):
+        first, last = hit.start(), hit.end() - 1
+        if last < first or code[first].isspace() or code[last].isspace():
+            continue
+        if masked[first] == code[first] and masked[last] == code[last]:
+            return True
+    return False
+
+
 def delegation_matches(key, component_source=None):
-    module, pattern = DELEGATED_EVIDENCE[key]
+    delegation = DELEGATED_EVIDENCE[key]
     if component_source is None:
-        path = SRC + module
+        path = SRC + delegation.module
         if not module_exists(path):
             return False
         component_source = read_path(path, errors='replace')
-    return bool(re.search(pattern, mask_literals(strip_cfg_test(component_source))))
+    code = strip_cfg_test(component_source)
+    if not re.search(delegation.pattern, mask_literals(code)):
+        return False
+    return delegation.literal is None or code_search(delegation.literal, code)
 
 
 def evidence_matches(key, evidence, source):
     if key == ('Table', 'resize-keys'):
         return table_resize_keys_evidence(source)
-    if key in DELEGATED_EVIDENCE and not delegation_matches(key):
-        return False
+    if key in DELEGATED_EVIDENCE:
+        if not delegation_matches(key):
+            return False
+        # The shared mechanism must be production code too: a comment or a
+        # test fixture in the shared module is not the behaviour.
+        source = strip_cfg_test(source)
     if key in {('TextField', 'text-keys'), ('Form', 'server-errors-suppress')}:
         source = mask_literals(strip_cfg_test(source))
     return re.search(evidence, source)
@@ -1283,17 +1476,30 @@ def main():
                 print('AUDIT READER ERROR: %s accepts %s' % (key, label))
                 return 1
 
-    for key, (module, _) in DELEGATED_EVIDENCE.items():
+    for key, delegation in DELEGATED_EVIDENCE.items():
+        module = delegation.module
         component_source = read_path(SRC + module, errors='replace')
         if not delegation_matches(key, component_source):
             print('AUDIT READER ERROR: %s delegation not found in %s' % (key, module))
             return 1
-        token = 'grid.key_target(key, at, shift)'
-        for label, mutant in (
-            ('removed delegation', component_source.replace(token, 'REMOVED_DELEGATION')),
-            ('test-only delegation', component_source.replace(token, 'REMOVED_DELEGATION')
-             + '\n#[cfg(test)]\nmod fixture {\n    fn f() { ' + token + '; }\n}\n'),
-        ):
+        mutants = []
+        for token in delegation.tokens:
+            if token not in component_source:
+                print('AUDIT READER ERROR: %s self-test cannot find %s in %s'
+                      % (key, token, module))
+                return 1
+            removed = component_source.replace(token, 'REMOVED_DELEGATION')
+            mutants += [
+                ('removed delegation %s' % token, removed),
+                ('test-only delegation %s' % token, removed
+                 + '\n#[cfg(test)]\nmod fixture {\n    fn f() { ' + token + '; }\n}\n'),
+                ('string-literal delegation %s' % token, removed
+                 + '\nconst AUDIT_FIXTURE: &str = r#"' + token + '"#;\n'),
+            ]
+        for token in delegation.forbids:
+            mutants.append(('forbidden %s' % token, component_source
+                            + '\nfn audit_fixture() {\n    let _ = ' + token + ';\n}\n'))
+        for label, mutant in mutants:
             if delegation_matches(key, mutant):
                 print('AUDIT READER ERROR: %s accepts %s' % (key, label))
                 return 1

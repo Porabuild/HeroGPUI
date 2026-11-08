@@ -140,6 +140,17 @@ version covers `herogpui`, `herogpui-core`, `herogpui-theme`,
 - The Link Render Function example keeps one width in every state. Its
   shorter hovered label had resized the link under the pointer, so
   hovering its end flickered between states every frame.
+- Autocomplete now seats its list cursor when the pointer rests on an
+  enabled row, so the next arrow key continues from the hovered item
+  instead of jumping back to the top.
+- Select and Dropdown typeahead scrolls the matched row into view, the
+  way React Aria keeps the focused key visible, instead of moving the
+  cursor to a row still below the fold.
+- List typeahead ignores Ctrl, Alt and platform chords, so a shortcut
+  like Ctrl+B can no longer be mistaken for typing the letter B.
+- Dropdown's list cursor follows its item by key: it stays on the same
+  row when the items reorder and clears when that row becomes disabled,
+  instead of tracking a stale index or repairing onto a neighbour.
 
 ## [0.14.0] - 2026-09-29
 

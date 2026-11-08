@@ -751,9 +751,9 @@ struct AutoFrame {
     entry_placement: Placement,
     blur_scope: gpui::FocusHandle,
     focus_handle: Option<gpui::FocusHandle>,
-    cursor: Entity<Option<SharedString>>,
     list_scroll_now: gpui::UniformListScrollHandle,
     panel_scroll_now: gpui::ScrollHandle,
+    list_core: crate::list_core::ListCore,
     query_edit: Entity<Option<bool>>,
     plain_edit_key: Entity<bool>,
     clear: AutoClear,
@@ -946,9 +946,7 @@ impl Autocomplete {
         // Which row the keyboard is on, held as the item's *key* so the cursor
         // stays on the same item when the query filters or the caller reorders
         // the collection.
-        let cursor = window.use_keyed_state(element_id::scoped(base_id, "cursor"), cx, |_, _| {
-            None::<SharedString>
-        });
+        let cursor = crate::list_core::ListCore::cursor_state(base_id, window, cx);
         // React Aria keeps the focused row in view, and v3's list is
         // `overflow-y-auto`. The virtual list has its own handle kind, a
         // scrolling div the other. `use_keyed_state` takes `cx` mutably, so both
@@ -963,6 +961,26 @@ impl Autocomplete {
             });
         let list_scroll_now = list_scroll.read(cx).clone();
         let panel_scroll_now = panel_scroll.read(cx).clone();
+        // The list's shared navigation core. Autocomplete is the one popup
+        // that pages by viewport: its list element is its own scroller, so
+        // PageUp/PageDown walk a one-viewport boundary rather than jumping to
+        // an end. Its search field owns the typed text, so the list carries
+        // no typeahead buffer. Built here so the cursor resolution and the
+        // forward-typing seat below read and write through it.
+        let list_core = crate::list_core::ListCore::new(
+            cursor,
+            None,
+            self.should_focus_wrap,
+            crate::list_core::PageKeys::Viewport,
+            if self.row_height.is_some() {
+                crate::list_core::ListScroll::Uniform {
+                    handle: list_scroll_now.clone(),
+                    row_height: self.row_height.unwrap_or_default(),
+                }
+            } else {
+                crate::list_core::ListScroll::Panel(panel_scroll_now.clone())
+            },
+        );
         // v3 writes `<SearchField autoFocus>` inside `Autocomplete.Filter`, so
         // the query field takes the focus as the popover opens -- once per
         // opening, or it would take the focus back on every frame.
@@ -995,11 +1013,26 @@ impl Autocomplete {
 
         let matches = self.matches(&controlled, &raw_query, &query_edit, window, cx);
         // The stored cursor is the focused item's key; the row it lands on is
-        // wherever that key sits in the filtered collection now.
-        let cursor_at = cursor
-            .read(cx)
-            .as_ref()
-            .and_then(|k| matches.iter().position(|it| it.key() == k));
+        // wherever that key sits in the filtered collection now, resolved
+        // through the same core the keys use.
+        let match_keys: Vec<SharedString> = matches.iter().map(|item| item.key().clone()).collect();
+        let match_stops: Vec<usize> = (0..matches.len())
+            .filter(|i| {
+                matches
+                    .get(*i)
+                    .is_some_and(|item| !self.disabled_keys.contains(item.key()))
+            })
+            .collect();
+        let match_labels: Vec<String> = matches
+            .iter()
+            .map(|item| item.label().to_string())
+            .collect();
+        let match_rows = crate::list_core::ListRows {
+            keys: &match_keys,
+            stops: &match_stops,
+            labels: &match_labels,
+        };
+        let cursor_at = list_core.cursor_at(&match_rows, cx);
 
         // Forward typing while the popover is open puts the collection cursor
         // on its first enabled filtered row. react-aria 3.51.0 does this from
@@ -1019,16 +1052,9 @@ impl Autocomplete {
             };
             if cursor_at != next {
                 let next_key = next.and_then(|i| matches.get(i)).map(|it| it.key().clone());
-                cursor.update(cx, |v, cx| {
-                    *v = next_key;
-                    cx.notify();
-                });
+                list_core.set_cursor(next_key, cx);
                 if let Some(next) = next {
-                    if self.row_height.is_some() {
-                        list_scroll_now.scroll_to_item(next, gpui::ScrollStrategy::Center);
-                    } else {
-                        panel_scroll_now.scroll_to_item(next);
-                    }
+                    list_core.reveal(next);
                 }
             }
             query_edit.update(cx, |v, cx| {
@@ -1099,9 +1125,9 @@ impl Autocomplete {
             entry_placement,
             blur_scope,
             focus_handle,
-            cursor,
             list_scroll_now,
             panel_scroll_now,
+            list_core,
             query_edit,
             plain_edit_key,
             clear,
@@ -1770,9 +1796,7 @@ impl Autocomplete {
             ref selection_own,
             open,
             ref open_own,
-            ref cursor,
-            ref list_scroll_now,
-            ref panel_scroll_now,
+            ref list_core,
             ref query_edit,
             ref plain_edit_key,
             ref matches,
@@ -1786,15 +1810,14 @@ impl Autocomplete {
                     .is_some_and(|item| !self.disabled_keys.contains(item.key()))
             })
             .collect();
-        let held = cursor.clone();
+        let keys: Vec<SharedString> = matches.iter().map(|item| item.key().clone()).collect();
+        let labels: Vec<String> = matches
+            .iter()
+            .map(|item| item.label().to_string())
+            .collect();
         let key_query_edit = query_edit.clone();
         let key_plain_edit = plain_edit_key.clone();
-        let wrap = self.should_focus_wrap;
-        let virtual_rows = self.row_height.is_some();
-        let page_row_height = self.row_height;
-        let key_list_scroll = list_scroll_now.clone();
-        let key_panel_scroll = panel_scroll_now.clone();
-        let key_page_stops = stops.clone();
+        let core = list_core.clone();
         let rows = matches.clone();
         let key_open_own = open_own.clone();
         let key_open_change = self.on_open_change.clone();
@@ -1807,15 +1830,11 @@ impl Autocomplete {
         let was_open = open;
         let handler = AutoKeys {
             stops,
-            held,
+            keys,
+            labels,
+            core,
             key_query_edit,
             key_plain_edit,
-            wrap,
-            virtual_rows,
-            page_row_height,
-            key_list_scroll,
-            key_panel_scroll,
-            key_page_stops,
             rows,
             key_open_own,
             key_open_change,
@@ -1967,6 +1986,7 @@ impl Autocomplete {
             focus_handle,
             list_scroll_now,
             panel_scroll_now,
+            list_core,
             matches,
             cursor_at,
             anchor_bounds,
@@ -2057,6 +2077,7 @@ impl Autocomplete {
             row_padding_y,
             overlay_exiting,
             cursor_at,
+            core: list_core,
             row_virtualized,
             matches_len,
             multiple,
@@ -2225,15 +2246,11 @@ impl Autocomplete {
 /// the Autocomplete.
 struct AutoKeys {
     stops: Vec<usize>,
-    held: Entity<Option<SharedString>>,
+    keys: Vec<SharedString>,
+    labels: Vec<String>,
+    core: crate::list_core::ListCore,
     key_query_edit: Entity<Option<bool>>,
     key_plain_edit: Entity<bool>,
-    wrap: bool,
-    virtual_rows: bool,
-    page_row_height: Option<Pixels>,
-    key_list_scroll: gpui::UniformListScrollHandle,
-    key_panel_scroll: gpui::ScrollHandle,
-    key_page_stops: Vec<usize>,
     rows: Rc<[PickerItem]>,
     key_open_own: Option<Entity<bool>>,
     key_open_change: Option<OnOpenChange>,
@@ -2251,15 +2268,11 @@ impl AutoKeys {
     fn on_key_down(&self, event: &gpui::KeyDownEvent, window: &mut Window, cx: &mut App) {
         let Self {
             ref stops,
-            ref held,
+            ref keys,
+            ref labels,
+            ref core,
             ref key_query_edit,
             ref key_plain_edit,
-            wrap,
-            page_row_height,
-            ref key_list_scroll,
-            ref key_panel_scroll,
-            ref key_page_stops,
-            ref rows,
             ref key_open_own,
             ref key_open_change,
             may_open,
@@ -2325,120 +2338,30 @@ impl AutoKeys {
         if plain_insert || key == "space" {
             return;
         }
-        // The held cursor is the focused item's key; resolve it to the
-        // row it occupies in the filtered collection now.
-        let from = held
-            .read(cx)
-            .as_ref()
-            .and_then(|k| rows.iter().position(|it| it.key() == k));
-        // Pinned React Aria 3.51.0 binds PageUp/PageDown through the
-        // listbox's `useSelectableCollection`, which the closed branch
-        // above never reaches. Those handlers require
-        // `manager.focusedKey != null` -- a mouse-opened, selection-less
-        // Autocomplete has a null cursor and must answer nothing until
-        // an arrow establishes one.
-        //
-        // With a cursor this popup pages by viewport, unlike the
-        // Select/ComboBox/Dropdown popups: `autocomplete.css` styles
-        // the composed `[data-slot="list-box"]` itself
-        // `max-h-[320px] min-h-0 overflow-y-auto`, so the list element
-        // is its own scroller and pinned `ListKeyboardDelegate` walks
-        // enabled rows from the cursor until one crosses a
-        // one-viewport boundary, taking the enabled end only when the
-        // walk runs out. The default rows are laid out, so the
-        // boundary reads real `ScrollHandle` rects (the plain ListBox
-        // shape); a `row_height` list is uniform and pages by
-        // whole-row steps across its *actual* laid-out viewport: the
-        // panel caps together with the positioner, so the 320px
-        // upstream maximum is only the roomy-window height, never the
-        // paging ruler. The step reads the virtual list's own
-        // `UniformListScrollHandle` viewport bounds -- the pinned
-        // handle's `base_handle.bounds()` -- so a capped panel pages
-        // by what it shows.
-        let page_target = |from: usize| -> Option<usize> {
-            if let Some(row_height) = page_row_height {
-                let viewport_height =
-                    f32::from(key_list_scroll.0.borrow().base_handle.bounds().size.height);
-                if viewport_height <= 0. {
-                    return None;
-                }
-                let step =
-                    ((viewport_height / f32::from(row_height)).ceil() as usize).saturating_sub(1);
-                let boundary = match key {
-                    "pagedown" => (from + step).min(rows.len().saturating_sub(1)),
-                    "pageup" => from.saturating_sub(step),
-                    _ => return None,
-                };
-                return match key {
-                    "pagedown" => key_page_stops
-                        .iter()
-                        .copied()
-                        .find(|stop| *stop >= boundary)
-                        .or_else(|| key_page_stops.last().copied()),
-                    "pageup" => key_page_stops
-                        .iter()
-                        .rev()
-                        .copied()
-                        .find(|stop| *stop <= boundary)
-                        .or_else(|| key_page_stops.first().copied()),
-                    _ => None,
-                };
-            }
-            let current = key_panel_scroll.bounds_for_item(from)?;
-            let viewport_height = key_panel_scroll.bounds().size.height;
-            let target = match key {
-                "pagedown" => current.top() - current.size.height + viewport_height,
-                "pageup" => current.top() + current.size.height - viewport_height,
-                _ => return None,
-            };
-            match key {
-                "pagedown" => key_page_stops
-                    .iter()
-                    .copied()
-                    .filter(|stop| *stop >= from)
-                    .find(|stop| {
-                        key_panel_scroll
-                            .bounds_for_item(*stop)
-                            .is_some_and(|bounds| bounds.top() >= target)
-                    })
-                    .or_else(|| key_page_stops.last().copied()),
-                "pageup" => key_page_stops
-                    .iter()
-                    .rev()
-                    .copied()
-                    .filter(|stop| *stop <= from)
-                    .find(|stop| {
-                        key_panel_scroll
-                            .bounds_for_item(*stop)
-                            .is_some_and(|bounds| bounds.top() <= target)
-                    })
-                    .or_else(|| key_page_stops.first().copied()),
-                _ => None,
-            }
+        // The list's navigation -- arrows, Home/End, and the viewport page
+        // keys -- is the shared list core's; it moves the cursor and reveals
+        // the row. Autocomplete is the one popup that pages by viewport (its
+        // list element is its own scroller) and its search field owns the
+        // typed text, so the core carries no typeahead buffer. Activation's
+        // selection semantics stay here.
+        let rows_view = crate::list_core::ListRows {
+            keys,
+            stops,
+            labels,
         };
-        let page_move = from.and_then(page_target);
-        let page_move = page_move.filter(|next| Some(*next) != from);
-        let next_move = page_move.map_or_else(
-            || crate::list_nav::resolve(stops, from, key, wrap),
-            crate::list_nav::Move::To,
-        );
-        self.apply_move(next_move, from, window, cx);
+        match core.key_down(&rows_view, key, &modifiers, cx) {
+            crate::list_core::ListKey::Moved { .. } => {}
+            crate::list_core::ListKey::Activate(at) => self.activate(at, window, cx),
+            crate::list_core::ListKey::Unhandled => {}
+        }
     }
 
-    /// The open list's answer to a resolved move: walk the cursor, or take
-    /// the cursor row.
-    fn apply_move(
-        &self,
-        next_move: crate::list_nav::Move,
-        from: Option<usize>,
-        window: &mut Window,
-        cx: &mut App,
-    ) {
+    /// Enter or Space on the cursor row: toggle the item in the selection
+    /// (single mode replaces it) and report through the change callbacks; a
+    /// single pick closes the popover, a multiple one stays open for the
+    /// next pick.
+    fn activate(&self, at: Option<usize>, window: &mut Window, cx: &mut App) {
         let Self {
-            ref held,
-            virtual_rows,
-            ref key_list_scroll,
-            ref key_panel_scroll,
             ref rows,
             ref key_open_own,
             ref key_open_change,
@@ -2450,65 +2373,48 @@ impl AutoKeys {
             multiple,
             ..
         } = *self;
-        match next_move {
-            crate::list_nav::Move::To(next) => {
-                let next_key = rows.get(next).map(|item| item.key().clone());
-                held.update(cx, |v, cx| {
-                    *v = next_key;
+        let Some(item) = at.and_then(|i| rows.get(i)) else {
+            return;
+        };
+        let item_key = item.key().clone();
+        let mut next = selected_now.clone();
+        if multiple {
+            toggle_key(&mut next, &item_key);
+        } else {
+            next.clear();
+            next.push(item_key.clone());
+        }
+        if let Some(own) = &key_selection_own {
+            let set = next.clone();
+            own.update(cx, |v, cx| {
+                *v = set;
+                cx.notify();
+            });
+            key_form_state.borrow_mut().value = form_selection_value(&next);
+        }
+        if let Some(cb) = &on_change_one {
+            cb(&item_key, window, cx);
+        }
+        if let Some(cb) = &on_change_all {
+            cb(&next, window, cx);
+        }
+        // A single selection closes the popover, as v3's does;
+        // a multiple one stays open for the next pick.
+        if !multiple {
+            if let Some(own) = &key_open_own {
+                own.update(cx, |v, cx| {
+                    *v = false;
                     cx.notify();
                 });
-                if virtual_rows {
-                    key_list_scroll.scroll_to_item(next, gpui::ScrollStrategy::Center);
-                } else {
-                    key_panel_scroll.scroll_to_item(next);
-                }
             }
-            crate::list_nav::Move::Activate => {
-                let Some(item) = from.and_then(|i| rows.get(i)) else {
-                    return;
-                };
-                let item_key = item.key().clone();
-                let mut next = selected_now.clone();
-                if multiple {
-                    toggle_key(&mut next, &item_key);
-                } else {
-                    next.clear();
-                    next.push(item_key.clone());
-                }
-                if let Some(own) = &key_selection_own {
-                    let set = next.clone();
-                    own.update(cx, |v, cx| {
-                        *v = set;
-                        cx.notify();
-                    });
-                    key_form_state.borrow_mut().value = form_selection_value(&next);
-                }
-                if let Some(cb) = &on_change_one {
-                    cb(&item_key, window, cx);
-                }
-                if let Some(cb) = &on_change_all {
-                    cb(&next, window, cx);
-                }
-                // A single selection closes the popover, as v3's does;
-                // a multiple one stays open for the next pick.
-                if !multiple {
-                    if let Some(own) = &key_open_own {
-                        own.update(cx, |v, cx| {
-                            *v = false;
-                            cx.notify();
-                        });
-                    }
-                    if let Some(cb) = &key_open_change {
-                        cb(&false, window, cx);
-                    }
-                    // The focus is *not* moved back to the trigger here.
-                    // gpui activates a focused element on Enter, so
-                    // focusing the trigger inside this very keystroke
-                    // fires its click listener and the popover reopens --
-                    // observed, not theorised.
-                }
+            if let Some(cb) = &key_open_change {
+                cb(&false, window, cx);
             }
-            crate::list_nav::Move::Ignore => {}
+            // The focus is *not* moved back to the trigger here.
+            // gpui activates a focused element on Enter, so
+            // focusing the trigger inside this very keystroke
+            // fires its click listener and the popover reopens --
+            // observed, not theorised.
         }
     }
 }
@@ -2540,6 +2446,7 @@ struct AutoRows {
     row_padding_y: Pixels,
     overlay_exiting: bool,
     cursor_at: Option<usize>,
+    core: crate::list_core::ListCore,
     row_virtualized: bool,
     matches_len: usize,
     multiple: bool,
@@ -2657,9 +2564,14 @@ impl AutoRows {
         if item_disabled {
             row = row.opacity(row_disabled_opacity);
         } else if item_interactive {
-            row = row
-                .cursor(util::interactive_cursor(cx))
-                .hover(move |s| s.bg(row_hover_bg));
+            // Pointer hover seats the cursor for the next arrow key, the
+            // `shouldFocusOnHover` the other popup lists share; the search
+            // field keeps the real focus and only the cursor moves.
+            row = self.core.seat_on_hover(
+                row.cursor(util::interactive_cursor(cx))
+                    .hover(move |s| s.bg(row_hover_bg)),
+                item.key().clone(),
+            );
         }
         if row_selected {
             row = row.text_color(row_accent);

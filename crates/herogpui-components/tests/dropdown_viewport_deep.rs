@@ -36,7 +36,7 @@ use gpui::{
 use herogpui_components::{Button, Dropdown, MenuItem, Placement};
 use herogpui_theme::{set_theme, ComponentTheme, ComponentThemes, MenuStyle, Theme};
 
-use harness::{click, open_host};
+use harness::{click, open_host, press};
 
 /// `containerPadding` -- react-aria's default, which v3 does not override.
 const INSET: f32 = 12.0;
@@ -1272,5 +1272,76 @@ fn a_click_outside_with_a_submenu_open_dismisses_without_action(cx: &mut TestApp
     assert!(
         cx.debug_bounds("dropdown-menu").is_none(),
         "the dismissed menu must leave the tree"
+    );
+}
+
+/// A typeahead match in an open Dropdown must scroll its row into view, the
+/// way React Aria keeps the focused key visible. The menu here is taller than
+/// the capped panel, so the matched last row starts below the fold; one letter
+/// finds it by its unique initial and the reveal must bring it on screen.
+#[gpui::test]
+fn dropdown_typeahead_scrolls_the_found_row_into_view(cx: &mut TestAppContext) {
+    let actions = harness::events();
+    let recorded = actions;
+    let cx = open_menu_host(cx, move || {
+        let recorded = recorded.clone();
+        // Twenty-nine plain rows plus a last row with a unique initial, so a
+        // single letter resolves to it unambiguously and it starts below the
+        // capped panel.
+        let mut items: Vec<MenuItem> = (0..29)
+            .map(|i| MenuItem::new(format!("row-{i}"), format!("Row {i:02}")))
+            .collect();
+        items.push(MenuItem::new("zebra", "Zebra Final"));
+        gpui::div()
+            .flex()
+            .flex_row()
+            .items_start()
+            .child(gpui::div().w(px(40.)).h(px(1.)))
+            .child(
+                Dropdown::uncontrolled(
+                    "ddv-ta",
+                    Button::new("ddv-ta-trigger").label("Many"),
+                    items,
+                )
+                .id("ddv-ta-menu")
+                .item_content(|key, _| {
+                    let selector = format!("ddv-ta-item-{key}");
+                    gpui::div()
+                        .debug_selector(move || selector)
+                        .child(key.clone())
+                        .into_any_element()
+                })
+                .on_action(move |key, _, _| recorded.borrow_mut().push(key.to_string())),
+            )
+            .into_any_element()
+    });
+    settle(cx, 600., 420.);
+    click(cx, 80., 18.);
+    settle(cx, 600., 420.);
+
+    let menu = cx
+        .debug_bounds("dropdown-menu")
+        .expect("the open menu must be laid out");
+    let hidden = cx
+        .debug_bounds("ddv-ta-item-zebra")
+        .expect("the last row must be laid out");
+    assert!(
+        f32::from(hidden.origin.y + hidden.size.height)
+            > f32::from(menu.origin.y + menu.size.height) + 1.5,
+        "the last row must start out of view in a capped panel: row={hidden:?} menu={menu:?}"
+    );
+
+    // "z" typeaheads to the last row; the reveal must scroll it into view.
+    press(cx, "z");
+    cx.update(|window, _| window.refresh());
+    cx.run_until_parked();
+    let revealed = cx
+        .debug_bounds("ddv-ta-item-zebra")
+        .expect("the last row must still be laid out");
+    assert!(
+        f32::from(revealed.origin.y) >= f32::from(menu.origin.y) - 1.5
+            && f32::from(revealed.origin.y + revealed.size.height)
+                <= f32::from(menu.origin.y + menu.size.height) + 1.5,
+        "typeahead must scroll the found row into the panel: row={revealed:?} menu={menu:?}"
     );
 }
