@@ -597,13 +597,15 @@ pub fn select_theme(id: &str, cx: &mut App) {
 
 impl Render for Gallery {
     fn render(&mut self, _window: &mut Window, cx: &mut Context<'_, Self>) -> impl IntoElement {
+        #[cfg(test)]
+        sweep::note_draw(_window, cx);
         if let Some(completion) = self.control_frame.take() {
             completion.rendered(_window, cx);
         }
         let colors = cx.colors().clone();
 
         if crate::control::preview_only(cx) {
-            return h::extend::app_focus_root(gpui::div(), _window, cx)
+            let root = h::extend::app_focus_root(gpui::div(), _window, cx)
                 .size_full()
                 .bg(colors.background)
                 .text_color(colors.foreground)
@@ -615,6 +617,13 @@ impl Render for Gallery {
                 .child(self.render_current_page(cx))
                 .child(self.command_palette(cx))
                 .child(self.toast_viewport());
+            #[cfg(test)]
+            let root = if sweep::underline_text() {
+                root.underline()
+            } else {
+                root
+            };
+            return root;
         }
 
         // ---- top navbar ----------------------------------------------------
@@ -951,5 +960,98 @@ impl Gallery {
         self.popover_open = open;
         self.alert_dialog_open = open;
         self.cal_year_picker = open;
+    }
+}
+
+/// Test-only probes for the interaction sweep (`interaction_sweep`).
+/// `interaction_sweep` is compiled into the lib's test target only, so in
+/// the bin's test build the driver-facing entry points below have no caller.
+#[cfg(test)]
+#[allow(dead_code)]
+pub(crate) mod sweep {
+    use std::cell::Cell;
+
+    use gpui::{App, Window};
+
+    thread_local! {
+        /// `Gallery::render` invocations so far on this thread. The sweep
+        /// reads deltas to tell whether a pointer move repainted the window.
+        static DRAWS: Cell<usize> = const { Cell::new(0) };
+        /// When set, the preview root underlines every text run so the sweep
+        /// can see where labels paint and in what order. It adds no quads
+        /// and no layout.
+        static UNDERLINE_TEXT: Cell<bool> = const { Cell::new(false) };
+        /// Draw-count ceiling armed by the sweep before each window update;
+        /// the breaker trips when a render pushes `DRAWS` past it. A runaway
+        /// redraw (hover feedback that resizes its own hitbox, so `on_hover`
+        /// oscillates and `flush_effects` never drains) would otherwise spin
+        /// inside one `update_window` forever. `usize::MAX` = disarmed.
+        static DRAW_LIMIT: Cell<usize> = const { Cell::new(usize::MAX) };
+        /// Latched when the breaker parks the pointer for a non-converging
+        /// interaction; the sweep reads and clears it after each update.
+        static NONCONVERGED: Cell<bool> = const { Cell::new(false) };
+        /// Where the breaker parks the pointer, in window pixels — the
+        /// sweep's inert `EMPTY` point, which sits outside every example.
+        static PARK: Cell<Option<gpui::Point<gpui::Pixels>>> = const { Cell::new(None) };
+    }
+
+    pub(crate) fn note_draw(window: &mut Window, cx: &mut App) {
+        let n = DRAWS.with(|draws| {
+            let n = draws.get() + 1;
+            draws.set(n);
+            n
+        });
+        let limit = DRAW_LIMIT.with(|limit| limit.get());
+        if limit != usize::MAX && n > limit && !NONCONVERGED.with(|flag| flag.replace(true)) {
+            // One park per armed update is enough: moving the pointer off the
+            // element makes its hover report stably false, so the feedback
+            // loop converges and `update_window` can return. If the element
+            // still covers the park point the loop would resume on the next
+            // update, where the breaker trips again — bounded, never silent.
+            if let Some(park) = PARK.with(|park| park.get()) {
+                window.defer(cx, move |window, cx| {
+                    window.dispatch_event(
+                        gpui::PlatformInput::MouseMove(gpui::MouseMoveEvent {
+                            position: park,
+                            pressed_button: None,
+                            modifiers: gpui::Modifiers::default(),
+                        }),
+                        cx,
+                    );
+                });
+            }
+        }
+    }
+
+    /// Arms the draw-count breaker: `limit` is the absolute `DRAWS` value at
+    /// which a still-running update is judged non-converging.
+    pub(crate) fn arm_draw_limit(limit: usize) {
+        DRAW_LIMIT.with(|armed| armed.set(limit));
+    }
+
+    pub(crate) fn disarm_draw_limit() {
+        DRAW_LIMIT.with(|armed| armed.set(usize::MAX));
+    }
+
+    /// Returns and clears the non-convergence latch.
+    pub(crate) fn take_nonconverged() -> bool {
+        NONCONVERGED.with(|flag| flag.replace(false))
+    }
+
+    /// Sets the point the breaker parks the pointer at (window pixels).
+    pub(crate) fn set_park_point(point: gpui::Point<gpui::Pixels>) {
+        PARK.with(|park| park.set(Some(point)));
+    }
+
+    pub(crate) fn draws() -> usize {
+        DRAWS.with(|draws| draws.get())
+    }
+
+    pub(crate) fn set_underline_text(on: bool) {
+        UNDERLINE_TEXT.with(|flag| flag.set(on));
+    }
+
+    pub(crate) fn underline_text() -> bool {
+        UNDERLINE_TEXT.with(|flag| flag.get())
     }
 }

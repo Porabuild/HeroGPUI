@@ -12,6 +12,8 @@ pub mod app;
 pub mod assets;
 pub mod control;
 mod highlight;
+#[cfg(test)]
+mod interaction_sweep;
 pub mod pages;
 #[cfg(test)]
 mod snippet_check;

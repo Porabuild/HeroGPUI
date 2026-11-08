@@ -577,21 +577,25 @@ impl Gallery {
                                     .items_center()
                                     .gap(px(6.))
                                     .child("Call to action")
-                                    .child(gpui::div().text_size(px(12.)).opacity(0.6).child(
-                                        if state.is_hovered {
-                                            "hovered"
-                                        } else if state.is_pressed {
-                                            "pressed"
-                                        } else if state.is_focus_visible {
-                                            "focus-visible"
-                                        } else if state.is_focused {
-                                            "focused"
-                                        } else if state.is_disabled {
-                                            "disabled"
-                                        } else {
-                                            "custom render"
-                                        },
-                                    ))
+                                    .child(
+                                        gpui::div()
+                                            .text_size(px(12.))
+                                            .opacity(0.6)
+                                            .min_w(px(96.))
+                                            .child(if state.is_hovered {
+                                                "hovered"
+                                            } else if state.is_pressed {
+                                                "pressed"
+                                            } else if state.is_focus_visible {
+                                                "focus-visible"
+                                            } else if state.is_focused {
+                                                "focused"
+                                            } else if state.is_disabled {
+                                                "disabled"
+                                            } else {
+                                                "custom render"
+                                            }),
+                                    )
                                     .into_any_element()
                             })
                             .into_any_element(),

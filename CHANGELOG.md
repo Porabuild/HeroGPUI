@@ -42,6 +42,11 @@ version covers `herogpui`, `herogpui-core`, `herogpui-theme`,
 - `Alert::description_content` takes element content after the description
   text (v3's `Alert.Description` accepts a ReactNode). `TextArea::height`
   sets a pixel floor in place of the `rows`-derived one.
+- The gallery's interaction sweep (`cargo test -p herogpui-gallery`)
+  hovers and presses every component example headlessly. It fails when a
+  frame does not return to rest, a fade moves away from rest as the
+  pointer leaves, a hover or press fill paints over text, or redraws never
+  settle.
 
 ### Changed
 
@@ -132,6 +137,9 @@ version covers `herogpui`, `herogpui-core`, `herogpui-theme`,
 - Opening a gallery Modal, Drawer or Alert Dialog no longer pushes the page
   down under the backdrop. Select and ComboBox demos start closed, so the
   first click opens them.
+- The Link Render Function example keeps one width in every state. Its
+  shorter hovered label had resized the link under the pointer, so
+  hovering its end flickered between states every frame.
 
 ## [0.14.0] - 2026-09-29
 

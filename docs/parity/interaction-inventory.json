@@ -1,6 +1,6 @@
 {
   "schema_version": 3,
-  "recorded_on": "2026-11-07",
+  "recorded_on": "2026-11-08",
   "upstream": {
     "repository": "https://github.com/heroui-inc/heroui",
     "baseline_tag": "v3.2.6",
@@ -10,7 +10,7 @@
   },
   "gallery_source": {
     "path": "web/src/data/rust-examples.json",
-    "sha256": "cd69a8b4d676176e75974383377c24e7d2bed24f1ce5aa711ef458ce6be9f6d6"
+    "sha256": "5b3759320bc49a1369604cf0d30460ef06e5332ae3a405095f1739d8c17b0ad0"
   },
   "scope_note": "Inventory only, not parity evidence. Expand each demo into its individual rendered variants and state paths before verification. Include upstream stories, documented props, CSS modifiers and inherited React Aria semantics; demos alone are not exhaustive. Gallery and upstream keys are separate inventories, not an asserted one-to-one mapping.",
   "source_changes": [
@@ -12301,8 +12301,8 @@
       },
       {
         "heading": "Render Function",
-        "code_sha256": "f075c32b5264d5c51ac35e6373316b859a81b5d81a3cb66a1c9ba1a88fbddafc",
-        "content_sha256": "a08a009da6f7a2baa1652aac2972f9792b4ef993ad7cc3b1c7ac5bfed0f7fc0d",
+        "code_sha256": "c801d6095368065fb1cc95a49c1b26b86a8e0b6850effce1696d4b9c2b31fcaa",
+        "content_sha256": "0e873cd213f0a57a630767154b683efea7f26e64f93b7093cf788955b136a3e9",
         "status": "unreviewed",
         "history": [
           {
@@ -12320,6 +12320,12 @@
             "heading": "Render Function",
             "code_sha256": "ddbe12af2b36c98e985fab8a5c1282fe17a16c8b6a53652eb5f52d769a4555da",
             "content_sha256": "b398ce90a3312119af8b50a9e4a390d34b405d1cd725d8426721daaf508bce95",
+            "status": "unreviewed"
+          },
+          {
+            "heading": "Render Function",
+            "code_sha256": "f075c32b5264d5c51ac35e6373316b859a81b5d81a3cb66a1c9ba1a88fbddafc",
+            "content_sha256": "a08a009da6f7a2baa1652aac2972f9792b4ef993ad7cc3b1c7ac5bfed0f7fc0d",
             "status": "unreviewed"
           }
         ]
@@ -25003,7 +25009,7 @@
     "sha256": "8632eb868ad4e4d3a20a85506dcee45148770979d8c503dd937aeb5de3a5361d"
   },
   "source_snapshot": {
-    "sha256": "f6338bebc3f11f6338a9b6d53725bdf5a6b7ed68414985f97354f6a0c5246875",
+    "sha256": "259b79687e6e29ab991a86f169cd7e6096055355326c63c4182424ceada538af",
     "files": {
       ".cargo/config.toml": "6ce2a269fd46b2570763e8e446ac93e9d04614416af21134877cf7b388e776f9",
       ".gitattributes": "13aede5d4eaee3f19ecad6be9d4941dafe8bc4d596e83a2083f4143fb6e0f434",
@@ -25372,11 +25378,13 @@
       "gallery/assets/herogpui/icons/trash.svg": "00b5ba0ab53210b684fae0ebd63f1aeaed7e0f66d35cb197ac242f889f0a5ce6",
       "gallery/assets/herogpui/icons/warning_triangle.svg": "51423a127427513571cfabf2fb3428ecb1ecb10f7a4061b150b3c3642b0f5c82",
       "gallery/assets/herogpui/sample.png": "da6e1a7c304f5dcfb62ddf211e1a1b56df50399aa6c9b47c940e2d3b92788a32",
-      "gallery/src/app.rs": "4d9c33ae46aed0bec0242c1a7a7b6bbc4319590be0d715db76b380da7ab2289f",
+      "gallery/src/app.rs": "91d7b32f11bb99f4a27b7d2ae3f2dbfda547790d3d242b3dacd65de003827141",
       "gallery/src/assets.rs": "162796f0a083d45c8488639d7d86c145bdebd3a7320074c69e6afd1bc07c9d3d",
-      "gallery/src/control.rs": "79e241e450f57882bf7917554a70c02c316f704f2553b549faa228510415cb2c",
+      "gallery/src/control.rs": "907e5a1df6ca4401be9dbecc08f88efb2ef69bed57be9ae361d5f715b67e945e",
       "gallery/src/highlight.rs": "5a82b332c8dc67b0278f38b4fa7330a28be7fd21c64088edc2afbee7cfc5102b",
-      "gallery/src/lib.rs": "6f15a78ac0be0402995f43a5a39c1f6d5a54dac73b76f87c552d81251d40dd1b",
+      "gallery/src/interaction_sweep/mod.rs": "576a463c751ebd7e4e82ea3305f9eba0f78e7b6c9e1643c8cd3359df8c5c7e5a",
+      "gallery/src/interaction_sweep/scene.rs": "b062d66dcd24c1c4effbca243330e5284f99cc71afa6cc746f214374127a7948",
+      "gallery/src/lib.rs": "1ec6216f3f811a7f53a0ef28a0f7b325f0dc912d8b29393595e6a71c0018c77e",
       "gallery/src/main.rs": "a64fc5dc15de610691418ef481cefe62a4fb10bbf531858046653b0f564d8755",
       "gallery/src/pages/components/buttons.rs": "fcf82975c70aee45a64b8c2f0e2a350e916774425124bcd8c1035bb204a68a61",
       "gallery/src/pages/components/collections.rs": "2f73cd2efb4abecd0ae59b40b097bb00c42d42a9eea1442194007d00d5126f26",
@@ -25389,7 +25397,7 @@
       "gallery/src/pages/components/layout.rs": "fa1367a4d464a4ac39eb5cf2ff5a7e7ce98675da0898a229cabdf5587448f1fb",
       "gallery/src/pages/components/media.rs": "4890d054aa376134457ea37692558235c246946a1a7472609a0dd12f5d68c2c4",
       "gallery/src/pages/components/mod.rs": "903d72a3ea51d54f221a5622675f8d3a1e7d8efcb56412d459adc40e11f700f3",
-      "gallery/src/pages/components/navigation.rs": "e3c745ca532836043a3a2a154ca0f7a7da3b60532950214d2bc57020bcda2187",
+      "gallery/src/pages/components/navigation.rs": "245f2b7c09ebd949a10927f22c82ec3a5a3ab9574c178cf1bbeb5981841b8b22",
       "gallery/src/pages/components/overlays.rs": "7b13aad020d5e149008331c401e8ad77ce651514ac9dd56414943197a8014daa",
       "gallery/src/pages/components/pickers.rs": "1d278ef1d785c3f8bd3828f4b325774dc577cdf92a75998d91848b5eff2ab1ab",
       "gallery/src/pages/components/sheet.rs": "013da20e7df0c1eb571cd4e836a4aa78f419869bf31eb0bb88f32839a08d6ebd",
@@ -25519,8 +25527,8 @@
       "web/src/data/catalog.json": "8632eb868ad4e4d3a20a85506dcee45148770979d8c503dd937aeb5de3a5361d",
       "web/src/data/reference.json": "a248ebb566d95485c1d6360e649c0decbfcce8cb2d6c83d4a452cabea191a492",
       "web/src/data/releases.json": "22a8358a523c9993bde2657a6686b45ad0842fac08a2dd2c9dbc7defa641bbd3",
-      "web/src/data/rust-examples.json": "cd69a8b4d676176e75974383377c24e7d2bed24f1ce5aa711ef458ce6be9f6d6",
-      "web/src/data/wasm-parity.json": "a1f14f1e7757d616df820b5beea94bb9cbc0cea33824d12626a527b8f3c9e697",
+      "web/src/data/rust-examples.json": "5b3759320bc49a1369604cf0d30460ef06e5332ae3a405095f1739d8c17b0ad0",
+      "web/src/data/wasm-parity.json": "d2422f50beb6575df99c04d660f722e732626ce81c9ffaa580107fd5ec90f89f",
       "web/src/data/wasm-sections.json": "cc73fd1864f392412746ed71603fd3363070fe225199a1ebd0ccb5c1c5b7b6f2",
       "web/src/lib/catalog.ts": "79681a0e1e0e12c9352ddc9eec0d6fe428906ceca07bfefb89623639396f81cf",
       "web/src/lib/docs-nav.ts": "ffb0d7fdaa0261395306f0bfa4e09c5ef88043c702c962f847983b05be67f55a",
@@ -89916,8 +89924,8 @@
       "source": {
         "gallery": "web/src/data/rust-examples.json",
         "reference": "web/src/data/reference.json",
-        "codeSha256": "f075c32b5264d5c51ac35e6373316b859a81b5d81a3cb66a1c9ba1a88fbddafc",
-        "contentSha256": "a08a009da6f7a2baa1652aac2972f9792b4ef993ad7cc3b1c7ac5bfed0f7fc0d",
+        "codeSha256": "c801d6095368065fb1cc95a49c1b26b86a8e0b6850effce1696d4b9c2b31fcaa",
+        "contentSha256": "0e873cd213f0a57a630767154b683efea7f26e64f93b7093cf788955b136a3e9",
         "docsSource": "https://github.com/heroui-inc/heroui/blob/v3.2.7/apps/docs/content/docs/en/react/components/(navigation)/link.mdx"
       },
       "history": [
@@ -90030,6 +90038,43 @@
             "codeSha256": "f075c32b5264d5c51ac35e6373316b859a81b5d81a3cb66a1c9ba1a88fbddafc",
             "contentSha256": "a08a009da6f7a2baa1652aac2972f9792b4ef993ad7cc3b1c7ac5bfed0f7fc0d",
             "docsSource": "https://github.com/heroui-inc/heroui/blob/v3.2.6/apps/docs/content/docs/en/react/components/(navigation)/link.mdx"
+          }
+        },
+        {
+          "id": "gallery/link/render-function",
+          "component": "Link",
+          "scope": "gallery-section",
+          "status": "unreviewed",
+          "upstream": {
+            "tag": "v3.2.7",
+            "source": null,
+            "selector": null,
+            "demoSection": "Render Function"
+          },
+          "port": {
+            "module": "link",
+            "galleryPage": "Link",
+            "gallerySection": "Render Function",
+            "specimenKey": null
+          },
+          "configuration": {},
+          "state": "section-seed",
+          "setup": [],
+          "assertions": [
+            "Expand this section into concrete variant/state specimens before verification."
+          ],
+          "evidence": {
+            "upstream": [],
+            "native": [],
+            "wasm": [],
+            "tests": []
+          },
+          "source": {
+            "gallery": "web/src/data/rust-examples.json",
+            "reference": "web/src/data/reference.json",
+            "codeSha256": "f075c32b5264d5c51ac35e6373316b859a81b5d81a3cb66a1c9ba1a88fbddafc",
+            "contentSha256": "a08a009da6f7a2baa1652aac2972f9792b4ef993ad7cc3b1c7ac5bfed0f7fc0d",
+            "docsSource": "https://github.com/heroui-inc/heroui/blob/v3.2.7/apps/docs/content/docs/en/react/components/(navigation)/link.mdx"
           }
         }
       ]
@@ -147251,7 +147296,7 @@
       ]
     }
   ],
-  "verification_sha256": "0fe6c8dc0f65939e2c9e7fb9b4ec0e824ce828d122904dd50c05ee241ba26d11",
+  "verification_sha256": "2cfcf5b4048f3907b059ad4bac12d3bca7d6b6792cd089a1c8d51fa5e56683f7",
   "retired_source_changes": [
     {
       "path": "packages/react/src/components/autocomplete/autocomplete.stories.tsx",
