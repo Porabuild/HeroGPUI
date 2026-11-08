@@ -161,6 +161,20 @@ pub fn section_wanted(heading: &str, cx: &App) -> bool {
 
 /// Records a section only when the caller includes it in the rendered view.
 pub(crate) fn include_section(heading: &str, cx: &App) -> bool {
+    #[cfg(test)]
+    {
+        if sweep_hooks::recording() {
+            sweep_hooks::push_heading(heading);
+            return false;
+        }
+        if let Some(exact) = sweep_hooks::exact() {
+            let hit = heading == exact;
+            if hit {
+                sweep_hooks::set_exact_hit();
+            }
+            return hit;
+        }
+    }
     if !section_wanted(heading, cx) {
         return false;
     }
@@ -173,6 +187,68 @@ pub(crate) fn include_section(heading: &str, cx: &App) -> bool {
         }
     }
     true
+}
+
+/// Test-only hooks for the interaction sweep (`interaction_sweep`): heading
+/// recording while a page enumerates its sections, and an exact-heading
+/// matcher because the substring `section=` filter cannot name colliding
+/// headings ("Range" vs "Range with Steps and Marks").
+/// `interaction_sweep` is compiled into the lib's test target only, so in
+/// the bin's test build the recording/exact entry points have no caller.
+#[cfg(test)]
+#[allow(dead_code)]
+pub(crate) mod sweep_hooks {
+    use std::cell::{Cell, RefCell};
+
+    thread_local! {
+        /// `Some` while recording: every `include_section` call appends its
+        /// heading here and reports `false` so no section renders.
+        static HEADINGS: RefCell<Option<Vec<String>>> = const { RefCell::new(None) };
+        /// Exact heading the next preview mount must render, if any.
+        static EXACT: RefCell<Option<String>> = const { RefCell::new(None) };
+        /// Set once an `include_section` call matched `EXACT`.
+        static EXACT_HIT: Cell<bool> = const { Cell::new(false) };
+    }
+
+    pub(crate) fn recording() -> bool {
+        HEADINGS.with(|headings| headings.borrow().is_some())
+    }
+
+    pub(crate) fn start_recording() {
+        HEADINGS.with(|headings| *headings.borrow_mut() = Some(Vec::new()));
+    }
+
+    pub(crate) fn push_heading(heading: &str) {
+        HEADINGS.with(|headings| {
+            if let Some(recorded) = headings.borrow_mut().as_mut() {
+                recorded.push(heading.to_owned());
+            }
+        });
+    }
+
+    /// Ends recording and returns the headings in render order.
+    pub(crate) fn take_headings() -> Vec<String> {
+        HEADINGS.with(|headings| headings.borrow_mut().take().unwrap_or_default())
+    }
+
+    pub(crate) fn set_exact(heading: Option<&str>) {
+        EXACT.with(|exact| {
+            *exact.borrow_mut() = heading.map(str::to_owned);
+        });
+        EXACT_HIT.with(|hit| hit.set(false));
+    }
+
+    pub(crate) fn exact() -> Option<String> {
+        EXACT.with(|exact| exact.borrow().clone())
+    }
+
+    pub(crate) fn set_exact_hit() {
+        EXACT_HIT.with(|hit| hit.set(true));
+    }
+
+    pub(crate) fn exact_hit() -> bool {
+        EXACT_HIT.with(|hit| hit.get())
+    }
 }
 
 /// Shared with the poller; only a render can schedule its completion.
@@ -206,7 +282,7 @@ impl FrameAck {
 /// takes -- so hover, press, focus and keyboard modality behave as they do
 /// for real input, on hosts where no posted-input driver exists.
 #[derive(Debug, Clone, PartialEq)]
-enum Step {
+pub(crate) enum Step {
     Move(gpui::Point<gpui::Pixels>),
     Drag(gpui::Point<gpui::Pixels>),
     Down(gpui::Point<gpui::Pixels>),
@@ -261,7 +337,7 @@ fn parse_steps(raw: &str) -> Result<Vec<Step>, String> {
         .collect()
 }
 
-fn dispatch_step(step: &Step, window: &mut Window, cx: &mut App) -> Result<(), String> {
+pub(crate) fn dispatch_step(step: &Step, window: &mut Window, cx: &mut App) -> Result<(), String> {
     use gpui::{
         Keystroke, Modifiers, MouseButton, MouseDownEvent, MouseExitEvent, MouseMoveEvent,
         MouseUpEvent, PlatformInput, ScrollDelta, ScrollEvent,
@@ -354,7 +430,7 @@ fn dispatch_step(step: &Step, window: &mut Window, cx: &mut App) -> Result<(), S
 }
 
 #[derive(Debug)]
-struct Request {
+pub(crate) struct Request {
     seq: String,
     page: Option<Page>,
     section: String,
@@ -371,7 +447,7 @@ struct Request {
 }
 
 impl Request {
-    fn parse(text: &str) -> Result<Self, String> {
+    pub(crate) fn parse(text: &str) -> Result<Self, String> {
         let mut request = Self {
             seq: String::new(),
             page: None,
@@ -578,7 +654,7 @@ pub fn spawn(window: WindowHandle<Gallery>, cx: &mut App) {
     .detach();
 }
 
-fn apply(
+pub(crate) fn apply(
     request: Request,
     window: WindowHandle<Gallery>,
     completion: FrameAck,

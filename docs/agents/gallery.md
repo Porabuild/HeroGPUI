@@ -216,3 +216,37 @@ focus, keyboard, overlay, or drag changes:
 
 Use dark and reduced-motion/open-overlay smokes when tokens, overlays, or motion
 change. Do not claim those variants from a default route smoke.
+
+## Interaction sweep
+
+`gallery/src/interaction_sweep/` mounts every component example headlessly in
+component-preview mode, finds the controls that react to the pointer, then
+hovers and presses each one. A finding fails the sweep when:
+
+1. the frame does not return to rest after the pointer leaves (stuck
+   highlights, translucent fills painted twice);
+2. leaving a control mid-fade moves its colours away from rest (a fade that
+   snaps to the hover colour before fading out);
+3. a fill added on hover or press paints over text (a fill appended after its
+   label);
+4. redraws never settle (hover feedback that resizes its own hitbox);
+5. the settled frame still changes a second later.
+
+It reads `Window::painted_quads` and `painted_underlines`, and the preview
+root underlines all text during the sweep so every text run leaves a
+primitive. Glyphs, SVG icons and shadows are not observable, so the text
+check sees only those underlines. Examples that animate on their own are
+swept under reduced motion.
+
+```bash
+cargo test -p herogpui-gallery --lib interaction_sweep
+HEROGPUI_SWEEP_PAGE=Tabs HEROGPUI_SWEEP_SECTION="Wrapping Labels" \
+    cargo test -p herogpui-gallery --lib interaction_sweep -- --nocapture
+```
+
+`HEROGPUI_SWEEP_PAGE` takes an exact navigation title and
+`HEROGPUI_SWEEP_SECTION` an exact example heading; `HEROGPUI_SWEEP_DEBUG=1`
+prints each probe. A finding triaged as correct behaviour goes into
+`EXPECTED` with the evidence for that verdict. An entry that no longer
+matches fails the sweep, so an exemption cannot outlive the behaviour it
+excuses.
