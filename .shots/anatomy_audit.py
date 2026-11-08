@@ -61,7 +61,7 @@ SRC = 'crates/herogpui-components/src/'
 # nests it somewhere; the value is a regex searched in the containing module.
 SLOT = {
     'search-field': r'SearchField::new',
-    'list-box': r'list_nav|row_of|uniform_list|gpui::list|list_box::',
+    'list-box': r'list_core::|list_nav|row_of|uniform_list|gpui::list|list_box::',
     'list-box-item': r'row_of|list_box::|FIELD_HEIGHT',
     'list-box-item-indicator': r'icons::CHECK|indicator',
     'menu-item': r'row|MenuItem',

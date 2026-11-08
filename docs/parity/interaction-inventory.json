@@ -25009,12 +25009,12 @@
     "sha256": "8632eb868ad4e4d3a20a85506dcee45148770979d8c503dd937aeb5de3a5361d"
   },
   "source_snapshot": {
-    "sha256": "3446dc9c9818c48657fd3218dee6e49efb5471cb44e35f59f561f6f355ecda80",
+    "sha256": "467cfd67ad009b7079d570d966fec73fe477e3baaba6fc392d59d32da809ae81",
     "files": {
       ".cargo/config.toml": "6ce2a269fd46b2570763e8e446ac93e9d04614416af21134877cf7b388e776f9",
       ".gitattributes": "13aede5d4eaee3f19ecad6be9d4941dafe8bc4d596e83a2083f4143fb6e0f434",
       ".shots/a11y_audit.py": "42eafbb0110af4ae5348b644b3f405b50b9175e50f3107c096e4ab7e7768fb01",
-      ".shots/anatomy_audit.py": "05639be96a17d00156bb3000842eda493990a2dd34f53820e7ffe9b69c51506b",
+      ".shots/anatomy_audit.py": "8f6798f5118908dfb95a418104ed89f60bb89565e54f59778f5a9c07823f62c7",
       ".shots/anim_audit.py": "090152877b56672703147ce72f6e833e3c0615058ca6aaa02146bd32424c6d8c",
       ".shots/api_audit.py": "94b1e603354488871e208ffa8b92d4d64a2d2f67fbbae8e7723dbf8e363ee609",
       ".shots/batch.ps1": "ef6b5b45dd1f2315ad40355d972429fa0c52a1003cf64bd9a984ebd8818667e3",
@@ -147297,7 +147297,7 @@
       ]
     }
   ],
-  "verification_sha256": "460a62011bd26ae90721dff5526a936589eb1a0d9f19ad7ff8ba0b3b0821462a",
+  "verification_sha256": "7f50999f158a95878d7e08fb5d64c416af2383cac733d64429178f4f279e44ef",
   "retired_source_changes": [
     {
       "path": "packages/react/src/components/autocomplete/autocomplete.stories.tsx",
