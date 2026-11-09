@@ -779,7 +779,7 @@ API_SECTIONS = None
 def api_sections():
     """Each component page's `## API Reference` section, verbatim.
 
-    One per page, 71 of them, and the section is the boundary that matters: the
+    One per page, and the section is the boundary that matters: the
     v2 migration guides on the same page carry tables of their own
     (`### 2. Prop Changes`) whose rows are props v3 *removed*.
     """

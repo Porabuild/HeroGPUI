@@ -4,9 +4,9 @@ HeroGPUI is a UI library for Rust desktop applications. It brings the HeroUI
 design system to Rust, built on GPUI, the GPU-accelerated framework behind the
 Zed editor. It runs on Windows, macOS and Linux from one codebase.
 
-It implements every component HeroUI documents — 71 components, shown in the
-gallery and on the website as 66 pages because a few pages cover a component
-together with its group or slot siblings.
+It implements every component HeroUI v3.2.7 documents; the gallery and
+website show one page per component, except that a few pages cover a
+component together with its group or slot siblings.
 
 ```rust
 use herogpui::*;

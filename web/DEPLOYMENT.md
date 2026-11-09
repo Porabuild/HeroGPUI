@@ -453,7 +453,8 @@ defaults: Root Directory `web`, Install Command
 ## Remaining items
 
 1. **The registry release is published.** The `herogpui` crates are on
-   crates.io (0.9.0 onward), and the install snippets show `herogpui = "0.12"`.
+   crates.io (0.9.0 onward), and the README install snippet tracks the
+   current minor.
 2. **The Vercel project's git connection is in place** (verified 2026-09-29):
    pull requests get preview deployments and `master` deploys to production,
    as "Current status" describes.

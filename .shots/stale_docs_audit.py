@@ -27,7 +27,7 @@ ROOT = Path(__file__).resolve().parent.parent
 # Globs relative to the repository root. Guidance, workflow and config files
 # only; a glob that matches nothing is reported as a reader error.
 SCANNED = (
-    'AGENTS.md', 'CONTRIBUTING.md', 'RELEASING.md', 'README.md',
+    'AGENTS.md', 'CONTRIBUTING.md', 'RELEASING.md', 'README.md', 'llms.txt',
     'Cargo.toml', 'clippy.toml', 'rust-toolchain.toml', 'deny.toml',
     '.cargo/config.toml',
     '.github/workflows/*.yml', '.github/actions/*/action.yml',
@@ -35,6 +35,7 @@ SCANNED = (
     '.shots/AGENTS.md', '.shots/*.sh', '.shots/*.ps1',
     'crates/*/AGENTS.md', 'gallery/AGENTS.md',
     'web/AGENTS.md', 'web/DEPLOYMENT.md',
+    'web/README.md', 'web/HANDOFF.md', 'web/COPY-GUIDE.md',
     'skills/*/SKILL.md',
 )
 
@@ -74,6 +75,14 @@ STALE = (
      ()),
     (r'unpublished pre-1\.0|pre-1\.0 and unpublished',
      'the library crates are published on crates.io',
+     ()),
+    (r'\b\d+\s+(?:documented\s+)?components\b',
+     'component and page totals change with each HeroUI release; the catalog '
+     '(web/src/data/catalog.json) and the reference audit report them',
+     ()),
+    (r'\b\d+\s+(?:component\s+|documentation\s+)?pages\b',
+     'component and page totals change with each HeroUI release; the catalog '
+     '(web/src/data/catalog.json) and the reference audit report them',
      ()),
 )
 
@@ -116,7 +125,9 @@ def self_test():
             '# Git GPUI is not registry-publishable\n'
             'rustup toolchain install "$(cat .shots/wasm-toolchain.txt)"\n'
             'run .shots/lint.ps1 first\n'
-            'key: wasm32-nightly-2026-08-30\n',
+            'key: wasm32-nightly-2026-08-30\n'
+            'it implements 71 documented components\n'
+            'the catalog groups them into 66 pages\n',
             encoding='utf-8')
         good = root / 'CONTRIBUTING.md'
         good.write_text(
@@ -125,7 +136,10 @@ def self_test():
             'the wasm32 build runs on the pinned stable toolchain\n'
             'a stable wasm32 build; the opt-in multithreaded feature needs nightly\n'
             'run bash .shots/lint.sh first\n'
-            '`.shots/lint.ps1` forwards to `.shots/lint.sh`\n',
+            '`.shots/lint.ps1` forwards to `.shots/lint.sh`\n'
+            'the catalog derives its counts from catalog.json\n'
+            'entries cover a component and its slot siblings across pages\n'
+            'one page per documented component\n',
             encoding='utf-8')
         wrapper = root / '.shots' / 'lint.ps1'
         wrapper.write_text('#   .shots/lint.ps1 -Fix\n', encoding='utf-8')
@@ -135,7 +149,7 @@ def self_test():
         for rel, number, _reason, _line in hits:
             by_file.setdefault(rel, []).append(number)
         # Line 3 carries two stale phrases, so it is reported twice.
-        if by_file.get('AGENTS.md') != [1, 2, 3, 3, 4, 5, 6]:
+        if by_file.get('AGENTS.md') != [1, 2, 3, 3, 4, 5, 6, 7, 8]:
             failures.append('known-stale lines not all reported: %r' % by_file.get('AGENTS.md'))
         if 'CONTRIBUTING.md' in by_file:
             failures.append('current wording flagged: %r' % by_file['CONTRIBUTING.md'])

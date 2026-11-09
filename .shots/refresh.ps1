@@ -2,7 +2,7 @@
 #
 # `capture2.ps1` relaunches the gallery per page, so a full refresh -- which any
 # change to a shared metric needs -- took the better part of ten minutes. This
-# drives one process through all 76 pages instead (see `batch.ps1`), which is
+# drives one process through every page instead (see `batch.ps1`), which is
 # under a minute, and writes the same `<page>-v3.png` names.
 #
 #   .\.shots\refresh.ps1                 # every page
