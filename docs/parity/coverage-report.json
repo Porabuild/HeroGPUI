@@ -3,8 +3,8 @@
   "target": "v3.2.7",
   "target_commit": "7cb1642606c6f96f424dad78a961ccf45436be72",
   "inventory_recorded_on": "2026-11-09",
-  "inventory_verification_sha256": "e5999befe15f356da460f525f0c4e5727eb89fdef0ec3e8e11af9982844a12b0",
-  "source_snapshot_sha256": "b669f0aabb48ba9d2786adbc51e4addf94ff115631311f7bad01ff43084889a1",
+  "inventory_verification_sha256": "62357d44d416586e32979edb81a7a0280ff1f8120e11a7de2a9dc87c25a0c24f",
+  "source_snapshot_sha256": "c18983304d126de383a365bb7419f52e378dfd94c94c72f2d4445e60bda58663",
   "last_evidence_commit": null,
   "last_evidence_commit_recorded": false,
   "totals": {
@@ -7853,7 +7853,7 @@
       "path": "docs/parity/runs/native-a11y.json",
       "kind": "native-a11y",
       "recorded_on": "2026-11-09",
-      "current": true,
+      "current": false,
       "counts": {
         "pass": 809,
         "fail": 0,
@@ -7889,7 +7889,7 @@
       "failing_ids": []
     }
   ],
-  "sections_with_current_passing_run": 809,
+  "sections_with_current_passing_run": 0,
   "notes": [
     "This report summarizes the inventory; it does not establish visual or interaction parity.",
     "Gallery-section seeds must be expanded into concrete variant/state specimens before verification.",

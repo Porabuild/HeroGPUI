@@ -25379,7 +25379,7 @@
     "sha256": "8632eb868ad4e4d3a20a85506dcee45148770979d8c503dd937aeb5de3a5361d"
   },
   "source_snapshot": {
-    "sha256": "b669f0aabb48ba9d2786adbc51e4addf94ff115631311f7bad01ff43084889a1",
+    "sha256": "c18983304d126de383a365bb7419f52e378dfd94c94c72f2d4445e60bda58663",
     "files": {
       ".cargo/config.toml": "6ce2a269fd46b2570763e8e446ac93e9d04614416af21134877cf7b388e776f9",
       ".gitattributes": "13aede5d4eaee3f19ecad6be9d4941dafe8bc4d596e83a2083f4143fb6e0f434",
@@ -25432,7 +25432,7 @@
       ".shots/stale_docs_audit.py": "e9d1a6952eed2fdb9458b9ff8af62dd5f91a1137182b0503f20d91d04598273c",
       ".shots/state_audit.py": "2def978e5abf18e6c02dc69b04defd278ac107c46b586c8ef0b2a4fa49a1884d",
       ".shots/strip_size.py": "f3996d1457902f3ff718d0f6d6d0d7e826c4d4435bbc659d01d2569c0141aab3",
-      ".shots/subset-fonts.py": "cd06c3969232b70763ebd4a789872b60667a8a59816e84d80c7ad7714fdb020e",
+      ".shots/subset-fonts.py": "d054dea2c82ed0d16c1b65f4eba84fbbd2a3ad4cbb79ede51f0d669d73ebf907",
       ".shots/sync-lucide.py": "171c099bc720e51eb8499ba626c492c4f8a10865f4d80cde567488df8a7d2ca4",
       ".shots/test-control.ps1": "2e6c1da119b308cd99847a0067d677a6cffd5f55038e1939912682011e4754be",
       ".shots/test_ax_tree.py": "fcadfaa46d8efbc13a3c73a599e8f7ea6f6698c863b77aff29fd0819da7140e9",
@@ -25697,21 +25697,21 @@
       "crates/herogpui-theme/src/theme_watch.rs": "4cb1b86e598841f3e9adaf676d5c145aa82ffe8a7cac0cedfa9ad4b9f23f5d1a",
       "crates/herogpui-web/Cargo.toml": "de3bfbcc35aaf7baac9f9ad5a5ee5e4a1668d76695503ae0221e0f3e28df4c80",
       "crates/herogpui-web/fonts/Inter-Bold.source.ttf": "4fc8963c16cf3d35f8423a6297d3a43686f5b0966df88bee0b3e0f9dd842026d",
-      "crates/herogpui-web/fonts/Inter-Bold.ttf": "2ec1500b84f047672bc35a71bd2f85ad3455f56d7ac0e37a060614a48af3a98a",
+      "crates/herogpui-web/fonts/Inter-Bold.ttf": "c50c2aabc4bf0b2f91f81ef73806251993a4728d6b34478d3ebd1a8b97440eab",
       "crates/herogpui-web/fonts/Inter-Medium.source.ttf": "66e39fae014af7bdf4d43752f1a468945e6287bcaab8e4316a2c4c914c834b1c",
-      "crates/herogpui-web/fonts/Inter-Medium.ttf": "7f3be367cae38fc4169edaae7c1a7d706e3a5b8c22980e3eb21f62f9de4af089",
+      "crates/herogpui-web/fonts/Inter-Medium.ttf": "464dc4406737fc749fe3b00a70ae91c7c5df8339fb489396b24a5ae9000518c9",
       "crates/herogpui-web/fonts/Inter-Regular.source.ttf": "c5de106eb3ffd7790cde68809043884c14380ce0bdb6560e812b75e1981fc61c",
-      "crates/herogpui-web/fonts/Inter-Regular.ttf": "84fbe4521a9ffcc81ac51b4d3e62b6c300ce44927a829938be520881ccfa5d84",
+      "crates/herogpui-web/fonts/Inter-Regular.ttf": "f5b2e2dd35864455aada42fcc30cff70636c84ce385aad0b7fd841183be9432e",
       "crates/herogpui-web/fonts/Inter-Semibold.source.ttf": "442ac7bf532d439826e2a0a49d1d75c11dc14e7cf7bab78c6091f55259203139",
-      "crates/herogpui-web/fonts/Inter-Semibold.ttf": "d055c214d58178879f611d009bb2c7b07bef24038afe4a1d6aecda44f5687feb",
+      "crates/herogpui-web/fonts/Inter-Semibold.ttf": "cf61a22ea6ccbb7d634bb1e7b7c55f31081dfc2990c195a355aee854ac5b0501",
       "crates/herogpui-web/fonts/JetBrainsMono-Regular.source.ttf": "a0bf60ef0f83c5ed4d7a75d45838548b1f6873372dfac88f71804491898d138f",
-      "crates/herogpui-web/fonts/JetBrainsMono-Regular.ttf": "1ac0d4736b037b876dcc0eabd2bde37ad5783e5f7f99a15f2b2ec352b44a3bed",
+      "crates/herogpui-web/fonts/JetBrainsMono-Regular.ttf": "139c8cb30b9a9363ef65faf8cd9a7c7918f4e25c7465858382bb5c9561077087",
       "crates/herogpui-web/fonts/NotoEmoji-Regular.source.ttf": "1ada997ccb67bf2404828e25528e5257d6db10c80287e77684abf6737a5d198f",
       "crates/herogpui-web/fonts/NotoEmoji-Regular.ttf": "cf77f36e88625fdbafc4fd95213c184cc1e0a0ccbaba00ec7c1d1beaa77e1978",
       "crates/herogpui-web/fonts/NotoSansKR-Regular.source.ttf": "33b6ae1a87965c630c0bffe3073dbd7e82828b4d690210b6e0c7813d1227ff9a",
-      "crates/herogpui-web/fonts/NotoSansKR-Regular.ttf": "c16f544118e12e7e78cb32041c04c850d9867da713ccff40d72d9a95374ca170",
+      "crates/herogpui-web/fonts/NotoSansKR-Regular.ttf": "a68e9e784a882ad08e28f20d7697f44d553db6dd3a17a1d9ff27687403741e59",
       "crates/herogpui-web/fonts/NotoSansSC-Regular.source.ttf": "f5c2c15a32ff58697f6f9328b20774c8fd55fa499130af4fe956672b13906a4e",
-      "crates/herogpui-web/fonts/NotoSansSC-Regular.ttf": "87f0b612eef3de96141489c64f6c7783c84caea49a078df05856ca6ff566059f",
+      "crates/herogpui-web/fonts/NotoSansSC-Regular.ttf": "4b79a292224d315727ac55b41eaaa0b32ba0eb86ac891f61cf619f70a9d34417",
       "crates/herogpui-web/fonts/OFL.txt": "f7195766d9f15710900d43cea8f3cedbbc31a4a80325f248f5ab22f8686a0a92",
       "crates/herogpui-web/index.html": "bb57c09da7da0a9537eca0b7396cac5189edf9add0cdaea3d254599bf9218b44",
       "crates/herogpui-web/src/lib.rs": "79bc5c75e5944e9b098f118c732dc22f890de761c97c2672f90cf2c8d8e1f2d4",
@@ -25905,7 +25905,7 @@
       "web/src/data/reference.json": "a248ebb566d95485c1d6360e649c0decbfcce8cb2d6c83d4a452cabea191a492",
       "web/src/data/releases.json": "22a8358a523c9993bde2657a6686b45ad0842fac08a2dd2c9dbc7defa641bbd3",
       "web/src/data/rust-examples.json": "b8a69a5185ac0ea0288863241b21c9557fd68b41ff27ffdcc6546e45282b63cf",
-      "web/src/data/wasm-parity.json": "53736e00ee208aa84bdd542b4fcaed9c82bb2868937064776059dea668074ea3",
+      "web/src/data/wasm-parity.json": "1ddf9c91544e9fea9fd207f582fb77cf9d937c86e0cebffdb902e0be3ac52ba4",
       "web/src/data/wasm-sections.json": "cc73fd1864f392412746ed71603fd3363070fe225199a1ebd0ccb5c1c5b7b6f2",
       "web/src/lib/catalog.ts": "79681a0e1e0e12c9352ddc9eec0d6fe428906ceca07bfefb89623639396f81cf",
       "web/src/lib/docs-nav.ts": "ffb0d7fdaa0261395306f0bfa4e09c5ef88043c702c962f847983b05be67f55a",
@@ -149932,7 +149932,7 @@
       ]
     }
   ],
-  "verification_sha256": "e5999befe15f356da460f525f0c4e5727eb89fdef0ec3e8e11af9982844a12b0",
+  "verification_sha256": "62357d44d416586e32979edb81a7a0280ff1f8120e11a7de2a9dc87c25a0c24f",
   "retired_source_changes": [
     {
       "path": "packages/react/src/components/autocomplete/autocomplete.stories.tsx",
@@ -152553,7 +152553,7 @@
       "identity": {
         "source_sha256": "b669f0aabb48ba9d2786adbc51e4addf94ff115631311f7bad01ff43084889a1"
       },
-      "current": true,
+      "current": false,
       "counts": {
         "pass": 809,
         "fail": 0,

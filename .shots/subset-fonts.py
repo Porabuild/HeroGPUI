@@ -126,6 +126,8 @@ KNOWN_UNAVAILABLE = {
     '\u0635': 'Arabic AM marker, asserted by a time_field unit test only; '
     'the gallery renders no Arabic and bundles no Arabic face',
     '\u0645': 'Arabic PM marker, same test; see above',
+    '\u88dc': 'Japanese ShowSuggestions (\u5019\u88dc\u3092\u8868\u793a) is the ComboBox '
+    'button accessible name only and is never painted; NotoSansSC has no such form',
 }
 
 # (source face, embedded name). The embedded names are exactly the paths
