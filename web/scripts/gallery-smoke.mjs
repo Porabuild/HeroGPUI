@@ -144,7 +144,7 @@ const PATH_CHROMES = ["google-chrome", "google-chrome-stable", "chromium", "chro
  */
 export function chromeCandidates({
   flag = null,
-  env = {},
+  env = process.env,
   platform = process.platform,
   pathEnv = env.PATH ?? env.Path ?? "",
   exists = existsSync,
