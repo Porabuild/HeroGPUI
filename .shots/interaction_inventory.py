@@ -27,6 +27,8 @@ INVENTORY = Path('docs/parity/interaction-inventory.json')
 EXAMPLES = Path('web/src/data/rust-examples.json')
 REFERENCE = Path('web/src/data/reference.json')
 CATALOG = Path('web/src/data/catalog.json')
+RUNS = Path('docs/parity/runs')
+WASM_PARITY = Path('web/src/data/wasm-parity.json')
 STATUSES = {
     'unreviewed', 'specified', 'measured-gap', 'implemented-unverified',
     'verified', 'intentional-deviation', 'platform-limited', 'not-applicable',
@@ -141,6 +143,77 @@ def specimen_key_from_code(code):
     return match.group(1) if match else None
 
 
+def gallery_section_id(slug, heading):
+    section_slug = re.sub(r'[^a-z0-9]+', '-', heading.lower()).strip('-') or 'section'
+    return f'gallery/{slug}/{section_slug}'
+
+
+def run_section_results(run, root):
+    """(section id, result) pairs a scripted run reports, at the granularity it has."""
+    kind = run.get('kind')
+    if kind == 'interaction-sweep':
+        return [(row['id'], row['result']) for row in run.get('sections', [])]
+    if kind == 'wasm-smoke':
+        return [(row['id'], 'fail' if 'fail' in (row.get('light'), row.get('dark')) else 'pass')
+                for row in run.get('examples', [])]
+    if kind == 'native-a11y':
+        examples = read_json(root / EXAMPLES)
+        titles = {meta.get('title', slug): slug for slug, meta in read_json(root / CATALOG)['components'].items()}
+        results = []
+        for page in run.get('pages', []):
+            slug = titles.get(page['page'])
+            if slug is None:
+                raise ValueError(f'native-a11y run names an unknown page: {page["page"]}')
+            results.extend((gallery_section_id(slug, row['heading']), page['result'])
+                           for row in examples.get(slug, []))
+        return results
+    return []
+
+
+def scripted_runs(inventory, root):
+    """Index `docs/parity/runs/*.json`: hash, kind, currency and per-section counts.
+
+    A run is regression evidence for the inputs it recorded, never a parity
+    verdict: nothing here changes a specimen status, and the index is not part
+    of `verification_fingerprint`.
+    """
+    known = {row['id'] for row in inventory.get('specimens', [])}
+    known |= {row['id'] for row in inventory.get('retired_specimens', [])}
+    wasm_key = read_json(root / WASM_PARITY).get('inputsSha256') if (root / WASM_PARITY).is_file() else None
+    rows = []
+    for path in sorted((root / RUNS).glob('*.json')):
+        data = read_json(path)
+        kind = data.get('kind') or ('native-route-smoke' if 'routes' in data else None)
+        if not kind:
+            raise ValueError(f'{path.name}: scripted run has no kind')
+        if data.get('source_sha256'):
+            identity = {'source_sha256': data['source_sha256']}
+            current = data['source_sha256'] == inventory['source_snapshot']['sha256']
+        elif (data.get('artifact') or {}).get('inputsSha256'):
+            identity = {'inputs_sha256': data['artifact']['inputsSha256']}
+            current = data['artifact']['inputsSha256'] == wasm_key
+        else:
+            identity = {}
+            current = None
+        results = run_section_results({**data, 'kind': kind}, root)
+        unknown = sorted({sid for sid, _ in results} - known)
+        if unknown:
+            raise ValueError(f'{path.name}: unknown section ids {unknown[:5]}')
+        counts = {state: sum(result == state for _, result in results) for state in ('pass', 'fail', 'skip')}
+        rows.append({
+            'path': path.relative_to(root).as_posix(),
+            'sha256': digest(path.read_bytes()),
+            'kind': kind,
+            'recorded_on': data.get('recorded_on'),
+            'identity': identity,
+            'current': current,
+            'counts': counts,
+            'passing_ids': sorted(sid for sid, result in results if result == 'pass'),
+            'failing_ids': sorted(sid for sid, result in results if result == 'fail'),
+        })
+    return rows
+
+
 def gallery_specimen(slug, title, row, reference):
     """Seed one honest, unreviewed queue item for each rendered gallery section.
 
@@ -149,8 +222,7 @@ def gallery_specimen(slug, title, row, reference):
     it possible to expand the queue without treating a page heading as proof.
     """
     heading = row['heading']
-    section_slug = re.sub(r'[^a-z0-9]+', '-', heading.lower()).strip('-') or 'section'
-    section_id = f'gallery/{slug}/{section_slug}'
+    section_id = gallery_section_id(slug, heading)
     code_sha256 = digest(row['code'].encode())
     content_sha256 = json_digest(row)
     return {
@@ -243,6 +315,7 @@ def refresh_gallery(old, root):
             retired_specimens.append(previous)
     output['specimens'] = [*manual_specimens, *generated_specimens]
     output['retired_specimens'] = retired_specimens
+    output['scripted_runs'] = scripted_runs(output, root)
     return finish_refresh(old, output)
 
 
@@ -308,9 +381,20 @@ def refresh_upstream(old, target, baseline):
     return finish_refresh(old, output)
 
 
+def validate_runs(inventory, root):
+    listed = {row['path']: row for row in inventory.get('scripted_runs', [])}
+    present = {path.relative_to(root).as_posix() for path in (root / RUNS).glob('*.json')}
+    if set(listed) != present:
+        raise ValueError(f'scripted runs out of date: {sorted(set(listed) ^ present)}')
+    for path, row in listed.items():
+        if digest((root / path).read_bytes()) != row['sha256']:
+            raise ValueError(f'stale scripted run: {path}')
+
+
 def validate_specimens(inventory, root):
     if inventory.get('verification_sha256') != verification_fingerprint(inventory):
         raise ValueError('inventory verification fingerprint does not match its inputs')
+    validate_runs(inventory, root)
     seen = set()
     for specimen in inventory.get('specimens', []):
         sid = specimen['id']

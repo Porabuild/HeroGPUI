@@ -54,6 +54,12 @@ version covers `herogpui`, `herogpui-core`, `herogpui-theme`,
   in dark. It also types into the text fields through the browser's IME
   path, including select-all, and checks vertical, horizontal and
   shift+wheel scrolling. Any page error or wasm panic fails it.
+- Scripted runs are kept as checked files in `docs/parity/runs/`: the
+  interaction sweep (`.shots/record_sweep.py`) and the web smoke, each
+  keyed by gallery section. The parity inventory indexes them with their
+  hash and whether the sources they ran on are still current. The
+  coverage report lists them with the number of sections that have a
+  current passing run. A run never marks a specimen verified.
 
 ### Changed
 

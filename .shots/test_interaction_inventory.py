@@ -241,6 +241,56 @@ class InventoryTests(unittest.TestCase):
         self.assertEqual(changed['retired_upstream_demos']['button'][0]['evidence'], 'demo review')
         self.assertEqual(inventory.refresh_upstream(changed, target, baseline), changed)
 
+    def write_run(self, name, data):
+        self.write_json(inventory.RUNS / name, data)
+
+    def test_scripted_runs_are_indexed_with_currency_and_counts(self):
+        self.write_json(inventory.WASM_PARITY, {'inputsSha256': 'key-now'})
+        self.write_run('interaction-sweep.json', {
+            'kind': 'interaction-sweep', 'source_sha256': 'initial',
+            'sections': [{'id': 'gallery/button/usage', 'result': 'pass'}]})
+        self.write_run('wasm-smoke.json', {
+            'kind': 'wasm-smoke', 'artifact': {'inputsSha256': 'key-old'},
+            'examples': [{'id': 'gallery/button/usage', 'light': 'pass', 'dark': 'fail'}]})
+        runs = {row['kind']: row for row in self.current()['scripted_runs']}
+        self.assertTrue(runs['interaction-sweep']['current'])
+        self.assertEqual(runs['interaction-sweep']['passing_ids'], ['gallery/button/usage'])
+        self.assertFalse(runs['wasm-smoke']['current'])
+        self.assertEqual(runs['wasm-smoke']['failing_ids'], ['gallery/button/usage'])
+        self.snapshot['sha256'] = 'changed'
+        runs = {row['kind']: row for row in self.current()['scripted_runs']}
+        self.assertFalse(runs['interaction-sweep']['current'])
+
+    def test_rerecorded_run_does_not_invalidate_reviews(self):
+        self.write_run('interaction-sweep.json', {
+            'kind': 'interaction-sweep', 'source_sha256': 'initial',
+            'sections': [{'id': 'gallery/button/usage', 'result': 'pass'}]})
+        first = self.current()
+        self.write_run('interaction-sweep.json', {
+            'kind': 'interaction-sweep', 'source_sha256': 'initial',
+            'sections': [{'id': 'gallery/button/usage', 'result': 'fail'}]})
+        second = inventory.refresh_gallery(first, self.root)
+        self.assertEqual(first['verification_sha256'], second['verification_sha256'])
+        self.assertNotEqual(first['scripted_runs'], second['scripted_runs'])
+
+    def test_unknown_ids_tampered_and_orphan_runs_fail(self):
+        self.write_run('interaction-sweep.json', {
+            'kind': 'interaction-sweep', 'source_sha256': 'initial',
+            'sections': [{'id': 'gallery/button/nope', 'result': 'pass'}]})
+        with self.assertRaisesRegex(ValueError, 'unknown section ids'):
+            self.current()
+        self.write_run('interaction-sweep.json', {
+            'kind': 'interaction-sweep', 'source_sha256': 'initial',
+            'sections': [{'id': 'gallery/button/usage', 'result': 'pass'}]})
+        current = self.current()
+        inventory.validate_runs(current, self.root)
+        self.write_run('interaction-sweep.json', {'kind': 'interaction-sweep', 'sections': []})
+        with self.assertRaisesRegex(ValueError, 'stale scripted run'):
+            inventory.validate_runs(current, self.root)
+        self.write_run('extra.json', {'kind': 'interaction-sweep', 'sections': []})
+        with self.assertRaisesRegex(ValueError, 'out of date'):
+            inventory.validate_runs(current, self.root)
+
 
 if __name__ == '__main__':
     unittest.main()

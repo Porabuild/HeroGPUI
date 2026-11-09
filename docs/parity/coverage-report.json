@@ -3,8 +3,8 @@
   "target": "v3.2.7",
   "target_commit": "7cb1642606c6f96f424dad78a961ccf45436be72",
   "inventory_recorded_on": "2026-11-09",
-  "inventory_verification_sha256": "18b498657f9d60e7c23936c19b7dcc302133f661d4a6a786fbcfb6f8ea6b4330",
-  "source_snapshot_sha256": "7b3ab3523bf097845898e4da16f0a53019b1c37a9fcd4cfff9ebe61d59951813",
+  "inventory_verification_sha256": "b369fb832c9709c206c782a1c9bfc3453bcaa5327b4573e683ba5479088481ff",
+  "source_snapshot_sha256": "25f54d9ef9f34c697ac6b170b6d5f4684e936e57041127f067f3f74b2551a3a6",
   "last_evidence_commit": null,
   "last_evidence_commit_recorded": false,
   "totals": {
@@ -7835,10 +7835,53 @@
       ]
     }
   ],
+  "scripted_runs": [
+    {
+      "path": "docs/parity/runs/interaction-sweep.json",
+      "kind": "interaction-sweep",
+      "recorded_on": "2026-11-09",
+      "current": true,
+      "counts": {
+        "pass": 809,
+        "fail": 0,
+        "skip": 0
+      },
+      "sections_passing": 809,
+      "failing_ids": []
+    },
+    {
+      "path": "docs/parity/runs/native-ce7bd3af.json",
+      "kind": "native-route-smoke",
+      "recorded_on": null,
+      "current": null,
+      "counts": {
+        "pass": 0,
+        "fail": 0,
+        "skip": 0
+      },
+      "sections_passing": 0,
+      "failing_ids": []
+    },
+    {
+      "path": "docs/parity/runs/wasm-smoke.json",
+      "kind": "wasm-smoke",
+      "recorded_on": "2026-11-09",
+      "current": true,
+      "counts": {
+        "pass": 809,
+        "fail": 0,
+        "skip": 0
+      },
+      "sections_passing": 809,
+      "failing_ids": []
+    }
+  ],
+  "sections_with_current_passing_run": 809,
   "notes": [
     "This report summarizes the inventory; it does not establish visual or interaction parity.",
     "Gallery-section seeds must be expanded into concrete variant/state specimens before verification.",
     "A verified specimen requires current upstream, native, WASM and test evidence.",
-    "last_evidence_commit is null until a review records a commit; the upstream target commit is not evidence."
+    "last_evidence_commit is null until a review records a commit; the upstream target commit is not evidence.",
+    "Scripted runs are regression evidence for the inputs they recorded; they never verify a specimen."
   ]
 }
