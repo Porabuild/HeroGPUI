@@ -114,11 +114,17 @@ pub enum UiString {
     /// Table's load-more row text while `is_pending` (HeroUI; HeroGPUI
     /// translations: [`UiString::Loading`] with an ellipsis).
     LoadingMore,
+    /// ComboBox trigger button (`buttonLabel`, React Aria combobox).
+    ShowSuggestions,
+    /// Table row selection checkbox (`select`, React Aria table).
+    Select,
+    /// Table header select-all checkbox (`selectAll`, React Aria table).
+    SelectAll,
 }
 
 impl UiString {
     /// The number of keys.
-    pub const COUNT: usize = 31;
+    pub const COUNT: usize = 34;
 
     /// Every key, in declaration order.
     pub const ALL: [UiString; UiString::COUNT] = [
@@ -153,6 +159,9 @@ impl UiString {
         UiString::ClearSelection,
         UiString::Pagination,
         UiString::LoadingMore,
+        UiString::ShowSuggestions,
+        UiString::Select,
+        UiString::SelectAll,
     ];
 
     fn index(self) -> usize {
@@ -198,6 +207,9 @@ const EN: [&str; UiString::COUNT] = [
     "Clear selection",       // ClearSelection
     "pagination",            // Pagination
     "Loading\u{2026}",       // LoadingMore
+    "Show suggestions",      // ShowSuggestions
+    "Select",                // Select
+    "Select All",            // SelectAll
 ];
 
 const TABLE: [[&str; UiString::COUNT]; 12] = [
@@ -234,6 +246,9 @@ const TABLE: [[&str; UiString::COUNT]; 12] = [
         "Auswahl löschen",           // ClearSelection
         "Seitennummerierung",        // Pagination
         "Wird geladen…",             // LoadingMore
+        "Empfehlungen anzeigen",     // ShowSuggestions
+        "Auswählen",                 // Select
+        "Alles auswählen",           // SelectAll
     ],
     // es-ES
     [
@@ -268,40 +283,46 @@ const TABLE: [[&str; UiString::COUNT]; 12] = [
         "Borrar selección",             // ClearSelection
         "paginación",                   // Pagination
         "Cargando…",                    // LoadingMore
+        "Mostrar sugerencias",          // ShowSuggestions
+        "Seleccionar",                  // Select
+        "Seleccionar todos",            // SelectAll
     ],
     // fr-FR
     [
-        "Sélectionner un élément", // SelectPlaceholder
-        "Aucun résultat trouvé",   // NoResults
-        "Fermer",                  // Close
-        "Chargement",              // Loading
-        "Précédent",               // Previous
-        "Suivant",                 // Next
-        "Supprimer",               // Remove
-        "Chemin de navigation",    // Breadcrumbs
-        "Rechercher",              // Search
-        "Augmenter {fieldLabel}",  // Increase
-        "Diminuer {fieldLabel}",   // Decrease
-        "année",                   // Year
-        "mois",                    // Month
-        "jour",                    // Day
-        "heure",                   // Hour
-        "minute",                  // Minute
-        "seconde",                 // Second
-        "cadran",                  // DayPeriod
-        "Calendrier",              // Calendar
-        "{date} sélectionné",      // DateSelected
-        "Teinte",                  // Hue
-        "Saturation",              // Saturation
-        "Luminosité",              // Lightness
-        "Luminosité",              // Brightness
-        "Rouge",                   // Red
-        "Vert",                    // Green
-        "Bleu",                    // Blue
-        "Alpha",                   // Alpha
-        "Effacer la sélection",    // ClearSelection
-        "pagination",              // Pagination
-        "Chargement…",             // LoadingMore
+        "Sélectionner un élément",  // SelectPlaceholder
+        "Aucun résultat trouvé",    // NoResults
+        "Fermer",                   // Close
+        "Chargement",               // Loading
+        "Précédent",                // Previous
+        "Suivant",                  // Next
+        "Supprimer",                // Remove
+        "Chemin de navigation",     // Breadcrumbs
+        "Rechercher",               // Search
+        "Augmenter {fieldLabel}",   // Increase
+        "Diminuer {fieldLabel}",    // Decrease
+        "année",                    // Year
+        "mois",                     // Month
+        "jour",                     // Day
+        "heure",                    // Hour
+        "minute",                   // Minute
+        "seconde",                  // Second
+        "cadran",                   // DayPeriod
+        "Calendrier",               // Calendar
+        "{date} sélectionné",       // DateSelected
+        "Teinte",                   // Hue
+        "Saturation",               // Saturation
+        "Luminosité",               // Lightness
+        "Luminosité",               // Brightness
+        "Rouge",                    // Red
+        "Vert",                     // Green
+        "Bleu",                     // Blue
+        "Alpha",                    // Alpha
+        "Effacer la sélection",     // ClearSelection
+        "pagination",               // Pagination
+        "Chargement…",              // LoadingMore
+        "Afficher les suggestions", // ShowSuggestions
+        "Sélectionner",             // Select
+        "Sélectionner tout",        // SelectAll
     ],
     // it-IT
     [
@@ -336,6 +357,9 @@ const TABLE: [[&str; UiString::COUNT]; 12] = [
         "Cancella selezione",       // ClearSelection
         "paginazione",              // Pagination
         "Caricamento…",             // LoadingMore
+        "Mostra suggerimenti",      // ShowSuggestions
+        "Seleziona",                // Select
+        "Seleziona tutto",          // SelectAll
     ],
     // nl-NL
     [
@@ -370,6 +394,9 @@ const TABLE: [[&str; UiString::COUNT]; 12] = [
         "Selectie wissen",          // ClearSelection
         "paginering",               // Pagination
         "Laden…",                   // LoadingMore
+        "Suggesties weergeven",     // ShowSuggestions
+        "Selecteren",               // Select
+        "Alles selecteren",         // SelectAll
     ],
     // pl-PL
     [
@@ -404,6 +431,9 @@ const TABLE: [[&str; UiString::COUNT]; 12] = [
         "Wyczyść zaznaczenie",            // ClearSelection
         "paginacja",                      // Pagination
         "Ładowanie…",                     // LoadingMore
+        "Wyświetlaj sugestie",            // ShowSuggestions
+        "Zaznacz",                        // Select
+        "Zaznacz wszystko",               // SelectAll
     ],
     // pt-BR
     [
@@ -438,6 +468,9 @@ const TABLE: [[&str; UiString::COUNT]; 12] = [
         "Limpar seleção",              // ClearSelection
         "paginação",                   // Pagination
         "Carregando…",                 // LoadingMore
+        "Mostrar sugestões",           // ShowSuggestions
+        "Selecionar",                  // Select
+        "Selecionar tudo",             // SelectAll
     ],
     // sv-SE
     [
@@ -472,6 +505,9 @@ const TABLE: [[&str; UiString::COUNT]; 12] = [
         "Rensa urval",            // ClearSelection
         "sidnumrering",           // Pagination
         "Läser in…",              // LoadingMore
+        "Visa förslag",           // ShowSuggestions
+        "Markera",                // Select
+        "Markera allt",           // SelectAll
     ],
     // ja-JP
     [
@@ -506,6 +542,9 @@ const TABLE: [[&str; UiString::COUNT]; 12] = [
         "選択をクリア",         // ClearSelection
         "ページネーション",     // Pagination
         "読み込み中…",          // LoadingMore
+        "候補を表示",           // ShowSuggestions
+        "選択",                 // Select
+        "すべて選択",           // SelectAll
     ],
     // zh-CN
     [
@@ -540,6 +579,9 @@ const TABLE: [[&str; UiString::COUNT]; 12] = [
         "清除选择",          // ClearSelection
         "分页",              // Pagination
         "加载中…",           // LoadingMore
+        "显示建议",          // ShowSuggestions
+        "选择",              // Select
+        "全选",              // SelectAll
     ],
     // ko-KR
     [
@@ -574,6 +616,9 @@ const TABLE: [[&str; UiString::COUNT]; 12] = [
         "선택 지우기",             // ClearSelection
         "페이지 매김",             // Pagination
         "로드 중…",                // LoadingMore
+        "제안 사항 표시",          // ShowSuggestions
+        "선택",                    // Select
+        "모두 선택",               // SelectAll
     ],
     // ru-RU
     [
@@ -608,6 +653,9 @@ const TABLE: [[&str; UiString::COUNT]; 12] = [
         "Очистить выбор",          // ClearSelection
         "нумерация страниц",       // Pagination
         "Загрузка…",               // LoadingMore
+        "Показать предложения",    // ShowSuggestions
+        "Выбрать",                 // Select
+        "Выбрать все",             // SelectAll
     ],
 ];
 

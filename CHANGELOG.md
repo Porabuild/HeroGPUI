@@ -54,6 +54,16 @@ version covers `herogpui`, `herogpui-core`, `herogpui-theme`,
   in dark. It also types into the text fields through the browser's IME
   path, including select-all, and checks vertical, horizontal and
   shift+wheel scrolling. Any page error or wasm panic fails it.
+- `aria_label(..)` on Button, ToggleButton, Checkbox, Switch, Select,
+  Slider, ColorSlider, ColorField, InputOTP, Input, TextField and TextArea:
+  the accessible name for a control whose label is an icon or a composed
+  element, as React Aria's `aria-label`. It wins over a derived label.
+- `.shots/ax_tree.py` reads the native gallery's macOS accessibility tree,
+  the attributes VoiceOver reads. For each component page it checks that
+  every control has a name, that checkbox and range values are well formed,
+  and that interactive pages expose a control. It is the automated stand-in
+  for screen-reader testing (macOS only; needs the Accessibility
+  permission). `docs/parity/runs/native-a11y.json` records its run.
 - Scripted runs are kept as checked files in `docs/parity/runs/`: the
   interaction sweep (`.shots/record_sweep.py`) and the web smoke, each
   keyed by gallery section. The parity inventory indexes them with their
@@ -126,6 +136,14 @@ version covers `herogpui`, `herogpui-core`, `herogpui-theme`,
 
 ### Fixed
 
+- Screen readers could not name many controls: GPUI derives no accessible
+  name from text children. A string `label("…")` now names Checkbox and
+  Switch. Pagination's page and Previous/Next buttons, the ComboBox button
+  ("Show suggestions"), Table selection checkboxes ("Select", "Select
+  All"), ToggleButtonGroup items and InputOTP slots now carry names.
+  ColorSlider sliders report their channel name, range and value, and
+  ColorArea exposes its two channels as sliders. Every gallery example is
+  named, and the audit finds no unnamed control on any page.
 - The web gallery no longer crashes on the first scroll over a
   ScrollShadow (and the Tabs strips built on it): its scrollbar read
   `std::time::Instant`, which panics on `wasm32-unknown-unknown`. A

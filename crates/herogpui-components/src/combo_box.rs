@@ -1662,8 +1662,16 @@ impl ComboBox {
             // `.../overlays/useOverlayTrigger.mjs` gives it
             // `'aria-haspopup': 'listbox'`, `'aria-expanded': isOpen` and
             // `'aria-controls'`. Only the expansion flag ports; the other two
-            // are recorded omissions in `crate::a11y`.
-            .a11y(a11y::Role::Button)
+            // are recorded omissions in `crate::a11y`. RAC names the button
+            // `buttonLabel` ("Show suggestions"); the chevron is the only
+            // child and carries no text of its own.
+            .a11y_named(
+                a11y::Role::Button,
+                &a11y::Name::labelled(crate::i18n::ui_string(
+                    crate::i18n::UiString::ShowSuggestions,
+                    cx,
+                )),
+            )
             .a11y_expanded(is_open)
             .flex()
             .items_center()

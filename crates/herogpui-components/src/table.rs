@@ -3589,7 +3589,8 @@ impl Table {
                 select_all_flags(all.as_slice(), &self.selected_keys);
             let mut box_el = Checkbox::new(element_id::scoped(base_id, "select-all"))
                 .is_selected(all_selected)
-                .is_indeterminate(indeterminate);
+                .is_indeterminate(indeterminate)
+                .aria_label(crate::i18n::ui_string(crate::i18n::UiString::SelectAll, cx));
             let cb = self.on_selection_change.clone();
             if cb.is_some() || selection_own.is_some() {
                 let selection_own = selection_own.clone();
@@ -5012,7 +5013,8 @@ impl RowCtx {
             });
         let mut box_el = Checkbox::new(element_id::indexed(&self.id, "select", i))
             .is_selected(is_selected)
-            .is_disabled(is_disabled);
+            .is_disabled(is_disabled)
+            .aria_label(crate::i18n::ui_string(crate::i18n::UiString::Select, cx));
         let cb = self.on_selection_change.clone();
         if !is_disabled && (cb.is_some() || self.selection_own.is_some()) {
             let current = self.selected_keys.clone();

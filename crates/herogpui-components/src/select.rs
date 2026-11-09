@@ -232,6 +232,9 @@ pub struct Select {
     default_open: bool,
     placement: Placement,
     label: Option<SharedString>,
+    /// `aria-label` — the explicit accessible name, which wins over the
+    /// label-derived name and renders no visible label of its own.
+    aria_label: Option<SharedString>,
     placeholder: SharedString,
     /// Whether `placeholder` came from the caller; otherwise render swaps
     /// in the localized default (`i18n::UiString::SelectPlaceholder`).
@@ -581,6 +584,7 @@ impl Select {
             default_open: false,
             placement: Placement::BottomStart,
             label: None,
+            aria_label: None,
             placeholder: "Select an item".into(),
             placeholder_is_set: false,
             description: None,
@@ -743,6 +747,13 @@ impl Select {
     /// Sets the label.
     pub fn label(mut self, l: impl Into<SharedString>) -> Self {
         self.label = Some(l.into());
+        self
+    }
+
+    /// `aria-label` — the explicit accessible name, which wins over the
+    /// label-derived name and renders no visible label of its own.
+    pub fn aria_label(mut self, l: impl Into<SharedString>) -> Self {
+        self.aria_label = Some(l.into());
         self
     }
 
@@ -961,7 +972,8 @@ impl RenderOnce for Select {
         field = field
             .a11y_named(
                 a11y::Role::Button,
-                &a11y::Name::maybe(self.label.clone()).described(Some(value_text)),
+                &a11y::Name::maybe(self.aria_label.clone().or(self.label.clone()))
+                    .described(Some(value_text)),
             )
             .a11y_expanded(frame.is_open);
         field = field.child(value_slot);
@@ -2014,7 +2026,7 @@ impl Select {
     ) -> gpui::Stateful<gpui::Div> {
         // `useListBox` is named through `useField`, i.e. by the same
         // `<Label>` the trigger points at.
-        let list_name = self.label.clone();
+        let list_name = self.aria_label.clone().or(self.label.clone());
         gpui::div()
                 .w_full()
                 .flex()

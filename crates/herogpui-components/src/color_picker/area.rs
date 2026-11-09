@@ -548,6 +548,42 @@ impl RenderOnce for ColorArea {
         }
         area = area.child(thumb);
 
+        // `useColorArea` hands screen readers two slider inputs — one per
+        // axis, x horizontal and y vertical, each named by its channel with a
+        // numeric value/min/max. GPUI's area is a single operable surface whose
+        // keys already move both axes, so these children carry each channel's
+        // slider semantics for assistive tech rather than adding a second tab
+        // stop per axis; they paint nothing and take no input.
+        let x_value = self.value.channel_in(self.x_channel, color_space) as f64;
+        let y_value = self.value.channel_in(self.y_channel, color_space) as f64;
+        let x_range = a11y::Range::new(x_min as f64, x_max as f64, x_value);
+        let y_range = a11y::Range::new(y_min as f64, y_max as f64, y_value);
+        area = area
+            .child(
+                div()
+                    .id(element_id::scoped(&self.id, "a11y-x"))
+                    .absolute()
+                    .inset_0()
+                    .a11y_named(
+                        a11y::Role::Slider,
+                        &a11y::Name::maybe(Some(self.x_channel.localized_label(cx))),
+                    )
+                    .a11y_range(&x_range)
+                    .a11y_orientation(herogpui_core::Orientation::Horizontal),
+            )
+            .child(
+                div()
+                    .id(element_id::scoped(&self.id, "a11y-y"))
+                    .absolute()
+                    .inset_0()
+                    .a11y_named(
+                        a11y::Role::Slider,
+                        &a11y::Name::maybe(Some(self.y_channel.localized_label(cx))),
+                    )
+                    .a11y_range(&y_range)
+                    .a11y_orientation(herogpui_core::Orientation::Vertical),
+            );
+
         if self.is_disabled {
             return area.opacity(cx.layout().disabled_opacity);
         }

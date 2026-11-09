@@ -55,21 +55,21 @@ impl Gallery {
                 (
                     "With Icons",
                     row(vec![
-                        h::Button::new("btn-i-1")
+                        h::Button::new("btn-i-1").aria_label("Search")
                             .child(icon(h::icons::GLOBE, cx))
                             .child("Search")
                             .into_any_element(),
-                        h::Button::new("btn-i-2")
+                        h::Button::new("btn-i-2").aria_label("Add Member")
                             .variant(Variant::Secondary)
                             .child(icon(h::icons::PLUS, cx))
                             .child("Add Member")
                             .into_any_element(),
-                        h::Button::new("btn-i-3")
+                        h::Button::new("btn-i-3").aria_label("Email")
                             .variant(Variant::Tertiary)
                             .child(icon(h::icons::MAIL, cx))
                             .child("Email")
                             .into_any_element(),
-                        h::Button::new("btn-i-4")
+                        h::Button::new("btn-i-4").aria_label("Delete")
                             .variant(Variant::Danger)
                             .child(icon(h::icons::TRASH, cx))
                             .child("Delete")
@@ -79,17 +79,17 @@ impl Gallery {
                 (
                     "Icon Only",
                     row(vec![
-                        h::Button::new("btn-io-1")
+                        h::Button::new("btn-io-1").aria_label("More")
                             .is_icon_only(true)
                             .variant(Variant::Tertiary)
                             .child(icon(h::icons::ELLIPSIS, cx))
                             .into_any_element(),
-                        h::Button::new("btn-io-2")
+                        h::Button::new("btn-io-2").aria_label("Settings")
                             .is_icon_only(true)
                             .variant(Variant::Secondary)
                             .child(icon(h::icons::GEAR, cx))
                             .into_any_element(),
-                        h::Button::new("btn-io-3")
+                        h::Button::new("btn-io-3").aria_label("Delete")
                             .is_icon_only(true)
                             .variant(Variant::Danger)
                             .child(icon(h::icons::TRASH, cx))
@@ -98,7 +98,7 @@ impl Gallery {
                 ),
                 (
                     "Loading", "A static pending button: the spinner replaces the label's leading slot while `is_pending` holds, and the caller decides when the work is done.",
-                    specimen_body("btn-loading", row(vec![h::Button::new("btn-loading")
+                    specimen_body("btn-loading", row(vec![h::Button::new("btn-loading").aria_label("Uploading...")
                         .is_pending(true)
                         .content(move |state| {
                             gpui::div()
@@ -119,7 +119,7 @@ impl Gallery {
                 ),
                 (
                     "Loading State", "The caller owns the pending window: pressing starts an upload and the state resets itself after two seconds.",
-                    specimen_body("btn-loading-state", row(vec![h::Button::new("btn-loading-state")
+                    specimen_body("btn-loading-state", row(vec![h::Button::new("btn-loading-state").aria_label("Upload File")
                         .is_pending(self.button_upload_pending)
                         .content(move |state| {
                             gpui::div()
@@ -186,7 +186,7 @@ impl Gallery {
                                 .full_width(true),
                         )
                         .child(
-                            h::Button::new("btn-full-icon")
+                            h::Button::new("btn-full-icon").aria_label("With Icon")
                                 .full_width(true)
                                 .child(icon(h::icons::PLUS, cx))
                                 .child("With Icon"),
@@ -217,21 +217,21 @@ impl Gallery {
                             .w(px(280.))
                             .gap(px(12.))
                             .child(
-                                h::Button::new("btn-soc-1")
+                                h::Button::new("btn-soc-1").aria_label("Sign in with Email")
                                     .variant(Variant::Tertiary)
                                     .full_width(true)
                                     .child(icon(h::icons::MAIL, cx))
                                     .child("Sign in with Email"),
                             )
                             .child(
-                                h::Button::new("btn-soc-2")
+                                h::Button::new("btn-soc-2").aria_label("Sign in with a passkey")
                                     .variant(Variant::Tertiary)
                                     .full_width(true)
                                     .child(icon(h::icons::KEY, cx))
                                     .child("Sign in with a passkey"),
                             )
                             .child(
-                                h::Button::new("btn-soc-3")
+                                h::Button::new("btn-soc-3").aria_label("Single sign-on")
                                     .variant(Variant::Tertiary)
                                     .full_width(true)
                                     .child(icon(h::icons::GLOBE, cx))
@@ -778,16 +778,19 @@ impl Gallery {
                             .separators(true)
                             .button(
                                 h::Button::new("bgi-1")
+                                    .aria_label("Fork")
                                     .child(icon(h::icons::COPY, cx))
                                     .child("Fork"),
                             )
                             .button(
                                 h::Button::new("bgi-2")
+                                    .aria_label("Star")
                                     .child(icon(h::icons::PLUS, cx))
                                     .child("Star"),
                             )
                             .button(
                                 h::Button::new("bgi-3")
+                                    .aria_label("More")
                                     .is_icon_only(true)
                                     .child(icon(h::icons::ELLIPSIS, cx)),
                             )
@@ -995,15 +998,18 @@ impl Gallery {
                     specimen_body("toggle-icon-only", row(vec![
                         h::ToggleButton::new("tb-io-1")
                             .is_icon_only(true)
+                                    .aria_label("Show")
                             .default_selected(true)
                             .child(icon(h::icons::EYE, cx))
                             .into_any_element(),
                         h::ToggleButton::new("tb-io-2")
                             .is_icon_only(true)
+                                    .aria_label("Copy")
                             .child(icon(h::icons::COPY, cx))
                             .into_any_element(),
                         h::ToggleButton::new("tb-io-3")
                             .is_icon_only(true)
+                                    .aria_label("Search")
                             .child(icon(h::icons::SEARCH, cx))
                             .into_any_element(),
                     ]), cx),
@@ -1086,16 +1092,19 @@ impl Gallery {
                             .child_toggle(
                                 h::ToggleButton::new("tbatt-1")
                                     .is_icon_only(true)
+                                    .aria_label("Favorite")
                                     .child(icon(h::icons::HEART, cx)),
                             )
                             .child_toggle(
                                 h::ToggleButton::new("tbatt-2")
                                     .is_icon_only(true)
+                                    .aria_label("Settings")
                                     .child(icon(h::icons::GEAR, cx)),
                             )
                             .child_toggle(
                                 h::ToggleButton::new("tbatt-3")
                                     .is_icon_only(true)
+                                    .aria_label("Mail")
                                     .child(icon(h::icons::MAIL, cx)),
                             )
                             .into_any_element(),
@@ -1104,16 +1113,19 @@ impl Gallery {
                             .child_toggle(
                                 h::ToggleButton::new("tbd-1")
                                     .is_icon_only(true)
+                                    .aria_label("Favorite")
                                     .child(icon(h::icons::HEART, cx)),
                             )
                             .child_toggle(
                                 h::ToggleButton::new("tbd-2")
                                     .is_icon_only(true)
+                                    .aria_label("Settings")
                                     .child(icon(h::icons::GEAR, cx)),
                             )
                             .child_toggle(
                                 h::ToggleButton::new("tbd-3")
                                     .is_icon_only(true)
+                                    .aria_label("Mail")
                                     .child(icon(h::icons::MAIL, cx)),
                             )
                             .into_any_element(),

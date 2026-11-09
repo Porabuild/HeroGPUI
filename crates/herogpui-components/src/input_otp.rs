@@ -342,6 +342,9 @@ pub struct InputOTP {
     /// `name` — the name this control submits under; read back by
     /// [`Self::form_field`].
     name: Option<SharedString>,
+    /// `aria-label` — the explicit accessible name, which wins over the
+    /// name-derived name exactly as the HTML name computation ranks it.
+    aria_label: Option<SharedString>,
     variant: FieldVariant,
     /// `validate` — run by the component, not the caller.
     validate: Option<crate::validation::Validator<str>>,
@@ -405,6 +408,7 @@ impl InputOTP {
         Self {
             slot: None,
             name: None,
+            aria_label: None,
             variant: FieldVariant::Primary,
             validate: None,
             validation_errors: Vec::new(),
@@ -438,6 +442,13 @@ impl InputOTP {
     /// `name` — the name this control submits under.
     pub fn name(mut self, name: impl Into<SharedString>) -> Self {
         self.name = Some(name.into());
+        self
+    }
+
+    /// `aria-label` — the explicit accessible name, which wins over the
+    /// name-derived name exactly as the HTML name computation ranks it.
+    pub fn aria_label(mut self, label: impl Into<SharedString>) -> Self {
+        self.aria_label = Some(label.into());
         self
     }
 
@@ -678,7 +689,11 @@ impl RenderOnce for InputOTP {
         // `autocomplete="one-time-code"`, no role of its own, so a text box.
         // The slots themselves are presentational divs and stay out of the
         // tree. The row here is that input.
-        let name = crate::a11y::Name::field(None, None, &validity);
+        let name = crate::a11y::Name::field(
+            self.aria_label.as_ref().or(self.name.as_ref()),
+            None,
+            &validity,
+        );
         let mut row = gpui::div()
             .id(base_id.clone())
             .a11y_named(crate::a11y::Role::TextInput, &name)

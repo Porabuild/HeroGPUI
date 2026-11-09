@@ -1,6 +1,6 @@
 {
   "version": 4,
-  "inputsSha256": "5bf6e9b156dceed7408e4a2b394c09ef8a639e0a3d6fad8055e145e02d282473",
+  "inputsSha256": "7495d66bd7491994e2bfa07c44c4e180ab57fa446189494dbcdf7f23344fdd54",
   "examples": {
     "accordion/Controlled": {
       "codeSha256": "ac39d58e626756503af3f2fedbcf0a3a791b32096093d62ca5c6aab77146d75b",
@@ -347,7 +347,7 @@
       "descriptionSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     },
     "button-group/With Icons": {
-      "codeSha256": "2d83f31d6fc1ee1aff05c256da73fdc4e75e4aab747cf2a9fe830356aad093de",
+      "codeSha256": "7fa5f6c6155ed3b9ca69c08845ef0548e7ddd29f1c8f821c1158a9150d467791",
       "descriptionSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     },
     "button-group/Without Separator": {
@@ -371,19 +371,19 @@
       "descriptionSha256": "c464549e5a3ef657b70d4be2d05c8e9ed819dc1d77b89fc814ab6e85508e406b"
     },
     "button/Full Width": {
-      "codeSha256": "7948f06da781f7ff23c6947766edb4857d6282fa0ae56f3034d2a94d3cb985c8",
+      "codeSha256": "d8a4c3a79a0cd523196098c541608f419ce640441f7bf4fee1c9eec68552c7ae",
       "descriptionSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     },
     "button/Icon Only": {
-      "codeSha256": "be18b457a62f127098011ec1d9b130aff1665703d1d47def7fa1910d6aa2b509",
+      "codeSha256": "0164cd62b601b9c0b9c211992a692af3674ca6c6c740b6033b206538a49331b8",
       "descriptionSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     },
     "button/Loading": {
-      "codeSha256": "853feaa046fb54e2a0095578192ef94e2c8c2c94a392ec6adfad011217221a80",
+      "codeSha256": "4ecd1b8cc555a872e0f5533d3dc83d8bde976550790e36afb9b06bd11819e60f",
       "descriptionSha256": "c87c92c98c23aefa2728df1ce524ffd62b3b3eea8d301e6dd2820b2f3d932927"
     },
     "button/Loading State": {
-      "codeSha256": "2e5a55ad6b18ada9f7e670b5ea08ef5f2a70fedb3a7df39f58637d8e5c063742",
+      "codeSha256": "b8ac48de61622d9df977d32112fba16397c0ea53f5ec5679c984629e8d135c64",
       "descriptionSha256": "cc0128530f389948bc007eac34ea318d0ff83d930397ca833553711fcb803b74"
     },
     "button/Pixel Geometry": {
@@ -399,7 +399,7 @@
       "descriptionSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     },
     "button/Social Buttons": {
-      "codeSha256": "92162dc3cfc8cb0814273904e2929684901c6b5a6d78b630bef51d79ed72f3a8",
+      "codeSha256": "268fde21a70364bf5bad3eac9ad4265d3cf5a76af93af09fec1c31a7aa8999a9",
       "descriptionSha256": "db842c1737f5e6882a71d76061bd0e44b947b674a44c50b1743c1507a0e82f1a"
     },
     "button/Styling Overrides": {
@@ -423,7 +423,7 @@
       "descriptionSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     },
     "button/With Icons": {
-      "codeSha256": "5b21145901ca67c545769820db69d8f10b4f6e980a27d917e663d1740f082e15",
+      "codeSha256": "f375061f4a66a2537a893b6ec4f38332e1eb89909357384ecc331cc4b99634d3",
       "descriptionSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     },
     "calendar/Cell Indicators": {
@@ -559,7 +559,7 @@
       "descriptionSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     },
     "checkbox-group/Indeterminate": {
-      "codeSha256": "604c9f4e28f8ab12c6f8c0a17c7e2976ba342db093ba35aa2fcb871205bdbde3",
+      "codeSha256": "51c90dece1bc80ac5298b544f27a4036ce1c672ae38b32d939d3d3e73ca4c762",
       "descriptionSha256": "904353995159df9c2cb37c966a649c991ec427d0539485f87d740c8fc0f7bd9b"
     },
     "checkbox-group/Uncontrolled": {
@@ -579,19 +579,19 @@
       "descriptionSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     },
     "checkbox-group/With Custom Indicator": {
-      "codeSha256": "354c43de712a02069616766443131f4dfaf673e9b60255c07c804a2945ab5982",
+      "codeSha256": "fae0bae2e82a3210dd0f937573cbcb4cd9d93a2c2aec46efb7dedf6b9b3d6151",
       "descriptionSha256": "9688047cf6ff114fc34cdb5db54f5b730e74b6944e327b3b6e645da6518b253a"
     },
     "checkbox/Controlled": {
-      "codeSha256": "5715f3734044fc3cefbf435a909be00f154022de07b3e0011adda79beb049ec2",
+      "codeSha256": "4066b228af62d81c80d8b6ffa58e160daa436e3f86338cf9c446db977026b959",
       "descriptionSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     },
     "checkbox/Custom Indicator": {
-      "codeSha256": "861df32f6474a1ee0b7bb5b11f03feb8c4b3fb349a00a3e13a7a85fbb1581815",
+      "codeSha256": "1b5f2eb8462aff5b7c00576ceb26c5d44f6d5f8532359134f6e299eba86b593b",
       "descriptionSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     },
     "checkbox/Default Selected": {
-      "codeSha256": "3af06f8b347180910c9638057d09f47fbd541469ee40d43dda65bcbc97deb912",
+      "codeSha256": "80c968d543774f90ad97b45d4d1164f21cf23d0812db27c626153790602d9701",
       "descriptionSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     },
     "checkbox/Disabled": {
@@ -599,15 +599,15 @@
       "descriptionSha256": "3f6f773d066ae5ff21e44173360eb98885435aefb7180181735d8238ed2741d8"
     },
     "checkbox/External Label": {
-      "codeSha256": "191de98aa6e89f68ad83a46caae32c0fc5466888e21143f544e02e9c667cd596",
+      "codeSha256": "23bb33c8351068884d8a9b1c7fccbdf4d7311288cbee4ebe5a04ab041ebe1479",
       "descriptionSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     },
     "checkbox/Form Integration": {
-      "codeSha256": "22f97bd05ae336da98b1107f5d5213e16a4939367e4fdd65f1c9caa5c811cc63",
+      "codeSha256": "3c7649a73fd7d98e5926e5b0fd2b7eaa9ebf9272a30fc0d2e839d9011a32e9bf",
       "descriptionSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     },
     "checkbox/Full Rounded": {
-      "codeSha256": "64055bf5c7458084ce810ffd0e85c8b6eeec8144b9bc1651c3cd56ac05b4ec1d",
+      "codeSha256": "03851a7d78085ac075669244db568aee87f9071ebfc57f2e4d5a48e81c382b5c",
       "descriptionSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     },
     "checkbox/Indeterminate": {
@@ -615,35 +615,35 @@
       "descriptionSha256": "b53fa52614a751662146236fe6da0f029a0a82963d51a4ca54785f2b44434b33"
     },
     "checkbox/Invalid": {
-      "codeSha256": "340c141918613db379fe9c1f27b142bd435aeff8c6b3c0bbd7b8b16b81a2402a",
+      "codeSha256": "c066091850f75251536ad77e2697a77b01e393579a5f56b46bc87e05339757c6",
       "descriptionSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     },
     "checkbox/Label Size": {
-      "codeSha256": "de66f3e3f8ad2c74785258462afad31b432651b5bcf1a9602b1b0f56927c1a96",
+      "codeSha256": "41ad522142f2ce8ccc8c6020c60dc0ad05262e7ba32696f6a5a0f7e4d70dfae3",
       "descriptionSha256": "2b12c86a58553f040032a2b081d0718537dddf7f059d222e17b36dca045faf4e"
     },
     "checkbox/Render Props": {
-      "codeSha256": "a0e8d8f590ed4590e5ad332033b2416fb78022c23cffa994486611e9fd17b762",
+      "codeSha256": "ebb8b1b66834ca844c379c2f802940497164309aaab4b05df69317e7c9297227",
       "descriptionSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     },
     "checkbox/Sizes": {
-      "codeSha256": "78e7fc666f2f14d90de7145a523cbdc9685f04c4a5f47d5bb73de666b606da18",
+      "codeSha256": "2a44eb89580a33c5d8d7757b193daa2a31d397cde68a436ae3ebcad42a752ec1",
       "descriptionSha256": "7ab4dbe4e41d5711aa9fc91cc90b9ca41bc9012ae67718d3b11004304af2bba0"
     },
     "checkbox/Styling Overrides": {
-      "codeSha256": "f6a1b2dcb025b9ce60c535b07a95d02c4485a1f74717b3643f63db23687ff231",
+      "codeSha256": "3ae740cce2cfb93b14bc6576fef1dd79212dc84c7599e2d0cf8e478118d110fb",
       "descriptionSha256": "e9f3dfcf11b8877fbfe00c3a94d04aa3535e42d065efde08cea0d7124ce7ebb8"
     },
     "checkbox/Usage": {
-      "codeSha256": "3e6b736705ef4a5836b8b79c4c0a6ed0d3f7b4d32e6153c9bfa1e11ceb82977f",
+      "codeSha256": "64d2d741a7386514df104452596c3c42758ac5aacffdc74600fcc1fa5f214824",
       "descriptionSha256": "5d550ed45f13b17f672d18eecf429a7db4086b481fea73716641c55b54800bbd"
     },
     "checkbox/Variants": {
-      "codeSha256": "df716bf2ac6f161ff75becef68f9ee86b6c63b118426fac174e315dd5fada30a",
+      "codeSha256": "37c316c6d6caefd28df743ff3321b3060344b88eaf484a47e543a0b2023b9901",
       "descriptionSha256": "9b2d30cc4e90cf07a9cf0f31fef5d1f9078d507b2bbd8e8aaa8b4124b2d3dd80"
     },
     "checkbox/With Description": {
-      "codeSha256": "075306b0e52027ebe2b165fc5e7404a5c6d93ca61d0df4c3b534bd0d0b8c1770",
+      "codeSha256": "012eeb8539561e8b9d455924a11c16d7f4017413eaacbd32af25b4a4a7564a0d",
       "descriptionSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     },
     "chip/Colors": {
@@ -731,7 +731,7 @@
       "descriptionSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     },
     "color-field/Blur Behaviour": {
-      "codeSha256": "0e7f179251e46ed2317919fbb034cbe67a6c2f201488f7234597cae0974ce152",
+      "codeSha256": "fa03e096a634261b97840c55eb990e28769c294dff568a4deb963f70396ff8c7",
       "descriptionSha256": "7f4ea2c5c200f394347b58c26125f64fb7be0436a296af9f0118882ee950654b"
     },
     "color-field/Box Customisation": {
@@ -1375,7 +1375,7 @@
       "descriptionSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     },
     "fieldset/Usage": {
-      "codeSha256": "f1377367d5b0db35146dbd2cf0f56bc88bb220415af780393bdb3f70e1fea6ca",
+      "codeSha256": "c758ca00133f2ee34fdf7455ca70b007e13e6a6f168b337841dea6edd69b36d0",
       "descriptionSha256": "63b302607aacc381aef563f970ca36c23b9171e453d4cb966bafdb9e055db450"
     },
     "form/Server Errors": {
@@ -1383,7 +1383,7 @@
       "descriptionSha256": "dcd02e1312edd8d88650a6b3fd9cf57dc5eb7cda03b1c1f4e728f075309c3ecf"
     },
     "form/Usage": {
-      "codeSha256": "2b786e0a36cb525cb86e6e25a01462fd24069c978d13ff66a1afcd3d85379421",
+      "codeSha256": "a26d6d0cc4e97b4782f0d46b3ec67d02374942c7a2938c7b866349e99e03aca3",
       "descriptionSha256": "c71fe38bd19ee17ae6084068ed54e2ffb8a31cbad881eb07efd761b7233ec646"
     },
     "input-group/Addons": {
@@ -1391,7 +1391,7 @@
       "descriptionSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     },
     "input-group/Badge Suffix": {
-      "codeSha256": "6bf178b5348facc5b2fe0ecedcacd09417c96e02d19841d50450a71eb9c944e2",
+      "codeSha256": "e3e879f5a16827267b83164b908bc15a8a8d0b727b61f1a2eaab1c36ecb5a32a",
       "descriptionSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     },
     "input-group/Box Customisation": {
@@ -1399,11 +1399,11 @@
       "descriptionSha256": "3de69bf9bc01b90a6206bd68a5ce77df5cbff83decb906f3475b07dbd0ff1453"
     },
     "input-group/Copy Button Suffix": {
-      "codeSha256": "498b05eae4395460605620120894060f339add6feab3af09a5537d9df7e993f9",
+      "codeSha256": "ac4189759cf670dd62ac11ae202f14f6e4ff033f8ac719f6e19f93bda4f2122d",
       "descriptionSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     },
     "input-group/Disabled State": {
-      "codeSha256": "93cb187bb890102fe14d66f4965667c4a2287c2fb87ad2dc8aca08eb9161b55a",
+      "codeSha256": "6975220d7832c8ebea0d4049843ee73c2cc834529a853810e1fba4aab97f2465",
       "descriptionSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     },
     "input-group/Full Width": {
@@ -1415,7 +1415,7 @@
       "descriptionSha256": "8f9732489c853085d2fe1cd2e32d9eb55afff77b808143436f5c316db17805ab"
     },
     "input-group/Icon Prefix and Copy Button": {
-      "codeSha256": "637abaaefdff8c83e8c64d8d7a071647a3a7df1b2d76e8c1a4afe6ac9e626601",
+      "codeSha256": "b5e8380f978754150a7a05238151a780b008c06c230825a113917a2be5179c19",
       "descriptionSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     },
     "input-group/Icon Prefix and Text Suffix": {
@@ -1431,11 +1431,11 @@
       "descriptionSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     },
     "input-group/Loading State": {
-      "codeSha256": "d5ba2eb050124948ab3a568b4abd7cb88bc2e02220ec491ba35e4ff9d0c8e03b",
+      "codeSha256": "d9fd543df3efcad911a92186c04d8d8b42f7cde844f4b89c2dd5a3864b833e23",
       "descriptionSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     },
     "input-group/Password Toggle": {
-      "codeSha256": "eb99058e7fa520f463b553c52fefb4aa944fd301578d97eceec2cc54a7259845",
+      "codeSha256": "7a3f7f701d1d668d2907fe6e9ce99bc215f5e1456e37f76e842c59930c0c2308",
       "descriptionSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     },
     "input-group/Required Field": {
@@ -1463,7 +1463,7 @@
       "descriptionSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     },
     "input-group/Validation": {
-      "codeSha256": "a40a0e28a8ae1b7bb5118b9579e48b1ab8f9a1ffc3f3b821aed36fe142201eef",
+      "codeSha256": "16656ff9e779fa611dd386618d1456f4267f119f43e0430c54e5179b760b16c9",
       "descriptionSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     },
     "input-group/Variants": {
@@ -1491,19 +1491,19 @@
       "descriptionSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     },
     "input-otp/Controlled": {
-      "codeSha256": "ff03f97817871d94adbaa0df73772393b7e5701d12b1bac8a2065d7daaa38954",
+      "codeSha256": "f65652ad5b83737b6c8549c548d597f367eb91c530af6e2f3ec30baa3aee27b9",
       "descriptionSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     },
     "input-otp/Custom Slots": {
-      "codeSha256": "951a75b98656cf34c91327841e87deff7ed7ad8df9a47017c0dc5f705987bd27",
+      "codeSha256": "4ac3a99365407c6ea045e74e03e675bc63afb922b2eea1572b9b08fbb9058b79",
       "descriptionSha256": "00a8677bb8741b940c88df198170a4578101479ab429d6b1580b41c2a37b1efc"
     },
     "input-otp/Disabled State": {
-      "codeSha256": "81aebad2d395ad9e1c2224359009167e11ceb58b2063921c3c2a029a1946d5ee",
+      "codeSha256": "26531d0d44898e861a31b71caceb7111c988c70da662ed296ef826d994e3f123",
       "descriptionSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     },
     "input-otp/Filled & Active": {
-      "codeSha256": "029dacf17b43a37ed6ba9d1db459429df859e5a4444db836f57cac357885a541",
+      "codeSha256": "ceb6af8068734ad9f061b3c21578d0b72191b0f59ba46a871683bf3c4de434e1",
       "descriptionSha256": "71bfde66693bf82139c4ebac2baf5288c4b2c2fe38827af6934e43162eb6b2ff"
     },
     "input-otp/Form Example": {
@@ -1511,31 +1511,31 @@
       "descriptionSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     },
     "input-otp/Four Digits": {
-      "codeSha256": "acf54ce43e40a716ba2fd03fd381982fa919ab351b7ab8d9ab412369555591f3",
+      "codeSha256": "246a642a33092577ef42cfcafd6af32b33f2f82b299191de43932435dbe60830",
       "descriptionSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     },
     "input-otp/In Surface": {
-      "codeSha256": "6a11d5c6a764ea1bc33f0a0a7acf958475e21186614f56b50fd1dc66275e13d0",
+      "codeSha256": "1e2c7a5b294b4f5981471acbc6ce6e128d67f23f88dc4163347a02f07f40c33e",
       "descriptionSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     },
     "input-otp/On Complete": {
-      "codeSha256": "0dc0485a57581fe2087286bf7f1a61b2397a43016b718955367161060154fa42",
+      "codeSha256": "89b81494fdf2ab23c6f4d5aa287813045f2a300e92f11ea8a42708798a158213",
       "descriptionSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     },
     "input-otp/Usage": {
-      "codeSha256": "134de142d69ce7901d46559bd83d6fe53a32322a255a1c06ce47492bb09d75cd",
+      "codeSha256": "726f07703b85c999e5bad12d5e34a199fd5bf78c0d52c415971764a769a9aaa6",
       "descriptionSha256": "dd4882bbfbcc4a365b3e7a5d11b5c2f9690af3c55acbe34d07fe825ecc857684"
     },
     "input-otp/Variants": {
-      "codeSha256": "00b7c6361b898509067a517ae1b958ad0f62238238f097406a87cae0130bd920",
+      "codeSha256": "2d89cf788214c6e92cdf0e3ac5b8e27b57cc60a26d58237f755f88a3a4ab4aa0",
       "descriptionSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     },
     "input-otp/With Pattern": {
-      "codeSha256": "d7f981da8bacfbdfc810b0b719380c34c6bfb285024022a2d20f1f6ffa533191",
+      "codeSha256": "818278b380059c64eff3af01820ac3a51b11ce8dda1caff3795bf091a4beec96",
       "descriptionSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     },
     "input-otp/With Validation": {
-      "codeSha256": "ffee1cd77146ef14b0a7dc55ad48b554de4b31514a63fa2a761e5f649b364225",
+      "codeSha256": "28c0df85c75ddda8c8162b35a07a69c09c9207c5c73fc44af1d3abfcc3917ebe",
       "descriptionSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     },
     "input/Compact Box": {
@@ -1663,7 +1663,7 @@
       "descriptionSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     },
     "link/Render Function": {
-      "codeSha256": "3be67a9e79d6b96e747596d1cc30355ac22ab7423cae7e8a9615d75ec2096e97",
+      "codeSha256": "be57af0076b3eaa992b52e472b079a3afffb5c6b714de280815b82d7592ddd40",
       "descriptionSha256": "469534b55b7ac84c8543e91a3529e5b79659284444f0e82fa4cef4ddd3830bd4"
     },
     "link/Styling Overrides": {
@@ -2523,7 +2523,7 @@
       "descriptionSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     },
     "slider/Native Seeking": {
-      "codeSha256": "72e7014d652ab587957d4d82990db4f9bb96d092e74dade4ae18aa0eb8777b8d",
+      "codeSha256": "c5f770d646c77a70c37ce3d9467fd984b722e2ba8cdfc4269a0298df9651491f",
       "descriptionSha256": "d2a496c2d413bcd4de173017d564800226893448c5fcc496785023d49c6f578c"
     },
     "slider/Range": {
@@ -2563,7 +2563,7 @@
       "descriptionSha256": "2c2180352053e8920830fed33e4130a1e9e2d0908070fdc4f8b14c115ed22974"
     },
     "slider/Vertical": {
-      "codeSha256": "94aef13eb2ae799cca4eaf439124700d9ca2c7a9387c2df28e3e923c83ab781e",
+      "codeSha256": "1b31163902ab359aebb445f5bc92eb3ec76fb04ebefaf72130a9efcf2eef519d",
       "descriptionSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     },
     "slider/Vertical Orientation": {
@@ -2611,31 +2611,31 @@
       "descriptionSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     },
     "switch/Controlled": {
-      "codeSha256": "8e17be5f7d2d6171d6c4083d4203494876b431238cec93a386ff8ee83487ba4c",
+      "codeSha256": "63e3c041d700594b4bac2445fef67cd4bfcd82f5956cee7628111c7a89c9bfdb",
       "descriptionSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     },
     "switch/Default Selected": {
-      "codeSha256": "2bc3acb6d66668c5f18da38c3aa78c630c685ab3ff5a670db55122b7408ed24f",
+      "codeSha256": "640c57df8800b1fd280304892197a2a1ba08cc95849c79f643b792ac14ae8be5",
       "descriptionSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     },
     "switch/Disabled": {
-      "codeSha256": "3a21fd360306baad312b367ef6e5474887d72e08d311db9c0d169a11a96a3130",
+      "codeSha256": "4ec91430492492f7e81fe36db60fd59093eb67bda6a636c4d7b36ab0c70d931f",
       "descriptionSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     },
     "switch/Form Integration": {
-      "codeSha256": "6e6b092f8dc45cd59047effb243fd1f70b922f2df3c0c1b9874f37f13412df3b",
+      "codeSha256": "aa1c0ae64d9127ee019a0679a8fd23748f6293cc501da8b6179baf5440cad78b",
       "descriptionSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     },
     "switch/Group": {
-      "codeSha256": "4a542d5d8966f6fa22579937edcbd09910fe19be9b6391a2cf29282325aa3ce7",
+      "codeSha256": "2217d5a88914f8490acd67ecf918f1f9eb8c0dd8606a049f84b07602d55cd523",
       "descriptionSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     },
     "switch/Group Horizontal": {
-      "codeSha256": "58f7f3b501443356ce42eee9e539fe7cbd262d52e4dbb71e0c317b2ce3e789de",
+      "codeSha256": "3d953f3af6ffcfc41be19a2049dacbf4d77a327d095a0d3c29dd8c3c16732c8f",
       "descriptionSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     },
     "switch/Label Position": {
-      "codeSha256": "06236b2c4849180a332dbe0b66cd51cbbe140b4247caa10e5d282f836aa5d20b",
+      "codeSha256": "719e0552359d9da7eb8e265105695d4573ada929456a51716ffcc3bf42fd4be5",
       "descriptionSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     },
     "switch/Label Size": {
@@ -2643,11 +2643,11 @@
       "descriptionSha256": "e1a31437aad5c726a1dcd638f5886c57c48b96f93a2e2f3dc1dad50dbbb5b400"
     },
     "switch/Render Props": {
-      "codeSha256": "196a3702a56428e800a2ce7c95a9f882f08214052ae424cf52883c1150e1087d",
+      "codeSha256": "279f9a44e9b4ecfd5aeaeb606da7e42a4f66903481c09c008c04138a568a2094",
       "descriptionSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     },
     "switch/Sizes": {
-      "codeSha256": "f5c15f30b24ca4806c59f7617cb93dc50f1ed3cd206a0c81d27aa580921c7c3c",
+      "codeSha256": "bda70512442c132e43363782cf6f52dfcf34cf27e70df6a9a4de069a0bb7979f",
       "descriptionSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     },
     "switch/Styling Overrides": {
@@ -2659,15 +2659,15 @@
       "descriptionSha256": "bb086c7ff10911f199a4f9ca30375dafce77fbdaaee942579dfb0b372c926baa"
     },
     "switch/With Description": {
-      "codeSha256": "0069b465d8835aa0c501ed528bc5dad634ab760a96a343a3470fb7361501c893",
+      "codeSha256": "882f4c3c3c2ea52790da163be754ef5ab799336494382d12c9abda72f807286b",
       "descriptionSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     },
     "switch/With Icons": {
-      "codeSha256": "6808dff8eda4494c20f425afe78f49e2d266c8caa6c833137c65cf16f1126848",
+      "codeSha256": "cdc41bc0572f19907020979ccdce36384e807b38800a5028d318927a22bd6745",
       "descriptionSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     },
     "switch/Without Label": {
-      "codeSha256": "209957dc7d96a9def75feab8afa6f22ea5126bf2b92deb920403376c726aad90",
+      "codeSha256": "01cf3e6127a42bf22b2cd987fd3aad9dd908841d91939e9c6e5809ba51d7837a",
       "descriptionSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     },
     "table/Async Loading": {
@@ -3091,7 +3091,7 @@
       "descriptionSha256": "51b11f08aaf2e0011e91e3cd0ccb5ae5d2e94cdc191672d8dc158e5eb45fee3f"
     },
     "toggle-button/Detached": {
-      "codeSha256": "c476fc08bd51808a916b8e45e18a12ed4458e2db513947cccfe6ea8404426eda",
+      "codeSha256": "07a3987f9f0e4f1c195fba0b393d92b9f6bf803800e6a5890285b80d734623f0",
       "descriptionSha256": "9515424794c339619a84d7a198fea5ea1cf1bd36f468549cf7d96521da440f16"
     },
     "toggle-button/Disabled": {
@@ -3107,7 +3107,7 @@
       "descriptionSha256": "9d4911922f8ec4cc1f6038303173311914ff40a78552ea569ab052783221cd7f"
     },
     "toggle-button/Icon Only": {
-      "codeSha256": "edde7f25127e5e3d799b61648965b1365d06de2ce00f8330a04183ccd1e7519b",
+      "codeSha256": "d17e4c7f32e821927d2293360d2898f8509231f8869c14b5d1e98d3a4ee95537",
       "descriptionSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     },
     "toggle-button/Multiple selection": {

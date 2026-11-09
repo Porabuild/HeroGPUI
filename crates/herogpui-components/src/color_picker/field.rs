@@ -43,6 +43,9 @@ pub struct ColorField {
     /// `name` — the name this control submits under; read back by
     /// [`Self::form_field`].
     name: Option<SharedString>,
+    /// `aria-label` — the explicit accessible name, which wins over the
+    /// label-derived name exactly as the HTML name computation ranks it.
+    aria_label: Option<SharedString>,
     /// `defaultValue` — set it to hand this component its own state. The
     /// outer option distinguishes an omitted prop from an explicit `null`
     /// seed, matching React Aria's `Color | null` contract.
@@ -148,6 +151,7 @@ impl ColorField {
             suffix: None,
             validation_behavior: crate::form::ValidationBehavior::Native,
             name: None,
+            aria_label: None,
             default_value: None,
             id: id.into(),
             value: value.into(),
@@ -189,6 +193,13 @@ impl ColorField {
     /// `name` — the name this control submits under.
     pub fn name(mut self, name: impl Into<SharedString>) -> Self {
         self.name = Some(name.into());
+        self
+    }
+
+    /// `aria-label` — the explicit accessible name, which wins over the
+    /// label-derived name exactly as the HTML name computation ranks it.
+    pub fn aria_label(mut self, label: impl Into<SharedString>) -> Self {
+        self.aria_label = Some(label.into());
         self
     }
 
@@ -1117,7 +1128,14 @@ impl RenderOnce for ColorField {
         // that composes `Input` lets that field carry the node instead.
         field = field.a11y_named(
             a11y::Role::TextInput,
-            &a11y::Name::field(self.name.as_ref(), None, &display),
+            &a11y::Name::field(
+                self.aria_label
+                    .as_ref()
+                    .or(self.label.as_ref())
+                    .or(self.name.as_ref()),
+                self.description.as_ref(),
+                &display,
+            ),
         );
 
         // `.color-field` is `flex flex-col gap-1`.

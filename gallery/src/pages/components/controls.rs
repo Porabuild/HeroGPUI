@@ -84,7 +84,7 @@ impl Gallery {
                 ),
                 (
                     "Vertical",
-                    row(vec![h::Slider::new("sl-vert", value)
+                    row(vec![h::Slider::new("sl-vert", value).aria_label("Volume")
                         .orientation(Orientation::Vertical)
                         .on_change(cx.listener(|this, v: &f32, _, cx| {
                             this.slider_value = *v;
@@ -228,7 +228,7 @@ impl Gallery {
                             .label(if self.demo_flag("sl-seeking", false) { "Preview paused" } else { "Preview playing" })
                             .on_drag_start(move |_, cx| { let _ = seek_start.update(cx, |this, cx| { this.set_demo_flag("sl-seeking", true); cx.notify(); }); })
                             .on_drag_end(move |_, cx| { let _ = seek_end.update(cx, |this, cx| { this.set_demo_flag("sl-seeking", false); cx.notify(); }); })),
-                        fixed_demo(320., h::Slider::new("sl-presets", 1.)
+                        fixed_demo(320., h::Slider::new("sl-presets", 1.).aria_label("Zoom")
                             .default_value(1.).min_value(0.25).max_value(2.)
                             .steps([0.25, 0.5, 1., 1.5, 2.]).show_value(true)),
                     ]),
@@ -384,7 +384,7 @@ impl Gallery {
                                 &key,
                                 spec(
                                     s.label(),
-                                    h::Switch::new(el_id(format!("sw-{s:?}")))
+                                    h::Switch::new(el_id(format!("sw-{s:?}"))).aria_label("Notifications")
                                         .default_selected(true)
                                         .size(*s),
                                     cx,
@@ -400,21 +400,21 @@ impl Gallery {
                         specimen_body("sw-icon-selected", h::Switch::new("sw-icon-1")
                             .default_selected(true)
                             .thumb_icons(icon(h::icons::MOON, cx), icon(h::icons::SUN, cx))
-                            .label(gpui::div().child("Appearance"))
+                            .label(gpui::div().child("Appearance")).aria_label("Appearance")
                             .into_any_element(), cx),
                         specimen_body("sw-icon-unselected", h::Switch::new("sw-icon-2")
                             .thumb_icons(icon(h::icons::EYE_OFF, cx), icon(h::icons::EYE, cx))
-                            .label(gpui::div().child("Show preview"))
+                            .label(gpui::div().child("Show preview")).aria_label("Show preview")
                             .into_any_element(), cx),
                     ]),
                 ),
                 (
                     "Disabled",
                     row(vec![
-                        specimen_body("sw-disabled-off", h::Switch::new("sw-d-off")
+                        specimen_body("sw-disabled-off", h::Switch::new("sw-d-off").aria_label("Notifications")
                             .is_disabled(true)
                             .into_any_element(), cx),
-                        specimen_body("sw-disabled-on", h::Switch::new("sw-d-on")
+                        specimen_body("sw-disabled-on", h::Switch::new("sw-d-on").aria_label("Notifications")
                             .is_selected(true)
                             .is_disabled(true)
                             .into_any_element(), cx),
@@ -423,17 +423,17 @@ impl Gallery {
                 (
                     "Without Label",
                     row(vec![
-                        specimen_body("sw-without-label-on", h::Switch::new("sw-nolabel-1")
+                        specimen_body("sw-without-label-on", h::Switch::new("sw-nolabel-1").aria_label("Notifications")
                             .default_selected(true)
                             .into_any_element(), cx),
-                        specimen_body("sw-without-label-off", h::Switch::new("sw-nolabel-2").into_any_element(), cx),
+                        specimen_body("sw-without-label-off", h::Switch::new("sw-nolabel-2").aria_label("Notifications").into_any_element(), cx),
                     ]),
                 ),
                 (
                     "With Description",
                     specimen_body("sw-description", col(vec![h::Switch::new("sw-desc")
                         .default_selected(true)
-                        .label(gpui::div().child("Sync across devices"))
+                        .label(gpui::div().child("Sync across devices")).aria_label("Sync across devices")
                         .description("Changes are pushed to every signed-in device.")
                         .into_any_element()]), cx),
                 ),
@@ -441,7 +441,7 @@ impl Gallery {
                     "Default Selected",
                     specimen_body("sw-default-selected", col(vec![h::Switch::new("sw-default")
                         .default_selected(true)
-                        .label(gpui::div().child("On by default"))
+                        .label(gpui::div().child("On by default")).aria_label("On by default")
                         .into_any_element()]), cx),
                 ),
                 (
@@ -449,7 +449,7 @@ impl Gallery {
                     specimen_body("sw-controlled", col(vec![
                         h::Switch::new("sw-controlled")
                             .is_selected(controlled)
-                            .label(gpui::div().child("Notifications"))
+                            .label(gpui::div().child("Notifications")).aria_label("Notifications")
                             .on_change(cx.listener(|this, v: &bool, _, cx| {
                                 this.set_demo_flag("sw-controlled", *v);
                                 cx.notify();
@@ -469,11 +469,11 @@ impl Gallery {
                     "Label Position",
                     specimen_body("sw-label-position", col(vec![
                         h::Switch::new("sw-lp-after")
-                            .label(gpui::div().child("Label after"))
+                            .label(gpui::div().child("Label after")).aria_label("Label after")
                             .into_any_element(),
                         h::Switch::new("sw-lp-before")
                             .label_first(true)
-                            .label(gpui::div().child("Label before"))
+                            .label(gpui::div().child("Label before")).aria_label("Label before")
                             .into_any_element(),
                     ]), cx),
                 ),
@@ -484,7 +484,7 @@ impl Gallery {
                         .child(
                             h::Switch::new("sw-g-wifi")
                                 .is_selected(wifi)
-                                .label(gpui::div().child("Wi-Fi"))
+                                .label(gpui::div().child("Wi-Fi")).aria_label("Wi-Fi")
                                 .on_change(cx.listener(|this, v: &bool, _, cx| {
                                     this.set_demo_flag("sw-group-wifi", *v);
                                     cx.notify();
@@ -493,7 +493,7 @@ impl Gallery {
                         .child(
                             h::Switch::new("sw-g-bt")
                                 .is_selected(bluetooth)
-                                .label(gpui::div().child("Bluetooth"))
+                                .label(gpui::div().child("Bluetooth")).aria_label("Bluetooth")
                                 .on_change(cx.listener(|this, v: &bool, _, cx| {
                                     this.set_demo_flag("sw-group-bt", *v);
                                     cx.notify();
@@ -502,7 +502,7 @@ impl Gallery {
                         .child(
                             h::Switch::new("sw-g-air")
                                 .is_selected(airplane)
-                                .label(gpui::div().child("Airplane mode"))
+                                .label(gpui::div().child("Airplane mode")).aria_label("Airplane mode")
                                 .on_change(cx.listener(|this, v: &bool, _, cx| {
                                     this.set_demo_flag("sw-group-air", *v);
                                     cx.notify();
@@ -517,10 +517,10 @@ impl Gallery {
                         .child(
                             h::Switch::new("sw-gh-1")
                                 .default_selected(true)
-                                .label(gpui::div().child("Email")),
+                                .label(gpui::div().child("Email")).aria_label("Email"),
                         )
-                        .child(h::Switch::new("sw-gh-2").label(gpui::div().child("SMS")))
-                        .child(h::Switch::new("sw-gh-3").label(gpui::div().child("Push")))
+                        .child(h::Switch::new("sw-gh-2").label(gpui::div().child("SMS")).aria_label("SMS"))
+                        .child(h::Switch::new("sw-gh-3").label(gpui::div().child("Push")).aria_label("Push"))
                         .into_any_element()]), cx),
                 ),
                 (
@@ -533,7 +533,7 @@ impl Gallery {
                                 .value("accepted")
                                 .is_selected(terms)
                                 .is_required(true)
-                                .label(gpui::div().child("Accept the terms"))
+                                .label(gpui::div().child("Accept the terms")).aria_label("Accept the terms")
                                 .is_invalid(!terms)
                                 .on_change(cx.listener(|this, v: &bool, _, cx| {
                                     this.set_demo_flag("sw-form", *v);
@@ -572,7 +572,7 @@ impl Gallery {
                 ),
                 (
                     "Render Props",
-                    specimen_body("sw-render-props", col(vec![h::Switch::new("sw-render")
+                    specimen_body("sw-render-props", col(vec![h::Switch::new("sw-render").aria_label("Notifications")
                         .is_selected(controlled)
                         .on_change(cx.listener(|this, v: &bool, _, cx| {
                             this.set_demo_flag("sw-controlled", *v);

@@ -1,0 +1,994 @@
+{
+ "schema_version": 1,
+ "kind": "native-a11y",
+ "recorded_on": "2026-11-09",
+ "native_binary_sha256": "dce9e92f5c6ee48759ec725dba1cf4c64c51d2733b0e97357e108bc044e2acd3",
+ "source_sha256": "b669f0aabb48ba9d2786adbc51e4addf94ff115631311f7bad01ff43084889a1",
+ "platform": "macOS 27.2 arm64",
+ "window_size": "1280x6000",
+ "pages": [
+  {
+   "page": "Button",
+   "nodes": 98,
+   "interactive": 49,
+   "unnamed": [],
+   "state_violations": [],
+   "focus": {
+    "tried": 10,
+    "landed": 0
+   },
+   "press": {
+    "role": "AXButton",
+    "subrole": "AXUnknown",
+    "before": null,
+    "after": null,
+    "actions": [],
+    "accepted": true
+   },
+   "result": "pass",
+   "detail": null
+  },
+  {
+   "page": "Button Group",
+   "nodes": 97,
+   "interactive": 67,
+   "unnamed": [],
+   "state_violations": [],
+   "focus": {
+    "tried": 10,
+    "landed": 0
+   },
+   "press": null,
+   "result": "pass",
+   "detail": null
+  },
+  {
+   "page": "Close Button",
+   "nodes": 33,
+   "interactive": 7,
+   "unnamed": [],
+   "state_violations": [],
+   "focus": {
+    "tried": 7,
+    "landed": 0
+   },
+   "press": null,
+   "result": "pass",
+   "detail": null
+  },
+  {
+   "page": "Toggle Button",
+   "nodes": 111,
+   "interactive": 51,
+   "unnamed": [],
+   "state_violations": [],
+   "focus": {
+    "tried": 10,
+    "landed": 0
+   },
+   "press": null,
+   "result": "pass",
+   "detail": null
+  },
+  {
+   "page": "Dropdown",
+   "nodes": 94,
+   "interactive": 29,
+   "unnamed": [],
+   "state_violations": [],
+   "focus": {
+    "tried": 10,
+    "landed": 0
+   },
+   "press": null,
+   "result": "pass",
+   "detail": null
+  },
+  {
+   "page": "List Box",
+   "nodes": 138,
+   "interactive": 2,
+   "unnamed": [],
+   "state_violations": [],
+   "focus": {
+    "tried": 2,
+    "landed": 0
+   },
+   "press": null,
+   "result": "pass",
+   "detail": null
+  },
+  {
+   "page": "Tag Group",
+   "nodes": 172,
+   "interactive": 16,
+   "unnamed": [],
+   "state_violations": [],
+   "focus": {
+    "tried": 10,
+    "landed": 0
+   },
+   "press": null,
+   "result": "pass",
+   "detail": null
+  },
+  {
+   "page": "Color Area",
+   "nodes": 49,
+   "interactive": 16,
+   "unnamed": [],
+   "state_violations": [],
+   "focus": {
+    "tried": 10,
+    "landed": 0
+   },
+   "press": null,
+   "result": "pass",
+   "detail": null
+  },
+  {
+   "page": "Color Field",
+   "nodes": 80,
+   "interactive": 28,
+   "unnamed": [],
+   "state_violations": [],
+   "focus": {
+    "tried": 10,
+    "landed": 0
+   },
+   "press": null,
+   "result": "pass",
+   "detail": null
+  },
+  {
+   "page": "Color Picker",
+   "nodes": 48,
+   "interactive": 21,
+   "unnamed": [],
+   "state_violations": [],
+   "focus": {
+    "tried": 10,
+    "landed": 0
+   },
+   "press": null,
+   "result": "pass",
+   "detail": null
+  },
+  {
+   "page": "Color Slider",
+   "nodes": 46,
+   "interactive": 16,
+   "unnamed": [],
+   "state_violations": [],
+   "focus": {
+    "tried": 10,
+    "landed": 0
+   },
+   "press": null,
+   "result": "pass",
+   "detail": null
+  },
+  {
+   "page": "Color Swatch",
+   "nodes": 27,
+   "interactive": 0,
+   "unnamed": [],
+   "state_violations": [],
+   "focus": {
+    "tried": 0,
+    "landed": 0
+   },
+   "press": null,
+   "result": "pass",
+   "detail": null
+  },
+  {
+   "page": "Color Swatch Picker",
+   "nodes": 177,
+   "interactive": 127,
+   "unnamed": [],
+   "state_violations": [],
+   "focus": {
+    "tried": 10,
+    "landed": 0
+   },
+   "press": null,
+   "result": "pass",
+   "detail": null
+  },
+  {
+   "page": "Slider",
+   "nodes": 115,
+   "interactive": 33,
+   "unnamed": [],
+   "state_violations": [],
+   "focus": {
+    "tried": 10,
+    "landed": 0
+   },
+   "press": null,
+   "result": "pass",
+   "detail": null
+  },
+  {
+   "page": "Switch",
+   "nodes": 68,
+   "interactive": 26,
+   "unnamed": [],
+   "state_violations": [],
+   "focus": {
+    "tried": 10,
+    "landed": 0
+   },
+   "press": {
+    "role": "AXCheckBox",
+    "subrole": "AXSwitch",
+    "before": false,
+    "after": true,
+    "actions": [
+     "AXPress"
+    ],
+    "value_changed": true
+   },
+   "result": "pass",
+   "detail": null
+  },
+  {
+   "page": "Badge",
+   "nodes": 28,
+   "interactive": 0,
+   "unnamed": [],
+   "state_violations": [],
+   "focus": {
+    "tried": 0,
+    "landed": 0
+   },
+   "press": null,
+   "result": "pass",
+   "detail": null
+  },
+  {
+   "page": "Chip",
+   "nodes": 26,
+   "interactive": 0,
+   "unnamed": [],
+   "state_violations": [],
+   "focus": {
+    "tried": 0,
+    "landed": 0
+   },
+   "press": null,
+   "result": "pass",
+   "detail": null
+  },
+  {
+   "page": "Table",
+   "nodes": 481,
+   "interactive": 20,
+   "unnamed": [],
+   "state_violations": [],
+   "focus": {
+    "tried": 10,
+    "landed": 0
+   },
+   "press": null,
+   "result": "pass",
+   "detail": null
+  },
+  {
+   "page": "Calendar",
+   "nodes": 1011,
+   "interactive": 906,
+   "unnamed": [],
+   "state_violations": [],
+   "focus": {
+    "tried": 10,
+    "landed": 0
+   },
+   "press": null,
+   "result": "pass",
+   "detail": null
+  },
+  {
+   "page": "Date Field",
+   "nodes": 153,
+   "interactive": 87,
+   "unnamed": [],
+   "state_violations": [],
+   "focus": {
+    "tried": 10,
+    "landed": 0
+   },
+   "press": null,
+   "result": "pass",
+   "detail": null
+  },
+  {
+   "page": "Date Picker",
+   "nodes": 88,
+   "interactive": 38,
+   "unnamed": [],
+   "state_violations": [],
+   "focus": {
+    "tried": 10,
+    "landed": 0
+   },
+   "press": null,
+   "result": "pass",
+   "detail": null
+  },
+  {
+   "page": "Date Range Picker",
+   "nodes": 124,
+   "interactive": 65,
+   "unnamed": [],
+   "state_violations": [],
+   "focus": {
+    "tried": 10,
+    "landed": 0
+   },
+   "press": null,
+   "result": "pass",
+   "detail": null
+  },
+  {
+   "page": "Range Calendar",
+   "nodes": 1180,
+   "interactive": 1079,
+   "unnamed": [],
+   "state_violations": [],
+   "focus": {
+    "tried": 10,
+    "landed": 0
+   },
+   "press": null,
+   "result": "pass",
+   "detail": null
+  },
+  {
+   "page": "Time Field",
+   "nodes": 147,
+   "interactive": 86,
+   "unnamed": [],
+   "state_violations": [],
+   "focus": {
+    "tried": 10,
+    "landed": 0
+   },
+   "press": null,
+   "result": "pass",
+   "detail": null
+  },
+  {
+   "page": "Alert",
+   "nodes": 27,
+   "interactive": 4,
+   "unnamed": [],
+   "state_violations": [],
+   "focus": {
+    "tried": 4,
+    "landed": 0
+   },
+   "press": null,
+   "result": "pass",
+   "detail": null
+  },
+  {
+   "page": "Meter",
+   "nodes": 36,
+   "interactive": 0,
+   "unnamed": [],
+   "state_violations": [],
+   "focus": {
+    "tried": 0,
+    "landed": 0
+   },
+   "press": null,
+   "result": "pass",
+   "detail": null
+  },
+  {
+   "page": "Progress Bar",
+   "nodes": 39,
+   "interactive": 0,
+   "unnamed": [],
+   "state_violations": [],
+   "focus": {
+    "tried": 0,
+    "landed": 0
+   },
+   "press": null,
+   "result": "pass",
+   "detail": null
+  },
+  {
+   "page": "Progress Circle",
+   "nodes": 28,
+   "interactive": 1,
+   "unnamed": [],
+   "state_violations": [],
+   "focus": {
+    "tried": 1,
+    "landed": 0
+   },
+   "press": null,
+   "result": "pass",
+   "detail": null
+  },
+  {
+   "page": "Skeleton",
+   "nodes": 28,
+   "interactive": 0,
+   "unnamed": [],
+   "state_violations": [],
+   "focus": {
+    "tried": 0,
+    "landed": 0
+   },
+   "press": null,
+   "result": "pass",
+   "detail": null
+  },
+  {
+   "page": "Spinner",
+   "nodes": 42,
+   "interactive": 0,
+   "unnamed": [],
+   "state_violations": [],
+   "focus": {
+    "tried": 0,
+    "landed": 0
+   },
+   "press": null,
+   "result": "pass",
+   "detail": null
+  },
+  {
+   "page": "Checkbox",
+   "nodes": 65,
+   "interactive": 21,
+   "unnamed": [],
+   "state_violations": [],
+   "focus": {
+    "tried": 10,
+    "landed": 0
+   },
+   "press": {
+    "role": "AXCheckBox",
+    "subrole": "AXUnknown",
+    "before": false,
+    "after": true,
+    "actions": [
+     "AXPress"
+    ],
+    "value_changed": true
+   },
+   "result": "pass",
+   "detail": null
+  },
+  {
+   "page": "Checkbox Group",
+   "nodes": 77,
+   "interactive": 33,
+   "unnamed": [],
+   "state_violations": [],
+   "focus": {
+    "tried": 10,
+    "landed": 0
+   },
+   "press": null,
+   "result": "pass",
+   "detail": null
+  },
+  {
+   "page": "Fieldset",
+   "nodes": 24,
+   "interactive": 8,
+   "unnamed": [],
+   "state_violations": [],
+   "focus": {
+    "tried": 8,
+    "landed": 0
+   },
+   "press": null,
+   "result": "pass",
+   "detail": null
+  },
+  {
+   "page": "Label & Messages",
+   "nodes": 44,
+   "interactive": 6,
+   "unnamed": [],
+   "state_violations": [],
+   "focus": {
+    "tried": 6,
+    "landed": 0
+   },
+   "press": null,
+   "result": "pass",
+   "detail": null
+  },
+  {
+   "page": "Form",
+   "nodes": 25,
+   "interactive": 9,
+   "unnamed": [],
+   "state_violations": [],
+   "focus": {
+    "tried": 9,
+    "landed": 0
+   },
+   "press": null,
+   "result": "pass",
+   "detail": null
+  },
+  {
+   "page": "Input",
+   "nodes": 48,
+   "interactive": 18,
+   "unnamed": [],
+   "state_violations": [],
+   "focus": {
+    "tried": 10,
+    "landed": 0
+   },
+   "press": null,
+   "result": "pass",
+   "detail": null
+  },
+  {
+   "page": "Input Group",
+   "nodes": 96,
+   "interactive": 29,
+   "unnamed": [],
+   "state_violations": [],
+   "focus": {
+    "tried": 10,
+    "landed": 0
+   },
+   "press": null,
+   "result": "pass",
+   "detail": null
+  },
+  {
+   "page": "Input OTP",
+   "nodes": 54,
+   "interactive": 18,
+   "unnamed": [],
+   "state_violations": [],
+   "focus": {
+    "tried": 10,
+    "landed": 0
+   },
+   "press": null,
+   "result": "pass",
+   "detail": null
+  },
+  {
+   "page": "Number Field",
+   "nodes": 127,
+   "interactive": 59,
+   "unnamed": [],
+   "state_violations": [],
+   "focus": {
+    "tried": 10,
+    "landed": 0
+   },
+   "press": null,
+   "result": "pass",
+   "detail": null
+  },
+  {
+   "page": "Radio Group",
+   "nodes": 109,
+   "interactive": 53,
+   "unnamed": [],
+   "state_violations": [],
+   "focus": {
+    "tried": 10,
+    "landed": 0
+   },
+   "press": null,
+   "result": "pass",
+   "detail": null
+  },
+  {
+   "page": "Search Field",
+   "nodes": 59,
+   "interactive": 17,
+   "unnamed": [],
+   "state_violations": [],
+   "focus": {
+    "tried": 10,
+    "landed": 0
+   },
+   "press": null,
+   "result": "pass",
+   "detail": null
+  },
+  {
+   "page": "Text Area",
+   "nodes": 32,
+   "interactive": 8,
+   "unnamed": [],
+   "state_violations": [],
+   "focus": {
+    "tried": 8,
+    "landed": 0
+   },
+   "press": null,
+   "result": "pass",
+   "detail": null
+  },
+  {
+   "page": "Text Field",
+   "nodes": 50,
+   "interactive": 14,
+   "unnamed": [],
+   "state_violations": [],
+   "focus": {
+    "tried": 10,
+    "landed": 0
+   },
+   "press": null,
+   "result": "pass",
+   "detail": null
+  },
+  {
+   "page": "Card",
+   "nodes": 32,
+   "interactive": 8,
+   "unnamed": [],
+   "state_violations": [],
+   "focus": {
+    "tried": 8,
+    "landed": 0
+   },
+   "press": null,
+   "result": "pass",
+   "detail": null
+  },
+  {
+   "page": "Separator",
+   "nodes": 31,
+   "interactive": 0,
+   "unnamed": [],
+   "state_violations": [],
+   "focus": {
+    "tried": 0,
+    "landed": 0
+   },
+   "press": null,
+   "result": "pass",
+   "detail": null
+  },
+  {
+   "page": "Surface",
+   "nodes": 20,
+   "interactive": 2,
+   "unnamed": [],
+   "state_violations": [],
+   "focus": {
+    "tried": 2,
+    "landed": 0
+   },
+   "press": null,
+   "result": "pass",
+   "detail": null
+  },
+  {
+   "page": "Toolbar",
+   "nodes": 65,
+   "interactive": 24,
+   "unnamed": [],
+   "state_violations": [],
+   "focus": {
+    "tried": 10,
+    "landed": 0
+   },
+   "press": null,
+   "result": "pass",
+   "detail": null
+  },
+  {
+   "page": "Avatar",
+   "nodes": 27,
+   "interactive": 0,
+   "unnamed": [],
+   "state_violations": [],
+   "focus": {
+    "tried": 0,
+    "landed": 0
+   },
+   "press": null,
+   "result": "pass",
+   "detail": null
+  },
+  {
+   "page": "AvatarGroup",
+   "nodes": 26,
+   "interactive": 0,
+   "unnamed": [],
+   "state_violations": [],
+   "focus": {
+    "tried": 0,
+    "landed": 0
+   },
+   "press": null,
+   "result": "pass",
+   "detail": null
+  },
+  {
+   "page": "Accordion",
+   "nodes": 80,
+   "interactive": 38,
+   "unnamed": [],
+   "state_violations": [],
+   "focus": {
+    "tried": 10,
+    "landed": 0
+   },
+   "press": null,
+   "result": "pass",
+   "detail": null
+  },
+  {
+   "page": "Breadcrumbs",
+   "nodes": 81,
+   "interactive": 25,
+   "unnamed": [],
+   "state_violations": [],
+   "focus": {
+    "tried": 10,
+    "landed": 0
+   },
+   "press": null,
+   "result": "pass",
+   "detail": null
+  },
+  {
+   "page": "Disclosure",
+   "nodes": 40,
+   "interactive": 10,
+   "unnamed": [],
+   "state_violations": [],
+   "focus": {
+    "tried": 10,
+    "landed": 0
+   },
+   "press": null,
+   "result": "pass",
+   "detail": null
+  },
+  {
+   "page": "Link",
+   "nodes": 31,
+   "interactive": 7,
+   "unnamed": [],
+   "state_violations": [],
+   "focus": {
+    "tried": 7,
+    "landed": 0
+   },
+   "press": null,
+   "result": "pass",
+   "detail": null
+  },
+  {
+   "page": "Pagination",
+   "nodes": 123,
+   "interactive": 74,
+   "unnamed": [],
+   "state_violations": [],
+   "focus": {
+    "tried": 10,
+    "landed": 0
+   },
+   "press": null,
+   "result": "pass",
+   "detail": null
+  },
+  {
+   "page": "Tabs",
+   "nodes": 181,
+   "interactive": 91,
+   "unnamed": [],
+   "state_violations": [],
+   "focus": {
+    "tried": 10,
+    "landed": 0
+   },
+   "press": null,
+   "result": "pass",
+   "detail": null
+  },
+  {
+   "page": "Alert Dialog",
+   "nodes": 64,
+   "interactive": 26,
+   "unnamed": [],
+   "state_violations": [],
+   "focus": {
+    "tried": 10,
+    "landed": 0
+   },
+   "press": null,
+   "result": "pass",
+   "detail": null
+  },
+  {
+   "page": "Drawer",
+   "nodes": 41,
+   "interactive": 13,
+   "unnamed": [],
+   "state_violations": [],
+   "focus": {
+    "tried": 10,
+    "landed": 0
+   },
+   "press": null,
+   "result": "pass",
+   "detail": null
+  },
+  {
+   "page": "Sheet",
+   "nodes": 59,
+   "interactive": 19,
+   "unnamed": [],
+   "state_violations": [],
+   "focus": {
+    "tried": 10,
+    "landed": 0
+   },
+   "press": null,
+   "result": "pass",
+   "detail": null
+  },
+  {
+   "page": "Modal",
+   "nodes": 61,
+   "interactive": 23,
+   "unnamed": [],
+   "state_violations": [],
+   "focus": {
+    "tried": 10,
+    "landed": 0
+   },
+   "press": null,
+   "result": "pass",
+   "detail": null
+  },
+  {
+   "page": "Popover",
+   "nodes": 33,
+   "interactive": 9,
+   "unnamed": [],
+   "state_violations": [],
+   "focus": {
+    "tried": 9,
+    "landed": 0
+   },
+   "press": null,
+   "result": "pass",
+   "detail": null
+  },
+  {
+   "page": "Toast",
+   "nodes": 76,
+   "interactive": 33,
+   "unnamed": [],
+   "state_violations": [],
+   "focus": {
+    "tried": 10,
+    "landed": 0
+   },
+   "press": null,
+   "result": "pass",
+   "detail": null
+  },
+  {
+   "page": "Tooltip",
+   "nodes": 60,
+   "interactive": 32,
+   "unnamed": [],
+   "state_violations": [],
+   "focus": {
+    "tried": 10,
+    "landed": 0
+   },
+   "press": null,
+   "result": "pass",
+   "detail": null
+  },
+  {
+   "page": "Autocomplete",
+   "nodes": 108,
+   "interactive": 49,
+   "unnamed": [],
+   "state_violations": [],
+   "focus": {
+    "tried": 10,
+    "landed": 0
+   },
+   "press": null,
+   "result": "pass",
+   "detail": null
+  },
+  {
+   "page": "Combo Box",
+   "nodes": 178,
+   "interactive": 69,
+   "unnamed": [],
+   "state_violations": [],
+   "focus": {
+    "tried": 10,
+    "landed": 0
+   },
+   "press": null,
+   "result": "pass",
+   "detail": null
+  },
+  {
+   "page": "Select",
+   "nodes": 97,
+   "interactive": 30,
+   "unnamed": [],
+   "state_violations": [],
+   "focus": {
+    "tried": 10,
+    "landed": 0
+   },
+   "press": null,
+   "result": "pass",
+   "detail": null
+  },
+  {
+   "page": "Kbd",
+   "nodes": 26,
+   "interactive": 0,
+   "unnamed": [],
+   "state_violations": [],
+   "focus": {
+    "tried": 0,
+    "landed": 0
+   },
+   "press": null,
+   "result": "pass",
+   "detail": null
+  },
+  {
+   "page": "Typography",
+   "nodes": 26,
+   "interactive": 0,
+   "unnamed": [],
+   "state_violations": [],
+   "focus": {
+    "tried": 0,
+    "landed": 0
+   },
+   "press": null,
+   "result": "pass",
+   "detail": null
+  },
+  {
+   "page": "Scroll Shadow",
+   "nodes": 30,
+   "interactive": 0,
+   "unnamed": [],
+   "state_violations": [],
+   "focus": {
+    "tried": 0,
+    "landed": 0
+   },
+   "press": null,
+   "result": "pass",
+   "detail": null
+  }
+ ],
+ "summary": {
+  "pages": 68,
+  "failed_pages": 0,
+  "unnamed": 0,
+  "state_violations": 0
+ }
+}

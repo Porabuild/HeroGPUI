@@ -375,6 +375,30 @@ impl Range {
     }
 }
 
+/// The plain text a string-typed label element carries, for the accessible
+/// name.
+///
+/// GPUI derives no accessible name from text children, so a control whose
+/// `label(..)` accepts `impl IntoElement` captures the text here when the
+/// element is one of the plain string types — `&'static str`, `String` or
+/// [`SharedString`]. Richer elements return `None`: their content is not
+/// reducible to a name, and the control stays unnamed until the caller passes
+/// a string label or an explicit `aria_label`. This is the derived-name half
+/// of the name computation — an explicit `aria_label` still wins over it.
+pub fn label_text<E: 'static>(el: &E) -> Option<SharedString> {
+    let any = el as &dyn std::any::Any;
+    if let Some(text) = any.downcast_ref::<&'static str>() {
+        return Some(SharedString::from(*text));
+    }
+    if let Some(text) = any.downcast_ref::<String>() {
+        return Some(SharedString::from(text.as_str()));
+    }
+    if let Some(text) = any.downcast_ref::<SharedString>() {
+        return Some(text.clone());
+    }
+    None
+}
+
 /// Writes a control's parity contract onto the element that carries its id.
 ///
 /// Implemented for every [`StatefulInteractiveElement`], which is to say for
@@ -675,5 +699,17 @@ mod tests {
         assert_eq!(range.step_size(), Some(0.5));
         assert_eq!(range.value_text(), Some(&s("4 items")));
         assert_eq!(Range::new(1., 10., 4.).step_size(), None);
+    }
+
+    /// `label(..)` captures plain string text for the accessible name and
+    /// leaves every other element unnamed.
+    #[test]
+    fn label_text_reads_the_three_string_types_only() {
+        assert_eq!(label_text(&"Hello"), Some(s("Hello")));
+        assert_eq!(label_text(&String::from("Owned")), Some(s("Owned")));
+        assert_eq!(label_text(&s("Shared")), Some(s("Shared")));
+        // A composed element and a non-string value are not reducible.
+        assert_eq!(label_text(&gpui::div()), None);
+        assert_eq!(label_text(&42), None);
     }
 }
