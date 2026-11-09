@@ -108,6 +108,37 @@ class CoverageReportTests(unittest.TestCase):
         second = report.build_report(json.loads(json.dumps(value)), Path(tempfile.gettempdir()))
         self.assertEqual(first, second)
 
+    def test_scripted_runs_count_current_passing_sections(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            runs = root / inventory.RUNS
+            runs.mkdir(parents=True)
+            rows = []
+            for name, current, passing in (("sweep.json", True, ["select/usage"]),
+                                           ("old.json", False, ["select/usage"])):
+                (runs / name).write_text(name)
+                rows.append({
+                    "path": (inventory.RUNS / name).as_posix(),
+                    "sha256": inventory.digest((runs / name).read_bytes()),
+                    "kind": "interaction-sweep", "recorded_on": "2026-11-09",
+                    "identity": {}, "current": current,
+                    "counts": {"pass": 1, "fail": 0, "skip": 0},
+                    "passing_ids": passing, "failing_ids": [],
+                })
+            value = self.make_inventory()
+            value["specimens"] = [row for row in value["specimens"] if row["status"] != "verified"]
+            value["scripted_runs"] = rows
+            value["verification_sha256"] = inventory.verification_fingerprint(value)
+            built = report.build_report(value, root)
+            self.assertEqual(built["sections_with_current_passing_run"], 1)
+            self.assertEqual([row["current"] for row in built["scripted_runs"]], [False, True])
+            markdown = report.render_markdown(built)
+            self.assertIn("## Scripted runs", markdown)
+            self.assertIn("| stale |", markdown)
+            (runs / "sweep.json").write_text("tampered")
+            with self.assertRaisesRegex(ValueError, "stale scripted run"):
+                report.build_report(value, root)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -131,6 +131,27 @@ state coverage. See [the implementation plan](../parity/ui-design-plan.md) for
 the required expansion and [execution progress](../parity/ui-design-progress.md)
 for the current frontier.
 
+Scripted runs keep automated results as checked files in `docs/parity/runs/`,
+one file per kind. Re-recording overwrites the file, and git keeps the
+history:
+
+| Run | Recorder | Granularity |
+|---|---|---|
+| `interaction-sweep.json` | `python3 .shots/record_sweep.py` (the headless hover/press sweep) | gallery section |
+| `wasm-smoke.json` | `node web/scripts/gallery-smoke.mjs --record docs/parity/runs/wasm-smoke.json` | gallery section |
+| `native-a11y.json` | `python3 .shots/ax_tree.py --record docs/parity/runs/native-a11y.json` | page |
+
+The inventory indexes each run under `scripted_runs` with its hash, kind,
+pass/fail ids and whether it is current. A run is current while the
+`source_sha256` it stamped matches the source snapshot, or, for the web
+smoke, while its artifact key matches `web/src/data/wasm-parity.json`. An
+unknown section id, a tampered file and an unlisted file all fail `--check`.
+The index is outside `verification_fingerprint`, so re-recording a run never
+invalidates a review. A run never makes a specimen `verified`: it is
+regression evidence for the inputs it recorded, not an upstream comparison.
+Record runs after the last source edit, then refresh the inventory and the
+coverage report.
+
 The coverage generator writes `docs/parity/coverage-report.json` and its
 maintainer-readable Markdown companion from the inventory. It reports every
 status, evidence surface and unresolved id, including measured gaps, accepted

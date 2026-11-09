@@ -1011,6 +1011,22 @@ impl Driver<'_> {
                 detail: format!("stale exemption ({}): {}", expected.check, expected.reason),
             });
         }
+        if let Some(dir) = std::env::var_os("HEROGPUI_SWEEP_REPORT_DIR") {
+            let mut swept: Vec<_> = self.swept_examples.iter().collect();
+            swept.sort();
+            let mut report = String::new();
+            for (page, heading) in swept {
+                let checks: Vec<String> = self
+                    .findings
+                    .iter()
+                    .filter(|finding| finding.page == page.as_str() && finding.heading == *heading)
+                    .map(|finding| finding.check.to_string())
+                    .collect();
+                report.push_str(&format!("{page}\t{heading}\t{}\n", checks.join(",")));
+            }
+            let path = std::path::Path::new(&dir).join(format!("shard-{}.tsv", self.shard));
+            std::fs::write(&path, report).unwrap_or_else(|err| panic!("{}: {err}", path.display()));
+        }
         if !self.findings.is_empty() {
             let mut counts: std::collections::BTreeMap<(u8, &'static str), usize> =
                 std::collections::BTreeMap::new();

@@ -3,7 +3,7 @@
 
 Target: `v3.2.7` (`7cb1642606c6f96f424dad78a961ccf45436be72`)
 Inventory date: `2026-11-09`
-Inventory verification: `18b498657f9d60e7c23936c19b7dcc302133f661d4a6a786fbcfb6f8ea6b4330`
+Inventory verification: `b369fb832c9709c206c782a1c9bfc3453bcaa5327b4573e683ba5479088481ff`
 Last evidence commit: `(none recorded)`
 
 This is a maintainer work-queue summary. It does not turn gallery section headings, static audits, or successful builds into parity evidence.
@@ -41,6 +41,16 @@ This is a maintainer work-queue summary. It does not turn gallery section headin
 | wasm | 1 | 815 |
 | tests | 5 | 811 |
 | all_surfaces | 1 | 815 |
+
+## Scripted runs
+
+| Run | Kind | Recorded | Current | Pass | Fail | Sections passing |
+| --- | --- | --- | --- | --- | --- | --- |
+| `docs/parity/runs/interaction-sweep.json` | interaction-sweep | 2026-11-09 | yes | 809 | 0 | 809 |
+| `docs/parity/runs/native-ce7bd3af.json` | native-route-smoke | - | unknown | 0 | 0 | 0 |
+| `docs/parity/runs/wasm-smoke.json` | wasm-smoke | 2026-11-09 | yes | 809 | 0 | 809 |
+
+Gallery sections with a current passing run: **809** of 809. A run is current while the sources or artifact it recorded are unchanged; it is regression evidence for those inputs, never a parity verdict.
 
 ## Component queue
 

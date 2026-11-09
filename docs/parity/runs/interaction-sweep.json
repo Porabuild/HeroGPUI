@@ -1,0 +1,5681 @@
+{
+  "schema_version": 1,
+  "kind": "interaction-sweep",
+  "recorded_on": "2026-11-09",
+  "source_sha256": "25f54d9ef9f34c697ac6b170b6d5f4684e936e57041127f067f3f74b2551a3a6",
+  "platform": "Darwin arm64 (gpui headless test platform)",
+  "command": "cargo test -p herogpui-gallery --lib interaction_sweep",
+  "exit_status": 0,
+  "shards": 8,
+  "coverage_limit": "Light theme, overlays closed, pointer hover/press/leave only; glyphs, icons and shadows are not observable.",
+  "sections": [
+    {
+      "id": "gallery/accordion/controlled",
+      "page": "Accordion",
+      "heading": "Controlled",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/accordion/custom-indicator",
+      "page": "Accordion",
+      "heading": "Custom Indicator",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/accordion/default",
+      "page": "Accordion",
+      "heading": "Default",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/accordion/disabled-state",
+      "page": "Accordion",
+      "heading": "Disabled State",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/accordion/faq-layout",
+      "page": "Accordion",
+      "heading": "FAQ Layout",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/accordion/hidden-separator",
+      "page": "Accordion",
+      "heading": "Hidden separator",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/accordion/hover-colour",
+      "page": "Accordion",
+      "heading": "Hover Colour",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/accordion/multiple-expanded",
+      "page": "Accordion",
+      "heading": "Multiple Expanded",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/accordion/surface",
+      "page": "Accordion",
+      "heading": "Surface",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/accordion/usage",
+      "page": "Accordion",
+      "heading": "Usage",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/accordion/without-separator",
+      "page": "Accordion",
+      "heading": "Without Separator",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/alert/closable",
+      "page": "Alert",
+      "heading": "Closable",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/alert/colors",
+      "page": "Alert",
+      "heading": "Colors",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/alert/custom-indicator",
+      "page": "Alert",
+      "heading": "Custom Indicator",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/alert/styling-overrides",
+      "page": "Alert",
+      "heading": "Styling Overrides",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/alert/usage",
+      "page": "Alert",
+      "heading": "Usage",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/alert-dialog/backdrop-variants",
+      "page": "Alert Dialog",
+      "heading": "Backdrop Variants",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/alert-dialog/close-methods",
+      "page": "Alert Dialog",
+      "heading": "Close Methods",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/alert-dialog/controlled-state",
+      "page": "Alert Dialog",
+      "heading": "Controlled State",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/alert-dialog/custom-animations",
+      "page": "Alert Dialog",
+      "heading": "Custom Animations",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/alert-dialog/custom-backdrop",
+      "page": "Alert Dialog",
+      "heading": "Custom Backdrop",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/alert-dialog/custom-icon",
+      "page": "Alert Dialog",
+      "heading": "Custom Icon",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/alert-dialog/custom-trigger",
+      "page": "Alert Dialog",
+      "heading": "Custom Trigger",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/alert-dialog/dismiss-behavior",
+      "page": "Alert Dialog",
+      "heading": "Dismiss Behavior",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/alert-dialog/placements",
+      "page": "Alert Dialog",
+      "heading": "Placements",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/alert-dialog/sizes",
+      "page": "Alert Dialog",
+      "heading": "Sizes",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/alert-dialog/statuses",
+      "page": "Alert Dialog",
+      "heading": "Statuses",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/alert-dialog/styling-overrides",
+      "page": "Alert Dialog",
+      "heading": "Styling Overrides",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/alert-dialog/usage",
+      "page": "Alert Dialog",
+      "heading": "Usage",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/autocomplete/allows-empty-collection",
+      "page": "Autocomplete",
+      "heading": "Allows Empty Collection",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/autocomplete/asynchronous-filtering",
+      "page": "Autocomplete",
+      "heading": "Asynchronous Filtering",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/autocomplete/box-customisation",
+      "page": "Autocomplete",
+      "heading": "Box Customisation",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/autocomplete/controlled",
+      "page": "Autocomplete",
+      "heading": "Controlled",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/autocomplete/controlled-multiple",
+      "page": "Autocomplete",
+      "heading": "Controlled Multiple",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/autocomplete/controlled-open-state",
+      "page": "Autocomplete",
+      "heading": "Controlled Open State",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/autocomplete/custom-indicator",
+      "page": "Autocomplete",
+      "heading": "Custom Indicator",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/autocomplete/custom-value",
+      "page": "Autocomplete",
+      "heading": "Custom Value",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/autocomplete/disabled",
+      "page": "Autocomplete",
+      "heading": "Disabled",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/autocomplete/full-width",
+      "page": "Autocomplete",
+      "heading": "Full Width",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/autocomplete/hover-colours",
+      "page": "Autocomplete",
+      "heading": "Hover Colours",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/autocomplete/in-surface",
+      "page": "Autocomplete",
+      "heading": "In Surface",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/autocomplete/long-selected-value",
+      "page": "Autocomplete",
+      "heading": "Long Selected Value",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/autocomplete/multiple-select",
+      "page": "Autocomplete",
+      "heading": "Multiple Select",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/autocomplete/placement",
+      "page": "Autocomplete",
+      "heading": "Placement",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/autocomplete/required",
+      "page": "Autocomplete",
+      "heading": "Required",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/autocomplete/styling-overrides",
+      "page": "Autocomplete",
+      "heading": "Styling Overrides",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/autocomplete/usage",
+      "page": "Autocomplete",
+      "heading": "Usage",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/autocomplete/variants",
+      "page": "Autocomplete",
+      "heading": "Variants",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/autocomplete/virtualization",
+      "page": "Autocomplete",
+      "heading": "Virtualization",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/autocomplete/with-description",
+      "page": "Autocomplete",
+      "heading": "With Description",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/autocomplete/with-disabled-options",
+      "page": "Autocomplete",
+      "heading": "With Disabled Options",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/autocomplete/with-sections",
+      "page": "Autocomplete",
+      "heading": "With Sections",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/avatar/colors",
+      "page": "Avatar",
+      "heading": "Colors",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/avatar/custom-image-component",
+      "page": "Avatar",
+      "heading": "Custom Image Component",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/avatar/fallback-content",
+      "page": "Avatar",
+      "heading": "Fallback Content",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/avatar/sizes",
+      "page": "Avatar",
+      "heading": "Sizes",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/avatar/styling-overrides",
+      "page": "Avatar",
+      "heading": "Styling Overrides",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/avatar/usage",
+      "page": "Avatar",
+      "heading": "Usage",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/avatar/variants",
+      "page": "Avatar",
+      "heading": "Variants",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/avatar-group/custom-styles",
+      "page": "AvatarGroup",
+      "heading": "Custom Styles",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/avatar-group/grid",
+      "page": "AvatarGroup",
+      "heading": "Grid",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/avatar-group/max",
+      "page": "AvatarGroup",
+      "heading": "Max",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/avatar-group/overlap",
+      "page": "AvatarGroup",
+      "heading": "Overlap",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/avatar-group/sizes",
+      "page": "AvatarGroup",
+      "heading": "Sizes",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/avatar-group/usage",
+      "page": "AvatarGroup",
+      "heading": "Usage",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/avatar-group/with-count",
+      "page": "AvatarGroup",
+      "heading": "With Count",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/badge/colors",
+      "page": "Badge",
+      "heading": "Colors",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/badge/dot-badge",
+      "page": "Badge",
+      "heading": "Dot Badge",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/badge/placements",
+      "page": "Badge",
+      "heading": "Placements",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/badge/sizes",
+      "page": "Badge",
+      "heading": "Sizes",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/badge/styling-overrides",
+      "page": "Badge",
+      "heading": "Styling Overrides",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/badge/usage",
+      "page": "Badge",
+      "heading": "Usage",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/badge/variants",
+      "page": "Badge",
+      "heading": "Variants",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/badge/with-content",
+      "page": "Badge",
+      "heading": "With Content",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/breadcrumbs/custom-separator",
+      "page": "Breadcrumbs",
+      "heading": "Custom Separator",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/breadcrumbs/disabled-state",
+      "page": "Breadcrumbs",
+      "heading": "Disabled State",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/breadcrumbs/navigation-levels",
+      "page": "Breadcrumbs",
+      "heading": "Navigation Levels",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/breadcrumbs/separators",
+      "page": "Breadcrumbs",
+      "heading": "Separators",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/breadcrumbs/usage",
+      "page": "Breadcrumbs",
+      "heading": "Usage",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/button/adding-custom-variants",
+      "page": "Button",
+      "heading": "Adding custom variants",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/button/custom-hover-fill",
+      "page": "Button",
+      "heading": "Custom hover fill",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/button/disabled-state",
+      "page": "Button",
+      "heading": "Disabled State",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/button/flex-fill",
+      "page": "Button",
+      "heading": "Flex Fill",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/button/full-width",
+      "page": "Button",
+      "heading": "Full Width",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/button/icon-only",
+      "page": "Button",
+      "heading": "Icon Only",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/button/loading",
+      "page": "Button",
+      "heading": "Loading",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/button/loading-state",
+      "page": "Button",
+      "heading": "Loading State",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/button/pixel-geometry",
+      "page": "Button",
+      "heading": "Pixel Geometry",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/button/press-handler",
+      "page": "Button",
+      "heading": "Press handler",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/button/sizes",
+      "page": "Button",
+      "heading": "Sizes",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/button/social-buttons",
+      "page": "Button",
+      "heading": "Social Buttons",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/button/styling-overrides",
+      "page": "Button",
+      "heading": "Styling Overrides",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/button/sx-slot",
+      "page": "Button",
+      "heading": "Sx slot",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/button/text-metrics",
+      "page": "Button",
+      "heading": "Text Metrics",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/button/usage",
+      "page": "Button",
+      "heading": "Usage",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/button/variants",
+      "page": "Button",
+      "heading": "Variants",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/button/with-icons",
+      "page": "Button",
+      "heading": "With Icons",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/button-group/disabled-state",
+      "page": "Button Group",
+      "heading": "Disabled State",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/button-group/full-width",
+      "page": "Button Group",
+      "heading": "Full Width",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/button-group/merged",
+      "page": "Button Group",
+      "heading": "Merged",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/button-group/orientation",
+      "page": "Button Group",
+      "heading": "Orientation",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/button-group/sizes",
+      "page": "Button Group",
+      "heading": "Sizes",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/button-group/usage",
+      "page": "Button Group",
+      "heading": "Usage",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/button-group/variants",
+      "page": "Button Group",
+      "heading": "Variants",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/button-group/with-icons",
+      "page": "Button Group",
+      "heading": "With Icons",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/button-group/without-separator",
+      "page": "Button Group",
+      "heading": "Without Separator",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/calendar/cell-indicators",
+      "page": "Calendar",
+      "heading": "Cell Indicators",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/calendar/constraints",
+      "page": "Calendar",
+      "heading": "Constraints",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/calendar/controlled",
+      "page": "Calendar",
+      "heading": "Controlled",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/calendar/custom-navigation-icons",
+      "page": "Calendar",
+      "heading": "Custom Navigation Icons",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/calendar/day-view",
+      "page": "Calendar",
+      "heading": "Day View",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/calendar/default-value",
+      "page": "Calendar",
+      "heading": "Default Value",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/calendar/disabled",
+      "page": "Calendar",
+      "heading": "Disabled",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/calendar/first-day-of-week",
+      "page": "Calendar",
+      "heading": "First day of week",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/calendar/focused-value",
+      "page": "Calendar",
+      "heading": "Focused Value",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/calendar/heading-offset",
+      "page": "Calendar",
+      "heading": "Heading Offset",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/calendar/international-calendars",
+      "page": "Calendar",
+      "heading": "International Calendars",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/calendar/min-and-max-dates",
+      "page": "Calendar",
+      "heading": "Min and Max Dates",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/calendar/multiple-months",
+      "page": "Calendar",
+      "heading": "Multiple Months",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/calendar/multiple-selection",
+      "page": "Calendar",
+      "heading": "Multiple Selection",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/calendar/read-only",
+      "page": "Calendar",
+      "heading": "Read Only",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/calendar/real-world-example",
+      "page": "Calendar",
+      "heading": "Real-World Example",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/calendar/styling-overrides",
+      "page": "Calendar",
+      "heading": "Styling Overrides",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/calendar/unavailable-dates",
+      "page": "Calendar",
+      "heading": "Unavailable Dates",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/calendar/usage",
+      "page": "Calendar",
+      "heading": "Usage",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/calendar/week-view",
+      "page": "Calendar",
+      "heading": "Week View",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/calendar/weeks-in-month",
+      "page": "Calendar",
+      "heading": "Weeks in Month",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/calendar/year-picker",
+      "page": "Calendar",
+      "heading": "Year Picker",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/card/horizontal-layout",
+      "page": "Card",
+      "heading": "Horizontal Layout",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/card/usage",
+      "page": "Card",
+      "heading": "Usage",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/card/variants",
+      "page": "Card",
+      "heading": "Variants",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/card/with-avatar",
+      "page": "Card",
+      "heading": "With Avatar",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/card/with-form",
+      "page": "Card",
+      "heading": "With Form",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/card/with-images",
+      "page": "Card",
+      "heading": "With Images",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/checkbox/controlled",
+      "page": "Checkbox",
+      "heading": "Controlled",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/checkbox/custom-indicator",
+      "page": "Checkbox",
+      "heading": "Custom Indicator",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/checkbox/default-selected",
+      "page": "Checkbox",
+      "heading": "Default Selected",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/checkbox/disabled",
+      "page": "Checkbox",
+      "heading": "Disabled",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/checkbox/external-label",
+      "page": "Checkbox",
+      "heading": "External Label",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/checkbox/form-integration",
+      "page": "Checkbox",
+      "heading": "Form Integration",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/checkbox/full-rounded",
+      "page": "Checkbox",
+      "heading": "Full Rounded",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/checkbox/indeterminate",
+      "page": "Checkbox",
+      "heading": "Indeterminate",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/checkbox/invalid",
+      "page": "Checkbox",
+      "heading": "Invalid",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/checkbox/label-size",
+      "page": "Checkbox",
+      "heading": "Label Size",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/checkbox/render-props",
+      "page": "Checkbox",
+      "heading": "Render Props",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/checkbox/sizes",
+      "page": "Checkbox",
+      "heading": "Sizes",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/checkbox/styling-overrides",
+      "page": "Checkbox",
+      "heading": "Styling Overrides",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/checkbox/usage",
+      "page": "Checkbox",
+      "heading": "Usage",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/checkbox/variants",
+      "page": "Checkbox",
+      "heading": "Variants",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/checkbox/with-description",
+      "page": "Checkbox",
+      "heading": "With Description",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/checkbox-group/controlled",
+      "page": "Checkbox Group",
+      "heading": "Controlled",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/checkbox-group/disabled",
+      "page": "Checkbox Group",
+      "heading": "Disabled",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/checkbox-group/features-and-add-ons-example",
+      "page": "Checkbox Group",
+      "heading": "Features and Add-ons Example",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/checkbox-group/horizontal-invalid",
+      "page": "Checkbox Group",
+      "heading": "Horizontal & invalid",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/checkbox-group/in-surface",
+      "page": "Checkbox Group",
+      "heading": "In Surface",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/checkbox-group/indeterminate",
+      "page": "Checkbox Group",
+      "heading": "Indeterminate",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/checkbox-group/uncontrolled",
+      "page": "Checkbox Group",
+      "heading": "Uncontrolled",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/checkbox-group/usage",
+      "page": "Checkbox Group",
+      "heading": "Usage",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/checkbox-group/validation",
+      "page": "Checkbox Group",
+      "heading": "Validation",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/checkbox-group/vertical",
+      "page": "Checkbox Group",
+      "heading": "Vertical",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/checkbox-group/with-custom-indicator",
+      "page": "Checkbox Group",
+      "heading": "With Custom Indicator",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/chip/colors",
+      "page": "Chip",
+      "heading": "Colors",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/chip/sizes",
+      "page": "Chip",
+      "heading": "Sizes",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/chip/statuses",
+      "page": "Chip",
+      "heading": "Statuses",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/chip/styling-overrides",
+      "page": "Chip",
+      "heading": "Styling Overrides",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/chip/usage",
+      "page": "Chip",
+      "heading": "Usage",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/chip/variants",
+      "page": "Chip",
+      "heading": "Variants",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/chip/with-icons",
+      "page": "Chip",
+      "heading": "With Icons",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/close-button/disabled",
+      "page": "Close Button",
+      "heading": "Disabled",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/close-button/hover-colour",
+      "page": "Close Button",
+      "heading": "Hover Colour",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/close-button/interactive",
+      "page": "Close Button",
+      "heading": "Interactive",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/close-button/render-function",
+      "page": "Close Button",
+      "heading": "Render Function",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/close-button/styling-overrides",
+      "page": "Close Button",
+      "heading": "Styling Overrides",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/close-button/usage",
+      "page": "Close Button",
+      "heading": "Usage",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/close-button/with-custom-icon",
+      "page": "Close Button",
+      "heading": "With Custom Icon",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/color-area/color-space-channels",
+      "page": "Color Area",
+      "heading": "Color Space & Channels",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/color-area/controlled",
+      "page": "Color Area",
+      "heading": "Controlled",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/color-area/disabled",
+      "page": "Color Area",
+      "heading": "Disabled",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/color-area/render-function",
+      "page": "Color Area",
+      "heading": "Render Function",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/color-area/saturation-brightness",
+      "page": "Color Area",
+      "heading": "Saturation & brightness",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/color-area/usage",
+      "page": "Color Area",
+      "heading": "Usage",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/color-area/with-dots",
+      "page": "Color Area",
+      "heading": "With Dots",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/color-field/blur-behaviour",
+      "page": "Color Field",
+      "heading": "Blur Behaviour",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/color-field/box-customisation",
+      "page": "Color Field",
+      "heading": "Box Customisation",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/color-field/channel-editing",
+      "page": "Color Field",
+      "heading": "Channel Editing",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/color-field/controlled",
+      "page": "Color Field",
+      "heading": "Controlled",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/color-field/disabled-state",
+      "page": "Color Field",
+      "heading": "Disabled State",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/color-field/empty-value",
+      "page": "Color Field",
+      "heading": "Empty Value",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/color-field/form-example",
+      "page": "Color Field",
+      "heading": "Form Example",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/color-field/full-width",
+      "page": "Color Field",
+      "heading": "Full Width",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/color-field/hex-value",
+      "page": "Color Field",
+      "heading": "Hex value",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/color-field/on-surface",
+      "page": "Color Field",
+      "heading": "On Surface",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/color-field/read-only-display",
+      "page": "Color Field",
+      "heading": "Read-only display",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/color-field/render-function",
+      "page": "Color Field",
+      "heading": "Render Function",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/color-field/required-field",
+      "page": "Color Field",
+      "heading": "Required Field",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/color-field/root-styling",
+      "page": "Color Field",
+      "heading": "Root Styling",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/color-field/single-channel",
+      "page": "Color Field",
+      "heading": "Single channel",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/color-field/styling-overrides",
+      "page": "Color Field",
+      "heading": "Styling Overrides",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/color-field/usage",
+      "page": "Color Field",
+      "heading": "Usage",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/color-field/validation",
+      "page": "Color Field",
+      "heading": "Validation",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/color-field/variants",
+      "page": "Color Field",
+      "heading": "Variants",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/color-field/with-description",
+      "page": "Color Field",
+      "heading": "With Description",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/color-picker/controlled",
+      "page": "Color Picker",
+      "heading": "Controlled",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/color-picker/open-placement",
+      "page": "Color Picker",
+      "heading": "Open / Placement",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/color-picker/usage",
+      "page": "Color Picker",
+      "heading": "Usage",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/color-picker/with-fields",
+      "page": "Color Picker",
+      "heading": "With Fields",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/color-picker/with-sliders",
+      "page": "Color Picker",
+      "heading": "With Sliders",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/color-picker/with-swatches",
+      "page": "Color Picker",
+      "heading": "With Swatches",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/color-slider/alpha-channel",
+      "page": "Color Slider",
+      "heading": "Alpha Channel",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/color-slider/channels",
+      "page": "Color Slider",
+      "heading": "Channels",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/color-slider/controlled",
+      "page": "Color Slider",
+      "heading": "Controlled",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/color-slider/disabled",
+      "page": "Color Slider",
+      "heading": "Disabled",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/color-slider/hsl-channels",
+      "page": "Color Slider",
+      "heading": "HSL Channels",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/color-slider/rgb-channels",
+      "page": "Color Slider",
+      "heading": "RGB Channels",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/color-slider/render-function",
+      "page": "Color Slider",
+      "heading": "Render Function",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/color-slider/usage",
+      "page": "Color Slider",
+      "heading": "Usage",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/color-slider/vertical",
+      "page": "Color Slider",
+      "heading": "Vertical",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/color-swatch/accessibility",
+      "page": "Color Swatch",
+      "heading": "Accessibility",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/color-swatch/alpha",
+      "page": "Color Swatch",
+      "heading": "Alpha",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/color-swatch/palette",
+      "page": "Color Swatch",
+      "heading": "Palette",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/color-swatch/shapes",
+      "page": "Color Swatch",
+      "heading": "Shapes",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/color-swatch/sizes",
+      "page": "Color Swatch",
+      "heading": "Sizes",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/color-swatch/transparency",
+      "page": "Color Swatch",
+      "heading": "Transparency",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/color-swatch/usage",
+      "page": "Color Swatch",
+      "heading": "Usage",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/color-swatch-picker/controlled",
+      "page": "Color Swatch Picker",
+      "heading": "Controlled",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/color-swatch-picker/custom-indicator",
+      "page": "Color Swatch Picker",
+      "heading": "Custom Indicator",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/color-swatch-picker/default-value",
+      "page": "Color Swatch Picker",
+      "heading": "Default Value",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/color-swatch-picker/disabled",
+      "page": "Color Swatch Picker",
+      "heading": "Disabled",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/color-swatch-picker/disabled-item",
+      "page": "Color Swatch Picker",
+      "heading": "Disabled Item",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/color-swatch-picker/item-render-state",
+      "page": "Color Swatch Picker",
+      "heading": "Item Render State",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/color-swatch-picker/sizes",
+      "page": "Color Swatch Picker",
+      "heading": "Sizes",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/color-swatch-picker/square-stacked",
+      "page": "Color Swatch Picker",
+      "heading": "Square, stacked",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/color-swatch-picker/stack-layout",
+      "page": "Color Swatch Picker",
+      "heading": "Stack Layout",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/color-swatch-picker/usage",
+      "page": "Color Swatch Picker",
+      "heading": "Usage",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/color-swatch-picker/variants",
+      "page": "Color Swatch Picker",
+      "heading": "Variants",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/combo-box/allows-custom-value",
+      "page": "Combo Box",
+      "heading": "Allows Custom Value",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/combo-box/asynchronous-loading",
+      "page": "Combo Box",
+      "heading": "Asynchronous Loading",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/combo-box/basic-usage",
+      "page": "Combo Box",
+      "heading": "Basic Usage",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/combo-box/box-customisation",
+      "page": "Combo Box",
+      "heading": "Box Customisation",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/combo-box/controlled",
+      "page": "Combo Box",
+      "heading": "Controlled",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/combo-box/controlled-input-value",
+      "page": "Combo Box",
+      "heading": "Controlled Input Value",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/combo-box/controlled-selection",
+      "page": "Combo Box",
+      "heading": "Controlled Selection",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/combo-box/custom-filtering",
+      "page": "Combo Box",
+      "heading": "Custom Filtering",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/combo-box/custom-indicator",
+      "page": "Combo Box",
+      "heading": "Custom Indicator",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/combo-box/custom-validation",
+      "page": "Combo Box",
+      "heading": "Custom Validation",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/combo-box/custom-value",
+      "page": "Combo Box",
+      "heading": "Custom Value",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/combo-box/default-selected-key",
+      "page": "Combo Box",
+      "heading": "Default Selected Key",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/combo-box/disabled",
+      "page": "Combo Box",
+      "heading": "Disabled",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/combo-box/form-value",
+      "page": "Combo Box",
+      "heading": "Form Value",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/combo-box/full-width",
+      "page": "Combo Box",
+      "heading": "Full Width",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/combo-box/in-surface",
+      "page": "Combo Box",
+      "heading": "In Surface",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/combo-box/long-value-content",
+      "page": "Combo Box",
+      "heading": "Long Value Content",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/combo-box/menu-trigger",
+      "page": "Combo Box",
+      "heading": "Menu Trigger",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/combo-box/minimum-width",
+      "page": "Combo Box",
+      "heading": "Minimum Width",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/combo-box/multiple-selection",
+      "page": "Combo Box",
+      "heading": "Multiple Selection",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/combo-box/placement",
+      "page": "Combo Box",
+      "heading": "Placement",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/combo-box/read-only",
+      "page": "Combo Box",
+      "heading": "Read Only",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/combo-box/required",
+      "page": "Combo Box",
+      "heading": "Required",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/combo-box/styling-overrides",
+      "page": "Combo Box",
+      "heading": "Styling Overrides",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/combo-box/usage",
+      "page": "Combo Box",
+      "heading": "Usage",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/combo-box/validation-behavior",
+      "page": "Combo Box",
+      "heading": "Validation Behavior",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/combo-box/value-render-props",
+      "page": "Combo Box",
+      "heading": "Value Render Props",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/combo-box/virtualization",
+      "page": "Combo Box",
+      "heading": "Virtualization",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/combo-box/with-description",
+      "page": "Combo Box",
+      "heading": "With Description",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/combo-box/with-disabled-options",
+      "page": "Combo Box",
+      "heading": "With Disabled Options",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/combo-box/with-sections",
+      "page": "Combo Box",
+      "heading": "With Sections",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/date-field/box-customisation",
+      "page": "Date Field",
+      "heading": "Box Customisation",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/date-field/controlled",
+      "page": "Date Field",
+      "heading": "Controlled",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/date-field/disabled-state",
+      "page": "Date Field",
+      "heading": "Disabled State",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/date-field/forced-leading-zeros",
+      "page": "Date Field",
+      "heading": "Forced Leading Zeros",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/date-field/form-example",
+      "page": "Date Field",
+      "heading": "Form Example",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/date-field/full-width",
+      "page": "Date Field",
+      "heading": "Full Width",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/date-field/granularity",
+      "page": "Date Field",
+      "heading": "Granularity",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/date-field/in-surface",
+      "page": "Date Field",
+      "heading": "In Surface",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/date-field/required-field",
+      "page": "Date Field",
+      "heading": "Required Field",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/date-field/styling-overrides",
+      "page": "Date Field",
+      "heading": "Styling Overrides",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/date-field/usage",
+      "page": "Date Field",
+      "heading": "Usage",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/date-field/validation",
+      "page": "Date Field",
+      "heading": "Validation",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/date-field/variants",
+      "page": "Date Field",
+      "heading": "Variants",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/date-field/with-description",
+      "page": "Date Field",
+      "heading": "With Description",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/date-field/with-icons",
+      "page": "Date Field",
+      "heading": "With Icons",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/date-field/with-validation",
+      "page": "Date Field",
+      "heading": "With Validation",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/date-picker/controlled",
+      "page": "Date Picker",
+      "heading": "Controlled",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/date-picker/custom-indicator",
+      "page": "Date Picker",
+      "heading": "Custom Indicator",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/date-picker/disabled",
+      "page": "Date Picker",
+      "heading": "Disabled",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/date-picker/form-example",
+      "page": "Date Picker",
+      "heading": "Form Example",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/date-picker/format-options",
+      "page": "Date Picker",
+      "heading": "Format Options",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/date-picker/international-calendar",
+      "page": "Date Picker",
+      "heading": "International Calendar",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/date-picker/placement",
+      "page": "Date Picker",
+      "heading": "Placement",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/date-picker/render-function",
+      "page": "Date Picker",
+      "heading": "Render Function",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/date-picker/usage",
+      "page": "Date Picker",
+      "heading": "Usage",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/date-picker/validation",
+      "page": "Date Picker",
+      "heading": "Validation",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/date-range-picker/controlled",
+      "page": "Date Range Picker",
+      "heading": "Controlled",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/date-range-picker/custom-indicator",
+      "page": "Date Range Picker",
+      "heading": "Custom Indicator",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/date-range-picker/disabled",
+      "page": "Date Range Picker",
+      "heading": "Disabled",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/date-range-picker/form-example",
+      "page": "Date Range Picker",
+      "heading": "Form Example",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/date-range-picker/format-options",
+      "page": "Date Range Picker",
+      "heading": "Format Options",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/date-range-picker/international-calendar",
+      "page": "Date Range Picker",
+      "heading": "International Calendar",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/date-range-picker/placement",
+      "page": "Date Range Picker",
+      "heading": "Placement",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/date-range-picker/render-function",
+      "page": "Date Range Picker",
+      "heading": "Render Function",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/date-range-picker/usage",
+      "page": "Date Range Picker",
+      "heading": "Usage",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/date-range-picker/validation",
+      "page": "Date Range Picker",
+      "heading": "Validation",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/disclosure/controlled",
+      "page": "Disclosure",
+      "heading": "Controlled",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/disclosure/disabled-group",
+      "page": "Disclosure",
+      "heading": "Disabled Group",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/disclosure/group",
+      "page": "Disclosure",
+      "heading": "Group",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/disclosure/render-function",
+      "page": "Disclosure",
+      "heading": "Render Function",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/disclosure/single",
+      "page": "Disclosure",
+      "heading": "Single",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/disclosure/usage",
+      "page": "Disclosure",
+      "heading": "Usage",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/drawer/backdrop-variants",
+      "page": "Drawer",
+      "heading": "Backdrop Variants",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/drawer/controlled-state",
+      "page": "Drawer",
+      "heading": "Controlled State",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/drawer/navigation-drawer",
+      "page": "Drawer",
+      "heading": "Navigation Drawer",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/drawer/non-dismissable",
+      "page": "Drawer",
+      "heading": "Non-Dismissable",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/drawer/placement",
+      "page": "Drawer",
+      "heading": "Placement",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/drawer/scrollable-content",
+      "page": "Drawer",
+      "heading": "Scrollable Content",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/drawer/usage",
+      "page": "Drawer",
+      "heading": "Usage",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/drawer/with-form",
+      "page": "Drawer",
+      "heading": "With Form",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/dropdown/basic-usage",
+      "page": "Dropdown",
+      "heading": "Basic Usage",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/dropdown/context-menu",
+      "page": "Dropdown",
+      "heading": "Context Menu",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/dropdown/controlled",
+      "page": "Dropdown",
+      "heading": "Controlled",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/dropdown/controlled-open-state",
+      "page": "Dropdown",
+      "heading": "Controlled Open State",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/dropdown/controlled-selection",
+      "page": "Dropdown",
+      "heading": "Controlled Selection",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/dropdown/custom-trigger",
+      "page": "Dropdown",
+      "heading": "Custom Trigger",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/dropdown/inset-separator",
+      "page": "Dropdown",
+      "heading": "Inset Separator",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/dropdown/long-press-trigger",
+      "page": "Dropdown",
+      "heading": "Long Press Trigger",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/dropdown/menu-bar",
+      "page": "Dropdown",
+      "heading": "Menu Bar",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/dropdown/render-props",
+      "page": "Dropdown",
+      "heading": "Render Props",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/dropdown/row-hover",
+      "page": "Dropdown",
+      "heading": "Row Hover",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/dropdown/row-with-an-inline-control",
+      "page": "Dropdown",
+      "heading": "Row With An Inline Control",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/dropdown/single-with-custom-indicator",
+      "page": "Dropdown",
+      "heading": "Single With Custom Indicator",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/dropdown/standalone-compact-menu",
+      "page": "Dropdown",
+      "heading": "Standalone Compact Menu",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/dropdown/styling-overrides",
+      "page": "Dropdown",
+      "heading": "Styling Overrides",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/dropdown/usage",
+      "page": "Dropdown",
+      "heading": "Usage",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/dropdown/with-custom-submenu-indicator",
+      "page": "Dropdown",
+      "heading": "With Custom Submenu Indicator",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/dropdown/with-descriptions",
+      "page": "Dropdown",
+      "heading": "With Descriptions",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/dropdown/with-disabled-items",
+      "page": "Dropdown",
+      "heading": "With Disabled Items",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/dropdown/with-icons",
+      "page": "Dropdown",
+      "heading": "With Icons",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/dropdown/with-keyboard-shortcuts",
+      "page": "Dropdown",
+      "heading": "With Keyboard Shortcuts",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/dropdown/with-multiple-selection",
+      "page": "Dropdown",
+      "heading": "With Multiple Selection",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/dropdown/with-section-level-selection",
+      "page": "Dropdown",
+      "heading": "With Section Level Selection",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/dropdown/with-sections",
+      "page": "Dropdown",
+      "heading": "With Sections",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/dropdown/with-single-selection",
+      "page": "Dropdown",
+      "heading": "With Single Selection",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/dropdown/with-submenus",
+      "page": "Dropdown",
+      "heading": "With Submenus",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/fieldset/in-surface",
+      "page": "Fieldset",
+      "heading": "In Surface",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/fieldset/usage",
+      "page": "Fieldset",
+      "heading": "Usage",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/form/server-errors",
+      "page": "Form",
+      "heading": "Server Errors",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/form/usage",
+      "page": "Form",
+      "heading": "Usage",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/input/compact-box",
+      "page": "Input",
+      "heading": "Compact Box",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/input/controlled",
+      "page": "Input",
+      "heading": "Controlled",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/input/focus-ring",
+      "page": "Input",
+      "heading": "Focus Ring",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/input/full-width",
+      "page": "Input",
+      "heading": "Full Width",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/input/in-surface",
+      "page": "Input",
+      "heading": "In Surface",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/input/input-types",
+      "page": "Input",
+      "heading": "Input Types",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/input/states",
+      "page": "Input",
+      "heading": "States",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/input/usage",
+      "page": "Input",
+      "heading": "Usage",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/input/variants",
+      "page": "Input",
+      "heading": "Variants",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/input-group/addons",
+      "page": "Input Group",
+      "heading": "Addons",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/input-group/badge-suffix",
+      "page": "Input Group",
+      "heading": "Badge Suffix",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/input-group/box-customisation",
+      "page": "Input Group",
+      "heading": "Box Customisation",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/input-group/copy-button-suffix",
+      "page": "Input Group",
+      "heading": "Copy Button Suffix",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/input-group/disabled-state",
+      "page": "Input Group",
+      "heading": "Disabled State",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/input-group/full-width",
+      "page": "Input Group",
+      "heading": "Full Width",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/input-group/hover-colour",
+      "page": "Input Group",
+      "heading": "Hover Colour",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/input-group/icon-prefix-and-copy-button",
+      "page": "Input Group",
+      "heading": "Icon Prefix and Copy Button",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/input-group/icon-prefix-and-text-suffix",
+      "page": "Input Group",
+      "heading": "Icon Prefix and Text Suffix",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/input-group/in-surface",
+      "page": "Input Group",
+      "heading": "In Surface",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/input-group/keyboard-shortcut",
+      "page": "Input Group",
+      "heading": "Keyboard Shortcut",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/input-group/loading-state",
+      "page": "Input Group",
+      "heading": "Loading State",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/input-group/password-toggle",
+      "page": "Input Group",
+      "heading": "Password Toggle",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/input-group/required-field",
+      "page": "Input Group",
+      "heading": "Required Field",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/input-group/text-prefix",
+      "page": "Input Group",
+      "heading": "Text Prefix",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/input-group/text-suffix",
+      "page": "Input Group",
+      "heading": "Text Suffix",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/input-group/textarea-usage-example",
+      "page": "Input Group",
+      "heading": "TextArea Usage Example",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/input-group/usage",
+      "page": "Input Group",
+      "heading": "Usage",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/input-group/usage-example",
+      "page": "Input Group",
+      "heading": "Usage Example",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/input-group/validation",
+      "page": "Input Group",
+      "heading": "Validation",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/input-group/variants",
+      "page": "Input Group",
+      "heading": "Variants",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/input-group/with-prefix-icon",
+      "page": "Input Group",
+      "heading": "With Prefix Icon",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/input-group/with-prefix-and-suffix",
+      "page": "Input Group",
+      "heading": "With Prefix and Suffix",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/input-group/with-suffix-icon",
+      "page": "Input Group",
+      "heading": "With Suffix Icon",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/input-group/with-textarea",
+      "page": "Input Group",
+      "heading": "With TextArea",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/input-group/with-a-trailing-action",
+      "page": "Input Group",
+      "heading": "With a trailing action",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/input-otp/controlled",
+      "page": "Input OTP",
+      "heading": "Controlled",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/input-otp/custom-slots",
+      "page": "Input OTP",
+      "heading": "Custom Slots",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/input-otp/disabled-state",
+      "page": "Input OTP",
+      "heading": "Disabled State",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/input-otp/filled-active",
+      "page": "Input OTP",
+      "heading": "Filled & Active",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/input-otp/form-example",
+      "page": "Input OTP",
+      "heading": "Form Example",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/input-otp/four-digits",
+      "page": "Input OTP",
+      "heading": "Four Digits",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/input-otp/in-surface",
+      "page": "Input OTP",
+      "heading": "In Surface",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/input-otp/on-complete",
+      "page": "Input OTP",
+      "heading": "On Complete",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/input-otp/usage",
+      "page": "Input OTP",
+      "heading": "Usage",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/input-otp/variants",
+      "page": "Input OTP",
+      "heading": "Variants",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/input-otp/with-pattern",
+      "page": "Input OTP",
+      "heading": "With Pattern",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/input-otp/with-validation",
+      "page": "Input OTP",
+      "heading": "With Validation",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/kbd/inline-usage",
+      "page": "Kbd",
+      "heading": "Inline Usage",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/kbd/instructional-text",
+      "page": "Kbd",
+      "heading": "Instructional Text",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/kbd/navigation-keys",
+      "page": "Kbd",
+      "heading": "Navigation Keys",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/kbd/special-keys",
+      "page": "Kbd",
+      "heading": "Special Keys",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/kbd/styling-overrides",
+      "page": "Kbd",
+      "heading": "Styling Overrides",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/kbd/usage",
+      "page": "Kbd",
+      "heading": "Usage",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/kbd/variants",
+      "page": "Kbd",
+      "heading": "Variants",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/label-messages/basic-validation",
+      "page": "Label & Messages",
+      "heading": "Basic Validation",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/label-messages/custom-validation-logic",
+      "page": "Label & Messages",
+      "heading": "Custom Validation Logic",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/label-messages/description-error",
+      "page": "Label & Messages",
+      "heading": "Description & error",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/label-messages/fielderror",
+      "page": "Label & Messages",
+      "heading": "FieldError",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/label-messages/integration-with-textfield",
+      "page": "Label & Messages",
+      "heading": "Integration with TextField",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/label-messages/label",
+      "page": "Label & Messages",
+      "heading": "Label",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/label-messages/multiple-error-messages",
+      "page": "Label & Messages",
+      "heading": "Multiple Error Messages",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/label-messages/usage",
+      "page": "Label & Messages",
+      "heading": "Usage",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/label-messages/with-disabled-state",
+      "page": "Label & Messages",
+      "heading": "With Disabled State",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/label-messages/with-dynamic-messages",
+      "page": "Label & Messages",
+      "heading": "With Dynamic Messages",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/label-messages/with-form-fields",
+      "page": "Label & Messages",
+      "heading": "With Form Fields",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/label-messages/with-invalid-state",
+      "page": "Label & Messages",
+      "heading": "With Invalid State",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/label-messages/with-required-indicator",
+      "page": "Label & Messages",
+      "heading": "With Required Indicator",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/link/custom-icon",
+      "page": "Link",
+      "heading": "Custom Icon",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/link/icon-placement",
+      "page": "Link",
+      "heading": "Icon Placement",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/link/render-function",
+      "page": "Link",
+      "heading": "Render Function",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/link/styling-overrides",
+      "page": "Link",
+      "heading": "Styling Overrides",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/link/text-decoration",
+      "page": "Link",
+      "heading": "Text Decoration",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/link/usage",
+      "page": "Link",
+      "heading": "Usage",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/list-box/basic-usage",
+      "page": "List Box",
+      "heading": "Basic Usage",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/list-box/controlled",
+      "page": "List Box",
+      "heading": "Controlled",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/list-box/controlled-selection",
+      "page": "List Box",
+      "heading": "Controlled Selection",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/list-box/custom-check-icon",
+      "page": "List Box",
+      "heading": "Custom Check Icon",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/list-box/custom-indicator",
+      "page": "List Box",
+      "heading": "Custom Indicator",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/list-box/disallow-empty-selection",
+      "page": "List Box",
+      "heading": "Disallow Empty Selection",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/list-box/escape-key-behavior",
+      "page": "List Box",
+      "heading": "Escape Key Behavior",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/list-box/large-tree-view",
+      "page": "List Box",
+      "heading": "Large Tree View",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/list-box/multi-select",
+      "page": "List Box",
+      "heading": "Multi Select",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/list-box/multiple-selection",
+      "page": "List Box",
+      "heading": "Multiple selection",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/list-box/row-padding",
+      "page": "List Box",
+      "heading": "Row Padding",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/list-box/single-selection",
+      "page": "List Box",
+      "heading": "Single selection",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/list-box/tree-view",
+      "page": "List Box",
+      "heading": "Tree View",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/list-box/usage",
+      "page": "List Box",
+      "heading": "Usage",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/list-box/virtual-list",
+      "page": "List Box",
+      "heading": "Virtual List",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/list-box/virtualization",
+      "page": "List Box",
+      "heading": "Virtualization",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/list-box/with-disabled-items",
+      "page": "List Box",
+      "heading": "With Disabled Items",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/list-box/with-sections",
+      "page": "List Box",
+      "heading": "With Sections",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/meter/colors",
+      "page": "Meter",
+      "heading": "Colors",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/meter/custom-value-scale",
+      "page": "Meter",
+      "heading": "Custom Value Scale",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/meter/sizes",
+      "page": "Meter",
+      "heading": "Sizes",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/meter/styling-overrides",
+      "page": "Meter",
+      "heading": "Styling Overrides",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/meter/usage",
+      "page": "Meter",
+      "heading": "Usage",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/meter/without-label",
+      "page": "Meter",
+      "heading": "Without Label",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/modal/backdrop-variants",
+      "page": "Modal",
+      "heading": "Backdrop Variants",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/modal/close-methods",
+      "page": "Modal",
+      "heading": "Close Methods",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/modal/command-palette",
+      "page": "Modal",
+      "heading": "Command Palette",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/modal/controlled-state",
+      "page": "Modal",
+      "heading": "Controlled State",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/modal/custom-animations",
+      "page": "Modal",
+      "heading": "Custom Animations",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/modal/custom-backdrop",
+      "page": "Modal",
+      "heading": "Custom Backdrop",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/modal/custom-trigger",
+      "page": "Modal",
+      "heading": "Custom Trigger",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/modal/dismiss-behavior",
+      "page": "Modal",
+      "heading": "Dismiss Behavior",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/modal/placement",
+      "page": "Modal",
+      "heading": "Placement",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/modal/scroll-behavior",
+      "page": "Modal",
+      "heading": "Scroll Behavior",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/modal/sizes",
+      "page": "Modal",
+      "heading": "Sizes",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/modal/usage",
+      "page": "Modal",
+      "heading": "Usage",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/modal/with-form",
+      "page": "Modal",
+      "heading": "With Form",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/number-field/box-customisation",
+      "page": "Number Field",
+      "heading": "Box Customisation",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/number-field/controlled",
+      "page": "Number Field",
+      "heading": "Controlled",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/number-field/custom-icons",
+      "page": "Number Field",
+      "heading": "Custom Icons",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/number-field/disabled-state",
+      "page": "Number Field",
+      "heading": "Disabled State",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/number-field/form-example",
+      "page": "Number Field",
+      "heading": "Form Example",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/number-field/format-options",
+      "page": "Number Field",
+      "heading": "Format Options",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/number-field/full-width",
+      "page": "Number Field",
+      "heading": "Full Width",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/number-field/hover-colour",
+      "page": "Number Field",
+      "heading": "Hover Colour",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/number-field/in-surface",
+      "page": "Number Field",
+      "heading": "In Surface",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/number-field/required-field",
+      "page": "Number Field",
+      "heading": "Required Field",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/number-field/step-values",
+      "page": "Number Field",
+      "heading": "Step Values",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/number-field/usage",
+      "page": "Number Field",
+      "heading": "Usage",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/number-field/validation",
+      "page": "Number Field",
+      "heading": "Validation",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/number-field/variants",
+      "page": "Number Field",
+      "heading": "Variants",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/number-field/with-chevrons",
+      "page": "Number Field",
+      "heading": "With Chevrons",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/number-field/with-description",
+      "page": "Number Field",
+      "heading": "With Description",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/number-field/with-validation",
+      "page": "Number Field",
+      "heading": "With Validation",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/number-field/without-steppers",
+      "page": "Number Field",
+      "heading": "Without steppers",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/pagination/controlled",
+      "page": "Pagination",
+      "heading": "Controlled",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/pagination/custom-icons",
+      "page": "Pagination",
+      "heading": "Custom Icons",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/pagination/disabled",
+      "page": "Pagination",
+      "heading": "Disabled",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/pagination/disabled-links",
+      "page": "Pagination",
+      "heading": "Disabled Links",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/pagination/hover-colour",
+      "page": "Pagination",
+      "heading": "Hover Colour",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/pagination/render-props",
+      "page": "Pagination",
+      "heading": "Render Props",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/pagination/simple-previous-next",
+      "page": "Pagination",
+      "heading": "Simple (Previous / Next)",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/pagination/sizes",
+      "page": "Pagination",
+      "heading": "Sizes",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/pagination/usage",
+      "page": "Pagination",
+      "heading": "Usage",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/pagination/with-ellipsis",
+      "page": "Pagination",
+      "heading": "With Ellipsis",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/pagination/with-summary",
+      "page": "Pagination",
+      "heading": "With Summary",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/pagination/without-controls",
+      "page": "Pagination",
+      "heading": "Without controls",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/popover/custom-styles",
+      "page": "Popover",
+      "heading": "Custom Styles",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/popover/interactive-content",
+      "page": "Popover",
+      "heading": "Interactive Content",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/popover/placement",
+      "page": "Popover",
+      "heading": "Placement",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/popover/render-function",
+      "page": "Popover",
+      "heading": "Render Function",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/popover/usage",
+      "page": "Popover",
+      "heading": "Usage",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/popover/with-arrow",
+      "page": "Popover",
+      "heading": "With Arrow",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/progress-bar/colors",
+      "page": "Progress Bar",
+      "heading": "Colors",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/progress-bar/custom-value-scale",
+      "page": "Progress Bar",
+      "heading": "Custom Value Scale",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/progress-bar/indeterminate",
+      "page": "Progress Bar",
+      "heading": "Indeterminate",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/progress-bar/sizes",
+      "page": "Progress Bar",
+      "heading": "Sizes",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/progress-bar/styling-overrides",
+      "page": "Progress Bar",
+      "heading": "Styling Overrides",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/progress-bar/usage",
+      "page": "Progress Bar",
+      "heading": "Usage",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/progress-bar/without-label",
+      "page": "Progress Bar",
+      "heading": "Without Label",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/progress-circle/colors",
+      "page": "Progress Circle",
+      "heading": "Colors",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/progress-circle/custom-svg-props",
+      "page": "Progress Circle",
+      "heading": "Custom SVG Props",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/progress-circle/indeterminate",
+      "page": "Progress Circle",
+      "heading": "Indeterminate",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/progress-circle/sizes",
+      "page": "Progress Circle",
+      "heading": "Sizes",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/progress-circle/usage",
+      "page": "Progress Circle",
+      "heading": "Usage",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/progress-circle/value-transition",
+      "page": "Progress Circle",
+      "heading": "Value Transition",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/progress-circle/with-label",
+      "page": "Progress Circle",
+      "heading": "With Label",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/radio-group/controlled",
+      "page": "Radio Group",
+      "heading": "Controlled",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/radio-group/custom-indicator",
+      "page": "Radio Group",
+      "heading": "Custom Indicator",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/radio-group/delivery-payment",
+      "page": "Radio Group",
+      "heading": "Delivery & Payment",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/radio-group/disabled",
+      "page": "Radio Group",
+      "heading": "Disabled",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/radio-group/horizontal-orientation",
+      "page": "Radio Group",
+      "heading": "Horizontal Orientation",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/radio-group/in-surface",
+      "page": "Radio Group",
+      "heading": "In Surface",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/radio-group/label-size",
+      "page": "Radio Group",
+      "heading": "Label Size",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/radio-group/sizes",
+      "page": "Radio Group",
+      "heading": "Sizes",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/radio-group/uncontrolled",
+      "page": "Radio Group",
+      "heading": "Uncontrolled",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/radio-group/usage",
+      "page": "Radio Group",
+      "heading": "Usage",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/radio-group/validation",
+      "page": "Radio Group",
+      "heading": "Validation",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/radio-group/variants",
+      "page": "Radio Group",
+      "heading": "Variants",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/radio-group/vertical",
+      "page": "Radio Group",
+      "heading": "Vertical",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/range-calendar/allows-non-contiguous-ranges",
+      "page": "Range Calendar",
+      "heading": "Allows Non-Contiguous Ranges",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/range-calendar/anchor-based-unavailable-dates",
+      "page": "Range Calendar",
+      "heading": "Anchor-Based Unavailable Dates",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/range-calendar/cell-indicators",
+      "page": "Range Calendar",
+      "heading": "Cell Indicators",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/range-calendar/controlled",
+      "page": "Range Calendar",
+      "heading": "Controlled",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/range-calendar/day-view",
+      "page": "Range Calendar",
+      "heading": "Day View",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/range-calendar/default-value",
+      "page": "Range Calendar",
+      "heading": "Default Value",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/range-calendar/disabled",
+      "page": "Range Calendar",
+      "heading": "Disabled",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/range-calendar/focused-value",
+      "page": "Range Calendar",
+      "heading": "Focused Value",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/range-calendar/heading-offset",
+      "page": "Range Calendar",
+      "heading": "Heading Offset",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/range-calendar/international-calendars",
+      "page": "Range Calendar",
+      "heading": "International Calendars",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/range-calendar/invalid",
+      "page": "Range Calendar",
+      "heading": "Invalid",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/range-calendar/min-and-max-dates",
+      "page": "Range Calendar",
+      "heading": "Min and Max Dates",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/range-calendar/multiple-months",
+      "page": "Range Calendar",
+      "heading": "Multiple Months",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/range-calendar/read-only",
+      "page": "Range Calendar",
+      "heading": "Read Only",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/range-calendar/real-world-example",
+      "page": "Range Calendar",
+      "heading": "Real-World Example",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/range-calendar/styling-overrides",
+      "page": "Range Calendar",
+      "heading": "Styling Overrides",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/range-calendar/unavailable-dates",
+      "page": "Range Calendar",
+      "heading": "Unavailable Dates",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/range-calendar/usage",
+      "page": "Range Calendar",
+      "heading": "Usage",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/range-calendar/week-view",
+      "page": "Range Calendar",
+      "heading": "Week View",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/range-calendar/weeks-in-month",
+      "page": "Range Calendar",
+      "heading": "Weeks in Month",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/range-calendar/year-picker",
+      "page": "Range Calendar",
+      "heading": "Year Picker",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/scroll-shadow/hide-scroll-bar",
+      "page": "Scroll Shadow",
+      "heading": "Hide Scroll Bar",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/scroll-shadow/horizontal",
+      "page": "Scroll Shadow",
+      "heading": "Horizontal",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/scroll-shadow/orientation",
+      "page": "Scroll Shadow",
+      "heading": "Orientation",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/scroll-shadow/shadow-size",
+      "page": "Scroll Shadow",
+      "heading": "Shadow Size",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/scroll-shadow/shadows-disabled",
+      "page": "Scroll Shadow",
+      "heading": "Shadows disabled",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/scroll-shadow/usage",
+      "page": "Scroll Shadow",
+      "heading": "Usage",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/scroll-shadow/vertical",
+      "page": "Scroll Shadow",
+      "heading": "Vertical",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/scroll-shadow/visibility-change",
+      "page": "Scroll Shadow",
+      "heading": "Visibility Change",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/scroll-shadow/with-card",
+      "page": "Scroll Shadow",
+      "heading": "With Card",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/search-field/box-customisation",
+      "page": "Search Field",
+      "heading": "Box Customisation",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/search-field/controlled",
+      "page": "Search Field",
+      "heading": "Controlled",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/search-field/custom-icons",
+      "page": "Search Field",
+      "heading": "Custom Icons",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/search-field/disabled-state",
+      "page": "Search Field",
+      "heading": "Disabled State",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/search-field/form-example",
+      "page": "Search Field",
+      "heading": "Form Example",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/search-field/full-width",
+      "page": "Search Field",
+      "heading": "Full Width",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/search-field/in-surface",
+      "page": "Search Field",
+      "heading": "In Surface",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/search-field/render-props",
+      "page": "Search Field",
+      "heading": "Render Props",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/search-field/required-field",
+      "page": "Search Field",
+      "heading": "Required Field",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/search-field/usage",
+      "page": "Search Field",
+      "heading": "Usage",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/search-field/validation",
+      "page": "Search Field",
+      "heading": "Validation",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/search-field/variants",
+      "page": "Search Field",
+      "heading": "Variants",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/search-field/with-description",
+      "page": "Search Field",
+      "heading": "With Description",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/search-field/with-keyboard-shortcut",
+      "page": "Search Field",
+      "heading": "With Keyboard Shortcut",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/search-field/with-validation",
+      "page": "Search Field",
+      "heading": "With Validation",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/select/asynchronous-loading",
+      "page": "Select",
+      "heading": "Asynchronous Loading",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/select/box-customisation",
+      "page": "Select",
+      "heading": "Box Customisation",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/select/controlled",
+      "page": "Select",
+      "heading": "Controlled",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/select/controlled-multiple",
+      "page": "Select",
+      "heading": "Controlled Multiple",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/select/controlled-open-state",
+      "page": "Select",
+      "heading": "Controlled Open State",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/select/custom-indicator",
+      "page": "Select",
+      "heading": "Custom Indicator",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/select/custom-trigger-indicator",
+      "page": "Select",
+      "heading": "Custom Trigger Indicator",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/select/custom-value",
+      "page": "Select",
+      "heading": "Custom Value",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/select/disabled",
+      "page": "Select",
+      "heading": "Disabled",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/select/full-width",
+      "page": "Select",
+      "heading": "Full Width",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/select/hover-colours",
+      "page": "Select",
+      "heading": "Hover Colours",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/select/in-surface",
+      "page": "Select",
+      "heading": "In Surface",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/select/long-values-option-focus",
+      "page": "Select",
+      "heading": "Long Values & Option Focus",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/select/multiple-select",
+      "page": "Select",
+      "heading": "Multiple Select",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/select/placement",
+      "page": "Select",
+      "heading": "Placement",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/select/required",
+      "page": "Select",
+      "heading": "Required",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/select/row-leading-content",
+      "page": "Select",
+      "heading": "Row Leading Content",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/select/styling-overrides",
+      "page": "Select",
+      "heading": "Styling Overrides",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/select/uncontrolled",
+      "page": "Select",
+      "heading": "Uncontrolled",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/select/usage",
+      "page": "Select",
+      "heading": "Usage",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/select/variants",
+      "page": "Select",
+      "heading": "Variants",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/select/virtualization",
+      "page": "Select",
+      "heading": "Virtualization",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/select/with-clear-button",
+      "page": "Select",
+      "heading": "With Clear Button",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/select/with-description",
+      "page": "Select",
+      "heading": "With Description",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/select/with-disabled-options",
+      "page": "Select",
+      "heading": "With Disabled Options",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/select/with-sections",
+      "page": "Select",
+      "heading": "With Sections",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/select/wrapping-trigger",
+      "page": "Select",
+      "heading": "Wrapping Trigger",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/separator/collapsible-panels",
+      "page": "Separator",
+      "heading": "Collapsible Panels",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/separator/decorative",
+      "page": "Separator",
+      "heading": "Decorative",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/separator/resizable-panels",
+      "page": "Separator",
+      "heading": "Resizable Panels",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/separator/usage",
+      "page": "Separator",
+      "heading": "Usage",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/separator/variants",
+      "page": "Separator",
+      "heading": "Variants",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/separator/vertical",
+      "page": "Separator",
+      "heading": "Vertical",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/separator/with-content",
+      "page": "Separator",
+      "heading": "With Content",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/separator/with-surface",
+      "page": "Separator",
+      "heading": "With Surface",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/sheet/backdrop-variants",
+      "page": "Sheet",
+      "heading": "Backdrop Variants",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/sheet/controlled-state",
+      "page": "Sheet",
+      "heading": "Controlled State",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/sheet/detached",
+      "page": "Sheet",
+      "heading": "Detached",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/sheet/handle-only",
+      "page": "Sheet",
+      "heading": "Handle Only",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/sheet/nested-sheets",
+      "page": "Sheet",
+      "heading": "Nested Sheets",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/sheet/non-dismissable",
+      "page": "Sheet",
+      "heading": "Non-Dismissable",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/sheet/placements",
+      "page": "Sheet",
+      "heading": "Placements",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/sheet/professions-picker",
+      "page": "Sheet",
+      "heading": "Professions Picker",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/sheet/scrollable-content",
+      "page": "Sheet",
+      "heading": "Scrollable Content",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/sheet/snap-points",
+      "page": "Sheet",
+      "heading": "Snap Points",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/sheet/snap-points-custom-fade",
+      "page": "Sheet",
+      "heading": "Snap Points (Custom Fade)",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/sheet/snap-points-sequential",
+      "page": "Sheet",
+      "heading": "Snap Points (Sequential)",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/sheet/usage",
+      "page": "Sheet",
+      "heading": "Usage",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/sheet/with-form",
+      "page": "Sheet",
+      "heading": "With Form",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/skeleton/animation-types",
+      "page": "Skeleton",
+      "heading": "Animation Types",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/skeleton/grid",
+      "page": "Skeleton",
+      "heading": "Grid",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/skeleton/list-items",
+      "page": "Skeleton",
+      "heading": "List Items",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/skeleton/loading",
+      "page": "Skeleton",
+      "heading": "Loading",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/skeleton/single-shimmer",
+      "page": "Skeleton",
+      "heading": "Single Shimmer",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/skeleton/text-content",
+      "page": "Skeleton",
+      "heading": "Text Content",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/skeleton/usage",
+      "page": "Skeleton",
+      "heading": "Usage",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/skeleton/user-profile",
+      "page": "Skeleton",
+      "heading": "User Profile",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/slider/basic-usage",
+      "page": "Slider",
+      "heading": "Basic Usage",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/slider/controlled-value",
+      "page": "Slider",
+      "heading": "Controlled Value",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/slider/custom-output-display",
+      "page": "Slider",
+      "heading": "Custom Output Display",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/slider/custom-value-formatting",
+      "page": "Slider",
+      "heading": "Custom Value Formatting",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/slider/disabled",
+      "page": "Slider",
+      "heading": "Disabled",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/slider/disabled-thumb",
+      "page": "Slider",
+      "heading": "Disabled Thumb",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/slider/form-example",
+      "page": "Slider",
+      "heading": "Form Example",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/slider/format-options",
+      "page": "Slider",
+      "heading": "Format options",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/slider/marks",
+      "page": "Slider",
+      "heading": "Marks",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/slider/native-seeking",
+      "page": "Slider",
+      "heading": "Native Seeking",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/slider/range",
+      "page": "Slider",
+      "heading": "Range",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/slider/range-slider",
+      "page": "Slider",
+      "heading": "Range Slider",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/slider/range-slider-anatomy",
+      "page": "Slider",
+      "heading": "Range Slider Anatomy",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/slider/range-with-steps-and-marks",
+      "page": "Slider",
+      "heading": "Range with Steps and Marks",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/slider/sizes",
+      "page": "Slider",
+      "heading": "Sizes",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/slider/step-disabled",
+      "page": "Slider",
+      "heading": "Step & disabled",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/slider/steps",
+      "page": "Slider",
+      "heading": "Steps",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/slider/steps-and-marks",
+      "page": "Slider",
+      "heading": "Steps and Marks",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/slider/usage",
+      "page": "Slider",
+      "heading": "Usage",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/slider/vertical",
+      "page": "Slider",
+      "heading": "Vertical",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/slider/vertical-orientation",
+      "page": "Slider",
+      "heading": "Vertical Orientation",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/slider/vertical-steps-and-marks",
+      "page": "Slider",
+      "heading": "Vertical Steps and Marks",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/spinner/colors",
+      "page": "Spinner",
+      "heading": "Colors",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/spinner/custom-glyph",
+      "page": "Spinner",
+      "heading": "Custom Glyph",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/spinner/pixel-sizes",
+      "page": "Spinner",
+      "heading": "Pixel Sizes",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/spinner/sizes",
+      "page": "Spinner",
+      "heading": "Sizes",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/spinner/speed",
+      "page": "Spinner",
+      "heading": "Speed",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/spinner/usage",
+      "page": "Spinner",
+      "heading": "Usage",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/surface/usage",
+      "page": "Surface",
+      "heading": "Usage",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/surface/variants",
+      "page": "Surface",
+      "heading": "Variants",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/surface/with-form-components",
+      "page": "Surface",
+      "heading": "With Form Components",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/switch/controlled",
+      "page": "Switch",
+      "heading": "Controlled",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/switch/default-selected",
+      "page": "Switch",
+      "heading": "Default Selected",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/switch/disabled",
+      "page": "Switch",
+      "heading": "Disabled",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/switch/form-integration",
+      "page": "Switch",
+      "heading": "Form Integration",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/switch/group",
+      "page": "Switch",
+      "heading": "Group",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/switch/group-horizontal",
+      "page": "Switch",
+      "heading": "Group Horizontal",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/switch/label-position",
+      "page": "Switch",
+      "heading": "Label Position",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/switch/label-size",
+      "page": "Switch",
+      "heading": "Label Size",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/switch/render-props",
+      "page": "Switch",
+      "heading": "Render Props",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/switch/sizes",
+      "page": "Switch",
+      "heading": "Sizes",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/switch/styling-overrides",
+      "page": "Switch",
+      "heading": "Styling Overrides",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/switch/usage",
+      "page": "Switch",
+      "heading": "Usage",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/switch/with-description",
+      "page": "Switch",
+      "heading": "With Description",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/switch/with-icons",
+      "page": "Switch",
+      "heading": "With Icons",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/switch/without-label",
+      "page": "Switch",
+      "heading": "Without Label",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/table/async-loading",
+      "page": "Table",
+      "heading": "Async Loading",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/table/cell-selection",
+      "page": "Table",
+      "heading": "Cell Selection",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/table/column-reordering",
+      "page": "Table",
+      "heading": "Column Reordering",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/table/column-resizing",
+      "page": "Table",
+      "heading": "Column Resizing",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/table/custom-cells",
+      "page": "Table",
+      "heading": "Custom Cells",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/table/custom-sort-indicator",
+      "page": "Table",
+      "heading": "Custom sort indicator",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/table/empty-state",
+      "page": "Table",
+      "heading": "Empty State",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/table/expandable-rows",
+      "page": "Table",
+      "heading": "Expandable Rows",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/table/frozen-columns",
+      "page": "Table",
+      "heading": "Frozen Columns",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/table/loading",
+      "page": "Table",
+      "heading": "Loading",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/table/narrow-width",
+      "page": "Table",
+      "heading": "Narrow Width",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/table/pagination",
+      "page": "Table",
+      "heading": "Pagination",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/table/row-hover",
+      "page": "Table",
+      "heading": "Row Hover",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/table/secondary-variant",
+      "page": "Table",
+      "heading": "Secondary Variant",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/table/selection",
+      "page": "Table",
+      "heading": "Selection",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/table/selection-behavior",
+      "page": "Table",
+      "heading": "Selection Behavior",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/table/sorting",
+      "page": "Table",
+      "heading": "Sorting",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/table/usage",
+      "page": "Table",
+      "heading": "Usage",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/table/variants",
+      "page": "Table",
+      "heading": "Variants",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/table/virtualization",
+      "page": "Table",
+      "heading": "Virtualization",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/tabs/alignment",
+      "page": "Tabs",
+      "heading": "Alignment",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/tabs/disabled-tab",
+      "page": "Tabs",
+      "heading": "Disabled Tab",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/tabs/full-width",
+      "page": "Tabs",
+      "heading": "Full Width",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/tabs/icon-only-segmented-control",
+      "page": "Tabs",
+      "heading": "Icon-Only Segmented Control",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/tabs/icon-only-toolbar-segments",
+      "page": "Tabs",
+      "heading": "Icon-Only Toolbar Segments",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/tabs/label-size",
+      "page": "Tabs",
+      "heading": "Label Size",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/tabs/overflow",
+      "page": "Tabs",
+      "heading": "Overflow",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/tabs/primary",
+      "page": "Tabs",
+      "heading": "Primary",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/tabs/secondary-variant",
+      "page": "Tabs",
+      "heading": "Secondary Variant",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/tabs/secondary-variant-vertical",
+      "page": "Tabs",
+      "heading": "Secondary Variant Vertical",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/tabs/sidebar",
+      "page": "Tabs",
+      "heading": "Sidebar",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/tabs/sizes",
+      "page": "Tabs",
+      "heading": "Sizes",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/tabs/usage",
+      "page": "Tabs",
+      "heading": "Usage",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/tabs/vertical",
+      "page": "Tabs",
+      "heading": "Vertical",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/tabs/vertical-tab-width",
+      "page": "Tabs",
+      "heading": "Vertical Tab Width",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/tabs/with-separator",
+      "page": "Tabs",
+      "heading": "With Separator",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/tabs/wrapping-labels",
+      "page": "Tabs",
+      "heading": "Wrapping Labels",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/tag-group/controlled",
+      "page": "Tag Group",
+      "heading": "Controlled",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/tag-group/disabled",
+      "page": "Tag Group",
+      "heading": "Disabled",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/tag-group/disallow-empty-selection",
+      "page": "Tag Group",
+      "heading": "Disallow Empty Selection",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/tag-group/escape-key-behavior",
+      "page": "Tag Group",
+      "heading": "Escape Key Behavior",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/tag-group/hover-colour",
+      "page": "Tag Group",
+      "heading": "Hover Colour",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/tag-group/removable",
+      "page": "Tag Group",
+      "heading": "Removable",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/tag-group/selectable",
+      "page": "Tag Group",
+      "heading": "Selectable",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/tag-group/selection-modes",
+      "page": "Tag Group",
+      "heading": "Selection Modes",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/tag-group/sizes",
+      "page": "Tag Group",
+      "heading": "Sizes",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/tag-group/styling-overrides",
+      "page": "Tag Group",
+      "heading": "Styling Overrides",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/tag-group/transitions",
+      "page": "Tag Group",
+      "heading": "Transitions",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/tag-group/usage",
+      "page": "Tag Group",
+      "heading": "Usage",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/tag-group/variants",
+      "page": "Tag Group",
+      "heading": "Variants",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/tag-group/with-error-message",
+      "page": "Tag Group",
+      "heading": "With Error Message",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/tag-group/with-list-data",
+      "page": "Tag Group",
+      "heading": "With List Data",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/tag-group/with-prefix",
+      "page": "Tag Group",
+      "heading": "With Prefix",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/tag-group/with-remove-button",
+      "page": "Tag Group",
+      "heading": "With Remove Button",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/text-area/controlled",
+      "page": "Text Area",
+      "heading": "Controlled",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/text-area/full-width",
+      "page": "Text Area",
+      "heading": "Full Width",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/text-area/in-surface",
+      "page": "Text Area",
+      "heading": "In Surface",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/text-area/rows-and-resizing",
+      "page": "Text Area",
+      "heading": "Rows and Resizing",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/text-area/usage",
+      "page": "Text Area",
+      "heading": "Usage",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/text-area/variants",
+      "page": "Text Area",
+      "heading": "Variants",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/text-field/controlled",
+      "page": "Text Field",
+      "heading": "Controlled",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/text-field/disabled-state",
+      "page": "Text Field",
+      "heading": "Disabled State",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/text-field/error-message",
+      "page": "Text Field",
+      "heading": "Error Message",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/text-field/full-width",
+      "page": "Text Field",
+      "heading": "Full Width",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/text-field/in-surface",
+      "page": "Text Field",
+      "heading": "In Surface",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/text-field/input-types",
+      "page": "Text Field",
+      "heading": "Input Types",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/text-field/render-props",
+      "page": "Text Field",
+      "heading": "Render Props",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/text-field/required-field",
+      "page": "Text Field",
+      "heading": "Required Field",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/text-field/textarea",
+      "page": "Text Field",
+      "heading": "TextArea",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/text-field/usage",
+      "page": "Text Field",
+      "heading": "Usage",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/text-field/validation",
+      "page": "Text Field",
+      "heading": "Validation",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/text-field/with-description",
+      "page": "Text Field",
+      "heading": "With Description",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/time-field/12-hour-with-seconds",
+      "page": "Time Field",
+      "heading": "12-hour with seconds",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/time-field/24-hour",
+      "page": "Time Field",
+      "heading": "24-hour",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/time-field/box-customisation",
+      "page": "Time Field",
+      "heading": "Box Customisation",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/time-field/controlled",
+      "page": "Time Field",
+      "heading": "Controlled",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/time-field/disabled-state",
+      "page": "Time Field",
+      "heading": "Disabled State",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/time-field/forced-leading-zeros",
+      "page": "Time Field",
+      "heading": "Forced Leading Zeros",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/time-field/form-example",
+      "page": "Time Field",
+      "heading": "Form Example",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/time-field/full-width",
+      "page": "Time Field",
+      "heading": "Full Width",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/time-field/on-surface",
+      "page": "Time Field",
+      "heading": "On Surface",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/time-field/required-field",
+      "page": "Time Field",
+      "heading": "Required Field",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/time-field/styling-overrides",
+      "page": "Time Field",
+      "heading": "Styling Overrides",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/time-field/usage",
+      "page": "Time Field",
+      "heading": "Usage",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/time-field/validation",
+      "page": "Time Field",
+      "heading": "Validation",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/time-field/with-description",
+      "page": "Time Field",
+      "heading": "With Description",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/time-field/with-icons",
+      "page": "Time Field",
+      "heading": "With Icons",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/time-field/with-validation",
+      "page": "Time Field",
+      "heading": "With Validation",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/toast/callbacks",
+      "page": "Toast",
+      "heading": "Callbacks",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/toast/close-reveal",
+      "page": "Toast",
+      "heading": "Close Reveal",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/toast/custom-indicators",
+      "page": "Toast",
+      "heading": "Custom Indicators",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/toast/custom-queues",
+      "page": "Toast",
+      "heading": "Custom Queues",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/toast/custom-toast-rendering",
+      "page": "Toast",
+      "heading": "Custom Toast Rendering",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/toast/expanded-stack",
+      "page": "Toast",
+      "heading": "Expanded Stack",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/toast/long-title-card-geometry",
+      "page": "Toast",
+      "heading": "Long Title & Card Geometry",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/toast/placements",
+      "page": "Toast",
+      "heading": "Placements",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/toast/promise-loading",
+      "page": "Toast",
+      "heading": "Promise & Loading",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/toast/push-a-toast",
+      "page": "Toast",
+      "heading": "Push a toast",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/toast/setup",
+      "page": "Toast",
+      "heading": "Setup",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/toast/simple-toasts",
+      "page": "Toast",
+      "heading": "Simple Toasts",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/toast/usage",
+      "page": "Toast",
+      "heading": "Usage",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/toast/variants",
+      "page": "Toast",
+      "heading": "Variants",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/toast/with-action",
+      "page": "Toast",
+      "heading": "With Action",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/toggle-button/controlled",
+      "page": "Toggle Button",
+      "heading": "Controlled",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/toggle-button/default-selected-keys",
+      "page": "Toggle Button",
+      "heading": "Default Selected Keys",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/toggle-button/detached",
+      "page": "Toggle Button",
+      "heading": "Detached",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/toggle-button/disabled",
+      "page": "Toggle Button",
+      "heading": "Disabled",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/toggle-button/full-width",
+      "page": "Toggle Button",
+      "heading": "Full Width",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/toggle-button/hover-colour",
+      "page": "Toggle Button",
+      "heading": "Hover Colour",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/toggle-button/icon-only",
+      "page": "Toggle Button",
+      "heading": "Icon Only",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/toggle-button/multiple-selection",
+      "page": "Toggle Button",
+      "heading": "Multiple selection",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/toggle-button/orientation",
+      "page": "Toggle Button",
+      "heading": "Orientation",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/toggle-button/selection-mode",
+      "page": "Toggle Button",
+      "heading": "Selection Mode",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/toggle-button/single-selection",
+      "page": "Toggle Button",
+      "heading": "Single selection",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/toggle-button/sizes",
+      "page": "Toggle Button",
+      "heading": "Sizes",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/toggle-button/styling-overrides",
+      "page": "Toggle Button",
+      "heading": "Styling Overrides",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/toggle-button/usage",
+      "page": "Toggle Button",
+      "heading": "Usage",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/toggle-button/variants",
+      "page": "Toggle Button",
+      "heading": "Variants",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/toggle-button/vertical",
+      "page": "Toggle Button",
+      "heading": "Vertical",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/toggle-button/without-separator",
+      "page": "Toggle Button",
+      "heading": "Without Separator",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/toolbar/attached",
+      "page": "Toolbar",
+      "heading": "Attached",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/toolbar/horizontal",
+      "page": "Toolbar",
+      "heading": "Horizontal",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/toolbar/sized-controls",
+      "page": "Toolbar",
+      "heading": "Sized Controls",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/toolbar/title-bar",
+      "page": "Toolbar",
+      "heading": "Title Bar",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/toolbar/usage",
+      "page": "Toolbar",
+      "heading": "Usage",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/toolbar/vertical",
+      "page": "Toolbar",
+      "heading": "Vertical",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/toolbar/with-buttongroup",
+      "page": "Toolbar",
+      "heading": "With ButtonGroup",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/tooltip/custom-triggers",
+      "page": "Tooltip",
+      "heading": "Custom Triggers",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/tooltip/delay",
+      "page": "Tooltip",
+      "heading": "Delay",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/tooltip/hover-card",
+      "page": "Tooltip",
+      "heading": "Hover Card",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/tooltip/long-content",
+      "page": "Tooltip",
+      "heading": "Long Content",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/tooltip/placement",
+      "page": "Tooltip",
+      "heading": "Placement",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/tooltip/rich-content",
+      "page": "Tooltip",
+      "heading": "Rich Content",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/tooltip/usage",
+      "page": "Tooltip",
+      "heading": "Usage",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/tooltip/with-arrow",
+      "page": "Tooltip",
+      "heading": "With Arrow",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/typography/alignment-truncation",
+      "page": "Typography",
+      "heading": "Alignment & truncation",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/typography/colors-weights",
+      "page": "Typography",
+      "heading": "Colors & weights",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/typography/primitives",
+      "page": "Typography",
+      "heading": "Primitives",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/typography/prose",
+      "page": "Typography",
+      "heading": "Prose",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/typography/render-props",
+      "page": "Typography",
+      "heading": "Render Props",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/typography/scale",
+      "page": "Typography",
+      "heading": "Scale",
+      "result": "pass",
+      "failed_checks": []
+    },
+    {
+      "id": "gallery/typography/usage",
+      "page": "Typography",
+      "heading": "Usage",
+      "result": "pass",
+      "failed_checks": []
+    }
+  ],
+  "summary": {
+    "sections": 809,
+    "passed": 809,
+    "failed": 0
+  }
+}
