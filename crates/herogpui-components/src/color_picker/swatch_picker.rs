@@ -458,14 +458,19 @@ impl RenderOnce for ColorSwatchPicker {
                 // `.color-swatch-picker__indicator` is an absolute centered
                 // slot; its child scales in and out without changing the hit
                 // box or pushing the swatch layout.
+                let indicator_hidden =
+                    indicator_scale.target() == 0.0 && !indicator_scale.animates(reduced_motion);
                 let indicator_content = if let Some(render) = &self.indicator {
-                    render(index, state)
+                    let content = render(index, state);
+                    (!indicator_hidden).then_some(content)
                 } else {
-                    gpui::svg()
-                        .size(px(f32::from(item_edge) / 3.))
-                        .path(crate::icons::CHECK)
-                        .text_color(color_swatch_indicator_color(*swatch))
-                        .into_any_element()
+                    (!indicator_hidden).then(|| {
+                        gpui::svg()
+                            .size(px(f32::from(item_edge) / 3.))
+                            .path(crate::icons::CHECK)
+                            .text_color(color_swatch_indicator_color(*swatch))
+                            .into_any_element()
+                    })
                 };
                 let indicator_edge = f32::from(item_edge) / 3.;
                 let indicator_visual = div()
@@ -474,7 +479,7 @@ impl RenderOnce for ColorSwatchPicker {
                     .justify_center()
                     .overflow_hidden()
                     .size(px(indicator_edge * indicator_scale.target()))
-                    .child(indicator_content);
+                    .children(indicator_content);
                 let indicator_visual = if indicator_scale.animates(reduced_motion) {
                     let from = indicator_scale.from();
                     let target = indicator_scale.target();

@@ -14,7 +14,9 @@
 //! [`Scrollbar::sx`] slot are repository extensions, following the same
 //! `sx`-ownership contract as every other component.
 
-use std::time::{Duration, Instant};
+use std::time::Duration;
+
+use web_time::Instant;
 
 use gpui::{
     canvas, div, prelude::*, px, App, Bounds, Div, ElementId, Hsla, IntoElement, MouseButton,

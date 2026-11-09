@@ -121,6 +121,27 @@ What was **not** verified locally, which the submitter must cover:
   compiled. `cargo check -p editor -p ui -p terminal_view` in the Zed checkout
   covers them.
 
+### Re-checked against Zed `main` (2026-11-08)
+
+Against `zed@d2a4fb6ded7c470be25d1541281da3882495b65b` (`main` on
+2026-11-08), from a shallow sparse clone of the touched crates
+(`git clone --depth 1 --filter=blob:none --sparse`, then
+`git sparse-checkout set crates/gpui crates/gpui_web crates/gpui_wgpu
+crates/gpui_apple crates/gpui_windows crates/editor crates/ui
+crates/terminal_view`), `git apply --check`, each patch alone:
+
+| Patch | Applies | Still needed on `main` |
+|---|---|---|
+| 01 | Yes | Yes: no `aria_current` anywhere under `crates/gpui/src` |
+| 02 | Only with reduced context (`-C1`): `window.rs` moved around the hunks | Yes: `paint_drop_shadows` now also passes `element_bounds` and `element_corner_radii`, but the shadow's own `corner_radii` is still the element's, not grown by the spread |
+| 03 | No: conflicts in `view.rs`, `window.rs` and `gpui_apple/src/metal_renderer.rs`, even at `-C1` | Yes: `ContentMask` is still `{ bounds }` only |
+| 04 | Yes | Yes: `register_wheel` still forwards the raw axes |
+| 05 | Yes | Yes: `register_paste` (now with image pastes) still schedules no IME-mirror sync |
+
+So step 3 below (re-base onto `main`) is a no-op for 01, 04 and 05, a
+re-diff for 02, and a real conflict resolution for 03. Nothing has been
+submitted: each PR needs an account that has signed the Zed CLA.
+
 ## How a maintainer submits them
 
 Each PR needs a GitHub account that has signed the

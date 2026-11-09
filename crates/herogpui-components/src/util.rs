@@ -193,7 +193,11 @@ pub fn inner_fill_radius(outer: Pixels, border: Pixels) -> Pixels {
 /// Web-only by construction (`cfg(target_family = "wasm")`): native platforms
 /// already translate, so their events keep flowing through `track_scroll`
 /// untouched. A `Lines` delta (Firefox mouse wheels) converts at 16px/line.
-pub fn shift_wheel_scroll_x(handle: &gpui::ScrollHandle, event: &gpui::ScrollEvent) {
+pub fn shift_wheel_scroll_x(
+    handle: &gpui::ScrollHandle,
+    event: &gpui::ScrollEvent,
+    window: &mut gpui::Window,
+) {
     #[cfg(target_family = "wasm")]
     {
         if !event.modifiers.shift {
@@ -218,10 +222,11 @@ pub fn shift_wheel_scroll_x(handle: &gpui::ScrollHandle, event: &gpui::ScrollEve
         }
         let at = handle.offset();
         handle.set_offset(gpui::point(at.x + vertical, at.y));
+        window.refresh();
     }
     #[cfg(not(target_family = "wasm"))]
     {
-        let _ = (handle, event);
+        let _ = (handle, event, window);
     }
 }
 

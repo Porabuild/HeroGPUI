@@ -575,7 +575,7 @@ impl FrozenColumns {
             .flex_shrink_0()
             .on_scroll(move |event, window, cx| {
                 let at = scroll.offset();
-                crate::util::shift_wheel_scroll_x(&scroll, event);
+                crate::util::shift_wheel_scroll_x(&scroll, event, window);
                 let delta = event.delta.pixel_delta(window.line_height());
                 let x_delta = if delta.x != px(0.) {
                     delta.x
@@ -1682,7 +1682,15 @@ impl RenderOnce for Table {
             table = table.child(Self::footer_row(footer));
         }
 
-        let el = wrapper.child(Self::scroll_container(&base_id, &table_id, table));
+        let scroll_x = window
+            .use_keyed_state(
+                element_id::scoped(&base_id, "scroll-x-handle"),
+                cx,
+                |_, _| gpui::ScrollHandle::new(),
+            )
+            .read(cx)
+            .clone();
+        let el = wrapper.child(Self::scroll_container(&base_id, &table_id, table, scroll_x));
         crate::util::apply_sx(el, &self.sx)
     }
 }
@@ -2345,6 +2353,7 @@ impl Table {
         base_id: &gpui::ElementId,
         table_id: &SharedString,
         table: gpui::Stateful<gpui::Div>,
+        scroll: gpui::ScrollHandle,
     ) -> gpui::Stateful<gpui::Div> {
         // `.table__scroll-container` is `overflow-x-auto` around the content: a
         // column whose cross axis leaves the content column at its
@@ -2369,7 +2378,11 @@ impl Table {
             .w_full()
             .min_h_0()
             .overflow_x_scroll()
+            .track_scroll(&scroll)
             .restrict_scroll_to_axis()
+            .on_scroll(move |event, window, _cx| {
+                crate::util::shift_wheel_scroll_x(&scroll, event, window);
+            })
             .child(table)
     }
 }

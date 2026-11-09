@@ -238,6 +238,11 @@ pub fn set_theme(dark: bool) {
             handle.update(|cx| {
                 // Both ids are pre-registered, so activation cannot fail.
                 let _ = herogpui_theme::use_theme(if dark { "dark" } else { "light" }, cx);
+                WINDOW.with(|window| {
+                    if let Some(window) = window.borrow().as_ref() {
+                        let _ = window.update(cx, |_, _, cx| cx.notify());
+                    }
+                });
             });
         }
     });
