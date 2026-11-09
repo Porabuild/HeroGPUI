@@ -463,7 +463,26 @@ impl RenderOnce for DatePicker {
             let selected_text = selected_text.clone();
             move |_, _| selected_text
         });
-        let field_value = field_state.read(cx).value().to_owned();
+        // React Aria shares one value between the field and the calendar: when
+        // `selected` changes since the last render (a calendar pick, a
+        // controlled parent change, a clear) and the field's text does not
+        // already parse to it, the field holds stale text — replace it. A
+        // typed date that *became* the selection parses back to `selected`,
+        // so the user's own text is never rewritten.
+        let last_selected = window.use_keyed_state(
+            element_id::scoped(&base_id, "last-selected"),
+            cx,
+            move |_, _| selected,
+        );
+        let mut field_value = field_state.read(cx).value().to_owned();
+        if *last_selected.read(cx) != selected {
+            let (field_parsed, _) = parse_value(&field_value);
+            if field_parsed != selected {
+                field_state.update(cx, |state, _| state.set_value(selected_text.clone()));
+                field_value = selected_text.clone();
+            }
+            last_selected.update(cx, |value, _| *value = selected);
+        }
         let last_field_value = field_sync.read(cx).clone();
         let field_follows_selection =
             field_value == last_field_value && field_value != selected_text;

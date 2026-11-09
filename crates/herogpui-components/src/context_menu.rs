@@ -205,7 +205,9 @@ impl RenderOnce for ContextMenu {
             .read(cx)
             .clone();
         let focus_first =
-            window.use_keyed_state(element_id::scoped(&base, "focus-first"), cx, |_, _| false);
+            window.use_keyed_state(element_id::scoped(&base, "focus-first"), cx, |_, _| {
+                None::<crate::list_core::OpenFocus>
+            });
 
         let area_focus = window
             .use_keyed_state(element_id::scoped(&base, "area-focus"), cx, |_, cx| {
@@ -266,7 +268,9 @@ impl RenderOnce for ContextMenu {
                     .unwrap_or(Bounds::new(bounds.origin, size(px(0.), px(0.))));
                 anchor_key.set(Some(target));
                 *restore_key.borrow_mut() = window.focused(cx);
-                focus_first_key.update(cx, |focus, _| *focus = true);
+                focus_first_key.update(cx, |focus, _| {
+                    *focus = Some(crate::list_core::OpenFocus::First);
+                });
                 set_open(&own_key, &on_open_change_key, true, window, cx);
                 cx.stop_propagation();
             });
@@ -277,7 +281,9 @@ impl RenderOnce for ContextMenu {
             let pointer_restore = restore_focus.clone();
             area = area.on_mouse_down(MouseButton::Right, move |event, window, cx| {
                 anchor.set(Some(Bounds::new(event.position, size(px(0.), px(0.)))));
-                pointer_focus_first.update(cx, |focus, _| *focus = false);
+                pointer_focus_first.update(cx, |focus, _| {
+                    *focus = Some(crate::list_core::OpenFocus::None);
+                });
                 pointer_restore.borrow_mut().take();
                 set_open(&own, &on_open_change, true, window, cx);
                 cx.stop_propagation();

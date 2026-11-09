@@ -1957,6 +1957,61 @@ fn date_picker_native_validate_is_gated_until_a_calendar_pick_commits(cx: &mut T
 }
 
 #[gpui::test]
+fn date_picker_calendar_pick_replaces_rejected_typed_text(cx: &mut TestAppContext) {
+    // Type a date the picker rejects (a day past `max_value`): it parses, so
+    // the field shows it, but `selected` does not move — leaving the field
+    // "dirty" (`field_value != last synced`). Upstream the field and calendar
+    // share one value, so a later calendar pick must replace that stale text.
+    // Observed through the danger chrome: stale rejected text stays invalid
+    // (danger paints), while the picked in-range date clears it.
+    let state = cx.new(|cx| CalendarState::with_selected(cx, Date::new(2025, 6, 15)));
+    let id = state.entity_id().as_u64();
+    let state_for_view = state.clone();
+    let cx = open_host(cx, move || {
+        DatePicker::new(state_for_view.clone())
+            .min_value(Date::new(2025, 6, 10))
+            .max_value(Date::new(2025, 6, 20))
+            .into_any_element()
+    });
+    cx.run_until_parked();
+    harness::wait_ms(cx, 800);
+    press(cx, "tab");
+    focus_date_segment(cx, DateSegment::Day);
+    press(cx, "2");
+    press(cx, "5");
+    cx.run_until_parked();
+    harness::wait_ms(cx, 800);
+    assert_eq!(
+        cx.update(|_, cx| state.read(cx).selected),
+        Some(Date::new(2025, 6, 15)),
+        "a rejected typed date must not move the selection"
+    );
+    // Open the calendar on the still-selected June and pick an in-range day.
+    press(cx, "alt-down");
+    cx.run_until_parked();
+    harness::wait_ms(cx, 800);
+    settle_frames(cx);
+    draw_frame(cx);
+    cx.run_until_parked();
+    click_cell(cx, cal_cell_selector(id, 2025, 6, 18));
+    assert_eq!(
+        cx.update(|_, cx| state.read(cx).selected),
+        Some(Date::new(2025, 6, 18)),
+        "the calendar pick must update the selection"
+    );
+    // The pick commits both snapshots; blur so a still-invalid field paints
+    // its danger border as a quad rather than a focused ring.
+    press(cx, "escape");
+    click(cx, 8., 320.);
+    harness::wait_ms(cx, 800);
+    assert_eq!(
+        danger_quads(cx),
+        0,
+        "a calendar pick must replace the stale rejected field text"
+    );
+}
+
+#[gpui::test]
 fn date_picker_controlled_invalid_shows_danger_at_rest(cx: &mut TestAppContext) {
     let state = cx.new(|cx| CalendarState::with_selected(cx, Date::new(2025, 6, 15)));
     let state_for_view = state;
@@ -2035,6 +2090,71 @@ fn date_range_picker_commits_only_on_a_completed_range(cx: &mut TestAppContext) 
     assert!(
         danger_quads(cx) > 0,
         "completing the range must commit the gated validation and paint the danger chrome"
+    );
+}
+
+#[gpui::test]
+fn date_range_picker_calendar_pick_replaces_rejected_start_text(cx: &mut TestAppContext) {
+    // Same defect as the single picker, per field: type a start date the picker
+    // rejects (a day before `min_value`) so the start field is "dirty" while
+    // `range.start` does not move; completing a range in the calendar must
+    // replace that stale start text. Observed through the danger chrome —
+    // stale rejected text stays invalid (danger), the picked start clears it.
+    let state = cx.new(|cx| {
+        DateRangeState::with_range(
+            cx,
+            Some(Date::new(2025, 6, 15)),
+            Some(Date::new(2025, 6, 20)),
+        )
+    });
+    let id = state.entity_id().as_u64();
+    let state_for_view = state.clone();
+    let cx = open_host(cx, move || {
+        DateRangePicker::new(state_for_view.clone())
+            .min_value(Date::new(2025, 6, 10))
+            .max_value(Date::new(2025, 6, 28))
+            .into_any_element()
+    });
+    cx.run_until_parked();
+    harness::wait_ms(cx, 800);
+    // Focus the start field and type a day before `min_value`: it parses but is
+    // rejected, leaving the field dirty while `range.start` stays at the 15th.
+    press(cx, "tab");
+    focus_date_segment(cx, DateSegment::Day);
+    press(cx, "0");
+    press(cx, "5");
+    cx.run_until_parked();
+    harness::wait_ms(cx, 800);
+    assert_eq!(
+        cx.update(|_, cx| state.read(cx).start),
+        Some(Date::new(2025, 6, 15)),
+        "a rejected typed start must not move the range start"
+    );
+    // Open the range calendar and complete a new in-range range.
+    press(cx, "alt-down");
+    cx.run_until_parked();
+    harness::wait_ms(cx, 800);
+    settle_frames(cx);
+    draw_frame(cx);
+    cx.run_until_parked();
+    click_cell(cx, range_cell_selector(id, 2025, 6, 12));
+    click_cell(cx, range_cell_selector(id, 2025, 6, 18));
+    assert_eq!(
+        cx.update(|_, cx| {
+            let st = state.read(cx);
+            (st.start, st.end)
+        }),
+        (Some(Date::new(2025, 6, 12)), Some(Date::new(2025, 6, 18))),
+        "the calendar picks must set the completed range"
+    );
+    // Blur so a still-invalid start field paints its danger border as a quad.
+    press(cx, "escape");
+    click(cx, 8., 320.);
+    harness::wait_ms(cx, 800);
+    assert_eq!(
+        danger_quads(cx),
+        0,
+        "a completed range pick must replace the stale rejected start text"
     );
 }
 

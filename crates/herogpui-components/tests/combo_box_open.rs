@@ -860,3 +860,203 @@ fn combo_box_chevron_press_while_open_closes_once(cx: &mut TestAppContext) {
         "the panel must be gone after the closing press"
     );
 }
+
+/// ArrowDown opens the suggestion list and the shared `seat_on_open` lets the
+/// selected key win over the arrow's own first-row move: reopening onto a
+/// selected "Rust" seats the cursor there, so a following Down walks to "Go"
+/// and Enter commits it. Without selected-wins the cursor would sit on the
+/// first row and the same keys would commit "Rust".
+#[gpui::test]
+fn arrow_down_open_seats_the_selected_row(cx: &mut TestAppContext) {
+    let picks = events();
+    let seen = picks.clone();
+    let opens = events();
+    let opened = opens.clone();
+    let state = combo_state(cx);
+    let state_for_view = state;
+
+    let cx = open_host(cx, move || {
+        let picks = picks.clone();
+        let opens = opens.clone();
+        let state = state_for_view.clone();
+        ComboBox::new(state, keyed(&["Typst", "Rust", "Go"]))
+            .menu_trigger(MenuTrigger::Input)
+            .selected_key("Rust")
+            .on_change(move |item, _, _| picks.borrow_mut().push(item.to_string()))
+            .on_open_change(move |open, _, _| {
+                opens.borrow_mut().push(format!("open:{open}"));
+            })
+            .into_any_element()
+    });
+
+    click(cx, 60., 18.);
+    press(cx, "down");
+    assert_eq!(
+        opened.borrow().as_slice(),
+        ["open:true"],
+        "ArrowDown must open the closed field"
+    );
+    press(cx, "down");
+    press(cx, "enter");
+    assert_eq!(
+        seen.borrow().as_slice(),
+        ["Go"],
+        "the selected row must win the open seat: Down from Rust lands on Go"
+    );
+}
+
+/// ArrowUp opens onto the last enabled stop when nothing is selected: the
+/// arrow's own move already seats the last row and `seat_on_open`'s `Keep`
+/// leaves it there, so Enter commits "Go" — not the first row.
+#[gpui::test]
+fn arrow_up_open_with_no_selection_seats_the_last_row(cx: &mut TestAppContext) {
+    let picks = events();
+    let seen = picks.clone();
+    let opens = events();
+    let opened = opens.clone();
+    let state = combo_state(cx);
+    let state_for_view = state;
+
+    let cx = open_host(cx, move || {
+        let picks = picks.clone();
+        let opens = opens.clone();
+        let state = state_for_view.clone();
+        ComboBox::new(state, keyed(&["Typst", "Rust", "Go"]))
+            .menu_trigger(MenuTrigger::Input)
+            .on_change(move |item, _, _| picks.borrow_mut().push(item.to_string()))
+            .on_open_change(move |open, _, _| {
+                opens.borrow_mut().push(format!("open:{open}"));
+            })
+            .into_any_element()
+    });
+
+    click(cx, 60., 18.);
+    press(cx, "up");
+    assert_eq!(
+        opened.borrow().as_slice(),
+        ["open:true"],
+        "ArrowUp must open the closed field"
+    );
+    press(cx, "enter");
+    assert_eq!(
+        seen.borrow().as_slice(),
+        ["Go"],
+        "ArrowUp with no selection must seat the last enabled row"
+    );
+}
+
+/// Removing the highlighted suggestion repairs the cursor to the nearest
+/// enabled neighbour while the input text is unchanged: the highlighted row
+/// is dropped from `items`, and the next render walks forward onto the row
+/// that slid into its place. Enter then commits the repaired row.
+#[gpui::test]
+fn removing_the_highlighted_row_repairs_to_the_next(cx: &mut TestAppContext) {
+    let items = Rc::new(RefCell::new(vec![
+        ("Typst", "Typst"),
+        ("Rust", "Rust"),
+        ("Go", "Go"),
+        ("Python", "Python"),
+    ]));
+    let picks = events();
+    let seen = picks.clone();
+    let opens = events();
+    let opened = opens.clone();
+    let state = combo_state(cx);
+    let state_for_view = state;
+    let items_for_view = items.clone();
+
+    let cx = open_host(cx, move || {
+        let picks = picks.clone();
+        let opens = opens.clone();
+        let state = state_for_view.clone();
+        let items = items_for_view.borrow();
+        let its: Vec<PickerItem> = items
+            .iter()
+            .map(|(key, label)| PickerItem::new(*key, *label))
+            .collect();
+        ComboBox::new(state, its)
+            .menu_trigger(MenuTrigger::Input)
+            .on_change(move |item, _, _| picks.borrow_mut().push(item.to_string()))
+            .on_open_change(move |open, _, _| {
+                opens.borrow_mut().push(format!("open:{open}"));
+            })
+            .into_any_element()
+    });
+
+    // Focus the field, open with Down onto the first row, then walk to "Go"
+    // (index 2 of 4).
+    click(cx, 60., 18.);
+    press(cx, "down");
+    press(cx, "down");
+    press(cx, "down");
+    assert_eq!(
+        opened.borrow().as_slice(),
+        ["open:true"],
+        "ArrowDown must open the closed field"
+    );
+
+    // The caller drops "Go"; the input text is untouched, so only the row
+    // removal can move the highlight.
+    items.borrow_mut().remove(2);
+    cx.update(|window, _| window.refresh());
+    cx.run_until_parked();
+
+    press(cx, "enter");
+    assert_eq!(
+        seen.borrow().last().map(String::as_str),
+        Some("Python"),
+        "removing the highlighted row must repair the cursor to the next row"
+    );
+}
+
+/// React Aria autofocuses the listbox only when it mounts: the keystroke that
+/// opens the suggestion list may seat the selected row, but a later keystroke
+/// while the list is already open only clears the highlight — it must not
+/// re-run the open seat and re-highlight the still-matching selected item.
+#[gpui::test]
+fn typing_while_open_does_not_rehighlight_the_selected_row(cx: &mut TestAppContext) {
+    let picks = events();
+    let seen = picks.clone();
+    let opens = events();
+    let opened = opens.clone();
+    let state = combo_state(cx);
+    let state_for_view = state;
+
+    let cx = open_host(cx, move || {
+        let picks = picks.clone();
+        let opens = opens.clone();
+        let state = state_for_view.clone();
+        ComboBox::new(state, keyed(&["Typst", "Rust", "Go"]))
+            .menu_trigger(MenuTrigger::Input)
+            .selected_key("Rust")
+            .on_selection_change(move |key, _, _| {
+                picks.borrow_mut().push(key.to_string());
+            })
+            .on_open_change(move |open, _, _| {
+                opens.borrow_mut().push(format!("open:{open}"));
+            })
+            .into_any_element()
+    });
+
+    click(cx, 60., 18.);
+    // The controlled selection renders "Rust" into the field; clear it so the
+    // keystrokes below type a fresh query rather than editing that text.
+    press(cx, "ctrl-a");
+    press(cx, "backspace");
+    // The first edit opens the list; "r" still matches the selected "Rust".
+    cx.simulate_input("r");
+    assert_eq!(
+        opened.borrow().as_slice(),
+        ["open:true"],
+        "the first edit must open the list"
+    );
+    // A second keystroke while open narrows the query but stays on "Rust";
+    // it must clear the highlight, not seat the selected row again.
+    cx.simulate_input("ru");
+    press(cx, "enter");
+    assert!(
+        !seen.borrow().iter().any(|key| key == "Rust"),
+        "a keystroke while open must not re-highlight the selected row: {:?}",
+        seen.borrow()
+    );
+}

@@ -657,8 +657,32 @@ impl RenderOnce for DateRangePicker {
             let end_text = end_text.clone();
             move |_, _| end_text
         });
-        let start_value = start_field_state.read(cx).value().to_owned();
-        let end_value = end_field_state.read(cx).value().to_owned();
+        let mut start_value = start_field_state.read(cx).value().to_owned();
+        let mut end_value = end_field_state.read(cx).value().to_owned();
+        // React Aria shares one value between each field and the calendar: when
+        // the range changes since the last render (a calendar pick, a
+        // controlled parent change) and a field's text does not already parse
+        // to its side, that field holds stale text — replace it. A typed date
+        // that *became* the selection parses back to it, so the user's own
+        // text is never rewritten.
+        let last_range = window.use_keyed_state(
+            element_id::scoped(&base_id, "last-range-selected"),
+            cx,
+            move |_, _| (start, end),
+        );
+        if *last_range.read(cx) != (start, end) {
+            let (start_parsed, _) = parse_value(&start_value);
+            if start_parsed != start {
+                start_field_state.update(cx, |state, _| state.set_value(start_text.clone()));
+                start_value = start_text.clone();
+            }
+            let (end_parsed, _) = parse_value(&end_value);
+            if end_parsed != end {
+                end_field_state.update(cx, |state, _| state.set_value(end_text.clone()));
+                end_value = end_text.clone();
+            }
+            last_range.update(cx, |value, _| *value = (start, end));
+        }
         let last_start = start_sync.read(cx).clone();
         let last_end = end_sync.read(cx).clone();
         let start_follows_selection = start_value == last_start && start_value != start_text;

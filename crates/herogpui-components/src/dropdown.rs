@@ -183,7 +183,7 @@ pub struct Menu {
     /// defer a second time.
     deferred: bool,
     panel_bounds: Option<PanelBounds>,
-    focus_first: Option<gpui::Entity<bool>>,
+    focus_first: Option<gpui::Entity<Option<crate::list_core::OpenFocus>>>,
     on_back: Option<std::sync::Arc<dyn Fn(&mut Window, &mut App) + 'static>>,
     /// `children` on `Dropdown.Item` — v3's render prop, handed the item's
     /// key, selection, focus, disabled and pressed state.
@@ -468,7 +468,10 @@ impl Menu {
         self
     }
 
-    pub(crate) fn focus_first(mut self, state: gpui::Entity<bool>) -> Self {
+    pub(crate) fn focus_first(
+        mut self,
+        state: gpui::Entity<Option<crate::list_core::OpenFocus>>,
+    ) -> Self {
         self.focus_first = Some(state);
         self
     }
@@ -659,12 +662,14 @@ impl RenderOnce for Menu {
         let mut submenu_open = submenu_state.read(cx).clone();
         let submenu_focus =
             window.use_keyed_state(element_id::scoped(&base_id, "submenu-focus"), cx, |_, _| {
-                false
+                None::<crate::list_core::OpenFocus>
             });
-        let focus_first = self
-            .focus_first
-            .as_ref()
-            .is_some_and(|state| *state.read(cx));
+        // The open strategy the trigger left for this open, if any: `Some` is
+        // an open that should seat the cursor (a pointer open carries
+        // `OpenFocus::None`), `None` is no pending open.
+        let open_focus = self.focus_first.as_ref().and_then(|state| *state.read(cx));
+        let keyboard_open =
+            open_focus.is_some_and(|focus| focus != crate::list_core::OpenFocus::None);
         let dismiss = self.on_dismiss.clone().map(|cb| {
             let submenu_state = submenu_state.clone();
             let submenu_focus = submenu_focus.clone();
@@ -675,7 +680,7 @@ impl RenderOnce for Menu {
                         cx.notify();
                     }
                 });
-                submenu_focus.update(cx, |value, _| *value = false);
+                submenu_focus.update(cx, |value, _| *value = None);
                 cb(refocus, window, cx);
             }) as OnDismiss
         });
@@ -756,9 +761,9 @@ impl RenderOnce for Menu {
                     cx.notify();
                 }
             });
-            submenu_focus.update(cx, |value, _| *value = false);
+            submenu_focus.update(cx, |value, _| *value = None);
             submenu_open = None;
-        } else if focus_first {
+        } else if keyboard_open {
             window.focus(&focus_handle, cx);
         } else if self.on_back.is_none() {
             crate::util::focus_once(window, cx, autofocus, &focus_handle);
@@ -830,13 +835,19 @@ impl RenderOnce for Menu {
         if cursor.read(cx).is_some() && cursor_at.is_none() {
             core.set_cursor(None, cx);
         }
-        if focus_first {
-            if let Some(first) = stops.first().copied() {
-                core.set_cursor(Some(item_keys[first].clone()), cx);
-                cursor_at = Some(first);
-            }
+        // Every open seats through the shared core: a selected row that is a
+        // stop wins, otherwise the trigger's strategy (First/Last/None for a
+        // keyboard or pointer open) applies.
+        if let Some(strategy) = open_focus {
+            let selected: &[SharedString] =
+                if crate::selection::reports_changes(self.selection_mode) {
+                    self.selected_keys.as_slice()
+                } else {
+                    &[]
+                };
+            cursor_at = core.seat_on_open(&rows_view, selected, strategy, cx);
             if let Some(state) = &self.focus_first {
-                state.update(cx, |value, _| *value = false);
+                state.update(cx, |value, _| *value = None);
             }
         }
         let item_bounds = self
@@ -1031,7 +1042,7 @@ impl RenderOnce for Menu {
                                 cx.notify();
                             }
                         });
-                        local_submenu_focus.update(cx, |value, _| *value = false);
+                        local_submenu_focus.update(cx, |value, _| *value = None);
                         cb(window, cx);
                         cx.stop_propagation();
                     }
@@ -1053,7 +1064,9 @@ impl RenderOnce for Menu {
                             *value = Some(open_key);
                             cx.notify();
                         });
-                        submenu_focus_for_keys.update(cx, |value, _| *value = true);
+                        submenu_focus_for_keys.update(cx, |value, _| {
+                            *value = Some(crate::list_core::OpenFocus::First);
+                        });
                         cx.stop_propagation();
                     }
                     return;
@@ -1098,7 +1111,9 @@ impl RenderOnce for Menu {
                                 *value = Some(open_key);
                                 cx.notify();
                             });
-                            submenu_focus_for_keys.update(cx, |value, _| *value = true);
+                            submenu_focus_for_keys.update(cx, |value, _| {
+                                *value = Some(crate::list_core::OpenFocus::First);
+                            });
                             return;
                         }
                         if crate::selection::reports_changes(mode) {
@@ -1612,7 +1627,7 @@ impl RenderOnce for Menu {
                                                 cx.notify();
                                             }
                                         });
-                                        hover_focus.update(cx, |value, _| *value = false);
+                                        hover_focus.update(cx, |value, _| *value = None);
                                     }
                                 })
                                 .on_click(move |_, _, cx| {
@@ -1620,7 +1635,7 @@ impl RenderOnce for Menu {
                                         *value = Some(click_key.clone());
                                         cx.notify();
                                     });
-                                    click_focus.update(cx, |value, _| *value = false);
+                                    click_focus.update(cx, |value, _| *value = None);
                                 });
                         }
                         if is_sub_open {
@@ -1773,7 +1788,7 @@ impl RenderOnce for Menu {
                     *value = None;
                     cx.notify();
                 });
-                close_focus_state.update(cx, |value, _| *value = false);
+                close_focus_state.update(cx, |value, _| *value = None);
                 window.focus(&parent_focus, cx);
             });
             if let Some(cb) = self.on_action.clone() {
@@ -2159,7 +2174,7 @@ impl RenderOnce for Dropdown {
         let focus_first = window.use_keyed_state(
             element_id::scoped(&wrap_base_id, "focus-first"),
             cx,
-            |_, _| false,
+            |_, _| None::<crate::list_core::OpenFocus>,
         );
 
         // `trigger="longPress"` needs to know whether the button is still down
@@ -2205,10 +2220,25 @@ impl RenderOnce for Dropdown {
                     let key_focus_first = focus_first.clone();
                     trigger_wrap = trigger_wrap.on_key_down(move |event, window, cx| {
                         let key = event.keystroke.key.as_str();
-                        if is_open || (key != "enter" && key != "space") {
+                        if is_open {
                             return;
                         }
-                        key_focus_first.update(cx, |focus, _| *focus = true);
+                        // React Aria's `useMenuTrigger`: plain Enter, Space
+                        // and ArrowDown open `press` onto the first row,
+                        // ArrowUp onto the last; Alt+ArrowDown/ArrowUp open for
+                        // both trigger modes while Alt+Enter/Space are the
+                        // longPress chords and stay inert here.
+                        let modifiers = event.keystroke.modifiers;
+                        let clean = !modifiers.control && !modifiers.platform && !modifiers.shift;
+                        let strategy = match key {
+                            "enter" | "space" if clean && !modifiers.alt => {
+                                crate::list_core::OpenFocus::First
+                            }
+                            "down" if clean => crate::list_core::OpenFocus::First,
+                            "up" if clean => crate::list_core::OpenFocus::Last,
+                            _ => return,
+                        };
+                        key_focus_first.update(cx, |focus, _| *focus = Some(strategy));
                         if let Some(held) = &key_own {
                             held.update(cx, |value, cx| {
                                 *value = true;
@@ -2223,7 +2253,11 @@ impl RenderOnce for Dropdown {
                     let focus_first = focus_first.clone();
                     trigger_wrap = trigger_wrap.on_click(move |ev: &ClickEvent, w, cx| {
                         focus_first.update(cx, |focus, _| {
-                            *focus = matches!(ev, ClickEvent::Keyboard(_));
+                            *focus = Some(if matches!(ev, ClickEvent::Keyboard(_)) {
+                                crate::list_core::OpenFocus::First
+                            } else {
+                                crate::list_core::OpenFocus::None
+                            });
                         });
                         // Uncontrolled: flip our own copy, or the trigger would
                         // be inert without a caller handler.
@@ -2241,11 +2275,48 @@ impl RenderOnce for Dropdown {
                 DropdownTrigger::LongPress => {
                     let up_holding = holding.clone();
                     let pointer_focus_first = focus_first.clone();
+                    // `longPress` opens only through the Alt chords upstream:
+                    // Alt+Enter/Space/ArrowDown `first`, Alt+ArrowUp `last`;
+                    // plain keys stay inert.
+                    let key_focus_first = focus_first.clone();
+                    let key_own = own.clone();
+                    let key_open_change = on_open_change.clone();
+                    trigger_wrap = trigger_wrap.on_key_down(move |event, window, cx| {
+                        if is_open {
+                            return;
+                        }
+                        let modifiers = event.keystroke.modifiers;
+                        if !modifiers.alt
+                            || modifiers.control
+                            || modifiers.platform
+                            || modifiers.shift
+                        {
+                            return;
+                        }
+                        let strategy = match event.keystroke.key.as_str() {
+                            "enter" | "space" | "down" => crate::list_core::OpenFocus::First,
+                            "up" => crate::list_core::OpenFocus::Last,
+                            _ => return,
+                        };
+                        key_focus_first.update(cx, |focus, _| *focus = Some(strategy));
+                        if let Some(held) = &key_own {
+                            held.update(cx, |value, cx| {
+                                *value = true;
+                                cx.notify();
+                            });
+                        }
+                        if let Some(cb) = &key_open_change {
+                            cb(&true, window, cx);
+                        }
+                        cx.stop_propagation();
+                    });
                     trigger_wrap = trigger_wrap
                         .on_mouse_down(gpui::MouseButton::Left, {
                             let holding = holding;
                             move |_, window, cx| {
-                                pointer_focus_first.update(cx, |focus, _| *focus = false);
+                                pointer_focus_first.update(cx, |focus, _| {
+                                    *focus = Some(crate::list_core::OpenFocus::None);
+                                });
                                 holding.update(cx, |v, _| *v = true);
                                 let holding = holding.clone();
                                 let own = own.clone();

@@ -842,6 +842,7 @@ struct ComboFrame {
     retained: Entity<Option<(SharedString, String)>>,
     matches: Rc<[PickerItem]>,
     focus_open: Option<Entity<FocusOpen>>,
+    open_focus: Entity<Option<crate::list_core::OpenFocus>>,
     inside_pressed: Rc<Cell<bool>>,
     cursor_at: Option<usize>,
     list_scroll_now: crate::VirtualListHandle,
@@ -1104,6 +1105,15 @@ impl ComboBox {
             cx,
             |_, _| None::<(SharedString, String)>,
         );
+        // The previous frame's row keys, which the removed-row repair walks.
+        let previous_rows = crate::list_core::ListCore::rows_state(base_id, window, cx);
+        // The open strategy the trigger left for this open -- ArrowDown
+        // `First`, ArrowUp `Last`, a button press or typed query `None` --
+        // consumed by `seat_on_open` on the first open render.
+        let open_focus =
+            window.use_keyed_state(element_id::scoped(base_id, "open-focus"), cx, |_, _| {
+                None::<crate::list_core::OpenFocus>
+            });
 
         let matches = self.matches(
             &controlled,
@@ -1124,7 +1134,9 @@ impl ComboBox {
 
         // A cursor is stale when its key is disabled, or when it is neither a
         // visible match nor retained across the current query by the
-        // `(key, query)` pair a multiple-mode pick left behind.
+        // `(key, query)` pair a multiple-mode pick left behind. A key the
+        // caller removed from `items` is not stale: it is left for
+        // `repair_removed` to walk to a neighbour, the way Select does.
         let stale_cursor = cursor.read(cx).as_ref().is_some_and(|key| {
             let visible = matches.iter().any(|item| item.key() == key);
             let retained_hidden = retained
@@ -1132,7 +1144,8 @@ impl ComboBox {
                 .as_ref()
                 .is_some_and(|(retained_key, query)| retained_key == key && query == &raw_query)
                 && items.iter().any(|item| item.key() == key);
-            self.disabled_keys.contains(key) || (!visible && !retained_hidden)
+            self.disabled_keys.contains(key)
+                || (!visible && !retained_hidden && items.iter().any(|item| item.key() == key))
         });
         // React Aria keeps the focused row in view; the panel scrolls and the
         // virtual list scrolls itself. `use_keyed_state` takes `cx` mutably.
@@ -1190,6 +1203,20 @@ impl ComboBox {
             stops: &match_stops,
             labels: &match_labels,
         };
+        // A highlighted row the caller removed repairs to the nearest enabled
+        // neighbour. `all_keys` is the full unfiltered set, so a row hidden by
+        // the query is not treated as removed.
+        let all_keys: Vec<SharedString> = items.iter().map(|item| item.key().clone()).collect();
+        list_core.repair_removed(&match_rows, &all_keys, &previous_rows, cx);
+        // An open the trigger armed seats the cursor through the shared core:
+        // the selected key wins when it is a stop in the filtered rows, else
+        // the trigger's First/Last/None strategy applies. Consumed once.
+        if open_state {
+            if let Some(strategy) = *open_focus.read(cx) {
+                list_core.seat_on_open(&match_rows, &self.selected_keys, strategy, cx);
+                open_focus.update(cx, |value, _| *value = None);
+            }
+        }
         let cursor_at = list_core.cursor_at(&match_rows, cx);
 
         let commit_value = self.commit_action(&controlled);
@@ -1240,6 +1267,7 @@ impl ComboBox {
             retained,
             matches,
             focus_open,
+            open_focus,
             inside_pressed,
             cursor_at,
             list_scroll_now,
@@ -1601,6 +1629,7 @@ impl ComboBox {
             ref focus_handle,
             ref show_all_items,
             ref focus_open,
+            ref open_focus,
             ..
         } = *frame;
         let on_open_change = self.on_open_change.clone();
@@ -1651,6 +1680,7 @@ impl ComboBox {
             if on_open_change.is_some() || open_own.is_some() {
                 let own = open_own.clone();
                 let focus_open = focus_open.clone();
+                let open_focus = open_focus.clone();
                 let show_all_items = show_all_items.clone();
                 let close = close_open.clone();
                 let focus_handle = focus_handle.clone();
@@ -1665,11 +1695,20 @@ impl ComboBox {
                         window.focus(&focus_handle, cx);
                         cx.stop_propagation();
                     })
-                    .on_click(move |_, window, cx| {
+                    .on_click(move |ev: &gpui::ClickEvent, window, cx| {
                         if is_open {
                             close(window, cx);
                             return;
                         }
+                        // A keyboard press on the button opens `first`, a
+                        // pointer press leaves the seat to a selected row.
+                        open_focus.update(cx, |focus, _| {
+                            *focus = Some(if matches!(ev, gpui::ClickEvent::Keyboard(_)) {
+                                crate::list_core::OpenFocus::First
+                            } else {
+                                crate::list_core::OpenFocus::None
+                            });
+                        });
                         show_all_items.update(cx, |v, _| *v = true);
                         if let Some(held) = &own {
                             held.update(cx, |v, cx| {
@@ -1701,6 +1740,7 @@ impl ComboBox {
             ref core,
             ref retained,
             ref focus_open,
+            ref open_focus,
             ..
         } = *frame;
         let core_on_change = core.clone();
@@ -1726,6 +1766,7 @@ impl ComboBox {
         let open_own_on_change = open_own.clone();
         let open_change_cb = self.on_open_change.clone();
         let focus_open_on_change = focus_open.clone();
+        let open_focus_on_change = open_focus.clone();
         let show_all_items_on_change = show_all_items.clone();
         let items_on_change = items.clone();
         let filter_on_change = self.filter.clone();
@@ -1792,6 +1833,12 @@ impl ComboBox {
                 if let Some(focus_open) = &focus_open_on_change {
                     focus_open.update(cx, |v, _| v.can_open = false);
                 }
+                // A typed open carries no keyboard strategy: pinned React Aria
+                // opens it with `open(null, 'input')`, so only a selected row
+                // that is still a stop claims the cursor.
+                open_focus_on_change.update(cx, |focus, _| {
+                    *focus = Some(crate::list_core::OpenFocus::None);
+                });
                 if let Some(held) = &open_own_on_change {
                     held.update(cx, |v, cx| {
                         *v = true;
@@ -1903,6 +1950,7 @@ impl ComboBox {
             ref core,
             ref retained,
             ref matches,
+            ref open_focus,
             ref blur_scope,
             ..
         } = *frame;
@@ -1926,6 +1974,7 @@ impl ComboBox {
             .collect();
         let key_core = core.clone();
         let key_retained = retained.clone();
+        let key_open_focus = open_focus.clone();
         let rows = key_rows;
         let state = self.state.clone();
         let allows_custom_value = self.allows_custom_value;
@@ -1969,6 +2018,7 @@ impl ComboBox {
             key_disabled,
             key_menu_trigger,
             open_own_keys,
+            open_focus: key_open_focus,
             on_open_change,
             key_selection_own,
             key_close,
@@ -2302,6 +2352,7 @@ struct ComboKeys {
     key_disabled: std::collections::HashSet<SharedString>,
     key_menu_trigger: MenuTrigger,
     open_own_keys: Option<Entity<bool>>,
+    open_focus: Entity<Option<crate::list_core::OpenFocus>>,
     on_open_change: Option<OnOpenChange>,
     key_selection_own: Option<Entity<Vec<SharedString>>>,
     key_close: ComboAction,
@@ -2333,6 +2384,7 @@ impl ComboKeys {
             ref key_disabled,
             key_menu_trigger,
             ref open_own_keys,
+            ref open_focus,
             ref key_selection_own,
             ref key_close,
             key_multiple,
@@ -2483,6 +2535,18 @@ impl ComboKeys {
         } else {
             key
         };
+        // A closed list's arrow opens it. The arrow's own move already seated
+        // the cursor (first on a fresh field, last on ArrowUp, a step from a
+        // retained one), so the open render uses `Keep`: the selected key
+        // still wins when it is a stop, but no selection leaves the moved
+        // cursor alone rather than resetting it to an end.
+        if !is_open {
+            if matches!(nav_key, "down" | "up") {
+                open_focus.update(cx, |focus, _| {
+                    *focus = Some(crate::list_core::OpenFocus::Keep);
+                });
+            }
+        }
         // Pinned React Aria 3.51.0 binds PageUp/PageDown through the
         // listbox's `useSelectableCollection`, which a closed field
         // never runs: the suggestion list is not mounted, so the page
