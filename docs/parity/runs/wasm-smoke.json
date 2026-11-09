@@ -3,9 +3,9 @@
   "kind": "wasm-smoke",
   "recorded_on": "2026-11-09",
   "artifact": {
-    "inputsSha256": "5bf6e9b156dceed7408e4a2b394c09ef8a639e0a3d6fad8055e145e02d282473",
-    "artifactSha256": "58d2b7625256b7734edc825ea196efb36b1162ecab89879067636daf03465bdc",
-    "glueSha256": "8cfa0579837c08ff10468ae3cda7a78f3bda822ad6ac03b67aa0ba676abd9d02",
+    "inputsSha256": "0c91e6b0f6c56efdc24681b1d5c407c25edc7b85fe318ac8dec0f4175ec160aa",
+    "artifactSha256": "ef69eec6ed1e8822e3d17352d914a9880afd38db203861713891fd1d2187d82a",
+    "glueSha256": "d68d1210c6837c4157f3a213c6432ae93e5ddb0f93ba096b91f7ba2375ae7fa2",
     "commit": null,
     "source": "local"
   },
@@ -127,7 +127,7 @@
       "section": "Loading",
       "light": "pass",
       "dark": null,
-      "screenshot_sha256": "a267bc11bd645e717deeed046ece1daa09bbf4b3a24f45e810e3d07c7704cbc0",
+      "screenshot_sha256": "b541ec708e815067bb6cdf5bfcd30d96a5579664fa33e2875ac40911ffd0ce53",
       "detail": null
     },
     {
@@ -2116,7 +2116,7 @@
       "section": "Async Loading",
       "light": "pass",
       "dark": null,
-      "screenshot_sha256": "3eb2b958d23745c42b4d1e6a19175a1969f5a719ca530ae80ad4ffac8a2e335e",
+      "screenshot_sha256": "1d6d883b04018da84f189da5bf731cbc4c51137051fae4dcbd012bd4e2e191ac",
       "detail": null
     },
     {
@@ -2242,7 +2242,7 @@
       "section": "Loading",
       "light": "pass",
       "dark": null,
-      "screenshot_sha256": "fdef6178b920d2aa3013227a6d60b2e38704f2fda19a60faa13af2b3b3f61ce7",
+      "screenshot_sha256": "efca0d64fd1c2f871f79f45697179f60e2fd4cd7f49d0b41ea92c4e957bc0136",
       "detail": null
     },
     {
@@ -3133,7 +3133,7 @@
       "section": "Usage",
       "light": "pass",
       "dark": "pass",
-      "screenshot_sha256": "24f8be0e7aad8931a927deb48fb5d5d015d7dd47930f43e7d177451e5672e51f",
+      "screenshot_sha256": "f138489851ad79f38d97d03fefbbcfedda87b59acf663cf87094582fb98fae8b",
       "detail": null
     },
     {
@@ -3268,7 +3268,7 @@
       "section": "Indeterminate",
       "light": "pass",
       "dark": null,
-      "screenshot_sha256": "bf5b5dd5f9cc928f0030e07387356995fa1d645528c03ab6bbb228dd7fe400f5",
+      "screenshot_sha256": "1d8867ff2d546c0ba79c9f9e7ed757be9988419546ff6a8009ee62725f1acff7",
       "detail": null
     },
     {
@@ -3322,7 +3322,7 @@
       "section": "Indeterminate",
       "light": "pass",
       "dark": null,
-      "screenshot_sha256": "f96122d51c6de916199a9ba5aff3b0a8f747e42bfd24e6894aa5da17979a230a",
+      "screenshot_sha256": "0726158c12120aba9cffb36ea15b88f139763feac1ae1f6ce274d44a45e085a7",
       "detail": null
     },
     {
@@ -3394,7 +3394,7 @@
       "section": "Grid",
       "light": "pass",
       "dark": null,
-      "screenshot_sha256": "d17cf3a3c0e006a113a1553b1a7f637ac9049a290af00cb7be72ca4a541a0c0d",
+      "screenshot_sha256": "74e05f43c3fa9c684353d9c6ae76376be6c2a4ede7462e04c085ab3ac0c0d83d",
       "detail": null
     },
     {
@@ -3421,7 +3421,7 @@
       "section": "Loading",
       "light": "pass",
       "dark": null,
-      "screenshot_sha256": "1df9647b60bc32aa6dfa710cedd910e11f55bd6eb89e19fddeed59345466fc8e",
+      "screenshot_sha256": "6d8fe3bf5c22f449ccf762cfa28e42910c9d1d1664141e15340dccfbd0669c5a",
       "detail": null
     },
     {
@@ -3430,7 +3430,7 @@
       "section": "Usage",
       "light": "pass",
       "dark": "pass",
-      "screenshot_sha256": "54773853a120bb60523a2e1d275d6b565ab040c97c4ababbe17c8c6a758f2fa6",
+      "screenshot_sha256": "5a33b8339abed05007930ba9def75dc3f700a843901745fbd767a960c6caa806",
       "detail": null
     },
     {
@@ -3439,7 +3439,7 @@
       "section": "Colors",
       "light": "pass",
       "dark": null,
-      "screenshot_sha256": "36c3d960fcd26111efe374762a9e9d16ac59162698292b06f3eba9bd77272ed2",
+      "screenshot_sha256": "c2999d9b8034f355d28ac5325a548b94d6d26b8825ce1c5e1f3bb0b0067ec104",
       "detail": null
     },
     {
@@ -3448,7 +3448,7 @@
       "section": "Sizes",
       "light": "pass",
       "dark": null,
-      "screenshot_sha256": "8fb5fc567505efae700edb415eacb99dc9c0ca0126670701401c9c3f0137333e",
+      "screenshot_sha256": "5a9cfd97317fe6fecd03bd444b9e6fb4dc3cabf2443c24b3be01ffac97f66456",
       "detail": null
     },
     {
@@ -3457,7 +3457,7 @@
       "section": "Speed",
       "light": "pass",
       "dark": null,
-      "screenshot_sha256": "9a764ef236a91a31de246ac94f04fb09d8602afff1733c46feeb86c80c1f160d",
+      "screenshot_sha256": "123b6d08bfad9b06738fa7ab31f7aede1194f955ecc9f7ace11a38346c965ac2",
       "detail": null
     },
     {
@@ -3466,7 +3466,7 @@
       "section": "Pixel Sizes",
       "light": "pass",
       "dark": null,
-      "screenshot_sha256": "8bdfe461d2c3badf0096513131b2118cbd45a14d96cfca1aed291bb80d3ec19c",
+      "screenshot_sha256": "e2945129708ef30f6fe5bf7cbd2972c8258f27b48012edc9a91bcd92785451cf",
       "detail": null
     },
     {
@@ -3475,7 +3475,7 @@
       "section": "Custom Glyph",
       "light": "pass",
       "dark": null,
-      "screenshot_sha256": "5b78bfb7fef3a0c59e27e3002f4113b0842881334ae42b76adb552588cedd45f",
+      "screenshot_sha256": "9da45cf792a3be668813468825f6e16a72f6f9c55cbd7ff318073550c2f40f8e",
       "detail": null
     },
     {
@@ -3988,7 +3988,7 @@
       "section": "Loading State",
       "light": "pass",
       "dark": null,
-      "screenshot_sha256": "18441f0ea1ca0765b23681a52efa7cbeb72a8476365087ba77f9b5045e11ad6d",
+      "screenshot_sha256": "ed504c3201bbe67fd55f99d1fc6ddacbf03de66b84a65d25ef2875b36bd68b41",
       "detail": null
     },
     {
@@ -6418,7 +6418,7 @@
       "section": "Asynchronous Filtering",
       "light": "pass",
       "dark": null,
-      "screenshot_sha256": "7c58e74ea7759e82b9cfded9868036b6b24b0f2c663798e116fd437dd4eb6c6d",
+      "screenshot_sha256": "1b17a78696b8743a6581bd66ed7c5cafa0f4e9e47a985a0324e347a1c8410704",
       "detail": null
     },
     {
@@ -6589,7 +6589,7 @@
       "section": "Asynchronous Loading",
       "light": "pass",
       "dark": null,
-      "screenshot_sha256": "c075a8a8ee7659a92fa85fd56cc9d6d225d180bd86485ee972ed0a7ca7d585d7",
+      "screenshot_sha256": "6ba078ac7424f0d0ea601e01d0905e9cb554278510dcd456dc3e4f3d4e400254",
       "detail": null
     },
     {
@@ -6895,7 +6895,7 @@
       "section": "Asynchronous Loading",
       "light": "pass",
       "dark": null,
-      "screenshot_sha256": "88151f0c2c832a2ca53c2ebe6f88829dbe68cdecbeabef442c569ab207f2a309",
+      "screenshot_sha256": "fa57ad75fa8b0f7fb21dd4bbadba8fbd9feb81e36af8540a97f733691058980f",
       "detail": null
     },
     {
