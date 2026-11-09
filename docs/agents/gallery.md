@@ -250,3 +250,34 @@ prints each probe. A finding triaged as correct behaviour goes into
 `EXPECTED` with the evidence for that verdict. An entry that no longer
 matches fails the sweep, so an exemption cannot outlive the behaviour it
 excuses.
+
+## Web gallery smoke
+
+The browser build has its own input path: a hidden IME textarea, the
+browser's wheel events, its bundled fonts only. `web/scripts/gallery-smoke.mjs`
+boots the wasm gallery in headless Chrome over the DevTools protocol and:
+
+- renders every example in light, and each page's first example in dark.
+  Each must differ from the blank stage (and its dark render from its light
+  one), with no page error or wasm panic;
+- types into Input, TextField, TextArea, SearchField and NumberField. That
+  covers `insertText`, Backspace, an IME composition commit and the
+  platform select-all chord. The typed text must reach the hidden textarea
+  and the field must paint it;
+- wheels the gallery page vertically, and a Table and a ScrollShadow
+  horizontally: once with a horizontal delta, once with shift+wheel.
+
+```bash
+cd web
+pnpm run gallery:fetch                       # or: bash ../.shots/build-wasm.sh --no-opt
+node scripts/gallery-smoke.mjs --record ../target/wasm-smoke.json --shots ../target/wasm-smoke
+node scripts/gallery-smoke.mjs --only table,input --skip-dark
+```
+
+CI runs it on every pull request (`wasm-smoke`) against the artifact the
+`wasm` job just built, and uploads the run record and one PNG per example.
+It needs Chrome or Chromium (`--chrome <path>` or `$CHROME` otherwise); it
+launches with extensions disabled, because a developer profile's external
+extensions inject overlays that take the focus. `EXPECTED_BLANK` lists
+examples that legitimately render nothing at rest, each with its reason; an
+entry that renders something fails as stale.

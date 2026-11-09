@@ -39,10 +39,12 @@ if is_command_palette_shortcut(&event.keystroke) { /* ... */ }
 if is_command_palette_shortcut(&event.keystroke, cx) { /* ... */ }
 ```
 
-## `extend::shift_wheel_scroll_x` takes `&ScrollEvent`
+## `extend::shift_wheel_scroll_x` takes `&ScrollEvent` and `&mut Window`
 
 Following GPUI's rename, the helper's event parameter is the value an
-`on_scroll` handler receives:
+`on_scroll` handler receives. It also takes the handler's window: moving a
+`ScrollHandle` offset does not repaint by itself, so in 0.14 a shift+wheel
+in the browser moved the content only at the next unrelated redraw.
 
 ```rust
 // 0.14
@@ -51,8 +53,8 @@ Following GPUI's rename, the helper's event parameter is the value an
 })
 
 // 0.15
-.on_scroll(move |event, _window, _cx| {
-    shift_wheel_scroll_x(&handle, event);
+.on_scroll(move |event, window, _cx| {
+    shift_wheel_scroll_x(&handle, event, window);
 })
 ```
 

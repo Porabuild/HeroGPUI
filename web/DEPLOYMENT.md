@@ -416,6 +416,10 @@ no artifact rebuild is needed, CI makes it.
 2. Toggle the site theme: the embedded gallery follows live.
 3. `http://localhost:3000/gallery/index.html?story=<slug>` directly: the gallery
    fills the tab, deep-linked to that component.
+4. `pnpm run gallery:smoke` renders every example of the installed artifact in
+   headless Chrome and drives text input, wheel scrolling and the theme
+   bridge; see the "Web gallery smoke" section of `docs/agents/gallery.md`.
+   CI's `wasm-smoke` job runs it on every pull request.
 
 ## Current status
 

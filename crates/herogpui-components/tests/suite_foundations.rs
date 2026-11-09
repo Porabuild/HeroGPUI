@@ -33,6 +33,8 @@ mod theme_platform;
 mod theme_repaint;
 #[path = "theme_tokens.rs"]
 mod theme_tokens;
+#[path = "wasm_portability.rs"]
+mod wasm_portability;
 
 #[test]
 fn every_integration_source_belongs_to_exactly_one_suite() {

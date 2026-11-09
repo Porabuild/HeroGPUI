@@ -494,6 +494,45 @@ jobs:
           retention-days: 7
           if-no-files-found: error
 
+  wasm-smoke:
+    name: Web gallery smoke (headless Chrome)
+    needs: [wasm]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+
+      - uses: actions/download-artifact@v8
+        with:
+          name: web-gallery
+          path: ${{ runner.temp }}/gallery
+
+      - name: Use the site's host page
+        run: cp web/public/gallery/index.html "$RUNNER_TEMP/gallery/index.html"
+
+      - name: Render every example and drive the browser input paths
+        run: >-
+          node web/scripts/gallery-smoke.mjs
+          --dir "$RUNNER_TEMP/gallery"
+          --record "$RUNNER_TEMP/wasm-smoke.json"
+          --shots "$RUNNER_TEMP/shots"
+
+      - if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: wasm-smoke
+          path: |
+            ${{ runner.temp }}/wasm-smoke.json
+            ${{ runner.temp }}/shots/
+          retention-days: 7
+          if-no-files-found: warn
+
   # Publishes what `wasm` built as its `gallery-<key16>` prerelease (a draft
   # until every asset is attached, so immutable releases are fine). A
   # separate job so the write token never shares a runner with the build: the
@@ -619,7 +658,7 @@ jobs:
   ci:
     name: ci
     if: always()
-    needs: [web, parity, lint, test, doc, install, changes, optimized, semver, no-default-features, wasm, wasm-publish]
+    needs: [web, parity, lint, test, doc, install, changes, optimized, semver, no-default-features, wasm, wasm-smoke, wasm-publish]
     runs-on: ubuntu-24.04
     steps:
       - name: decide

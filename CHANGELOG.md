@@ -13,7 +13,8 @@ version covers `herogpui`, `herogpui-core`, `herogpui-theme`,
 - `is_command_palette_shortcut` takes `&App` as a second argument: GPUI's
   `Modifiers::secondary()` now resolves Cmd-vs-Ctrl from the runtime
   platform. `extend::shift_wheel_scroll_x` takes `&ScrollEvent` (GPUI
-  renamed `ScrollWheelEvent`). See
+  renamed `ScrollWheelEvent`) and the handler's `&mut Window`, which it
+  refreshes after moving the offset. See
   [`docs/migration-0.15.md`](docs/migration-0.15.md).
 - The minimum Rust version is 1.99 (was 1.98), matching
   `rust-toolchain.toml`'s 1.99.1 pin.
@@ -47,6 +48,12 @@ version covers `herogpui`, `herogpui-core`, `herogpui-theme`,
   frame does not return to rest, a fade moves away from rest as the
   pointer leaves, a hover or press fill paints over text, or redraws never
   settle.
+- The web gallery smoke (`pnpm run gallery:smoke`, and the `wasm-smoke` CI
+  job on every pull request) boots the wasm gallery in headless Chrome and
+  renders every example in the light theme and each page's first example
+  in dark. It also types into the text fields through the browser's IME
+  path, including select-all, and checks vertical, horizontal and
+  shift+wheel scrolling. Any page error or wasm panic fails it.
 
 ### Changed
 
@@ -113,6 +120,20 @@ version covers `herogpui`, `herogpui-core`, `herogpui-theme`,
 
 ### Fixed
 
+- The web gallery no longer crashes on the first scroll over a
+  ScrollShadow (and the Tabs strips built on it): its scrollbar read
+  `std::time::Instant`, which panics on `wasm32-unknown-unknown`. A
+  component test now fails on any `std::time::Instant` or `SystemTime` in
+  shipped sources (`web_time` is the portable spelling).
+- ColorSwatchPicker no longer asks GPUI to rasterize a zero-size checkmark
+  for every unselected swatch on every frame, which logged
+  `can't render at a zero size` each time.
+- Shift+wheel scrolls horizontal ScrollShadows and Tables in the browser.
+  The helper moved the offset without repainting, and the Table's own
+  horizontal scroller never called it.
+- The embedded web gallery follows a host theme change at once. The
+  `set_theme` bridge activated the theme without notifying the window, so
+  the preview kept the old theme until the next pointer event.
 - A DatePicker or DateRangePicker calendar pick now replaces the field's
   text when the user had typed a date the picker rejected (out of range or
   unavailable). The stale text used to stay in the field, as React Aria's
