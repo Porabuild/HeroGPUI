@@ -25009,7 +25009,7 @@
     "sha256": "8632eb868ad4e4d3a20a85506dcee45148770979d8c503dd937aeb5de3a5361d"
   },
   "source_snapshot": {
-    "sha256": "0d3afad05eeade0160ad76ee247b2c4bd620ca57a39020d6a84cd7a3ca05d441",
+    "sha256": "78962c2f06bc0486f1de140fa69fdba4989ada58fa762d5ba6823f1393829658",
     "files": {
       ".cargo/config.toml": "6ce2a269fd46b2570763e8e446ac93e9d04614416af21134877cf7b388e776f9",
       ".gitattributes": "13aede5d4eaee3f19ecad6be9d4941dafe8bc4d596e83a2083f4143fb6e0f434",
@@ -25148,7 +25148,7 @@
       "crates/herogpui-components/src/resizable.rs": "9fd802962ae4aa7bfced9e23c129cb8edbb4f8eb288da920d4052fe95e034207",
       "crates/herogpui-components/src/scroll_shadow.rs": "279bfd68632acb39c1115ff15cdd77cb517375a49c2983a7a9f09bff268fa5fb",
       "crates/herogpui-components/src/scrollbar.rs": "8020fd5b9df04075aa8a7dd4e2538b17302062c0bf0048caf8283ec3b0dc26b9",
-      "crates/herogpui-components/src/select.rs": "ece8d96fd720a2276f08f55f7c125c3a6f57bf4f1152937c0a5a51ccb3b2b33d",
+      "crates/herogpui-components/src/select.rs": "3bc2573f85445081e2204974acef37b4541792ddaf71254780aeaa69c518146c",
       "crates/herogpui-components/src/selection.rs": "5cb1b59aa951da376a769c69fbf710999bf48b8751fd89cd0ce2b04196fcdf7d",
       "crates/herogpui-components/src/separator.rs": "231a2e9d5594435b835968ba953c52c6c04944ce3b1d06fc3e439f2fbf1f6ec7",
       "crates/herogpui-components/src/sheet.rs": "7e961a8f20ebfff47370c5f3c140f9c849bd3e57698bc81edcadb72735ab4c54",
@@ -25529,7 +25529,7 @@
       "web/src/data/reference.json": "a248ebb566d95485c1d6360e649c0decbfcce8cb2d6c83d4a452cabea191a492",
       "web/src/data/releases.json": "22a8358a523c9993bde2657a6686b45ad0842fac08a2dd2c9dbc7defa641bbd3",
       "web/src/data/rust-examples.json": "5b3759320bc49a1369604cf0d30460ef06e5332ae3a405095f1739d8c17b0ad0",
-      "web/src/data/wasm-parity.json": "d55e6846046011ebc84d0ba6d4350539e7e5262831504f1a4cb56b0fe71c2027",
+      "web/src/data/wasm-parity.json": "003ff5839cac125c76eac3d18bfeb5a99a53c91534687094809671757524f2df",
       "web/src/data/wasm-sections.json": "cc73fd1864f392412746ed71603fd3363070fe225199a1ebd0ccb5c1c5b7b6f2",
       "web/src/lib/catalog.ts": "79681a0e1e0e12c9352ddc9eec0d6fe428906ceca07bfefb89623639396f81cf",
       "web/src/lib/docs-nav.ts": "ffb0d7fdaa0261395306f0bfa4e09c5ef88043c702c962f847983b05be67f55a",
@@ -147297,7 +147297,7 @@
       ]
     }
   ],
-  "verification_sha256": "0323aed20dece1c53f772201f090c43a25d9561bd3a81f6668d98a151c2a0455",
+  "verification_sha256": "d881731d5cca0be6abcf67b4524254fe5d78a4905fb8324764e096e187a8d610",
   "retired_source_changes": [
     {
       "path": "packages/react/src/components/autocomplete/autocomplete.stories.tsx",
