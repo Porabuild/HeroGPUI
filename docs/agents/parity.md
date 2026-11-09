@@ -56,6 +56,37 @@ Do not reintroduce v2 concepts:
 | `python .shots/a11y_audit.py` | Every component whose React Aria hook reports a role states one, with the components a later wave will reach recorded as pending |
 | `python .shots/theme_serde_audit.py` | `ThemeDocument` JSON keys match `ThemeBuilder` methods, and `serde` stays a non-default feature |
 
+### Runtime accessibility tree (macOS)
+
+`a11y_audit.py` reads roles declared in the source. What a screen reader
+actually gets is checked at runtime by `.shots/ax_tree.py`. GPUI's macOS
+platform exposes the window through AccessKit, which answers the
+NSAccessibility attributes VoiceOver reads (role, name, value, enabled,
+focus, `AXPress`). The tree is built only once an assistive client
+queries the app, and the script's Swift helper (`.shots/ax_dump.swift`,
+compiled on demand into `target/ax/`) is such a client. For each component
+page the script launches the native gallery unfocused, dumps the tree and
+checks:
+
+- **R1:** every operable control has a name;
+- **R2:** checkbox and range values are well formed;
+- **R3:** every interactive page exposes at least one control;
+- **R4, R5 (report-only):** setting focus through AX, and pressing through
+  `AXPress`.
+
+```sh
+python3 .shots/ax_tree.py --record target/ax-run.json --dump-dir target/ax-dumps
+python3 .shots/ax_tree.py --page Checkbox --page "Combo Box"
+python3 .shots/test_ax_tree.py
+```
+
+It needs macOS and the Accessibility (TCC) permission for the process that
+runs it, so it is not a CI job: it exits 2 without either. It reads what
+VoiceOver reads but does not verify speech output, reading order or rotor
+navigation. A name the audit accepts may still be unhelpful, so read the
+names it reports. `EXPECTED_UNNAMED` holds accepted exceptions, each with
+its reason, and an entry that no longer matches fails.
+
 No individual audit proves full parity. In particular, prop coverage does not
 prove behavior, design metrics do not prove anatomy, screenshots do not prove
 interaction, and static evidence mappings do not replace focused behavior tests.

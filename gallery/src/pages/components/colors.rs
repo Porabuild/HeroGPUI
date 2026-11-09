@@ -424,7 +424,7 @@ impl Gallery {
                             })
                             .into_any_element()
                     },
-                    h::Input::new(self.demo_text("cf-blur-log", "not blurred yet", cx))
+                    h::Input::new(self.demo_text("cf-blur-log", "not blurred yet", cx)).aria_label("Blur log")
                         .is_read_only(true)
                         .into_any_element()]), cx),
                 ),

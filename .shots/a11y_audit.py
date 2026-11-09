@@ -885,8 +885,12 @@ STATE_CALL = re.compile(
 # and `ThemeBuilder::role(&str, ..)` are colour roles and share the spelling,
 # which is the reason the port wraps gpui's `role` as `a11y` in the first
 # place. Matched here only when the argument is an AccessKit role.
+# `aria_label` is exempt: it is now a first-class component-builder name (the
+# public `aria-label` API every field/control exposes), not a raw gpui element
+# call — components store it and apply it through `a11y::Name`. Every other
+# `.aria_*` gpui builder stays banned outside the foundation module.
 RAW_CALLS = (
-    re.compile(r'\.aria_[a-z_]+\('),
+    re.compile(r'\.aria_(?!label\b)[a-z_]+\('),
     re.compile(r'\.on_a11y_action\('),
     re.compile(r'\.a11y_synthetic_children\('),
     re.compile(r'\.role\(\s*(?:accesskit::|gpui::accesskit::)?Role::'),
@@ -1211,7 +1215,7 @@ impl RenderOnce for Button {
         div()
             .id(self.id.clone())
             .a11y(a11y::Role::Button)
-            .aria_label("Close")
+            .aria_description("Close")
     }
 }
 '''
@@ -1269,12 +1273,19 @@ def self_test():
 
     # --- raw gpui builders outside the foundation module -------------------
     expect(verdicts({'button.rs': SAMPLE_RAW}) == ['RAW'],
-           'a raw `.aria_label(..)` outside %s must fail: %r'
+           'a raw `.aria_description(..)` outside %s must fail: %r'
            % (FOUNDATION, verdicts({'button.rs': SAMPLE_RAW})))
     expect(sample({FOUNDATION: '.aria_label("x").on_a11y_action(a, b)'})[0]
            == [],
            'the foundation module is where the raw builders live; it must not '
            'flag itself')
+
+    # --- the public component `aria_label` builder is not a raw gpui call ---
+    labelled = SAMPLE_GOOD.replace('.child("ok")',
+                                   '.aria_label("Close").child("ok")')
+    expect(sample({'button.rs': labelled})[0] == [],
+           'a component-builder \`.aria_label(..)\` must not count as a raw '
+           'gpui call: %r' % (sample({'button.rs': labelled})[0],))
 
     # --- state with no role is dead code -----------------------------------
     expect(verdicts({'button.rs': SAMPLE_STATE_ONLY})

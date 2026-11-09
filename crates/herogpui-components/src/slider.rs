@@ -176,6 +176,9 @@ pub struct Slider {
     is_disabled: bool,
     orientation: Orientation,
     label: Option<String>,
+    /// `aria-label` — the explicit accessible name, which wins over the
+    /// label-derived name exactly as the HTML name computation ranks it.
+    aria_label: Option<gpui::SharedString>,
     show_value: bool,
     /// `formatOptions` — how the value read-out is written.
     format: Option<herogpui_core::NumberFormat>,
@@ -249,6 +252,7 @@ impl Slider {
             is_disabled: false,
             orientation: Orientation::Horizontal,
             label: None,
+            aria_label: None,
             show_value: false,
             format: None,
             default_value: None,
@@ -491,6 +495,13 @@ impl Slider {
     /// Sets the label text.
     pub fn label(mut self, l: impl Into<String>) -> Self {
         self.label = Some(l.into());
+        self
+    }
+
+    /// `aria-label` — the explicit accessible name, which wins over the
+    /// label-derived name exactly as the HTML name computation ranks it.
+    pub fn aria_label(mut self, label: impl Into<gpui::SharedString>) -> Self {
+        self.aria_label = Some(label.into());
         self
     }
 
@@ -865,7 +876,11 @@ impl RenderOnce for Slider {
         // `useSlider` names the whole control `role="group"`; only the thumb
         // inputs are sliders. The group carries the label, the thumbs carry
         // the value.
-        let group_name = crate::a11y::Name::maybe(self.label.clone().map(gpui::SharedString::from));
+        let group_name = crate::a11y::Name::maybe(
+            self.aria_label
+                .clone()
+                .or_else(|| self.label.clone().map(gpui::SharedString::from)),
+        );
         // A horizontal slider fills its container, as v3's does; without a
         // width the label and value read-out collapse together instead of
         // sitting at opposite ends.

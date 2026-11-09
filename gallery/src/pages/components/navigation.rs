@@ -570,6 +570,7 @@ impl Gallery {
                     "Render Function", "The `render` closure hands the link's interactive state to a caller-built element. The root keeps the `href`, press, focus and disabled wiring, and the closure draws the content from the state alone.",
                     specimen_body("link-render-props", col(vec![
                         h::Link::new("ln-render")
+                            .label("Call to action")
                             .href("#")
                             .render(|state| {
                                 gpui::div()

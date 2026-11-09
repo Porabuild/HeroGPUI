@@ -1601,6 +1601,13 @@ impl Input {
         self
     }
 
+    /// `aria-label` — the explicit accessible name, which wins over the
+    /// label-derived name exactly as the HTML name computation ranks it.
+    pub fn aria_label(mut self, l: impl Into<SharedString>) -> Self {
+        self.a11y_label = Some(l.into());
+        self
+    }
+
     /// Sets the placeholder shown while the value is empty.
     pub fn placeholder(mut self, p: impl Into<SharedString>) -> Self {
         self.placeholder = Some(p.into());
@@ -2217,7 +2224,7 @@ impl RenderOnce for Input {
             self.input_type.a11y_role()
         };
         let a11y_name = crate::a11y::Name::field(
-            self.label.as_ref().or(self.a11y_label.as_ref()),
+            self.a11y_label.as_ref().or(self.label.as_ref()),
             self.description.as_ref(),
             &display_validity,
         );
@@ -3216,6 +3223,12 @@ impl TextField {
     /// Sets the visible label.
     pub fn label(mut self, text: impl Into<SharedString>) -> Self {
         self.inner = self.inner.label(text);
+        self
+    }
+
+    /// `aria-label` — see [`Input::aria_label`].
+    pub fn aria_label(mut self, text: impl Into<SharedString>) -> Self {
+        self.inner = self.inner.aria_label(text);
         self
     }
 

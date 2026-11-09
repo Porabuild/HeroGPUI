@@ -447,6 +447,9 @@ pub struct Checkbox {
     /// name. A [`CheckboxGroup`] composes its option labels into elements but
     /// still knows the string, and passes it here so the box is named.
     label_text: Option<gpui::SharedString>,
+    /// `aria-label` — the explicit accessible name, which wins over the
+    /// derived `label_text` exactly as the HTML name computation ranks it.
+    aria_label: Option<gpui::SharedString>,
     error_message: Option<gpui::SharedString>,
     children: Vec<AnyElement>,
     on_change: Option<std::sync::Arc<dyn Fn(&bool, &mut Window, &mut App) + 'static>>,
@@ -589,6 +592,7 @@ impl Checkbox {
             text_size: None,
             description: None,
             label_text: None,
+            aria_label: None,
             error_message: None,
             children: Vec::new(),
             on_change: None,
@@ -703,8 +707,12 @@ impl Checkbox {
         self
     }
 
-    /// Label content.
-    pub fn label(mut self, el: impl IntoElement) -> Self {
+    /// Label content. A plain string label also names the control for
+    /// assistive technology; a richer element leaves the name to `aria_label`.
+    pub fn label(mut self, el: impl IntoElement + 'static) -> Self {
+        if let Some(text) = a11y::label_text(&el) {
+            self.label_text = Some(text);
+        }
         self.children.push(el.into_any_element());
         self
     }
@@ -712,6 +720,13 @@ impl Checkbox {
     /// `Description` — help text below and aligned with the label.
     pub fn description(mut self, text: impl Into<gpui::SharedString>) -> Self {
         self.description = Some(text.into());
+        self
+    }
+
+    /// `aria-label` — the explicit accessible name, which wins over the
+    /// label-derived name exactly as the HTML name computation ranks it.
+    pub fn aria_label(mut self, label: impl Into<gpui::SharedString>) -> Self {
+        self.aria_label = Some(label.into());
         self
     }
 
@@ -1066,7 +1081,7 @@ impl RenderOnce for Checkbox {
         // is `checkbox`, and sets the DOM `indeterminate` property — which is
         // what makes a checkbox report `aria-checked="mixed"`.
         let name = a11y::Name::field(
-            self.label_text.as_ref(),
+            self.aria_label.as_ref().or(self.label_text.as_ref()),
             self.description.as_ref(),
             &display,
         );

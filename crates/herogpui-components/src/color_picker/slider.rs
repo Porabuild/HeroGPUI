@@ -139,6 +139,10 @@ pub struct ColorSlider {
     /// `name` — the name this control submits under; read back by
     /// [`Self::form_field`].
     name: Option<SharedString>,
+    /// `aria-label` — the explicit accessible name, which wins over the
+    /// name- and channel-derived name exactly as the HTML name computation
+    /// ranks it.
+    aria_label: Option<SharedString>,
     /// `defaultValue` — set it to hand this component its own state.
     default_value: Option<PickerColor>,
     id: ElementId,
@@ -165,6 +169,7 @@ impl ColorSlider {
     pub fn new(id: impl Into<ElementId>, value: PickerColor, channel: ColorChannel) -> Self {
         Self {
             name: None,
+            aria_label: None,
             default_value: None,
             id: id.into(),
             value,
@@ -185,6 +190,14 @@ impl ColorSlider {
     /// `name` — the name this control submits under.
     pub fn name(mut self, name: impl Into<SharedString>) -> Self {
         self.name = Some(name.into());
+        self
+    }
+
+    /// `aria-label` — the explicit accessible name, which wins over the
+    /// name- and channel-derived name exactly as the HTML name computation
+    /// ranks it.
+    pub fn aria_label(mut self, label: impl Into<SharedString>) -> Self {
+        self.aria_label = Some(label.into());
         self
     }
 
@@ -905,9 +918,28 @@ impl RenderOnce for ColorSlider {
         }
 
         // `useColorSlider` is `useSlider` with one thumb: `role: 'slider'`
-        // on the interactive track, named by the channel.
+        // on the interactive track. Its name is the explicit `aria_label`,
+        // else the field `name`, else the channel it edits; its value is the
+        // channel's position within that channel's own range.
+        let slider_name = self
+            .aria_label
+            .clone()
+            .or_else(|| self.name.clone())
+            .unwrap_or_else(|| self.channel.localized_label(cx));
+        let slider_step = if max - min > 2.0 { 1.0 } else { 0.01 };
+        let value_text = match self.channel {
+            ColorChannel::Hue => format!("{}°", raw.round()),
+            ColorChannel::Red | ColorChannel::Green | ColorChannel::Blue => {
+                format!("{}", raw.round())
+            }
+            _ => format!("{}%", (raw * 100.0).round()),
+        };
+        let thumb_range = a11y::Range::new(min as f64, max as f64, raw as f64)
+            .step(slider_step)
+            .text(Some(value_text));
         track = track
-            .a11y_named(a11y::Role::Slider, &a11y::Name::maybe(self.name.clone()))
+            .a11y_named(a11y::Role::Slider, &a11y::Name::maybe(Some(slider_name)))
+            .a11y_range(&thumb_range)
             .a11y_orientation(self.orientation);
         if !self.is_disabled {
             track = util::record_focus_bounds(track, &focus_handle, window, cx);

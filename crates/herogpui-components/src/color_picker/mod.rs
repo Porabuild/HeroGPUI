@@ -1006,6 +1006,26 @@ mod tests {
         );
     }
 
+    /// The values `ColorSlider` exposes on its `slider` node: the channel
+    /// range is the min/max and the label is the fallback accessible name.
+    #[test]
+    fn slider_channel_range_and_name_match_react_stately() {
+        let cases = [
+            (ColorChannel::Hue, (0.0, 360.0), "Hue"),
+            (ColorChannel::Saturation, (0.0, 1.0), "Saturation"),
+            (ColorChannel::Brightness, (0.0, 1.0), "Brightness"),
+            (ColorChannel::Lightness, (0.0, 1.0), "Lightness"),
+            (ColorChannel::Alpha, (0.0, 1.0), "Alpha"),
+            (ColorChannel::Red, (0.0, 255.0), "Red"),
+            (ColorChannel::Green, (0.0, 255.0), "Green"),
+            (ColorChannel::Blue, (0.0, 255.0), "Blue"),
+        ];
+        for (channel, range, label) in cases {
+            assert_eq!(channel.range(), range, "{channel:?} range");
+            assert_eq!(channel.label(), label, "{channel:?} label");
+        }
+    }
+
     #[test]
     fn area_channels_match_the_space() {
         assert_eq!(

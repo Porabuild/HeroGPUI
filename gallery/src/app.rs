@@ -631,6 +631,11 @@ impl Render for Gallery {
         let theme_button = h::Button::new("theme-toggle")
             .variant(h::Variant::Tertiary)
             .is_icon_only(true)
+            .aria_label(if is_dark {
+                "Switch to light mode"
+            } else {
+                "Switch to dark mode"
+            })
             .on_press(cx.listener(|_, _, _, cx| {
                 toggle_light_dark(cx);
                 cx.notify();
@@ -667,6 +672,7 @@ impl Render for Gallery {
                                 .map(|id| h::PickerItem::new(id.clone(), theme_label(&id)))
                                 .collect(),
                         )
+                        .aria_label("Theme")
                         .value(Some(active_theme))
                         .full_width(true)
                         .height(px(32.))

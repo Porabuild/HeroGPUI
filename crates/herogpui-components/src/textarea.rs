@@ -212,6 +212,12 @@ impl TextArea {
         self
     }
 
+    /// `aria-label` — see [`crate::input::Input::aria_label`].
+    pub fn aria_label(mut self, l: impl Into<SharedString>) -> Self {
+        self.inner = self.inner.aria_label(l);
+        self
+    }
+
     /// Sets the placeholder text.
     pub fn placeholder(mut self, p: impl Into<SharedString>) -> Self {
         self.inner = self.inner.placeholder(p);

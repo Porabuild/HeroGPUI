@@ -251,6 +251,7 @@ impl RenderOnce for Pagination {
             nav_button(
                 element_id::scoped(&base, "prev"),
                 previous_icon,
+                crate::i18n::ui_string(crate::i18n::UiString::Previous, cx),
                 prev_enabled,
                 NavStyle {
                     foreground: colors.foreground,
@@ -445,6 +446,7 @@ impl RenderOnce for Pagination {
             nav_button(
                 element_id::scoped(&base, "next"),
                 next_icon,
+                crate::i18n::ui_string(crate::i18n::UiString::Next, cx),
                 next_enabled,
                 NavStyle {
                     foreground: colors.foreground,
@@ -538,6 +540,7 @@ struct NavStyle {
 fn nav_button(
     id: gpui::ElementId,
     icon: gpui::AnyElement,
+    name: gpui::SharedString,
     enabled: bool,
     style: NavStyle,
     focus: &gpui::FocusHandle,
@@ -561,13 +564,12 @@ fn nav_button(
     let hover_id = element_id::scoped(&id, "hover-fade");
     let mut btn = gpui::div()
         .id(id)
-        // `PaginationPrevious` / `PaginationNext` are RAC `Button`s too. They
-        // carry no name upstream: the only child v3's own example composes
-        // into them is `PaginationPreviousIcon`, which is
-        // `"aria-hidden": "true"`. The port draws the same icon and names
-        // them no better, because inventing "Previous page" would be text
-        // v3.2.4 does not have.
-        .a11y(a11y::Role::Button)
+        // `PaginationPrevious` / `PaginationNext` are RAC `Button`s whose only
+        // child is an `"aria-hidden"` icon, so upstream leaves them unnamed.
+        // HeroGPUI names them from the same i18n strings the Calendar arrows
+        // use, since a control a screen reader cannot name is worse than a
+        // name upstream does not ship.
+        .a11y_named(a11y::Role::Button, &a11y::Name::labelled(name))
         .flex()
         .items_center()
         .justify_center()

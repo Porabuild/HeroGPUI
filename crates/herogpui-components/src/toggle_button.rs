@@ -43,6 +43,9 @@ pub struct ToggleButton {
     /// namespace its ids without breaking selection.
     key: Option<SharedString>,
     label: Option<SharedString>,
+    /// `aria-label` — the explicit accessible name, which wins over the
+    /// label-derived name exactly as the HTML name computation ranks it.
+    aria_label: Option<SharedString>,
     /// v3's `children`-as-a-function: handed the interactive state, `isSelected`
     /// included, and drawn in place of the label.
     content: Option<std::sync::Arc<dyn Fn(crate::util::InteractiveState) -> AnyElement + 'static>>,
@@ -107,6 +110,7 @@ impl ToggleButton {
             id: id.into(),
             key: None,
             label: None,
+            aria_label: None,
             variant: ToggleVariant::Default,
             size: Size::Md,
             size_explicit: false,
@@ -142,6 +146,13 @@ impl ToggleButton {
     /// Sets the text label.
     pub fn label(mut self, l: impl Into<SharedString>) -> Self {
         self.label = Some(l.into());
+        self
+    }
+
+    /// `aria-label` — the explicit accessible name, which wins over the
+    /// label-derived name exactly as the HTML name computation ranks it.
+    pub fn aria_label(mut self, label: impl Into<SharedString>) -> Self {
+        self.aria_label = Some(label.into());
         self
     }
 
@@ -354,7 +365,7 @@ impl RenderOnce for ToggleButton {
         // single-selection group, `useToggleButtonGroupItem` overwrites both:
         // `role = 'radio'`, `aria-checked`, and `delete aria-pressed`.
         let single = self.group_single_selection;
-        let name = a11y::Name::maybe(self.label.clone());
+        let name = a11y::Name::maybe(self.aria_label.clone().or(self.label.clone()));
         let mut el = div()
             .id(self.id.clone())
             .map(|e| {

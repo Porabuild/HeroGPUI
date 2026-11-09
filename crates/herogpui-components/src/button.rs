@@ -44,6 +44,9 @@ pub enum GroupEdge {
 pub struct Button {
     id: ElementId,
     label: Option<SharedString>,
+    /// `aria-label` — the explicit accessible name, which wins over the
+    /// label-derived name exactly as the HTML name computation ranks it.
+    aria_label: Option<SharedString>,
     /// v3's `children`-as-a-function: handed `{isHovered, isPressed, isFocused,
     /// isFocusVisible, isDisabled, isPending}` and drawn in place of the label.
     content: Option<std::sync::Arc<dyn Fn(util::InteractiveState) -> AnyElement + 'static>>,
@@ -98,6 +101,7 @@ impl Button {
         Self {
             id: id.into(),
             label: None,
+            aria_label: None,
             content: None,
             variant: Variant::Primary,
             variant_is_set: false,
@@ -144,6 +148,13 @@ impl Button {
     /// Sets the text label.
     pub fn label(mut self, label: impl Into<SharedString>) -> Self {
         self.label = Some(label.into());
+        self
+    }
+
+    /// `aria-label` — the explicit accessible name, which wins over the
+    /// label-derived name exactly as the HTML name computation ranks it.
+    pub fn aria_label(mut self, label: impl Into<SharedString>) -> Self {
+        self.aria_label = Some(label.into());
         self
     }
 
@@ -862,7 +873,7 @@ impl RenderOnce for Button {
         // implicit and its accessible name comes from the rendered children.
         // A gpui text child carries no id, so it contributes no node and no
         // name (see `a11y`), which is why the label is restated here.
-        let name = a11y::Name::maybe(self.label.clone());
+        let name = a11y::Name::maybe(self.aria_label.clone().or(self.label.clone()));
         let mut el = div()
             .id(self.id.clone())
             .a11y_named(a11y::Role::Button, &name)

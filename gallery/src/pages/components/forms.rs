@@ -20,7 +20,7 @@ impl Gallery {
                     specimen_body("cb-main", col(vec![
                         h::Checkbox::new("cb-usage")
                             .name("basic-terms")
-                            .label(gpui::div().child("Accept terms and conditions"))
+                            .label(gpui::div().child("Accept terms and conditions")).aria_label("Accept terms and conditions")
                             .into_any_element(),
                     ]), cx),
                 ),
@@ -30,12 +30,12 @@ impl Gallery {
                         specimen_body("cb-variant-Primary", h::Checkbox::new("cb-v-primary")
                             .default_selected(true)
                             .radius(px(4.))
-                            .label(gpui::div().child("Primary"))
+                            .label(gpui::div().child("Primary")).aria_label("Primary")
                             .into_any_element(), cx),
                         specimen_body("cb-variant-Secondary", h::Checkbox::new("cb-v-secondary")
                             .default_selected(true)
                             .variant(FieldVariant::Secondary)
-                            .label(gpui::div().child("Secondary"))
+                            .label(gpui::div().child("Secondary")).aria_label("Secondary")
                             .into_any_element(), cx),
                     ]),
                 ),
@@ -45,11 +45,11 @@ impl Gallery {
                         specimen_body("cb-rounded-selected", h::Checkbox::new("cb-round-1")
                             .is_round(true)
                             .default_selected(true)
-                            .label(gpui::div().child("Round control"))
+                            .label(gpui::div().child("Round control")).aria_label("Round control")
                             .into_any_element(), cx),
                         specimen_body("cb-rounded-unselected", h::Checkbox::new("cb-round-2")
                             .is_round(true)
-                            .label(gpui::div().child("Round, unchecked"))
+                            .label(gpui::div().child("Round, unchecked")).aria_label("Round, unchecked")
                             .into_any_element(), cx),
                     ]),
                 ),
@@ -67,7 +67,7 @@ impl Gallery {
                         .flex()
                         .items_center()
                         .gap(px(12.))
-                        .child(h::Checkbox::new("cb-external"))
+                        .child(h::Checkbox::new("cb-external").aria_label("Send me marketing emails"))
                         .child(h::Label::new("Send me marketing emails"))
                         .into_any_element()]), cx),
                 ),
@@ -75,7 +75,7 @@ impl Gallery {
                     "With Description",
                     specimen_body("cb-description", col(vec![h::Checkbox::new("cb-desc")
                         .default_selected(true)
-                        .label(gpui::div().child("Weekly digest"))
+                        .label(gpui::div().child("Weekly digest")).aria_label("Weekly digest")
                         .description("One email every Monday morning.")
                         .into_any_element()]), cx),
                 ),
@@ -83,7 +83,7 @@ impl Gallery {
                     "Default Selected",
                     specimen_body("cb-default-selected", col(vec![h::Checkbox::new("cb-default")
                         .default_selected(true)
-                        .label(gpui::div().child("On by default"))
+                        .label(gpui::div().child("On by default")).aria_label("On by default")
                         .into_any_element()]), cx),
                 ),
                 (
@@ -92,7 +92,7 @@ impl Gallery {
                         .is_required(true)
                         .is_invalid(true)
                         .validation_errors(["You must accept the terms"])
-                        .label(gpui::div().child("Accept the terms"))
+                        .label(gpui::div().child("Accept the terms")).aria_label("Accept the terms")
                         .into_any_element()]), cx),
                 ),
                 (
@@ -100,7 +100,7 @@ impl Gallery {
                     specimen_body("cb-controlled", col(vec![
                         h::Checkbox::new("cb-controlled")
                             .is_selected(cb_controlled)
-                            .label(gpui::div().child("Notifications"))
+                            .label(gpui::div().child("Notifications")).aria_label("Notifications")
                             .on_change(cx.listener(|this, v: &bool, _, cx| {
                                 this.set_demo_flag("cb-controlled", *v);
                                 cx.notify();
@@ -140,12 +140,12 @@ impl Gallery {
                         .name("terms")
                         .value("accepted")
                         .is_required(true)
-                        .label(gpui::div().child("Accept the terms"))
+                        .label(gpui::div().child("Accept the terms")).aria_label("Accept the terms")
                         .into_any_element()]), cx),
                 ),
                 (
                     "Render Props",
-                    specimen_body("cb-render-props", col(vec![h::Checkbox::new("cb-render")
+                    specimen_body("cb-render-props", col(vec![h::Checkbox::new("cb-render").aria_label("Accept terms")
                         .is_selected(cb_controlled)
                         .on_change(cx.listener(|this, v: &bool, _, cx| {
                             this.set_demo_flag("cb-controlled", *v);
@@ -178,7 +178,7 @@ impl Gallery {
                                     gpui::div().into_any_element()
                                 }
                             })
-                            .label(gpui::div().child("Heart"))
+                            .label(gpui::div().child("Heart")).aria_label("Heart")
                             .into_any_element(), cx),
                         specimen_body("cb-indicator-plus", h::Checkbox::new("cb-ind-plus")
                             .default_selected(true)
@@ -193,7 +193,7 @@ impl Gallery {
                                     gpui::div().into_any_element()
                                 }
                             })
-                            .label(gpui::div().child("Plus"))
+                            .label(gpui::div().child("Plus")).aria_label("Plus")
                             .into_any_element(), cx),
                         specimen_body("cb-indicator-indeterminate", h::Checkbox::new("cb-ind-minus")
                             .is_indeterminate(true)
@@ -209,7 +209,7 @@ impl Gallery {
                                     gpui::div().into_any_element()
                                 }
                             })
-                            .label(gpui::div().child("Indeterminate"))
+                            .label(gpui::div().child("Indeterminate")).aria_label("Indeterminate")
                             .into_any_element(), cx),
                     ]),
                 ),
@@ -218,7 +218,7 @@ impl Gallery {
                     "`text_size` replaces the label's `text-sm`; a 12/14/16px size takes v3's 16/20/24 leading. The control keeps its size step.",
                     specimen_body("cb-label-size", h::Checkbox::new("cb-label-size")
                         .text_size(px(16.))
-                        .label(gpui::div().child("Larger label"))
+                        .label(gpui::div().child("Larger label")).aria_label("Larger label")
                         .description("The 16px control is unchanged")
                         .into_any_element(), cx),
                 ),
@@ -228,12 +228,12 @@ impl Gallery {
                     col(vec![
                         specimen_body("cb-size-Sm", h::Checkbox::new("cb-sz-sm")
                             .size(h::CheckboxSize::Sm)
-                            .label(gpui::div().child("Small"))
+                            .label(gpui::div().child("Small")).aria_label("Small")
                             .description("Supporting text aligns with this label")
                             .into_any_element(), cx),
                         specimen_body("cb-size-Md", h::Checkbox::new("cb-sz-md")
                             .size(h::CheckboxSize::Md)
-                            .label(gpui::div().child("Medium"))
+                            .label(gpui::div().child("Medium")).aria_label("Medium")
                             .description("Supporting text aligns with this label")
                             .into_any_element(), cx),
                     ]),
@@ -242,7 +242,7 @@ impl Gallery {
                     "Styling Overrides",
                     "`hover_bg` replaces the row's hover fill.",
                     specimen_body("cb-styling", col(vec![h::Checkbox::new("cb-styling")
-                        .label(gpui::div().child("Accept the terms"))
+                        .label(gpui::div().child("Accept the terms")).aria_label("Accept the terms")
                         .hover_bg(cx.colors().accent.soft_hover())
                         .into_any_element()]), cx),
                 ),
@@ -308,7 +308,7 @@ impl Gallery {
                         h::Checkbox::new("cbg-all")
                             .is_selected(selected.len() == 3)
                             .is_indeterminate(!selected.is_empty() && selected.len() < 3)
-                            .label(gpui::div().child("All notifications"))
+                            .label(gpui::div().child("All notifications")).aria_label("All notifications")
                             .on_change(cx.listener(|this, all: &bool, _, cx| {
                                 this.checkbox_group = if *all {
                                     ["email", "sms", "push"]
@@ -413,7 +413,7 @@ impl Gallery {
                                     gpui::div().into_any_element()
                                 }
                             })
-                            .label(gpui::div().child("Email"))
+                            .label(gpui::div().child("Email")).aria_label("Email")
                             .into_any_element(),
                         h::Checkbox::new("cbg-ci-2")
                             .indicator(move |state| {
@@ -427,7 +427,7 @@ impl Gallery {
                                     gpui::div().into_any_element()
                                 }
                             })
-                            .label(gpui::div().child("SMS"))
+                            .label(gpui::div().child("SMS")).aria_label("SMS")
                             .into_any_element(),
                     ]), cx),
                 ),
@@ -569,7 +569,7 @@ impl Gallery {
                                         .child(
                                             h::FieldsetActions::new()
                                                 .child(
-                                                    h::Button::new("fs-submit")
+                                                    h::Button::new("fs-submit").aria_label("Save changes")
                                                         .child(icon(h::IconName::Save.path(), cx))
                                                         .child("Save changes")
                                                         .on_press(move |_, w, cx| submit(w, cx)),
@@ -885,7 +885,7 @@ impl Gallery {
                                         .flex()
                                         .gap(px(8.))
                                         .child(
-                                            h::Button::new("form-submit")
+                                            h::Button::new("form-submit").aria_label("Submit")
                                                 .child(icon(h::icons::CHECK, cx))
                                                 .child("Submit")
                                                 .on_press(move |_, w, cx| submit(w, cx)),
@@ -1243,7 +1243,7 @@ impl Gallery {
                     "Loading State",
                     specimen_body("ig-loading", field_col(vec![h::InputGroup::new()
                         .label("Checking availability")
-                        .input(h::Input::new(self.demo_text("ig-loading", "example", cx)))
+                        .input(h::Input::new(self.demo_text("ig-loading", "example", cx)).aria_label("Checking availability"))
                         .suffix(
                             gpui::div()
                                 .pr(px(8.))
@@ -1270,7 +1270,7 @@ impl Gallery {
                         .is_disabled(true)
                         .prefix(h::InputAddon::new("https://"))
                         .input(
-                            h::Input::new(self.demo_text("ig-disabled", "example.com", cx))
+                            h::Input::new(self.demo_text("ig-disabled", "example.com", cx)).aria_label("Website")
                                 .is_disabled(true),
                         )
                         .into_any_element()]), cx),
@@ -1322,11 +1322,12 @@ impl Gallery {
                     "Copy Button Suffix",
                     specimen_body("ig-copy-suffix", field_col(vec![h::InputGroup::new()
                         .label("Website")
-                        .input(h::Input::new(self.demo_text("ig-copy", "example.com", cx)))
+                        .input(h::Input::new(self.demo_text("ig-copy", "example.com", cx)).aria_label("Website"))
                         .suffix(
                             gpui::div().pr(px(4.)).child(
                                 h::Button::new("ig-copy-btn")
                                     .is_icon_only(true)
+                                    .aria_label("Copy")
                                     .variant(Variant::Ghost)
                                     .size(Size::Sm)
                                     .child(icon(h::icons::COPY, cx)),
@@ -1342,11 +1343,12 @@ impl Gallery {
                             "ig-key",
                             "sk_live_51H...",
                             cx,
-                        )))
+                        )).aria_label("API key"))
                         .suffix(
                             gpui::div().pr(px(4.)).child(
                                 h::Button::new("ig-key-copy")
                                     .is_icon_only(true)
+                                    .aria_label("Copy")
                                     .variant(Variant::Ghost)
                                     .size(Size::Sm)
                                     .child(icon(h::icons::COPY, cx)),
@@ -1359,7 +1361,7 @@ impl Gallery {
                     specimen_body("ig-password-toggle", field_col(vec![h::InputGroup::new()
                         .label("Password")
                         .input(
-                            h::Input::new(self.demo_text("ig-pw", "correct horse", cx)).input_type(
+                            h::Input::new(self.demo_text("ig-pw", "correct horse", cx)).aria_label("Password").input_type(
                                 if ig_reveal {
                                     h::InputType::Text
                                 } else {
@@ -1371,6 +1373,7 @@ impl Gallery {
                             gpui::div().pr(px(4.)).child(
                                 h::Button::new("ig-pw-toggle")
                                     .is_icon_only(true)
+                                    .aria_label(if ig_reveal { "Hide password" } else { "Show password" })
                                     .variant(Variant::Ghost)
                                     .size(Size::Sm)
                                     .child(icon(
@@ -1410,7 +1413,7 @@ impl Gallery {
                     "Badge Suffix",
                     specimen_body("ig-badge-suffix", field_col(vec![h::InputGroup::new()
                         .label("Plan")
-                        .input(h::Input::new(self.demo_text("ig-badge", "Pro", cx)))
+                        .input(h::Input::new(self.demo_text("ig-badge", "Pro", cx)).aria_label("Plan"))
                         .suffix(
                             gpui::div().pr(px(8.)).child(
                                 h::Chip::new()
@@ -1430,7 +1433,7 @@ impl Gallery {
                         .is_invalid(true)
                         .error_message("Enter a valid URL")
                         .prefix(h::InputAddon::new("https://"))
-                        .input(h::Input::new(self.demo_text("ig-invalid", "not a url", cx)))
+                        .input(h::Input::new(self.demo_text("ig-invalid", "not a url", cx)).aria_label("Website"))
                         .into_any_element()]), cx),
                 ),
                 (
@@ -1583,7 +1586,7 @@ impl Gallery {
                         .gap(px(8.))
                         .child(h::Label::new("Verify account").into_any_element())
                         .child(muted_para("We've sent a code to a****@gmail.com", cx))
-                        .child(h::InputOTP::new(self.demo_otp("otp-usage", 6, cx))
+                        .child(h::InputOTP::new(self.demo_otp("otp-usage", 6, cx)).aria_label("Verify account")
                             .separator()
                             .into_any_element())
                         .child(gpui::div()
@@ -1600,12 +1603,12 @@ impl Gallery {
                     col(vec![
                         specimen_body(
                             "otp-variant-Primary",
-                            h::InputOTP::new(self.demo_otp("otp-primary", 6, cx)).into_any_element(),
+                            h::InputOTP::new(self.demo_otp("otp-primary", 6, cx)).aria_label("Verification code").into_any_element(),
                             cx,
                         ),
                         specimen_body(
                             "otp-variant-Secondary",
-                            h::InputOTP::new(self.demo_otp("otp-secondary", 6, cx))
+                            h::InputOTP::new(self.demo_otp("otp-secondary", 6, cx)).aria_label("Verification code")
                                 .variant(FieldVariant::Secondary)
                                 .into_any_element(),
                             cx,
@@ -1617,27 +1620,27 @@ impl Gallery {
                     specimen_body("otp-in-surface", col(vec![h::Surface::new()
                         .padding(px(24.))
                         .child(
-                            h::InputOTP::new(self.demo_otp("otp-surface", 6, cx))
+                            h::InputOTP::new(self.demo_otp("otp-surface", 6, cx)).aria_label("Verification code")
                                 .variant(FieldVariant::Secondary),
                         )
                         .into_any_element()]), cx),
                 ),
                 (
                     "Disabled State",
-                    specimen_body("otp-disabled", col(vec![h::InputOTP::new(self.demo_otp("otp-disabled", 6, cx))
+                    specimen_body("otp-disabled", col(vec![h::InputOTP::new(self.demo_otp("otp-disabled", 6, cx)).aria_label("Verification code")
                         .is_disabled(true)
                         .into_any_element()]), cx),
                 ),
                 (
                     "Four Digits",
                     specimen_body("otp-four-digits", col(vec![
-                        h::InputOTP::new(self.demo_otp("otp-four", 4, cx)).into_any_element()
+                        h::InputOTP::new(self.demo_otp("otp-four", 4, cx)).aria_label("Verification code").into_any_element()
                     ]), cx),
                 ),
                 (
                     "Controlled",
                     specimen_body("otp-controlled", col(vec![
-                        h::InputOTP::new(self.demo_otp("otp-controlled", 6, cx))
+                        h::InputOTP::new(self.demo_otp("otp-controlled", 6, cx)).aria_label("Verification code")
                             // `value` seeds the caller's copy into the field
                             // once, which is what "controlled" means here.
                             .value(otp_typed.as_str())
@@ -1659,7 +1662,7 @@ impl Gallery {
                 (
                     "On Complete",
                     specimen_body("otp-on-complete", col(vec![
-                        h::InputOTP::new(self.demo_otp("otp-complete", 6, cx))
+                        h::InputOTP::new(self.demo_otp("otp-complete", 6, cx)).aria_label("Verification code")
                             .on_complete(cx.listener(|this, code: &str, _, cx| {
                                 this.otp_done = code.to_owned();
                                 cx.notify();
@@ -1691,19 +1694,19 @@ impl Gallery {
                     specimen_body("otp-pattern", col(vec![
                         spec(
                             "Digits (default)",
-                            h::InputOTP::new(self.demo_otp("otp-pat-digits", 4, cx))
+                            h::InputOTP::new(self.demo_otp("otp-pat-digits", 4, cx)).aria_label("Verification code")
                                 .pattern(h::OtpPattern::Digits),
                             cx,
                         ),
                         spec(
                             "Alphanumeric",
-                            h::InputOTP::new(self.demo_otp("otp-pat-alnum", 4, cx))
+                            h::InputOTP::new(self.demo_otp("otp-pat-alnum", 4, cx)).aria_label("Verification code")
                                 .pattern(h::OtpPattern::Alphanumeric),
                             cx,
                         ),
                         spec(
                             "Any character",
-                            h::InputOTP::new(self.demo_otp("otp-pat-any", 4, cx))
+                            h::InputOTP::new(self.demo_otp("otp-pat-any", 4, cx)).aria_label("Verification code")
                                 .pattern(h::OtpPattern::Any),
                             cx,
                         ),
@@ -1712,12 +1715,12 @@ impl Gallery {
                 (
                     "With Validation",
                     specimen_body("otp-validation", col(vec![
-                        h::InputOTP::new(self.demo_otp("otp-validate", 6, cx))
+                        h::InputOTP::new(self.demo_otp("otp-validate", 6, cx)).aria_label("Verification code")
                             .validate(|code| {
                                 (code.chars().count() < 6).then(|| "Enter all six digits".into())
                             })
                             .into_any_element(),
-                        h::InputOTP::new(self.demo_otp("otp-invalid", 6, cx))
+                        h::InputOTP::new(self.demo_otp("otp-invalid", 6, cx)).aria_label("Verification code")
                             // `isInvalid` from the outside: what a rejected code
                             // looks like when the server says so.
                             .is_invalid(true)
@@ -1729,7 +1732,7 @@ impl Gallery {
                     "Filled slots use the focus background and the active cursor slot keeps its caret and keyboard-visible ring.",
                     specimen_body(
                         "otp-filled-active",
-                        h::InputOTP::new(self.demo_otp("otp-filled-active", 6, cx))
+                        h::InputOTP::new(self.demo_otp("otp-filled-active", 6, cx)).aria_label("Verification code")
                             .value("123")
                             .auto_focus(true)
                             .into_any_element(),
@@ -1743,7 +1746,7 @@ impl Gallery {
                         "otp-custom-slots",
                         4,
                         cx
-                    ))
+                    )).aria_label("Verification code")
                     .slot(|index, value| {
                         gpui::div()
                             .flex()

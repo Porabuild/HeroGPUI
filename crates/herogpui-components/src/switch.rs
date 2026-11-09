@@ -294,6 +294,12 @@ pub struct Switch {
     /// `Description` — v3 composes it as a sibling of the button row, indented
     /// to sit under the label.
     description: Option<gpui::SharedString>,
+    /// The plain text of the label, when `label` was given a string — see
+    /// [`crate::a11y::label_text`]. The element-typed `label` carries no name.
+    label_text: Option<gpui::SharedString>,
+    /// `aria-label` — the explicit accessible name, which wins over the
+    /// label-derived name exactly as the HTML name computation ranks it.
+    aria_label: Option<gpui::SharedString>,
     /// `Switch.Thumb` children — v3 draws an icon inside the thumb, one per
     /// state (`.switch__thumb > *` is a centred, full-size box).
     thumb_off: Option<AnyElement>,
@@ -377,6 +383,8 @@ impl Switch {
             is_read_only: false,
             label: None,
             description: None,
+            label_text: None,
+            aria_label: None,
             thumb_off: None,
             thumb_on: None,
             label_first: false,
@@ -537,9 +545,21 @@ impl Switch {
         self
     }
 
-    /// Sets the label content rendered beside the control.
-    pub fn label(mut self, el: impl IntoElement) -> Self {
+    /// Sets the label content rendered beside the control. A plain string
+    /// label also names the control for assistive technology; a richer element
+    /// leaves the name to `aria_label`.
+    pub fn label(mut self, el: impl IntoElement + 'static) -> Self {
+        if let Some(text) = a11y::label_text(&el) {
+            self.label_text = Some(text);
+        }
         self.label = Some(el.into_any_element());
+        self
+    }
+
+    /// `aria-label` — the explicit accessible name, which wins over the
+    /// label-derived name exactly as the HTML name computation ranks it.
+    pub fn aria_label(mut self, label: impl Into<gpui::SharedString>) -> Self {
+        self.aria_label = Some(label.into());
         self
     }
 
@@ -728,7 +748,11 @@ impl RenderOnce for Switch {
         // `Switch.Content` is the interactive, labelled button in v3. Keep
         // the role and focus target on the row so a click on the label has the
         // same result as a click on the track; the track itself is visual.
-        let name = a11y::Name::field(None, self.description.as_ref(), &display);
+        let name = a11y::Name::field(
+            self.aria_label.as_ref().or(self.label_text.as_ref()),
+            self.description.as_ref(),
+            &display,
+        );
         let mut track = gpui::div()
             .id(element_id::scoped(&self.id, "control"))
             .relative()
