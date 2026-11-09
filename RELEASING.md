@@ -70,7 +70,20 @@ is stored in GitHub.
    the same value, then run `pnpm run extract` from `web/` so
    `web/src/data/releases.json` is regenerated from the changelog (and
    `pnpm run extract:check` passes).
-3. Run the complete local gate from `AGENTS.md`, plus:
+3. If the release has breaking or behaviour changes, write or extend
+   `docs/migration-X.Y.md` covering both the API breaks and the behaviour and
+   visual changes an app could rely on. List the API breaks with
+
+   ```powershell
+   cargo semver-checks -p herogpui-core -p herogpui-theme -p herogpui-components -p herogpui --baseline-version <previous> --release-type patch
+   ```
+
+   — a 0.x minor bump passes the normal `semver` check, so this baseline form is
+   what surfaces them. Link the guide from the release's CHANGELOG entry with
+   an absolute `blob/master` URL (the website renders only absolute links), and
+   add it to the README's migration list.
+
+4. Run the complete local gate from `AGENTS.md`, plus:
 
    ```powershell
    cargo package -p herogpui-core --allow-dirty --no-verify --list
@@ -84,15 +97,15 @@ is stored in GitHub.
    cargo semver-checks -p herogpui-core -p herogpui-theme -p herogpui-components -p herogpui
    ```
 
-4. Commit, create an annotated `vX.Y.Z` tag, and push the commit and tag.
-5. The release workflow builds every supported gallery binary, attests them,
+5. Commit, create an annotated `vX.Y.Z` tag, and push the commit and tag.
+6. The release workflow builds every supported gallery binary, attests them,
    and creates the immutable GitHub Release with those binaries plus
    `LICENSE`, `NOTICE` and `LICENSE-lucide` (the ISC/MIT license of the
    Lucide icons the binaries embed). It is created only after the `semver`
    job has checked the four library crates' public API against their latest
    crates.io release with `cargo semver-checks`: a breaking change needs a
    0.x minor (or major) version, never a patch.
-6. The workflow's `publish-crates` job publishes the crates. To publish by
+7. The workflow's `publish-crates` job publishes the crates. To publish by
    hand instead (first release of a crate, or a workflow outage), from the
    tagged commit and in dependency order:
 
@@ -104,7 +117,12 @@ is stored in GitHub.
    cargo publish -p herogpui-gallery --locked
    ```
 
-7. Verify a new project with `cargo add herogpui`, and install the gallery
+8. The release is created with GitHub's generated PR list only. Put an
+   "Upgrading from X" paragraph linking the migration guide, followed by the
+   release's Breaking list, above the generated notes, and write it back with
+   `gh release edit vX.Y.Z --notes-file <notes>`.
+
+9. Verify a new project with `cargo add herogpui`, and install the gallery
    with `cargo install herogpui-gallery` on at least one clean machine.
 
 The web gallery (the WebAssembly build the website embeds) is **not** a

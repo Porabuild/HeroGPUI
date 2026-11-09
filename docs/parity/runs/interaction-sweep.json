@@ -2,7 +2,7 @@
   "schema_version": 1,
   "kind": "interaction-sweep",
   "recorded_on": "2026-11-09",
-  "source_sha256": "e8aef7bed1268a04d56028bf440c2f8a7af668a0ca4e8054794e2e55f7c9843e",
+  "source_sha256": "1e552986ee51ff0b27f2eda5fa0acb55473c9eb9c95be51012acb67e30371dd9",
   "platform": "Darwin arm64 (gpui headless test platform)",
   "command": "cargo test -p herogpui-gallery --lib interaction_sweep",
   "exit_status": 0,

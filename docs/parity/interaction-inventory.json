@@ -25379,14 +25379,14 @@
     "sha256": "8ec1962d050066864351383d7d02a631e0c5e0c2276bb1316ad00fbfe8987009"
   },
   "source_snapshot": {
-    "sha256": "e8aef7bed1268a04d56028bf440c2f8a7af668a0ca4e8054794e2e55f7c9843e",
+    "sha256": "1e552986ee51ff0b27f2eda5fa0acb55473c9eb9c95be51012acb67e30371dd9",
     "files": {
       ".cargo/config.toml": "6ce2a269fd46b2570763e8e446ac93e9d04614416af21134877cf7b388e776f9",
       ".gitattributes": "13aede5d4eaee3f19ecad6be9d4941dafe8bc4d596e83a2083f4143fb6e0f434",
       ".shots/a11y_audit.py": "c1d4f45306ec015c83ec29fa174e724d9298118b162eadb45cd0b385337d0509",
       ".shots/anatomy_audit.py": "8f6798f5118908dfb95a418104ed89f60bb89565e54f59778f5a9c07823f62c7",
       ".shots/anim_audit.py": "090152877b56672703147ce72f6e833e3c0615058ca6aaa02146bd32424c6d8c",
-      ".shots/api_audit.py": "94b1e603354488871e208ffa8b92d4d64a2d2f67fbbae8e7723dbf8e363ee609",
+      ".shots/api_audit.py": "8a82d7609952c64d3622f0f2d9fa41c1439829ba5f61867c0add67c87c89cd68",
       ".shots/ax_tree.py": "f04571967ab4d21a38b14c8e29bc9a77f81fa29a26d29aaa7a19af622900c256",
       ".shots/batch.ps1": "ef6b5b45dd1f2315ad40355d972429fa0c52a1003cf64bd9a984ebd8818667e3",
       ".shots/behaviour_audit.py": "b5bb2863e51c0b7486430d833767b615c0a71d54c590d7664de8fb4c32355e2f",
@@ -25424,12 +25424,12 @@
       ".shots/rebuild.ps1": "68e081ce2fc49678a14758621aadf0025edc17b06b22b44f88a9764bfc126100",
       ".shots/record_sweep.py": "f7509f7ea7d1d84aad7c49c7a56ac81a3b5c1cf4abf90d92ec1496e9bbc34e3b",
       ".shots/reference_audit.py": "4e755420f450b824fe75dd6a81b6124402e84345465df2431558f9cf748d616a",
-      ".shots/refresh.ps1": "5c9153535d8f1f4c7d03d2cf5c7077fec6dbb0a7f5f2106f060dbd12fe5d5d0f",
+      ".shots/refresh.ps1": "2f7731310653d9f42942235517d1968e0913ca13d0d907b9509e940b8e0e31e2",
       ".shots/rm_builder.py": "e0661f4b02d2341b4d5dd61e9f62a20fc955d0416a97ad826f21c80fe371eb05",
       ".shots/run-tests.sh": "c872b7df06a9fae96a26922b47283884b73e8ca1ffb5609233cc8e2c7115e641",
       ".shots/sections.py": "f75fb2db132cdca0c7b1d4d6f07e9bf41c59d5e2fd157f1280dce605e0421111",
       ".shots/smoke.ps1": "d5f7a92a73dfcedc082bea8845a4c44fab3278564eea17959431b13fbc19ed73",
-      ".shots/stale_docs_audit.py": "e9d1a6952eed2fdb9458b9ff8af62dd5f91a1137182b0503f20d91d04598273c",
+      ".shots/stale_docs_audit.py": "6cba6232171cdce097084ef4671bbd205341c1e3f9cf403796e8efeaa0f39926",
       ".shots/state_audit.py": "2def978e5abf18e6c02dc69b04defd278ac107c46b586c8ef0b2a4fa49a1884d",
       ".shots/strip_size.py": "f3996d1457902f3ff718d0f6d6d0d7e826c4d4435bbc659d01d2569c0141aab3",
       ".shots/subset-fonts.py": "d054dea2c82ed0d16c1b65f4eba84fbbd2a3ad4cbb79ede51f0d669d73ebf907",
@@ -25903,7 +25903,7 @@
       "web/src/components/ui/status-chip.tsx": "c64a34146c0e9a5889f3c3d766b595d7099bcc705ba42b588b79532acb5a3c25",
       "web/src/data/catalog.json": "8ec1962d050066864351383d7d02a631e0c5e0c2276bb1316ad00fbfe8987009",
       "web/src/data/reference.json": "a248ebb566d95485c1d6360e649c0decbfcce8cb2d6c83d4a452cabea191a492",
-      "web/src/data/releases.json": "8a3c0a46daa259f318b332cd90261b51686da95ccd26fdbb943ceb6e0725be27",
+      "web/src/data/releases.json": "4219dd9080a2915d1ed5347954b6a48403ebfb11d737a0fb5580b3e1868ffa04",
       "web/src/data/rust-examples.json": "b8a69a5185ac0ea0288863241b21c9557fd68b41ff27ffdcc6546e45282b63cf",
       "web/src/data/wasm-parity.json": "364f653cb8f7199a104b8822ab88b01151cdebd0cc0e6f40d5f26243dab7f9a8",
       "web/src/data/wasm-sections.json": "cc73fd1864f392412746ed71603fd3363070fe225199a1ebd0ccb5c1c5b7b6f2",
@@ -149932,7 +149932,7 @@
       ]
     }
   ],
-  "verification_sha256": "a58843f4dd6899734651d9fdf5e2e1aa624551213bfd9df5bedfe63861380dfb",
+  "verification_sha256": "37b493bcf107d2803b28754f2419b3b9e9bb96c53ec5f01b6497a7ccc9f5d256",
   "retired_source_changes": [
     {
       "path": "packages/react/src/components/autocomplete/autocomplete.stories.tsx",
@@ -151720,11 +151720,11 @@
   "scripted_runs": [
     {
       "path": "docs/parity/runs/interaction-sweep.json",
-      "sha256": "c7815b75c2ef6714b31da7e3965136e96266f4311c4a11f94b8efe91fd3287d5",
+      "sha256": "ac71742a818f9c99c65cdc39110cc361e147dc5d5b57c84ad2a16a46d4453927",
       "kind": "interaction-sweep",
       "recorded_on": "2026-11-09",
       "identity": {
-        "source_sha256": "e8aef7bed1268a04d56028bf440c2f8a7af668a0ca4e8054794e2e55f7c9843e"
+        "source_sha256": "1e552986ee51ff0b27f2eda5fa0acb55473c9eb9c95be51012acb67e30371dd9"
       },
       "current": true,
       "counts": {
@@ -152547,11 +152547,11 @@
     },
     {
       "path": "docs/parity/runs/native-a11y.json",
-      "sha256": "2a8c5494d637c8b93c31bb8aa8f49df96396f0385732c89d552b9636d044d53f",
+      "sha256": "2d8f6bc9a1d1a2811181e53d38e6b5a6e79c5d279a91a03562fd777eaa94630c",
       "kind": "native-a11y",
       "recorded_on": "2026-11-09",
       "identity": {
-        "source_sha256": "e8aef7bed1268a04d56028bf440c2f8a7af668a0ca4e8054794e2e55f7c9843e"
+        "source_sha256": "1e552986ee51ff0b27f2eda5fa0acb55473c9eb9c95be51012acb67e30371dd9"
       },
       "current": true,
       "counts": {

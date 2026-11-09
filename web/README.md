@@ -2,7 +2,7 @@
 
 The documentation site for
 [HeroGPUI](https://github.com/Porabuild/HeroGPUI) — a native Rust/GPUI port
-of [HeroUI v3.2.6](https://heroui.com). Deployed to Vercel under the
+of [HeroUI v3.2.7](https://heroui.com). Deployed to Vercel under the
 Porabuild team and mounted at <https://porabuild.com/herogpui> via a
 Next.js multi-zone rewrite; see [DEPLOYMENT.md](DEPLOYMENT.md) for the
 operator runbook and [ARCHITECTURE.md](ARCHITECTURE.md) for the
@@ -23,17 +23,17 @@ Component pages otherwise show: header with the Rust import line, Usage (the
 live frame plus code), Anatomy, Customization (the styling table), API
 reference (props, parts and slots, then states), and Related components.
 
-The catalog indexes **66 documentation pages covering all 71 components
-HeroUI v3 documents** — a few pages cover a component and its group or slot
-siblings together (`toggle-button` covers ToggleButton and ToggleButtonGroup,
+The catalog indexes the documentation pages covering every component HeroUI
+v3 documents — a few pages cover a component and its group or slot siblings
+together (`toggle-button` covers ToggleButton and ToggleButtonGroup,
 `disclosure` covers Disclosure and DisclosureGroup, `label-messages` covers
 Label, Description, ErrorMessage and FieldError).
 
 ## Stack
 
-- Next.js **16.3.3** (App Router, Turbopack), React **19.2.8**
-- `@heroui/react` **3.2.6** for site UI chrome, `@heroui/styles` for tokens;
-  Tailwind CSS **4.3.3**, TypeScript 5, Shiki for Rust highlighting
+- Next.js **16.4.5** (App Router, Turbopack), React **19.3.1**
+- `@heroui/react` **3.2.7** for site UI chrome, `@heroui/styles` for tokens;
+  Tailwind CSS **4.3.3**, TypeScript 7, Shiki for Rust highlighting
 - Lint/format: **oxlint** + **oxfmt** (`pnpm run check`). No ESLint.
 - Package manager: **pnpm**. Never npm. Node `>=22.13.0`.
 

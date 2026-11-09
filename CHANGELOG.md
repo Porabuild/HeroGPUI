@@ -8,7 +8,20 @@ version covers `herogpui`, `herogpui-core`, `herogpui-theme`,
 
 ## [Unreleased]
 
+### Changed
+
+- `docs/migration-0.15.md` now also covers the behaviour and visual changes
+  an application could rely on — validation timing, list/overlay keyboard and
+  pointer behaviour, the Drawer handle, the Calendar year picker, the
+  DateField hint, popover and InputGroup layout, and accessible names — and
+  `llms.txt` lists Sheet under Overlays. README, `llms.txt` and the website
+  docs no longer hard-code component or page totals.
+
 ## [0.15.0] - 2026-11-09
+
+Upgrading from 0.14: see the
+[migration guide](https://github.com/Porabuild/HeroGPUI/blob/master/docs/migration-0.15.md)
+for each breaking or behaviour change, with before/after code.
 
 ### Breaking
 
@@ -17,7 +30,7 @@ version covers `herogpui`, `herogpui-core`, `herogpui-theme`,
   platform. `extend::shift_wheel_scroll_x` takes `&ScrollEvent` (GPUI
   renamed `ScrollWheelEvent`) and the handler's `&mut Window`, which it
   refreshes after moving the offset. See
-  [`docs/migration-0.15.md`](docs/migration-0.15.md).
+  [`docs/migration-0.15.md`](https://github.com/Porabuild/HeroGPUI/blob/master/docs/migration-0.15.md).
 - The minimum Rust version is 1.99 (was 1.98), matching
   `rust-toolchain.toml`'s 1.99.1 pin.
 
@@ -116,7 +129,7 @@ version covers `herogpui`, `herogpui-core`, `herogpui-theme`,
   every step, and on blur when the text changed or parses; Checkbox and
   Switch on every toggle; DatePicker on a calendar pick; DateRangePicker once
   a range is complete. `Allow` shows everything live, and a form reset clears
-  what is shown. See [`docs/migration-0.15.md`](docs/migration-0.15.md).
+  what is shown. See [`docs/migration-0.15.md`](https://github.com/Porabuild/HeroGPUI/blob/master/docs/migration-0.15.md).
 - Focused empty fields keep their placeholder, with the caret at its start,
   as HTML inputs do.
 - Hovering a Select or ComboBox option moves the keyboard cursor, unless the
@@ -424,7 +437,7 @@ version covers `herogpui`, `herogpui-core`, `herogpui-theme`,
 
 - **Breaking:** `VirtualListScroll` is `#[non_exhaustive]` (it gained
   `Center`); a `match` on it needs a wildcard arm. See
-  [`docs/migration-0.13.md`](docs/migration-0.13.md).
+  [`docs/migration-0.13.md`](https://github.com/Porabuild/HeroGPUI/blob/master/docs/migration-0.13.md).
 - The fixed `row_height` bodies of `ListBox` and `Table` and ComboBox's
   popover list render through `VirtualList`'s uniform mode instead of calling
   `uniform_list` themselves. Behaviour is unchanged: the keyboard cursor is

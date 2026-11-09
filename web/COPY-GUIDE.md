@@ -91,10 +91,10 @@ Sourced from the repository, and true:
 - HeroGPUI is a UI library for Rust desktop applications, built on GPUI, the
   GPU-accelerated framework behind the Zed editor.
 - It runs on Windows, macOS and Linux from one codebase.
-- It implements every component HeroUI documents — 71 of them, indexed here as
-  66 pages because a few pages cover a component together with its group or
-  slot siblings. State the 66/71 relationship once, where a count appears, and
-  do not belabour it.
+- It implements every component HeroUI documents. The catalog derives its
+  component and page counts, so never state a total in copy — describe the
+  grouping instead (a few pages cover a component together with its group or
+  slot siblings).
 - The colour system is OKLCH semantic tokens: base, surfaces, roles
   (`default`, `accent`, `success`, `warning`, `danger`) and field tokens, each
   deriving its hover, soft and foreground variants.
