@@ -2823,10 +2823,10 @@
         "prop": "className",
         "type": "string",
         "default": "—",
-        "description": "Browser classes are unavailable.",
+        "description": "Native group sx controls spacing, wrapping and width; browser class strings are unavailable.",
         "rustOwner": "ColorSwatchPicker",
-        "rust": "—",
-        "status": "unavailable"
+        "rust": "sx(style)",
+        "status": "partial"
       },
       {
         "owner": "ColorSwatchPicker",
@@ -19897,7 +19897,7 @@
         "prop": "className",
         "type": "string",
         "default": "—",
-        "description": "Additional CSS classes. Native trigger_text_size, row_text_size and panel_padding builders target the painted parts.",
+        "description": "Additional CSS classes. Native trigger_text_size, row_text_size, panel_padding, panel_gap and panel_min_width builders target the painted parts.",
         "rustOwner": "Select",
         "rust": "—",
         "status": "unavailable"
@@ -20017,9 +20017,9 @@
         "prop": "children",
         "type": "ReactNode",
         "default": "—",
-        "description": "The popover draws the typed options rather than arbitrary content children.",
+        "description": "The popover draws typed options with replaceable visible row content; arbitrary popover children remain unsupported.",
         "rustOwner": "Select",
-        "rust": "new(id, options)",
+        "rust": "item_content(render)",
         "status": "partial"
       },
       {

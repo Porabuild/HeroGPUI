@@ -87,3 +87,6 @@ fn every_integration_source_belongs_to_exactly_one_suite() {
         );
     }
 }
+
+#[path = "control_slots.rs"]
+mod control_slots;

@@ -874,6 +874,9 @@ EXTRA_OK_SCOPED = {
     # v3 composes per-option leading content (icons, swatches) through item
     # children; the port takes one per-row factory closure instead.
     'Select.item_leading': 'no-classname',
+    'Select.item_content': 'composition',
+    'Select.panel_gap': 'no-classname',
+    'Select.panel_min_width': 'no-classname',
     # v3's tooltip body is the composed children of the trigger's aria
     # relation; the port keeps the string as the accessible name and lets a
     # closure replace only the visual.

@@ -1087,6 +1087,22 @@ impl Gallery {
                     ]), cx),
                 ),
                 (
+                    "Single-row Palette",
+                    "Group styling adjusts spacing and wrapping while the picker retains selection and keyboard navigation.",
+                    specimen_body("csp-single-row", col(vec![
+                        h::ColorSwatchPicker::new("csp-single-row", palette())
+                            .size(SizeXl::Xs)
+                            .shape(h::SwatchShape::Square)
+                            .value(selected)
+                            .sx(|el| el.w(px(230.)).gap(px(4.)).flex_nowrap().justify_between())
+                            .on_change(cx.listener(|this, value: &h::PickerColor, _, cx| {
+                                this.swatch_selected = *value;
+                                cx.notify();
+                            }))
+                            .into_any_element(),
+                    ]), cx),
+                ),
+                (
                     "Square, stacked",
                     col(vec![h::ColorSwatchPicker::new("csp-square", palette())
                         .value(selected)

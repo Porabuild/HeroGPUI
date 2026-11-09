@@ -1482,6 +1482,31 @@ impl Gallery {
                     ]), cx),
                 ),
                 (
+                    "Icon-only Options",
+                    "Custom row content keeps each option's accessible label and typeahead. The Select still owns selection and its indicator.",
+                    specimen_body("sel-icon-only", field_col(vec![
+                        h::Select::new("sel-icon-only", swatch_picker_items())
+                            .aria_label("Accent")
+                            .is_open(self.demo_overlay("sel-icon-open"))
+                            .on_open_change(cx.listener(|this, open: &bool, _, cx| {
+                                this.set_demo_flag("sel-icon-open", *open);
+                                cx.notify();
+                            }))
+                            .on_selection_change(cx.listener(|this, _: &Option<SharedString>, _, cx| {
+                                this.set_demo_flag("sel-icon-open", false);
+                                cx.notify();
+                            }))
+                            .placeholder("Choose one")
+                            .panel_gap(px(4.))
+                            .panel_min_width(px(64.))
+                            .item_content(|key, _, _, _| gpui::div()
+                                .flex_1().h(px(16.))
+                                .child(gpui::div().size(px(16.)).rounded(px(4.)).bg(swatch_colour(key)))
+                                .into_any_element())
+                            .into_any_element(),
+                    ]), cx),
+                ),
+                (
                     "Wrapping Trigger",
                     "The trigger is a `min-h` box, so `padding_y` leaves a single-line value at 36px and only grows a value that has wrapped — v3's `py-2`. The narrow field below forces the wrap.",
                     specimen_body("sel-padding-y", col(vec![

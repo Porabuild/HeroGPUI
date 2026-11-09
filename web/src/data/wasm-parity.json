@@ -1,6 +1,6 @@
 {
   "version": 4,
-  "inputsSha256": "0c91e6b0f6c56efdc24681b1d5c407c25edc7b85fe318ac8dec0f4175ec160aa",
+  "inputsSha256": "de2659440f8b10896b433fb4ea77fc1b1debcbd3bcd04455ca708c8b9bc6cd6a",
   "examples": {
     "accordion/Controlled": {
       "codeSha256": "ac39d58e626756503af3f2fedbcf0a3a791b32096093d62ca5c6aab77146d75b",
@@ -893,6 +893,10 @@
     "color-swatch-picker/Item Render State": {
       "codeSha256": "b414adb96d9fafe568085bea778c5c0b4ce54b4867bd44cffde9b7ff8205a81a",
       "descriptionSha256": "c3df44c9063584c77cf325d9cea52b5b48742a8023cbecb1af4274f52aa231ef"
+    },
+    "color-swatch-picker/Single-row Palette": {
+      "codeSha256": "88173cc4f11fcd0211f93608b1376d4c26b2e3cc2c2d438ae1f121592f36ce3b",
+      "descriptionSha256": "b818e4439a914a995d17a59a93b34620fbcb386079694a5316670b5e0e4259d0"
     },
     "color-swatch-picker/Sizes": {
       "codeSha256": "6cc62c0a204f60284dc904a59402c0dadae014303a1e03a38363fc83b9ba55e8",
@@ -2301,6 +2305,10 @@
     "select/Hover Colours": {
       "codeSha256": "8517e84d4249e902a17b1208e013ed7fac2de17a297b3682dc726871503571a5",
       "descriptionSha256": "89e957b3a925e971f2c0ad6718bfb51428e2c696ca9cf8b063914ef796828ebc"
+    },
+    "select/Icon-only Options": {
+      "codeSha256": "145480be1f2d5da7a2a7deaa8299a1c23fed40b81d309e45d09c72d4d8db1114",
+      "descriptionSha256": "8ec251d5f246805b51955c849a84a4651b83d024afccc0c61916980bda8cef71"
     },
     "select/In Surface": {
       "codeSha256": "29bcb4ae74ff9b754f941b317648af6cdd49c0c88d036d3f24fb836a10c45da2",

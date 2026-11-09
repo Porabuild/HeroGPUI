@@ -3,17 +3,17 @@
   "target": "v3.2.7",
   "target_commit": "7cb1642606c6f96f424dad78a961ccf45436be72",
   "inventory_recorded_on": "2026-11-09",
-  "inventory_verification_sha256": "37b493bcf107d2803b28754f2419b3b9e9bb96c53ec5f01b6497a7ccc9f5d256",
-  "source_snapshot_sha256": "1e552986ee51ff0b27f2eda5fa0acb55473c9eb9c95be51012acb67e30371dd9",
+  "inventory_verification_sha256": "60a6bf4d7bca56b9750b36c979171f996042cb6b4b136dcf8565b732918fbb81",
+  "source_snapshot_sha256": "f39b8a52249fa8a9bdea2351a02512998bcf850c8d7dfc6d267886a3b0d076ff",
   "last_evidence_commit": null,
   "last_evidence_commit_recorded": false,
   "totals": {
-    "specimens": 816,
+    "specimens": 818,
     "verified": 0,
-    "outstanding": 816,
-    "unobserved": 816,
+    "outstanding": 818,
+    "unobserved": 818,
     "components": 69,
-    "gallery_sections": 809
+    "gallery_sections": 811
   },
   "status_counts": {
     "implemented-unverified": 7,
@@ -22,35 +22,35 @@
     "not-applicable": 0,
     "platform-limited": 0,
     "specified": 0,
-    "unreviewed": 809,
+    "unreviewed": 811,
     "verified": 0
   },
   "scope_counts": {
     "component-state": 4,
     "cross-component": 1,
-    "gallery-section": 809,
+    "gallery-section": 811,
     "platform-harness": 2
   },
   "evidence_counts": {
     "upstream": {
       "specimens_with_evidence": 5,
-      "specimens_missing_evidence": 811
+      "specimens_missing_evidence": 813
     },
     "native": {
       "specimens_with_evidence": 1,
-      "specimens_missing_evidence": 815
+      "specimens_missing_evidence": 817
     },
     "wasm": {
       "specimens_with_evidence": 1,
-      "specimens_missing_evidence": 815
+      "specimens_missing_evidence": 817
     },
     "tests": {
       "specimens_with_evidence": 5,
-      "specimens_missing_evidence": 811
+      "specimens_missing_evidence": 813
     },
     "all_surfaces": {
       "specimens_with_evidence": 1,
-      "specimens_missing_evidence": 815
+      "specimens_missing_evidence": 817
     }
   },
   "unobserved_statuses": [
@@ -1632,6 +1632,13 @@
     },
     {
       "id": "gallery/color-swatch-picker/item-render-state",
+      "component": "Color Swatch Picker",
+      "scope": "gallery-section",
+      "status": "unreviewed",
+      "state": "section-seed"
+    },
+    {
+      "id": "gallery/color-swatch-picker/single-row-palette",
       "component": "Color Swatch Picker",
       "scope": "gallery-section",
       "status": "unreviewed",
@@ -4102,6 +4109,13 @@
       "state": "section-seed"
     },
     {
+      "id": "gallery/select/icon-only-options",
+      "component": "Select",
+      "scope": "gallery-section",
+      "status": "unreviewed",
+      "state": "section-seed"
+    },
+    {
       "id": "gallery/select/in-surface",
       "component": "Select",
       "scope": "gallery-section",
@@ -6382,7 +6396,7 @@
     },
     {
       "component": "Color Swatch Picker",
-      "specimens": 11,
+      "specimens": 12,
       "statuses": {
         "implemented-unverified": 0,
         "intentional-deviation": 0,
@@ -6390,11 +6404,11 @@
         "not-applicable": 0,
         "platform-limited": 0,
         "specified": 0,
-        "unreviewed": 11,
+        "unreviewed": 12,
         "verified": 0
       },
       "verified": 0,
-      "outstanding": 11,
+      "outstanding": 12,
       "unresolved_ids": [
         "gallery/color-swatch-picker/controlled",
         "gallery/color-swatch-picker/custom-indicator",
@@ -6402,6 +6416,7 @@
         "gallery/color-swatch-picker/disabled",
         "gallery/color-swatch-picker/disabled-item",
         "gallery/color-swatch-picker/item-render-state",
+        "gallery/color-swatch-picker/single-row-palette",
         "gallery/color-swatch-picker/sizes",
         "gallery/color-swatch-picker/square-stacked",
         "gallery/color-swatch-picker/stack-layout",
@@ -7227,7 +7242,7 @@
     },
     {
       "component": "Select",
-      "specimens": 28,
+      "specimens": 29,
       "statuses": {
         "implemented-unverified": 1,
         "intentional-deviation": 0,
@@ -7235,11 +7250,11 @@
         "not-applicable": 0,
         "platform-limited": 0,
         "specified": 0,
-        "unreviewed": 27,
+        "unreviewed": 28,
         "verified": 0
       },
       "verified": 0,
-      "outstanding": 28,
+      "outstanding": 29,
       "unresolved_ids": [
         "gallery/select/asynchronous-loading",
         "gallery/select/box-customisation",
@@ -7252,6 +7267,7 @@
         "gallery/select/disabled",
         "gallery/select/full-width",
         "gallery/select/hover-colours",
+        "gallery/select/icon-only-options",
         "gallery/select/in-surface",
         "gallery/select/long-values-option-focus",
         "gallery/select/multiple-select",
@@ -7840,7 +7856,7 @@
       "path": "docs/parity/runs/interaction-sweep.json",
       "kind": "interaction-sweep",
       "recorded_on": "2026-11-09",
-      "current": true,
+      "current": false,
       "counts": {
         "pass": 809,
         "fail": 0,
@@ -7853,13 +7869,13 @@
       "path": "docs/parity/runs/native-a11y.json",
       "kind": "native-a11y",
       "recorded_on": "2026-11-09",
-      "current": true,
+      "current": false,
       "counts": {
-        "pass": 809,
+        "pass": 811,
         "fail": 0,
         "skip": 0
       },
-      "sections_passing": 809,
+      "sections_passing": 811,
       "failing_ids": []
     },
     {
@@ -7879,7 +7895,7 @@
       "path": "docs/parity/runs/wasm-smoke.json",
       "kind": "wasm-smoke",
       "recorded_on": "2026-11-09",
-      "current": true,
+      "current": false,
       "counts": {
         "pass": 809,
         "fail": 0,
@@ -7889,7 +7905,7 @@
       "failing_ids": []
     }
   ],
-  "sections_with_current_passing_run": 809,
+  "sections_with_current_passing_run": 0,
   "notes": [
     "This report summarizes the inventory; it does not establish visual or interaction parity.",
     "Gallery-section seeds must be expanded into concrete variant/state specimens before verification.",

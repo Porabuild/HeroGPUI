@@ -10,7 +10,7 @@
   },
   "gallery_source": {
     "path": "web/src/data/rust-examples.json",
-    "sha256": "b8a69a5185ac0ea0288863241b21c9557fd68b41ff27ffdcc6546e45282b63cf"
+    "sha256": "3d2d133636eb188836437c27ef99a28359309d3c0b9672bbfce690416a5ac26e"
   },
   "scope_note": "Inventory only, not parity evidence. Expand each demo into its individual rendered variants and state paths before verification. Include upstream stories, documented props, CSS modifiers and inherited React Aria semantics; demos alone are not exhaustive. Gallery and upstream keys are separate inventories, not an asserted one-to-one mapping.",
   "source_changes": [
@@ -7989,6 +7989,12 @@
             "status": "unreviewed"
           }
         ]
+      },
+      {
+        "heading": "Single-row Palette",
+        "code_sha256": "4444d7f354f63c953e8c66cb6d166f636dbae564c46b1a17d5d8729ddb03ee55",
+        "content_sha256": "feacc881854ab0d2f3d8164072350a32ed82674d6c3ea44d9aca8bf08fa80273",
+        "status": "unreviewed"
       },
       {
         "heading": "Square, stacked",
@@ -16761,6 +16767,20 @@
         ]
       },
       {
+        "heading": "Icon-only Options",
+        "code_sha256": "cf38dd929259e1858dde284df6a8ddfa2dbddf73dc7f5692031e9192b629b29f",
+        "content_sha256": "5152ec0701ff9f5558969305328b30558b0166ee4dd46e504475e79b8cb4d79a",
+        "status": "unreviewed",
+        "history": [
+          {
+            "heading": "Icon-only Options",
+            "code_sha256": "e1a7b2fffb40f264fdb069cc97c60e7cf13cc9ab2ff9e7abdbd5a21d62aa363b",
+            "content_sha256": "a7a83029073df5043130a6cd6d989e331d1463d3fdf1ee006666315267303774",
+            "status": "unreviewed"
+          }
+        ]
+      },
+      {
         "heading": "Wrapping Trigger",
         "code_sha256": "55524c5e4b7c4a51eb08328a9c11933fc7a2cf7a844bc16f2e1c920dae095582",
         "content_sha256": "7a9cf5981e1814162c9934074c329c32258f68891d586319b7327b93c3566688",
@@ -25372,14 +25392,14 @@
   ],
   "reference_source": {
     "path": "web/src/data/reference.json",
-    "sha256": "a248ebb566d95485c1d6360e649c0decbfcce8cb2d6c83d4a452cabea191a492"
+    "sha256": "5c761a082c69fa6de338670544f7b50b592cdec4820883626ee0a0b1c024bd31"
   },
   "catalog_source": {
     "path": "web/src/data/catalog.json",
     "sha256": "8ec1962d050066864351383d7d02a631e0c5e0c2276bb1316ad00fbfe8987009"
   },
   "source_snapshot": {
-    "sha256": "1e552986ee51ff0b27f2eda5fa0acb55473c9eb9c95be51012acb67e30371dd9",
+    "sha256": "f39b8a52249fa8a9bdea2351a02512998bcf850c8d7dfc6d267886a3b0d076ff",
     "files": {
       ".cargo/config.toml": "6ce2a269fd46b2570763e8e446ac93e9d04614416af21134877cf7b388e776f9",
       ".gitattributes": "13aede5d4eaee3f19ecad6be9d4941dafe8bc4d596e83a2083f4143fb6e0f434",
@@ -25404,7 +25424,7 @@
       ".shots/element_id_audit.py": "dc4664952d4dcfc583a04f6fe902b1b46631f37c381cceb015043db7d58f8111",
       ".shots/example_audit.py": "27f60311b48a505a6ee9c7b0f3151849e7d05c564db66bad916c979aaf1d1f8d",
       ".shots/example_src.py": "b062b6c717f8202c4dbb88eabf57498439065369367fcc62061df7666464107b",
-      ".shots/extra_audit.py": "7e406b6986ebf8a6996afc3a3d9074e4bc075e59f715107bed3905f29abfbc4f",
+      ".shots/extra_audit.py": "e8b22b1cdf6f20c0ef7e069bc272f722ad731f2254988718c2fcb46b9592cc61",
       ".shots/fence_audit.py": "bf01e886f892cdd796702af80e1cbf239e7068f279a2e48722892c5cd8c465af",
       ".shots/gallery_pages.py": "ef8a6ed2b106aa8176ffc71a95dc3b70416ec65df2bc5bf85284764aafc3c2e9",
       ".shots/gap_context.py": "9f53ecd80ee6ef5a50443e565ce934658f19c0d046d4f8cbe499eed39ef18f9a",
@@ -25478,7 +25498,7 @@
       "crates/herogpui-components/src/color_picker/picker.rs": "4a43482079ff243b9779a977b32037d09f438efb4066120478508ee310f6728c",
       "crates/herogpui-components/src/color_picker/slider.rs": "e8e58131538f1491795cb778830fbf2b99217bcc40c042f9fb375caf043c57bb",
       "crates/herogpui-components/src/color_picker/swatch.rs": "92dfbe49974d4d14d2079378b3e03bdb7e94eb166f6966d53f9c2528bb2832a0",
-      "crates/herogpui-components/src/color_picker/swatch_picker.rs": "a13f5c98d4a74969c34bdb1341d8c8f4408caeff0105e8fa2594256388c807f5",
+      "crates/herogpui-components/src/color_picker/swatch_picker.rs": "f7ff2a1fc56006715d4bd806d5f3168d8f7c3f87726f380fa7248fe7645c45d9",
       "crates/herogpui-components/src/combo_box.rs": "95b07b1a7db600bdc103793e62ec5ac158fddb04e7a6dfb9e3e339f664ca239a",
       "crates/herogpui-components/src/command_palette.rs": "bd392ba11352be3aba6b1a10ea56e4c14937abd291772706bc371dab9b00a7b1",
       "crates/herogpui-components/src/context_menu.rs": "8f1cbd422c4346df49d5546900eedee433b4b82e4394c1389b00c0455144d339",
@@ -25521,7 +25541,7 @@
       "crates/herogpui-components/src/resizable.rs": "9fd802962ae4aa7bfced9e23c129cb8edbb4f8eb288da920d4052fe95e034207",
       "crates/herogpui-components/src/scroll_shadow.rs": "cfc81ed435c6c6dc3e9e273bb73990305a8c4da5df12338cb3a80134fdc476a8",
       "crates/herogpui-components/src/scrollbar.rs": "23970a8a161ba361290ee77e28da454c59280e1d7752930785e5c4ee72952e9b",
-      "crates/herogpui-components/src/select.rs": "8314fa830bebc69a0322d65231c40f183d6edf3190ef48c8a69defa88c804d32",
+      "crates/herogpui-components/src/select.rs": "9b3a6da7cfa4c08e67717b3366ff8952c27e191880177c2a7e25c2b74f761dab",
       "crates/herogpui-components/src/selection.rs": "5cb1b59aa951da376a769c69fbf710999bf48b8751fd89cd0ce2b04196fcdf7d",
       "crates/herogpui-components/src/separator.rs": "231a2e9d5594435b835968ba953c52c6c04944ce3b1d06fc3e439f2fbf1f6ec7",
       "crates/herogpui-components/src/sheet.rs": "7e961a8f20ebfff47370c5f3c140f9c849bd3e57698bc81edcadb72735ab4c54",
@@ -25579,6 +25599,7 @@
       "crates/herogpui-components/tests/command_palette.rs": "8a47dabcd4291f0bd029bfaf6e8962151e54506e18ae9276d6148028c63b1665",
       "crates/herogpui-components/tests/component_themes.rs": "c2fb2fa9be2ec62301d077955bbf23595b26bda349e68404f4b0c47b8447a118",
       "crates/herogpui-components/tests/context_menu.rs": "610dab8f9bd299916a45015a579f13d49851c0b128cd2270a8045fdb4163b16f",
+      "crates/herogpui-components/tests/control_slots.rs": "8a3677b04745a2cefdd7d6ffa26aeaec34312fa6c4e5c60ead26c871a04b88fb",
       "crates/herogpui-components/tests/cursor_token.rs": "73699d71f1e81a27a1ee9cda0ead80a312337d7c6b4cdc762df1c0b304a19786",
       "crates/herogpui-components/tests/date_field_form_deep.rs": "d443e7b7074018b83774a77ff9d6225eaa800e13386adbd31600322c58374468",
       "crates/herogpui-components/tests/date_field_picker_deep.rs": "e80b3984c297b17a54e3af530baac7fbd0afecb9d39f0194f37413ec6a6d4f6d",
@@ -25647,7 +25668,7 @@
       "crates/herogpui-components/tests/suite_controls.rs": "c37556eb422621fb160e2437fa93c5d12b79f5cef9940177f4d931866264d47c",
       "crates/herogpui-components/tests/suite_feedback.rs": "0307d6231ca34948fcd5aca3b48c198d20397384e707b6d32395a943e3d119bc",
       "crates/herogpui-components/tests/suite_fields.rs": "5ce8dc7b50f0e786c519e752ff50cf4af75eda2759e4ca4bc9a1dc1aa79e40d9",
-      "crates/herogpui-components/tests/suite_foundations.rs": "678723fb8da713aee0c0e63fb6b80c9d6922c589155a115d73353be8004833fb",
+      "crates/herogpui-components/tests/suite_foundations.rs": "3faa2d9984ad296fbeccda78c1efbb8dae3105a6ebe5d3ee1cf9b33c1b0adf80",
       "crates/herogpui-components/tests/suite_overlays.rs": "a5d5f8c1fd8a0eefded5d8e146e2529d90ab99f99f0be7295086c3cc57ae0eaa",
       "crates/herogpui-components/tests/suite_pickers.rs": "6e21c28aff65d887c579adeab866b33269dad6349ea87f3e7fb7feb6c5bf3e40",
       "crates/herogpui-components/tests/suite_styling.rs": "92bff269aa0a0f1dde657112369d60ddfe2079e72d652a5ef1b10b144bab4c02",
@@ -25686,7 +25707,7 @@
       "crates/herogpui-core/src/format.rs": "2b27d3c6be9b9d2d3a318bef05696f89dd972945c0e32feeb88009696f216d7a",
       "crates/herogpui-core/src/lib.rs": "9fa4cda41bd80a7dd52c00eb37efbe8d44ae8989973290c959944c30cc4058cb",
       "crates/herogpui-theme/Cargo.toml": "c4a6048b47dd9467fe31e41dbf5fdc58a9fc27d3ec575bea7382b12c291ac7d9",
-      "crates/herogpui-theme/src/components.rs": "1bced97b54782add3adc9788a1d431e3262017f68056fe713d01be6825d9f580",
+      "crates/herogpui-theme/src/components.rs": "aca8967f597072ae275cca137f40bca5c10d3a7fdce1478c974d997c774c2891",
       "crates/herogpui-theme/src/layout.rs": "5c5332d961e7914e37d98be0fc937a1d363a37f979d711e3dc510a40ccf0cd8b",
       "crates/herogpui-theme/src/lib.rs": "8a89bfcd64401f68935084c644f9488ebf1ba70a9b8068f9515120dedba035d5",
       "crates/herogpui-theme/src/provider.rs": "68d6ddc2939c66ab39c4076164204cc3273cf9b215309479f01dfcf875bff651",
@@ -25763,7 +25784,7 @@
       "gallery/src/main.rs": "a64fc5dc15de610691418ef481cefe62a4fb10bbf531858046653b0f564d8755",
       "gallery/src/pages/components/buttons.rs": "d61ec3b94aeb337117008b5ee93f94cfd6b550d7411223399bab95b771a1b21b",
       "gallery/src/pages/components/collections.rs": "2f73cd2efb4abecd0ae59b40b097bb00c42d42a9eea1442194007d00d5126f26",
-      "gallery/src/pages/components/colors.rs": "7f44ba6594d15454f3fdfbb4bb85179d59ed705ab67100ec50901ef6fb778524",
+      "gallery/src/pages/components/colors.rs": "3f6ce40be9611dd1fdfc58c2c8825727781f7e13c4da6cc3fc73bb3de5ddd588",
       "gallery/src/pages/components/controls.rs": "2b5a048eedc34e7f0507e18567b5c3e10a75bc4fbbffb20779c6f3b58ebb1c1a",
       "gallery/src/pages/components/data_display.rs": "908639c20cdefaf55dd0e89dbb44383fff84e2718382b08c6921f22bce979841",
       "gallery/src/pages/components/date_and_time.rs": "199f7235f245d768ed0afee99e63f3f093cd93820435d383c57b8aa4117fc16b",
@@ -25774,7 +25795,7 @@
       "gallery/src/pages/components/mod.rs": "903d72a3ea51d54f221a5622675f8d3a1e7d8efcb56412d459adc40e11f700f3",
       "gallery/src/pages/components/navigation.rs": "ae5bb2c5dd5eee83d00bf7db3e8b004fafbe8f5c59d48ea734b172ad11f4a67f",
       "gallery/src/pages/components/overlays.rs": "7b13aad020d5e149008331c401e8ad77ce651514ac9dd56414943197a8014daa",
-      "gallery/src/pages/components/pickers.rs": "1d278ef1d785c3f8bd3828f4b325774dc577cdf92a75998d91848b5eff2ab1ab",
+      "gallery/src/pages/components/pickers.rs": "47ab1d1be16c67d849c4878fbe9c86ac04b93fe2e73948ce135f4b85cf6f0cff",
       "gallery/src/pages/components/sheet.rs": "013da20e7df0c1eb571cd4e836a4aa78f419869bf31eb0bb88f32839a08d6ebd",
       "gallery/src/pages/components/typography.rs": "23d43fdd2d1b363834405382e71fa3ec0b1f15489007f0570c3f53581f0f5267",
       "gallery/src/pages/components/utilities.rs": "0045433937381020ef2c958b8207fa3459f0ffd8de017fb6b24f8b1948ce551c",
@@ -25785,7 +25806,7 @@
       "gallery/src/pages/reference.rs": "5771b2cc3e9ddd26fed918bd889291f19df80126312bc2fd7277f55de4672877",
       "gallery/src/pages/reference_metadata/buttons.rs": "0d09a609b569d53ff695835028078b15469cba161eb916f9dd67c7925f959587",
       "gallery/src/pages/reference_metadata/collections.rs": "99656c0a74a2095b57828ce7c6a3a6e70dfdf7d38d913305fb73bb155db6dbea",
-      "gallery/src/pages/reference_metadata/colors.rs": "5ca834a7c060db223a585248599eba662bbb0736a245006f42150ec22dafd439",
+      "gallery/src/pages/reference_metadata/colors.rs": "af30ca4317cd34a3775b4b40afc506150eb919ef0a141fb91dced3f5f6fc998d",
       "gallery/src/pages/reference_metadata/controls.rs": "55ce386bc3d01d3993873d38dde8f6819a2c309b4d50c841c6e43b41c1fb2ca9",
       "gallery/src/pages/reference_metadata/data_display.rs": "5ccbd0f92635eb178910a13ffd3c359c1c1c159867958ce76cc1a0c79b0d2cf4",
       "gallery/src/pages/reference_metadata/date_and_time.rs": "e0e5dc761e48f08b295292079a65085fe7ef034c446ac119e970844724f2ce27",
@@ -25796,7 +25817,7 @@
       "gallery/src/pages/reference_metadata/mod.rs": "ea48126d4d02bbad6f1e2abf530cb56b689c9527bd45b491ea744c7dbdcc70b1",
       "gallery/src/pages/reference_metadata/navigation.rs": "071875547df3228bf8013ff2be40b357a92e2a1c8fabc8c02eebaa52dfe34289",
       "gallery/src/pages/reference_metadata/overlays.rs": "115e3b1e3d4256ae47da697e4e8b1fc047203ccd066276553d014fabc8b965c3",
-      "gallery/src/pages/reference_metadata/pickers.rs": "0fff2169b657bb1f1302a020d31798eea9faadd142a36deaff0c7055c57c895f",
+      "gallery/src/pages/reference_metadata/pickers.rs": "36fafc182f64f85adec44312eba32db4335d2ffdc4740bd7170f86982371a53d",
       "gallery/src/pages/reference_metadata/sheet.rs": "b35616f2cef16fc6341f02472bb676ef6e73ade670b052954c7cc4cb263aba17",
       "gallery/src/pages/reference_metadata/typography.rs": "2384fb40489cf165440254cb69641076cfb0bf51254f325b7f3e99c8ebdb07a6",
       "gallery/src/pages/reference_metadata/utilities.rs": "3b16e9910842d3a8369083c338be79f063fbbd629e4930dd5e8cc336cf6623ee",
@@ -25902,11 +25923,11 @@
       "web/src/components/ui/static-table.tsx": "e863e7b9ea6d94ab1a89169e9f03959d3e1dd5ac9649e8d6ec686a043e1f1b25",
       "web/src/components/ui/status-chip.tsx": "c64a34146c0e9a5889f3c3d766b595d7099bcc705ba42b588b79532acb5a3c25",
       "web/src/data/catalog.json": "8ec1962d050066864351383d7d02a631e0c5e0c2276bb1316ad00fbfe8987009",
-      "web/src/data/reference.json": "a248ebb566d95485c1d6360e649c0decbfcce8cb2d6c83d4a452cabea191a492",
+      "web/src/data/reference.json": "5c761a082c69fa6de338670544f7b50b592cdec4820883626ee0a0b1c024bd31",
       "web/src/data/releases.json": "4219dd9080a2915d1ed5347954b6a48403ebfb11d737a0fb5580b3e1868ffa04",
-      "web/src/data/rust-examples.json": "b8a69a5185ac0ea0288863241b21c9557fd68b41ff27ffdcc6546e45282b63cf",
-      "web/src/data/wasm-parity.json": "364f653cb8f7199a104b8822ab88b01151cdebd0cc0e6f40d5f26243dab7f9a8",
-      "web/src/data/wasm-sections.json": "cc73fd1864f392412746ed71603fd3363070fe225199a1ebd0ccb5c1c5b7b6f2",
+      "web/src/data/rust-examples.json": "3d2d133636eb188836437c27ef99a28359309d3c0b9672bbfce690416a5ac26e",
+      "web/src/data/wasm-parity.json": "608acce60ad9f0986901cda2f85ed0363cafa2dac60390d802171035928a199d",
+      "web/src/data/wasm-sections.json": "5f519c120fd4417cbbd18934166f881d81fcca02b7be80181b40a261a476368d",
       "web/src/lib/catalog.ts": "79681a0e1e0e12c9352ddc9eec0d6fe428906ceca07bfefb89623639396f81cf",
       "web/src/lib/docs-nav.ts": "ffb0d7fdaa0261395306f0bfa4e09c5ef88043c702c962f847983b05be67f55a",
       "web/src/lib/gallery-embed.ts": "5f5905e95a5bc498c315c68db9c797c503062db8b0495e3ab21ad99579c20fa3",
@@ -62719,6 +62740,43 @@
           }
         }
       ]
+    },
+    {
+      "id": "gallery/color-swatch-picker/single-row-palette",
+      "component": "Color Swatch Picker",
+      "scope": "gallery-section",
+      "status": "unreviewed",
+      "upstream": {
+        "tag": "v3.2.7",
+        "source": null,
+        "selector": null,
+        "demoSection": "Single-row Palette"
+      },
+      "port": {
+        "module": "color-swatch-picker",
+        "galleryPage": "Color Swatch Picker",
+        "gallerySection": "Single-row Palette",
+        "specimenKey": null
+      },
+      "configuration": {},
+      "state": "section-seed",
+      "setup": [],
+      "assertions": [
+        "Expand this section into concrete variant/state specimens before verification."
+      ],
+      "evidence": {
+        "upstream": [],
+        "native": [],
+        "wasm": [],
+        "tests": []
+      },
+      "source": {
+        "gallery": "web/src/data/rust-examples.json",
+        "reference": "web/src/data/reference.json",
+        "codeSha256": "4444d7f354f63c953e8c66cb6d166f636dbae564c46b1a17d5d8729ddb03ee55",
+        "contentSha256": "feacc881854ab0d2f3d8164072350a32ed82674d6c3ea44d9aca8bf08fa80273",
+        "docsSource": "https://github.com/heroui-inc/heroui/blob/v3.2.7/apps/docs/content/docs/en/react/components/(colors)/color-swatch-picker.mdx"
+      }
     },
     {
       "id": "gallery/color-swatch-picker/square-stacked",
@@ -118393,6 +118451,82 @@
       ]
     },
     {
+      "id": "gallery/select/icon-only-options",
+      "component": "Select",
+      "scope": "gallery-section",
+      "status": "unreviewed",
+      "upstream": {
+        "tag": "v3.2.7",
+        "source": null,
+        "selector": null,
+        "demoSection": "Icon-only Options"
+      },
+      "port": {
+        "module": "select",
+        "galleryPage": "Select",
+        "gallerySection": "Icon-only Options",
+        "specimenKey": null
+      },
+      "configuration": {},
+      "state": "section-seed",
+      "setup": [],
+      "assertions": [
+        "Expand this section into concrete variant/state specimens before verification."
+      ],
+      "evidence": {
+        "upstream": [],
+        "native": [],
+        "wasm": [],
+        "tests": []
+      },
+      "source": {
+        "gallery": "web/src/data/rust-examples.json",
+        "reference": "web/src/data/reference.json",
+        "codeSha256": "cf38dd929259e1858dde284df6a8ddfa2dbddf73dc7f5692031e9192b629b29f",
+        "contentSha256": "5152ec0701ff9f5558969305328b30558b0166ee4dd46e504475e79b8cb4d79a",
+        "docsSource": "https://github.com/heroui-inc/heroui/blob/v3.2.7/apps/docs/content/docs/en/react/components/(pickers)/select.mdx"
+      },
+      "history": [
+        {
+          "id": "gallery/select/icon-only-options",
+          "component": "Select",
+          "scope": "gallery-section",
+          "status": "unreviewed",
+          "upstream": {
+            "tag": "v3.2.7",
+            "source": null,
+            "selector": null,
+            "demoSection": "Icon-only Options"
+          },
+          "port": {
+            "module": "select",
+            "galleryPage": "Select",
+            "gallerySection": "Icon-only Options",
+            "specimenKey": null
+          },
+          "configuration": {},
+          "state": "section-seed",
+          "setup": [],
+          "assertions": [
+            "Expand this section into concrete variant/state specimens before verification."
+          ],
+          "evidence": {
+            "upstream": [],
+            "native": [],
+            "wasm": [],
+            "tests": []
+          },
+          "source": {
+            "gallery": "web/src/data/rust-examples.json",
+            "reference": "web/src/data/reference.json",
+            "codeSha256": "e1a7b2fffb40f264fdb069cc97c60e7cf13cc9ab2ff9e7abdbd5a21d62aa363b",
+            "contentSha256": "a7a83029073df5043130a6cd6d989e331d1463d3fdf1ee006666315267303774",
+            "docsSource": "https://github.com/heroui-inc/heroui/blob/v3.2.7/apps/docs/content/docs/en/react/components/(pickers)/select.mdx"
+          }
+        }
+      ]
+    },
+    {
       "id": "gallery/select/wrapping-trigger",
       "component": "Select",
       "scope": "gallery-section",
@@ -149932,7 +150066,7 @@
       ]
     }
   ],
-  "verification_sha256": "37b493bcf107d2803b28754f2419b3b9e9bb96c53ec5f01b6497a7ccc9f5d256",
+  "verification_sha256": "60a6bf4d7bca56b9750b36c979171f996042cb6b4b136dcf8565b732918fbb81",
   "retired_source_changes": [
     {
       "path": "packages/react/src/components/autocomplete/autocomplete.stories.tsx",
@@ -151726,7 +151860,7 @@
       "identity": {
         "source_sha256": "1e552986ee51ff0b27f2eda5fa0acb55473c9eb9c95be51012acb67e30371dd9"
       },
-      "current": true,
+      "current": false,
       "counts": {
         "pass": 809,
         "fail": 0,
@@ -152553,9 +152687,9 @@
       "identity": {
         "source_sha256": "1e552986ee51ff0b27f2eda5fa0acb55473c9eb9c95be51012acb67e30371dd9"
       },
-      "current": true,
+      "current": false,
       "counts": {
-        "pass": 809,
+        "pass": 811,
         "fail": 0,
         "skip": 0
       },
@@ -152783,6 +152917,7 @@
         "gallery/color-swatch-picker/disabled",
         "gallery/color-swatch-picker/disabled-item",
         "gallery/color-swatch-picker/item-render-state",
+        "gallery/color-swatch-picker/single-row-palette",
         "gallery/color-swatch-picker/sizes",
         "gallery/color-swatch-picker/square-stacked",
         "gallery/color-swatch-picker/stack-layout",
@@ -153135,6 +153270,7 @@
         "gallery/select/disabled",
         "gallery/select/full-width",
         "gallery/select/hover-colours",
+        "gallery/select/icon-only-options",
         "gallery/select/in-surface",
         "gallery/select/long-values-option-focus",
         "gallery/select/multiple-select",
@@ -153395,7 +153531,7 @@
       "identity": {
         "inputs_sha256": "0c91e6b0f6c56efdc24681b1d5c407c25edc7b85fe318ac8dec0f4175ec160aa"
       },
-      "current": true,
+      "current": false,
       "counts": {
         "pass": 809,
         "fail": 0,

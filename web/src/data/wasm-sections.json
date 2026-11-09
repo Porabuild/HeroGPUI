@@ -195,6 +195,7 @@
     "Custom Indicator",
     "Disabled Item",
     "Item Render State",
+    "Single-row Palette",
     "Square, stacked"
   ],
   "slider": [
@@ -894,6 +895,7 @@
     "Hover Colours",
     "Virtualization",
     "Row Leading Content",
+    "Icon-only Options",
     "Wrapping Trigger",
     "Custom Trigger Indicator",
     "Uncontrolled",
