@@ -8,6 +8,8 @@ version covers `herogpui`, `herogpui-core`, `herogpui-theme`,
 
 ## [Unreleased]
 
+## [0.15.0] - 2026-11-09
+
 ### Breaking
 
 - `is_command_palette_shortcut` takes `&App` as a second argument: GPUI's
@@ -922,7 +924,8 @@ for each breaking change with before/after code.
   `herogpui-components` and the `herogpui-gallery` CLI, built on the
   published `gpui-pre` 0.3.5 crates with no GPUI fork.
 
-[Unreleased]: https://github.com/Porabuild/HeroGPUI/compare/v0.14.0...HEAD
+[Unreleased]: https://github.com/Porabuild/HeroGPUI/compare/v0.15.0...HEAD
+[0.15.0]: https://github.com/Porabuild/HeroGPUI/compare/v0.14.0...v0.15.0
 [0.14.0]: https://github.com/Porabuild/HeroGPUI/compare/v0.13.0...v0.14.0
 [0.13.0]: https://github.com/Porabuild/HeroGPUI/compare/v0.12.0...v0.13.0
 [0.12.0]: https://github.com/Porabuild/HeroGPUI/compare/v0.11.0...v0.12.0

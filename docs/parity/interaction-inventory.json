@@ -25376,10 +25376,10 @@
   },
   "catalog_source": {
     "path": "web/src/data/catalog.json",
-    "sha256": "8632eb868ad4e4d3a20a85506dcee45148770979d8c503dd937aeb5de3a5361d"
+    "sha256": "8ec1962d050066864351383d7d02a631e0c5e0c2276bb1316ad00fbfe8987009"
   },
   "source_snapshot": {
-    "sha256": "c18983304d126de383a365bb7419f52e378dfd94c94c72f2d4445e60bda58663",
+    "sha256": "e8aef7bed1268a04d56028bf440c2f8a7af668a0ca4e8054794e2e55f7c9843e",
     "files": {
       ".cargo/config.toml": "6ce2a269fd46b2570763e8e446ac93e9d04614416af21134877cf7b388e776f9",
       ".gitattributes": "13aede5d4eaee3f19ecad6be9d4941dafe8bc4d596e83a2083f4143fb6e0f434",
@@ -25445,8 +25445,8 @@
       ".shots/theme_serde_audit.py": "392a1968af4a65218e63ba8f06405684182bfcb1497d772489a0e14dd581b08f",
       ".shots/token_audit.py": "31756481a9ebd5bff76e143681b23f091ab5db5a8ca5c1732d8112e9d19e2309",
       ".shots/write_only.py": "ebfacd961c597d8fd625fb9a29f24efaff245dfad9b1032649537fca25f8954a",
-      "Cargo.lock": "d37f8882cb24b5a74a67b70f83c1191778841c3f9c9654fcab90c577885ba658",
-      "Cargo.toml": "4c3377d628e167bc1c993fc6b9320528bb893e819a4f1426446127486b56c93f",
+      "Cargo.lock": "70c53c3fc04dd5e61ac49b7b3b1be134d8bd9cf39bcea1ff87fa800761558165",
+      "Cargo.toml": "c4580ad144a17b515ff99e4788e23685aaacc6450dcb02f5dd8405728cc60354",
       "crates/herogpui/Cargo.toml": "f2050009d547639653b27e5ce2666b71d6a00bd449b2093e427d16809a72c889",
       "crates/herogpui/src/lib.rs": "7bb0c2b92db83d03632ad49796537664d6aae476400a192644bc4277dafa66eb",
       "crates/herogpui/src/test.rs": "7c209ca61d7647cbc7fec40a16b344c85b41e38b050af5b8d1561674b795eb7e",
@@ -25804,7 +25804,7 @@
       "gallery/src/snippet_check.rs": "8c8f1d81a6811ea7875602459544b20d046af3116f74d956b85968e28bff2343",
       "rust-toolchain.toml": "f4d06acf80a8988d360650c5d9c25c723f9b86037d79eb10ac5fa7994f2f06a7",
       "web/next.config.ts": "cc5f66350c0d8d35bbeec03d45e1c1182b2c1ae3f7a9023a104254bf64dc6966",
-      "web/package.json": "be50b876d839454b03b08d4bef2b339e4a3b47366a4d3f5ef2193e9bbbaf41e0",
+      "web/package.json": "c5c651e7589e9d277897c5a6d69c5c29299536dec5176a7933c8efb16958b03d",
       "web/pnpm-lock.yaml": "c8e9653d91d1eb39eb7abaf9bee8bfb2cbf09b2a1ecd8d96010973e0a64093c8",
       "web/public/gallery/index.html": "bb57c09da7da0a9537eca0b7396cac5189edf9add0cdaea3d254599bf9218b44",
       "web/scripts/build-data.mjs": "4d46b3156f9fd0043b46878b3350acf4555e0d225aea7b2da3fffea55f6acc8e",
@@ -25901,11 +25901,11 @@
       "web/src/components/ui/props-table.tsx": "61eafda14144a31d43cf19e2293ddc5f9c07dbb6d90125c48be35e9310019123",
       "web/src/components/ui/static-table.tsx": "e863e7b9ea6d94ab1a89169e9f03959d3e1dd5ac9649e8d6ec686a043e1f1b25",
       "web/src/components/ui/status-chip.tsx": "c64a34146c0e9a5889f3c3d766b595d7099bcc705ba42b588b79532acb5a3c25",
-      "web/src/data/catalog.json": "8632eb868ad4e4d3a20a85506dcee45148770979d8c503dd937aeb5de3a5361d",
+      "web/src/data/catalog.json": "8ec1962d050066864351383d7d02a631e0c5e0c2276bb1316ad00fbfe8987009",
       "web/src/data/reference.json": "a248ebb566d95485c1d6360e649c0decbfcce8cb2d6c83d4a452cabea191a492",
-      "web/src/data/releases.json": "22a8358a523c9993bde2657a6686b45ad0842fac08a2dd2c9dbc7defa641bbd3",
+      "web/src/data/releases.json": "8a3c0a46daa259f318b332cd90261b51686da95ccd26fdbb943ceb6e0725be27",
       "web/src/data/rust-examples.json": "b8a69a5185ac0ea0288863241b21c9557fd68b41ff27ffdcc6546e45282b63cf",
-      "web/src/data/wasm-parity.json": "1ddf9c91544e9fea9fd207f582fb77cf9d937c86e0cebffdb902e0be3ac52ba4",
+      "web/src/data/wasm-parity.json": "364f653cb8f7199a104b8822ab88b01151cdebd0cc0e6f40d5f26243dab7f9a8",
       "web/src/data/wasm-sections.json": "cc73fd1864f392412746ed71603fd3363070fe225199a1ebd0ccb5c1c5b7b6f2",
       "web/src/lib/catalog.ts": "79681a0e1e0e12c9352ddc9eec0d6fe428906ceca07bfefb89623639396f81cf",
       "web/src/lib/docs-nav.ts": "ffb0d7fdaa0261395306f0bfa4e09c5ef88043c702c962f847983b05be67f55a",
@@ -149932,7 +149932,7 @@
       ]
     }
   ],
-  "verification_sha256": "62357d44d416586e32979edb81a7a0280ff1f8120e11a7de2a9dc87c25a0c24f",
+  "verification_sha256": "a58843f4dd6899734651d9fdf5e2e1aa624551213bfd9df5bedfe63861380dfb",
   "retired_source_changes": [
     {
       "path": "packages/react/src/components/autocomplete/autocomplete.stories.tsx",
@@ -151720,13 +151720,13 @@
   "scripted_runs": [
     {
       "path": "docs/parity/runs/interaction-sweep.json",
-      "sha256": "f06244bb6437b39d821166068d703dbf5e9841f4363262348b2847030215ca21",
+      "sha256": "c7815b75c2ef6714b31da7e3965136e96266f4311c4a11f94b8efe91fd3287d5",
       "kind": "interaction-sweep",
       "recorded_on": "2026-11-09",
       "identity": {
-        "source_sha256": "25f54d9ef9f34c697ac6b170b6d5f4684e936e57041127f067f3f74b2551a3a6"
+        "source_sha256": "e8aef7bed1268a04d56028bf440c2f8a7af668a0ca4e8054794e2e55f7c9843e"
       },
-      "current": false,
+      "current": true,
       "counts": {
         "pass": 809,
         "fail": 0,
@@ -152547,13 +152547,13 @@
     },
     {
       "path": "docs/parity/runs/native-a11y.json",
-      "sha256": "3ad0fc28293ee3c09e538e224dd2dad6add7a3078042a637924238339178e22f",
+      "sha256": "2a8c5494d637c8b93c31bb8aa8f49df96396f0385732c89d552b9636d044d53f",
       "kind": "native-a11y",
       "recorded_on": "2026-11-09",
       "identity": {
-        "source_sha256": "b669f0aabb48ba9d2786adbc51e4addf94ff115631311f7bad01ff43084889a1"
+        "source_sha256": "e8aef7bed1268a04d56028bf440c2f8a7af668a0ca4e8054794e2e55f7c9843e"
       },
-      "current": false,
+      "current": true,
       "counts": {
         "pass": 809,
         "fail": 0,
@@ -153389,13 +153389,13 @@
     },
     {
       "path": "docs/parity/runs/wasm-smoke.json",
-      "sha256": "563cd7cbfca97c36326ab0ed8c3a4f8d1136365f840f472beccc856dafffd7dd",
+      "sha256": "b85a51750b24065f3621fd9bd2aa8d7a1601c91c82b9a1f886e89914d0217f26",
       "kind": "wasm-smoke",
       "recorded_on": "2026-11-09",
       "identity": {
-        "inputs_sha256": "5bf6e9b156dceed7408e4a2b394c09ef8a639e0a3d6fad8055e145e02d282473"
+        "inputs_sha256": "0c91e6b0f6c56efdc24681b1d5c407c25edc7b85fe318ac8dec0f4175ec160aa"
       },
-      "current": false,
+      "current": true,
       "counts": {
         "pass": 809,
         "fail": 0,

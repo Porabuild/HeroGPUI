@@ -2,8 +2,8 @@
  "schema_version": 1,
  "kind": "native-a11y",
  "recorded_on": "2026-11-09",
- "native_binary_sha256": "dce9e92f5c6ee48759ec725dba1cf4c64c51d2733b0e97357e108bc044e2acd3",
- "source_sha256": "b669f0aabb48ba9d2786adbc51e4addf94ff115631311f7bad01ff43084889a1",
+ "native_binary_sha256": "2d78ef34a8cd5aad5d0bade517c1e37621b2c8f596f0a70867a0401eaa97baa5",
+ "source_sha256": "e8aef7bed1268a04d56028bf440c2f8a7af668a0ca4e8054794e2e55f7c9843e",
  "platform": "macOS 27.2 arm64",
  "window_size": "1280x6000",
  "pages": [
