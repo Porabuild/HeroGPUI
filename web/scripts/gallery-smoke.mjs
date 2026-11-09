@@ -886,7 +886,6 @@ async function runWheelScroll(cdp, record, ctx, blank) {
       story: "table",
       section: "Narrow Width",
       x: 160,
-      y: 336,
       deltaX: 100,
       deltaY: 0,
       modifiers: 0,
@@ -897,8 +896,6 @@ async function runWheelScroll(cdp, record, ctx, blank) {
       name: "wheel:scroll-shadow-horizontal",
       story: "scroll-shadow",
       section: "Horizontal",
-      x: 512,
-      y: 339,
       deltaX: 100,
       deltaY: 0,
       modifiers: 0,
@@ -909,8 +906,6 @@ async function runWheelScroll(cdp, record, ctx, blank) {
       name: "wheel:scroll-shadow-shift",
       story: "scroll-shadow",
       section: "Horizontal",
-      x: 512,
-      y: 339,
       deltaX: 0,
       deltaY: 100,
       modifiers: 8,
@@ -920,7 +915,6 @@ async function runWheelScroll(cdp, record, ctx, blank) {
       story: "table",
       section: "Narrow Width",
       x: 160,
-      y: 336,
       deltaX: 0,
       deltaY: 100,
       modifiers: 8,
@@ -936,10 +930,13 @@ async function runWheelScroll(cdp, record, ctx, blank) {
         section: c.section,
       });
       const before = await settleSwitch(cdp, blank);
-      await mouseMove(cdp, c.x, c.y);
+      const [width, height] = await evaluate(cdp, "[innerWidth, innerHeight]");
+      const x = c.x ?? Math.round(width / 2);
+      const y = Math.round(height / 2);
+      await mouseMove(cdp, x, y);
       // Three wheel events 100 ms apart total the 300 px the checks assert on.
       for (let i = 0; i < 3; i++) {
-        await wheel(cdp, c.x, c.y, c.deltaX, c.deltaY, c.modifiers);
+        await wheel(cdp, x, y, c.deltaX, c.deltaY, c.modifiers);
         await sleep(100);
       }
       const after = await settleShot(cdp);
