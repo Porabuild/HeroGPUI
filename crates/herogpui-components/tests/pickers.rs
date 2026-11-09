@@ -1695,10 +1695,10 @@ fn combo_box_virtual_rows_stay_distinct_under_duplicate_labels(cx: &mut TestAppC
     click(cx, 298., 18.);
     press(cx, "down enter");
     // The pick closed the list and cleared the cursor; the chevron reopens it
-    // and the second Down must reach the second same-label row as its own
-    // stop.
+    // and seats the cursor on the selected same-1, so a single Down reaches
+    // the second same-label row as its own stop.
     click(cx, 298., 18.);
-    press(cx, "down down enter");
+    press(cx, "down enter");
     assert_eq!(
         recorded.borrow().as_slice(),
         ["same-1", "same-2"],
@@ -2138,5 +2138,55 @@ fn combo_box_value_builder_seeds_once_and_never_clobbers_edits(cx: &mut TestAppC
         recorded.borrow().as_slice(),
         ["alp"],
         "the seeded-then-edited text reports exactly once, from the keystroke"
+    );
+}
+
+/// Removing the highlighted suggestion while the list is open repairs the
+/// cursor to the nearest enabled neighbour: the highlighted row is dropped
+/// from `items`, and the next render walks forward onto the row that slid
+/// into its place. Enter then commits the repaired row.
+#[gpui::test]
+fn autocomplete_removing_the_highlighted_row_repairs_to_the_next(cx: &mut TestAppContext) {
+    let items = Rc::new(RefCell::new(vec![
+        ("alpha", "Alpha"),
+        ("beta", "Beta"),
+        ("gamma", "Gamma"),
+        ("delta", "Delta"),
+    ]));
+    let changes = events();
+    let recorded = changes.clone();
+    let state = search_state(cx);
+    let state_for_view = state;
+    let items_for_view = items.clone();
+
+    let cx = open_host(cx, move || {
+        let changes = changes.clone();
+        let state = state_for_view.clone();
+        let items = items_for_view.borrow();
+        let its: Vec<PickerItem> = items
+            .iter()
+            .map(|(key, label)| PickerItem::new(*key, *label))
+            .collect();
+        Autocomplete::new(state, its)
+            .on_change(move |item, _, _| changes.borrow_mut().push(item.to_string()))
+            .into_any_element()
+    });
+
+    // Click opens the full list; three Downs walk the cursor to "gamma"
+    // (index 2 of 4).
+    click(cx, 60., 18.);
+    press(cx, "down down down");
+
+    // The caller drops "gamma" while the list stays open; the next render
+    // must move the highlight on to "delta".
+    items.borrow_mut().remove(2);
+    cx.update(|window, _| window.refresh());
+    cx.run_until_parked();
+
+    press(cx, "enter");
+    assert_eq!(
+        recorded.borrow().last().map(String::as_str),
+        Some("delta"),
+        "removing the highlighted row must repair the cursor to the next row"
     );
 }

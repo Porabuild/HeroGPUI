@@ -30,7 +30,7 @@ use gpui::{
     canvas, point, prelude::*, px, AnyElement, ElementId, Modifiers, MouseButton, SharedString,
     TestAppContext, VisualTestContext,
 };
-use herogpui_components::{Button, Dropdown, Menu, MenuItem, SelectionMode};
+use herogpui_components::{Button, Dropdown, DropdownTrigger, Menu, MenuItem, SelectionMode};
 use herogpui_core::element_id;
 
 use harness::{click, events, open_host, press};
@@ -193,6 +193,271 @@ fn enter_activates_once_and_closes(cx: &mut TestAppContext) {
         ["one"],
         "the menu must be gone: a click where the row was records nothing"
     );
+}
+
+/// ArrowDown on a closed `press` trigger opens the menu with its first
+/// enabled row focused — React Aria's `useMenuTrigger` `first` strategy —
+/// so Enter activates that row without an arrow key first.
+#[gpui::test]
+fn arrow_down_opens_the_menu_on_the_first_row(cx: &mut TestAppContext) {
+    let fired = events();
+    let actions = fired.clone();
+    let opens = events();
+    let opened = opens.clone();
+
+    let cx = open_host(cx, move || {
+        let actions = actions.clone();
+        let opens = opens.clone();
+        Dropdown::uncontrolled(
+            "dd-down",
+            Button::new("dd-down-trigger").label("Actions"),
+            vec![
+                MenuItem::new("one", "One"),
+                MenuItem::new("two", "Two"),
+                MenuItem::new("three", "Three"),
+            ],
+        )
+        .id("dd-down")
+        .on_action(move |key, _, _| actions.borrow_mut().push(key.to_string()))
+        .on_open_change(move |open, _, _| {
+            opens.borrow_mut().push(format!("open:{open}"));
+        })
+        .into_any_element()
+    });
+
+    press(cx, "tab");
+    press(cx, "down");
+    assert_eq!(
+        opened.borrow().as_slice(),
+        ["open:true"],
+        "ArrowDown on the closed trigger must open the menu"
+    );
+    press(cx, "enter");
+    assert_eq!(
+        fired.borrow().as_slice(),
+        ["one"],
+        "ArrowDown must seat the cursor on the first enabled row"
+    );
+    let_exit_finish(cx);
+}
+
+/// ArrowUp opens onto the `last` strategy's row: the last enabled stop.
+#[gpui::test]
+fn arrow_up_opens_the_menu_on_the_last_row(cx: &mut TestAppContext) {
+    let fired = events();
+    let actions = fired.clone();
+    let opens = events();
+    let opened = opens.clone();
+
+    let cx = open_host(cx, move || {
+        let actions = actions.clone();
+        let opens = opens.clone();
+        Dropdown::uncontrolled(
+            "dd-up",
+            Button::new("dd-up-trigger").label("Actions"),
+            vec![
+                MenuItem::new("one", "One"),
+                MenuItem::new("two", "Two"),
+                MenuItem::new("three", "Three"),
+            ],
+        )
+        .id("dd-up")
+        .on_action(move |key, _, _| actions.borrow_mut().push(key.to_string()))
+        .on_open_change(move |open, _, _| {
+            opens.borrow_mut().push(format!("open:{open}"));
+        })
+        .into_any_element()
+    });
+
+    press(cx, "tab");
+    press(cx, "up");
+    assert_eq!(
+        opened.borrow().as_slice(),
+        ["open:true"],
+        "ArrowUp on the closed trigger must open the menu"
+    );
+    press(cx, "enter");
+    assert_eq!(
+        fired.borrow().as_slice(),
+        ["three"],
+        "ArrowUp must seat the cursor on the last enabled row"
+    );
+    let_exit_finish(cx);
+}
+
+/// A disabled trigger takes no focus and fires no open, so neither arrow can
+/// open the menu.
+#[gpui::test]
+fn disabled_trigger_ignores_arrow_opening(cx: &mut TestAppContext) {
+    let opens = events();
+    let opened = opens.clone();
+
+    let cx = open_host(cx, move || {
+        let opens = opens.clone();
+        Dropdown::uncontrolled(
+            "dd-disabled",
+            Button::new("dd-disabled-trigger")
+                .label("Actions")
+                .is_disabled(true),
+            vec![MenuItem::new("one", "One"), MenuItem::new("two", "Two")],
+        )
+        .id("dd-disabled")
+        .on_open_change(move |open, _, _| {
+            opens.borrow_mut().push(format!("open:{open}"));
+        })
+        .into_any_element()
+    });
+
+    press(cx, "tab");
+    press(cx, "down");
+    press(cx, "up");
+    assert!(
+        opened.borrow().is_empty(),
+        "a disabled trigger must not open on ArrowDown or ArrowUp"
+    );
+}
+
+/// Pointer-open uses the `None` strategy upstream, but the selected key still
+/// wins when it is an enabled stop: a selection-mode menu opened by click
+/// seats its cursor on the selected row.
+#[gpui::test]
+fn pointer_open_seats_the_selected_row(cx: &mut TestAppContext) {
+    let fired = events();
+    let actions = fired.clone();
+    let opens = events();
+    let opened = opens.clone();
+
+    let cx = open_host(cx, move || {
+        let actions = actions.clone();
+        let opens = opens.clone();
+        Dropdown::uncontrolled(
+            "dd-sel",
+            Button::new("dd-sel-trigger").label("Actions"),
+            vec![
+                MenuItem::new("one", "One"),
+                MenuItem::new("two", "Two"),
+                MenuItem::new("three", "Three"),
+            ],
+        )
+        .id("dd-sel")
+        .selection_mode(SelectionMode::Single)
+        .default_selected_keys(["two"])
+        .on_action(move |key, _, _| actions.borrow_mut().push(key.to_string()))
+        .on_open_change(move |open, _, _| {
+            opens.borrow_mut().push(format!("open:{open}"));
+        })
+        .into_any_element()
+    });
+
+    click(cx, 40., 18.);
+    assert_eq!(
+        opened.borrow().as_slice(),
+        ["open:true"],
+        "a pointer press must open the menu"
+    );
+    press(cx, "enter");
+    assert_eq!(
+        fired.borrow().as_slice(),
+        ["two"],
+        "pointer-open must seat the cursor on the selected row"
+    );
+    let_exit_finish(cx);
+}
+
+/// `Alt+ArrowUp` opens onto the `last` row for the `press` trigger too —
+/// upstream binds it for both trigger modes.
+#[gpui::test]
+fn alt_arrow_up_opens_the_menu_on_the_last_row(cx: &mut TestAppContext) {
+    let fired = events();
+    let actions = fired.clone();
+    let opens = events();
+    let opened = opens.clone();
+
+    let cx = open_host(cx, move || {
+        let actions = actions.clone();
+        let opens = opens.clone();
+        Dropdown::uncontrolled(
+            "dd-alt",
+            Button::new("dd-alt-trigger").label("Actions"),
+            vec![
+                MenuItem::new("one", "One"),
+                MenuItem::new("two", "Two"),
+                MenuItem::new("three", "Three"),
+            ],
+        )
+        .id("dd-alt")
+        .on_action(move |key, _, _| actions.borrow_mut().push(key.to_string()))
+        .on_open_change(move |open, _, _| {
+            opens.borrow_mut().push(format!("open:{open}"));
+        })
+        .into_any_element()
+    });
+
+    press(cx, "tab");
+    press(cx, "alt-up");
+    assert_eq!(
+        opened.borrow().as_slice(),
+        ["open:true"],
+        "Alt+ArrowUp on the closed trigger must open the menu"
+    );
+    press(cx, "enter");
+    assert_eq!(
+        fired.borrow().as_slice(),
+        ["three"],
+        "Alt+ArrowUp must seat the cursor on the last enabled row"
+    );
+    let_exit_finish(cx);
+}
+
+/// A `longPress` trigger opens only through the Alt chords upstream: a plain
+/// ArrowDown stays inert while Alt+ArrowDown opens onto the first row.
+#[gpui::test]
+fn long_press_trigger_opens_only_through_alt(cx: &mut TestAppContext) {
+    let fired = events();
+    let actions = fired.clone();
+    let opens = events();
+    let opened = opens.clone();
+
+    let cx = open_host(cx, move || {
+        let actions = actions.clone();
+        let opens = opens.clone();
+        Dropdown::uncontrolled(
+            "dd-lp",
+            Button::new("dd-lp-trigger").label("Actions"),
+            vec![
+                MenuItem::new("one", "One"),
+                MenuItem::new("two", "Two"),
+                MenuItem::new("three", "Three"),
+            ],
+        )
+        .id("dd-lp")
+        .trigger(DropdownTrigger::LongPress)
+        .on_action(move |key, _, _| actions.borrow_mut().push(key.to_string()))
+        .on_open_change(move |open, _, _| {
+            opens.borrow_mut().push(format!("open:{open}"));
+        })
+        .into_any_element()
+    });
+
+    press(cx, "tab");
+    press(cx, "down");
+    assert!(
+        opened.borrow().is_empty(),
+        "a plain ArrowDown must not open a longPress trigger"
+    );
+    press(cx, "alt-down");
+    assert_eq!(
+        opened.borrow().as_slice(),
+        ["open:true"],
+        "Alt+ArrowDown must open a longPress trigger"
+    );
+    press(cx, "enter");
+    assert_eq!(
+        fired.borrow().as_slice(),
+        ["one"],
+        "Alt+ArrowDown must seat the cursor on the first enabled row"
+    );
+    let_exit_finish(cx);
 }
 
 #[gpui::test]

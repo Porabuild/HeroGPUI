@@ -28,6 +28,23 @@ pub(crate) enum PageKeys {
     Viewport,
 }
 
+/// Where an open list seats its cursor when no selected row claims it --
+/// React Aria's `useMenuTrigger` open strategy.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum OpenFocus {
+    /// Keyboard open (Enter, Space, ArrowDown): the first enabled row.
+    First,
+    /// ArrowUp open: the last enabled row.
+    Last,
+    /// Pointer open: no row unless a selected one claims the cursor.
+    None,
+    /// Arrow open on a list that keeps its cursor across close (ComboBox):
+    /// the selected key still wins, but with no selection the cursor the
+    /// navigation move already seated is left alone rather than reset to an
+    /// end.
+    Keep,
+}
+
 /// The scroller a popup list's cursor follows for reveal and viewport paging.
 #[derive(Clone)]
 pub(crate) enum ListScroll {
@@ -128,6 +145,18 @@ impl ListCore {
         })
     }
 
+    /// The keyed previous-frame row keys [`Self::repair_removed`] walks,
+    /// under `scoped(id, "previous-rows")`.
+    pub(crate) fn rows_state(
+        id: &ElementId,
+        window: &mut Window,
+        cx: &mut App,
+    ) -> Entity<Vec<SharedString>> {
+        window.use_keyed_state(element_id::scoped(id, "previous-rows"), cx, |_, _| {
+            Vec::new()
+        })
+    }
+
     /// Build the core over a cursor entity, an optional typeahead buffer, the
     /// arrow-wrap flag, the page-key mode, and the list's scroller.
     pub(crate) fn new(
@@ -178,6 +207,91 @@ impl ListCore {
     /// forward-typed seat).
     pub(crate) fn reveal(&self, index: usize) {
         self.scroll.reveal(index);
+    }
+
+    /// React Aria's `useSelectableCollection` autoFocus on open: the first of
+    /// `selected` (in selection order) that is a stop wins; otherwise
+    /// `strategy` seats the first or last stop, or clears the cursor for
+    /// [`OpenFocus::None`]. Writes the cursor, reveals the seated row, and
+    /// returns its index.
+    pub(crate) fn seat_on_open(
+        &self,
+        rows: &ListRows<'_>,
+        selected: &[SharedString],
+        strategy: OpenFocus,
+        cx: &mut App,
+    ) -> Option<usize> {
+        let selected_index = selected
+            .iter()
+            .filter_map(|key| rows.keys.iter().position(|k| k == key))
+            .find(|index| rows.stops.contains(index));
+        // `Keep` seats only a selected row; with none it leaves the cursor the
+        // caller's navigation already positioned untouched.
+        if strategy == OpenFocus::Keep && selected_index.is_none() {
+            return self.cursor_at(rows, cx);
+        }
+        let index = selected_index.or_else(|| match strategy {
+            OpenFocus::First => rows.stops.first().copied(),
+            OpenFocus::Last => rows.stops.last().copied(),
+            OpenFocus::None | OpenFocus::Keep => None,
+        });
+        match index {
+            Some(index) => {
+                self.set_cursor(Some(rows.keys[index].clone()), cx);
+                self.scroll.reveal(index);
+                Some(index)
+            }
+            None => {
+                self.set_cursor(None, cx);
+                None
+            }
+        }
+    }
+
+    /// React Stately's `useFocusedKeyReset`: when the cursor's key is gone
+    /// from `all_keys` — the component's full, unfiltered item set, so a row
+    /// merely hidden by a filter is not a removal — walk the previous frame's
+    /// row order forward from the removed row to the first key that is still
+    /// an enabled stop, then backward, clearing the cursor when none remains.
+    /// Afterwards stores this frame's row keys into `previous`. Writes only
+    /// when the cursor or the stored order changes, so a steady frame never
+    /// notifies.
+    pub(crate) fn repair_removed(
+        &self,
+        rows: &ListRows<'_>,
+        all_keys: &[SharedString],
+        previous: &Entity<Vec<SharedString>>,
+        cx: &mut App,
+    ) {
+        let cursor_key = self.cursor_key(cx);
+        if let Some(key) = cursor_key
+            .as_ref()
+            .filter(|key| !all_keys.iter().any(|all| all == *key))
+            .cloned()
+        {
+            // The enabled stops this frame, as the keys a repair may land on.
+            let stop_keys: Vec<SharedString> = rows
+                .stops
+                .iter()
+                .map(|index| rows.keys[*index].clone())
+                .collect();
+            let previous_rows = previous.read(cx).clone();
+            let target = previous_rows
+                .iter()
+                .position(|row| *row == key)
+                .and_then(|at| {
+                    previous_rows[at + 1..]
+                        .iter()
+                        .chain(previous_rows[..at].iter().rev())
+                        .find(|row| stop_keys.contains(*row))
+                        .cloned()
+                });
+            self.set_cursor(target, cx);
+        }
+        let current = rows.keys.to_vec();
+        if previous.read(cx).as_slice() != current.as_slice() {
+            previous.update(cx, |value, _| *value = current);
+        }
     }
 
     /// Seat the cursor on a hovered row. Skips while the keyboard owns the
@@ -624,6 +738,153 @@ mod tests {
                 cx.notify();
             });
             assert_eq!(core.cursor_at(&rows, cx), Some(2));
+        });
+    }
+
+    #[gpui::test]
+    fn seat_on_open_prefers_a_selected_stop(cx: &mut gpui::TestAppContext) {
+        let (core, cursor, keys, stops, labels) = fixture(cx, false, PageKeys::Ends, false);
+        let rows = list_rows(&keys, &stops, &labels);
+        // Selection order puts "banana" first; it is a stop, so it wins over
+        // the First strategy's "apple".
+        let selected = vec![key("banana"), key("apple")];
+        cx.update(|cx| {
+            assert_eq!(
+                core.seat_on_open(&rows, &selected, OpenFocus::First, cx),
+                Some(2)
+            );
+            assert_eq!(core.cursor_key(cx), Some(key("banana")));
+            // Last agrees: the selected stop still wins over the last row.
+            assert_eq!(
+                core.seat_on_open(&rows, &selected, OpenFocus::Last, cx),
+                Some(2)
+            );
+        });
+        let _ = cursor;
+    }
+
+    #[gpui::test]
+    fn seat_on_open_falls_back_to_the_strategy(cx: &mut gpui::TestAppContext) {
+        let (core, _cursor, keys, _stops, labels) = fixture(cx, false, PageKeys::Ends, false);
+        // Row 1 ("avocado") is disabled: present in keys, absent from stops.
+        let stops = vec![0, 2];
+        let rows = list_rows(&keys, &stops, &labels);
+        cx.update(|cx| {
+            // A selected key that is disabled is not a stop, so First applies.
+            let disabled_selected = vec![key("avocado")];
+            assert_eq!(
+                core.seat_on_open(&rows, &disabled_selected, OpenFocus::First, cx),
+                Some(0)
+            );
+            assert_eq!(core.cursor_key(cx), Some(key("apple")));
+            // A selected key that is not a row at all also falls back.
+            let absent_selected = vec![key("ghost")];
+            assert_eq!(
+                core.seat_on_open(&rows, &absent_selected, OpenFocus::Last, cx),
+                Some(2)
+            );
+            assert_eq!(core.cursor_key(cx), Some(key("banana")));
+            // None with no selection clears the cursor.
+            let none: Vec<SharedString> = Vec::new();
+            assert_eq!(core.seat_on_open(&rows, &none, OpenFocus::None, cx), None);
+            assert_eq!(core.cursor_key(cx), None);
+        });
+    }
+
+    #[gpui::test]
+    fn repair_removed_walks_to_the_nearest_enabled_row(cx: &mut gpui::TestAppContext) {
+        // rows now: a b d (c removed). previous order: a b c d.
+        let keys = vec![key("a"), key("b"), key("d")];
+        let stops = vec![0, 1, 2];
+        let labels = vec!["a".to_owned(), "b".to_owned(), "d".to_owned()];
+        let rows = list_rows(&keys, &stops, &labels);
+        let (core, _cursor, _k, _s, _l) = fixture(cx, false, PageKeys::Ends, false);
+        let all_keys = vec![key("a"), key("b"), key("d")];
+        cx.update(|cx| {
+            let previous = cx.new(|_| vec![key("a"), key("b"), key("c"), key("d")]);
+            // Cursor sat on removed "c": forward finds "d" first.
+            core.set_cursor(Some(key("c")), cx);
+            core.repair_removed(&rows, &all_keys, &previous, cx);
+            assert_eq!(core.cursor_key(cx), Some(key("d")));
+            // previous now holds this frame's row order.
+            assert_eq!(previous.read(cx).as_slice(), keys.as_slice());
+        });
+    }
+
+    #[gpui::test]
+    fn repair_removed_last_row_falls_back(cx: &mut gpui::TestAppContext) {
+        // rows now: a b (d removed, it was last). previous: a b c d -> wait,
+        // use previous a b d with cursor on d removed -> nothing after, walk
+        // back to b.
+        let keys = vec![key("a"), key("b")];
+        let stops = vec![0, 1];
+        let labels = vec!["a".to_owned(), "b".to_owned()];
+        let rows = list_rows(&keys, &stops, &labels);
+        let (core, _cursor, _k, _s, _l) = fixture(cx, false, PageKeys::Ends, false);
+        let all_keys = vec![key("a"), key("b")];
+        cx.update(|cx| {
+            let previous = cx.new(|_| vec![key("a"), key("b"), key("d")]);
+            core.set_cursor(Some(key("d")), cx);
+            core.repair_removed(&rows, &all_keys, &previous, cx);
+            assert_eq!(core.cursor_key(cx), Some(key("b")));
+        });
+    }
+
+    #[gpui::test]
+    fn repair_removed_skips_a_disabled_next_row(cx: &mut gpui::TestAppContext) {
+        // rows: a x b ; x (index 1) is disabled so not a stop. previous a c x b,
+        // cursor on removed c -> forward hits x (not a stop) then b.
+        let keys = vec![key("a"), key("x"), key("b")];
+        let stops = vec![0, 2];
+        let labels = vec!["a".to_owned(), "x".to_owned(), "b".to_owned()];
+        let rows = list_rows(&keys, &stops, &labels);
+        let (core, _cursor, _k, _s, _l) = fixture(cx, false, PageKeys::Ends, false);
+        let all_keys = vec![key("a"), key("x"), key("b")];
+        cx.update(|cx| {
+            let previous = cx.new(|_| vec![key("a"), key("c"), key("x"), key("b")]);
+            core.set_cursor(Some(key("c")), cx);
+            core.repair_removed(&rows, &all_keys, &previous, cx);
+            assert_eq!(core.cursor_key(cx), Some(key("b")));
+        });
+    }
+
+    #[gpui::test]
+    fn repair_removed_clears_when_nothing_remains(cx: &mut gpui::TestAppContext) {
+        let keys = vec![key("a")];
+        let stops = vec![0];
+        let labels = vec!["a".to_owned()];
+        let rows = list_rows(&keys, &stops, &labels);
+        let (core, _cursor, _k, _s, _l) = fixture(cx, false, PageKeys::Ends, false);
+        let all_keys = vec![key("a")];
+        cx.update(|cx| {
+            let previous = cx.new(|_| vec![key("c")]);
+            core.set_cursor(Some(key("c")), cx);
+            core.repair_removed(&rows, &all_keys, &previous, cx);
+            assert_eq!(core.cursor_key(cx), None);
+        });
+    }
+
+    #[gpui::test]
+    fn repair_removed_ignores_disabled_and_filtered_keys(cx: &mut gpui::TestAppContext) {
+        // "off" is disabled but still in all_keys; "hidden" is filtered out of
+        // rows but still in all_keys. Neither is a removal.
+        let keys = vec![key("a"), key("b")];
+        let stops = vec![0, 1];
+        let labels = vec!["a".to_owned(), "b".to_owned()];
+        let rows = list_rows(&keys, &stops, &labels);
+        let (core, _cursor, _k, _s, _l) = fixture(cx, false, PageKeys::Ends, false);
+        // all_keys is the full unfiltered set: a, off, hidden, b.
+        let all_keys = vec![key("a"), key("off"), key("hidden"), key("b")];
+        cx.update(|cx| {
+            let previous = cx.new(|_| vec![key("a"), key("off"), key("hidden"), key("b")]);
+            // Disabled key: present in all_keys -> no repair, cursor kept.
+            core.set_cursor(Some(key("off")), cx);
+            core.repair_removed(&rows, &all_keys, &previous, cx);
+            assert_eq!(core.cursor_key(cx), Some(key("off")));
+            // Filtered-out key: present in all_keys -> no repair either.
+            core.set_cursor(Some(key("hidden")), cx);
+            core.repair_removed(&rows, &all_keys, &previous, cx);
+            assert_eq!(core.cursor_key(cx), Some(key("hidden")));
         });
     }
 }

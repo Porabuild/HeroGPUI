@@ -113,6 +113,20 @@ version covers `herogpui`, `herogpui-core`, `herogpui-theme`,
 
 ### Fixed
 
+- A DatePicker or DateRangePicker calendar pick now replaces the field's
+  text when the user had typed a date the picker rejected (out of range or
+  unavailable). The stale text used to stay in the field, as React Aria's
+  shared field/calendar value does not allow.
+- Select, ComboBox and Dropdown open with the selected item highlighted, as
+  React Aria's list autofocus does. Without a selection, Select and
+  Dropdown open onto the first item from Enter, Space or ArrowDown and onto
+  the last from ArrowUp.
+- The Dropdown trigger opens on ArrowDown and ArrowUp, and on the Alt+Arrow
+  chords; a long-press trigger opens from the keyboard only through its Alt
+  chords.
+- Removing the highlighted item from an open Select, ComboBox or
+  Autocomplete moves the highlight to the next enabled item, or the previous
+  one, instead of clearing it.
 - The gallery's All Components page no longer panics: `Page::Sheet` had no
   overview preview tile. A gallery test now builds every component page's
   preview headlessly, so a page missing a tile fails in CI.

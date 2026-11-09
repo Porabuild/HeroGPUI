@@ -1329,7 +1329,9 @@ fn select_uncontrolled_multiple_keyboard_toggles_and_stays_open(cx: &mut TestApp
     });
 
     press(cx, "tab");
-    press(cx, "down down down enter");
+    // The opening Down is consumed by the trigger and seats the cursor on the
+    // selected Alpha; one more Down reaches Beta for Enter to toggle.
+    press(cx, "down down enter");
     assert_eq!(
         recorded.borrow().as_slice(),
         ["Alpha,Beta"],
@@ -1559,14 +1561,16 @@ fn select_row_pick_reports_the_close_once(cx: &mut TestAppContext) {
         "a closed panel must not report anything further"
     );
 
-    // Keyboard: Down three times from the top lands on indices 0, 1, 2, and
-    // the next Down lands on the option at index 3 — the section heading is
-    // never a stop, so it cannot be activated. Enter commits it, and this
-    // close is the trigger's own click listener (gpui fires a focused
-    // element's click on Enter), which reports through the same callback — a
-    // second `open:false`, one per pick, never two for the same one.
+    // Keyboard: the pointer reopen seats the cursor on the selected Durian,
+    // past the heading. Walking Up to the top and back Down crosses the
+    // `pt-6 pb-2` "Tropical" heading in both directions without stopping on
+    // it, so the option it announces is what Enter commits. The heading is
+    // never a stop, so it cannot be activated, and this close is the
+    // trigger's own click listener (gpui fires a focused element's click on
+    // Enter), which reports through the same callback — a second `open:false`,
+    // one per pick, never two for the same one.
     click(cx, 60., 18.);
-    press(cx, "down down down down");
+    press(cx, "up up up down down down");
     press(cx, "enter");
     assert_eq!(
         picked.borrow().as_slice(),
@@ -1716,7 +1720,7 @@ fn select_page_keys_ignore_a_closed_trigger(cx: &mut TestAppContext) {
         ["open:true", "open:false", "open:true"],
         "the page keys must have reached a live handler, not a dead one"
     );
-    press(cx, "down");
+    // The reopening Down seats the cursor on the first row; Enter picks it.
     press(cx, "enter");
     assert_eq!(
         picked.borrow().as_slice(),
@@ -2466,7 +2470,11 @@ fn select_multiple_anchor_persists_across_close_and_reopen(cx: &mut TestAppConte
         "the probe must close and reopen the panel around the anchor"
     );
 
-    press(cx, "shift-up");
+    // The pointer reopen seats the cursor on the first selected key, Alpha,
+    // while the Shift anchor stays parked on the deselected Gamma. Shift+Down
+    // moves the cursor to Beta and extends the range from that pre-close
+    // anchor, so Gamma rejoins the set.
+    press(cx, "shift-down");
     assert_eq!(
         picked.borrow().as_slice(),
         ["Alpha", "Alpha,Gamma", "Alpha", "Alpha,Beta,Gamma"],

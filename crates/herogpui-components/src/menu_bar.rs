@@ -146,7 +146,7 @@ impl MenuBar {
 struct BarState {
     open: gpui::Entity<Option<usize>>,
     active: gpui::Entity<usize>,
-    focus_first: gpui::Entity<bool>,
+    focus_first: gpui::Entity<Option<crate::list_core::OpenFocus>>,
     handles: Rc<Vec<gpui::FocusHandle>>,
     keys: Rc<Vec<SharedString>>,
     enabled: Rc<Vec<bool>>,
@@ -159,7 +159,13 @@ impl BarState {
         if *self.open.read(cx) == ix {
             return;
         }
-        self.focus_first.update(cx, |v, _| *v = keyboard);
+        self.focus_first.update(cx, |v, _| {
+            *v = Some(if keyboard {
+                crate::list_core::OpenFocus::First
+            } else {
+                crate::list_core::OpenFocus::None
+            });
+        });
         self.open.update(cx, |v, cx| {
             *v = ix;
             cx.notify();
@@ -209,7 +215,9 @@ impl RenderOnce for MenuBar {
             window.use_keyed_state(element_id::scoped(&base, "open"), cx, |_, _| None::<usize>);
         let active = window.use_keyed_state(element_id::scoped(&base, "active"), cx, |_, _| 0);
         let focus_first =
-            window.use_keyed_state(element_id::scoped(&base, "focus-first"), cx, |_, _| false);
+            window.use_keyed_state(element_id::scoped(&base, "focus-first"), cx, |_, _| {
+                None::<crate::list_core::OpenFocus>
+            });
         let mut handles = Vec::with_capacity(count);
         let mut trigger_bounds = Vec::with_capacity(count);
         for ix in 0..count {

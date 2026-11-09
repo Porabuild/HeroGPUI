@@ -949,6 +949,8 @@ impl Autocomplete {
         // stays on the same item when the query filters or the caller reorders
         // the collection.
         let cursor = crate::list_core::ListCore::cursor_state(base_id, window, cx);
+        // The previous frame's row keys, which the removed-row repair walks.
+        let previous_rows = crate::list_core::ListCore::rows_state(base_id, window, cx);
         // React Aria keeps the focused row in view, and v3's list is
         // `overflow-y-auto`. The virtual list has its own handle kind, a
         // scrolling div the other. `use_keyed_state` takes `cx` mutably, so both
@@ -1034,6 +1036,11 @@ impl Autocomplete {
             stops: &match_stops,
             labels: &match_labels,
         };
+        // A highlighted row the caller removed repairs to the nearest enabled
+        // neighbour. `all_keys` is the full unfiltered set, so a row hidden by
+        // the query is not treated as removed.
+        let all_keys: Vec<SharedString> = items.iter().map(|item| item.key().clone()).collect();
+        list_core.repair_removed(&match_rows, &all_keys, &previous_rows, cx);
         let cursor_at = list_core.cursor_at(&match_rows, cx);
 
         // Forward typing while the popover is open puts the collection cursor

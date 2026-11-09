@@ -3161,8 +3161,9 @@ fn select_keyboard_pick_does_not_reopen_when_owner_closes_on_change(cx: &mut Tes
                 .into_any_element()
         });
         press(cx, "tab");
+        // The keyboard open seats the cursor on the first row, Alpha; the
+        // dispatched key then picks it without an extra Down.
         press(cx, key);
-        press(cx, "down");
         let result = cx.update(|window, cx| {
             window.dispatch_event(
                 gpui::PlatformInput::KeyDown(gpui::KeyDownEvent {

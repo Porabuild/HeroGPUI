@@ -854,6 +854,7 @@ struct SelectFrame {
     focus_handle: gpui::FocusHandle,
     cursor_at: Option<usize>,
     keyboard_press_open: gpui::Entity<Option<bool>>,
+    open_focus: gpui::Entity<Option<crate::list_core::OpenFocus>>,
     selection_range: gpui::Entity<SelectSelectionRange>,
     list_scroll_now: gpui::UniformListScrollHandle,
     panel_scroll_now: gpui::ScrollHandle,
@@ -1121,6 +1122,14 @@ impl Select {
             cx,
             |_, _| None::<bool>,
         );
+        // The open strategy the trigger left for this open -- Enter/Space/
+        // ArrowDown `First`, ArrowUp `Last`, a pointer press `None` -- consumed
+        // by `seat_on_open` on the first open render, the way Dropdown's
+        // `focus_first` is.
+        let open_focus =
+            window.use_keyed_state(element_id::scoped(&self.id, "open-focus"), cx, |_, _| {
+                None::<crate::list_core::OpenFocus>
+            });
         // The Shift-range anchor lives beside the cursor, keyed off the same
         // instance id, so two selects never share an anchor and a closed
         // popover leaves its anchor standing for the reopen.
@@ -1145,6 +1154,8 @@ impl Select {
         // The letters typed so far, which a search resetting every frame could
         // not accumulate.
         let typeahead = crate::list_core::ListCore::typeahead_state(&self.id, window, cx);
+        // The previous frame's row keys, which the removed-row repair walks.
+        let previous_rows = crate::list_core::ListCore::rows_state(&self.id, window, cx);
 
         // Pinned `usePopover` closes when focus leaves the trigger-plus-list
         // scope. Blur deliberately leaves focus on its destination.
@@ -1284,6 +1295,24 @@ impl Select {
             stops: &cursor_stops,
             labels: &cursor_labels,
         };
+        // A highlighted row the caller removed repairs to the nearest enabled
+        // neighbour before the cursor resolves -- `keys` is the full set, so a
+        // disabled row is not treated as removed.
+        list_core.repair_removed(&cursor_rows_view, &keys, &previous_rows, cx);
+        // An open the trigger armed seats the cursor through the shared core:
+        // a selected stop wins, else the trigger's First/Last/None strategy
+        // applies. Consumed once, on the first open render.
+        if is_open {
+            if let Some(strategy) = *open_focus.read(cx) {
+                if multiple {
+                    list_core.seat_on_open(&cursor_rows_view, &selected_keys, strategy, cx);
+                } else {
+                    let seat_selected: Vec<SharedString> = selected.clone().into_iter().collect();
+                    list_core.seat_on_open(&cursor_rows_view, &seat_selected, strategy, cx);
+                }
+                open_focus.update(cx, |value, _| *value = None);
+            }
+        }
         let cursor_at = list_core.cursor_at(&cursor_rows_view, cx);
         SelectFrame {
             is_open,
@@ -1301,6 +1330,7 @@ impl Select {
             focus_handle,
             cursor_at,
             keyboard_press_open,
+            open_focus,
             selection_range,
             list_scroll_now,
             panel_scroll_now,
@@ -1478,6 +1508,7 @@ impl Select {
             ref keys,
             ref focus_handle,
             ref keyboard_press_open,
+            ref open_focus,
             ref selection_range,
             ref typeahead,
             ref list_core,
@@ -1513,6 +1544,7 @@ impl Select {
         let was_open = is_open;
         let fh = focus_handle.clone();
         let press_open = keyboard_press_open.clone();
+        let open_focus_keys = open_focus.clone();
         let row_keys = keys.clone();
         let clear_keys = clear_selection.clone();
         let key_focus = focus_handle.clone();
@@ -1535,6 +1567,7 @@ impl Select {
             range_keys,
             was_open,
             press_open,
+            open_focus: open_focus_keys,
             row_keys,
             clear_keys,
             key_focus,
@@ -1806,6 +1839,7 @@ impl Select {
             ref open_own,
             multiple,
             ref keyboard_press_open,
+            ref open_focus,
             ref trigger_pressed,
             ..
         } = *frame;
@@ -1815,6 +1849,7 @@ impl Select {
             let open = is_open;
             let pressed = trigger_pressed.clone();
             let keyboard_press_open = keyboard_press_open.clone();
+            let open_focus = open_focus.clone();
             field = field
                 .capture_any_mouse_down(move |_, _, cx| {
                     pressed.set(true);
@@ -1841,6 +1876,19 @@ impl Select {
                     let next_open = !started_open;
                     if next_open == open {
                         return;
+                    }
+                    // An opening press arms the open strategy the next render's
+                    // `seat_on_open` consumes: a keyboard activation (Enter or
+                    // Space) opens onto the first row, a pointer press leaves
+                    // the seat to a selected row or none.
+                    if next_open {
+                        open_focus.update(cx, |focus, _| {
+                            *focus = Some(if keyboard {
+                                crate::list_core::OpenFocus::First
+                            } else {
+                                crate::list_core::OpenFocus::None
+                            });
+                        });
                     }
                     // Uncontrolled: flip our own copy, or the trigger would be
                     // inert without a caller handler.
@@ -2242,6 +2290,7 @@ struct SelectTriggerKeys {
     range_keys: gpui::Entity<SelectSelectionRange>,
     was_open: bool,
     press_open: gpui::Entity<Option<bool>>,
+    open_focus: gpui::Entity<Option<crate::list_core::OpenFocus>>,
     row_keys: Vec<SharedString>,
     clear_keys: SelectAction,
     key_focus: gpui::FocusHandle,
@@ -2383,6 +2432,7 @@ impl SelectTriggerKeys {
             ref form_state_keys,
             ref on_open_change,
             ref on_select,
+            ref open_focus,
             ref row_keys,
             multiple,
             ..
@@ -2393,6 +2443,15 @@ impl SelectTriggerKeys {
         // element, so handling them again would open and close
         // the list in one keystroke.
         if matches!(key, "down" | "up") {
+            // React Aria's `useMenuTrigger`: ArrowDown opens onto the first
+            // row, ArrowUp onto the last.
+            open_focus.update(cx, |focus, _| {
+                *focus = Some(if key == "down" {
+                    crate::list_core::OpenFocus::First
+                } else {
+                    crate::list_core::OpenFocus::Last
+                });
+            });
             if let Some(held) = &open_own_keys {
                 held.update(cx, |v, cx| {
                     *v = true;

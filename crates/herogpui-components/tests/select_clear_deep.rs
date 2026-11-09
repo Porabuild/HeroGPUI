@@ -301,3 +301,195 @@ fn controlled_clear_updates_when_owner_accepts_and_parts_stay_independent(cx: &m
     press(cx, "delete");
     assert_eq!(recorded.borrow().as_slice(), ["second"]);
 }
+
+/// ArrowUp opens a Select onto React Aria's `last` strategy: with no
+/// selection the cursor lands on the last enabled stop, so Enter commits it.
+#[gpui::test]
+fn arrow_up_open_with_no_selection_seats_the_last_row(cx: &mut TestAppContext) {
+    let recorded = events();
+    let seen = recorded.clone();
+    let cx = open_host(cx, move || {
+        let recorded = recorded.clone();
+        Select::new(
+            "sel-open-up",
+            vec![
+                PickerItem::new("alpha", "Alpha"),
+                PickerItem::new("beta", "Beta"),
+                PickerItem::new("gamma", "Gamma"),
+            ],
+        )
+        .on_selection_change(move |v, _, _| {
+            recorded
+                .borrow_mut()
+                .push(v.as_ref().map(ToString::to_string).unwrap_or_default());
+        })
+        .into_any_element()
+    });
+
+    press(cx, "tab");
+    press(cx, "up");
+    press(cx, "enter");
+    assert_eq!(
+        seen.borrow().last().map(String::as_str),
+        Some("gamma"),
+        "ArrowUp with no selection must seat the last enabled row"
+    );
+}
+
+/// ArrowDown opens onto `first`, but a selected key that is disabled is not a
+/// stop, so the seat falls back to the first enabled row rather than the
+/// disabled selection.
+#[gpui::test]
+fn arrow_down_open_with_disabled_selection_seats_the_first_row(cx: &mut TestAppContext) {
+    let recorded = events();
+    let seen = recorded.clone();
+    let cx = open_host(cx, move || {
+        let recorded = recorded.clone();
+        Select::new(
+            "sel-open-disabled",
+            vec![
+                PickerItem::new("alpha", "Alpha"),
+                PickerItem::new("beta", "Beta"),
+                PickerItem::new("gamma", "Gamma"),
+            ],
+        )
+        .default_value(Some("beta".into()))
+        .disabled_keys([SharedString::from("beta")])
+        .on_selection_change(move |v, _, _| {
+            recorded
+                .borrow_mut()
+                .push(v.as_ref().map(ToString::to_string).unwrap_or_default());
+        })
+        .into_any_element()
+    });
+
+    press(cx, "tab");
+    press(cx, "down");
+    press(cx, "enter");
+    assert_eq!(
+        seen.borrow().last().map(String::as_str),
+        Some("alpha"),
+        "a disabled selected row must not take the open seat"
+    );
+}
+
+/// A pointer open carries the `None` strategy, but the selected key still
+/// wins when it is an enabled stop: opening by click seats the cursor on the
+/// selected row, so a following Down walks to the next one.
+#[gpui::test]
+fn pointer_open_seats_the_selected_row(cx: &mut TestAppContext) {
+    let recorded = events();
+    let seen = recorded.clone();
+    let cx = open_host(cx, move || {
+        let recorded = recorded.clone();
+        Select::new(
+            "sel-open-pointer",
+            vec![
+                PickerItem::new("alpha", "Alpha"),
+                PickerItem::new("beta", "Beta"),
+                PickerItem::new("gamma", "Gamma"),
+            ],
+        )
+        .default_value(Some("beta".into()))
+        .on_selection_change(move |v, _, _| {
+            recorded
+                .borrow_mut()
+                .push(v.as_ref().map(ToString::to_string).unwrap_or_default());
+        })
+        .into_any_element()
+    });
+
+    click(cx, 60., 18.);
+    press(cx, "down");
+    press(cx, "enter");
+    assert_eq!(
+        seen.borrow().last().map(String::as_str),
+        Some("gamma"),
+        "pointer-open must seat the selected row: Down from beta lands on gamma"
+    );
+}
+
+/// Removing the highlighted row repairs the cursor to the nearest enabled
+/// neighbour in the previous order: the highlighted "gamma" is dropped from
+/// `items`, and the next render walks forward onto "delta".
+#[gpui::test]
+fn removing_the_highlighted_row_repairs_to_the_next(cx: &mut TestAppContext) {
+    let items = Rc::new(RefCell::new(vec![
+        ("alpha", "Alpha"),
+        ("beta", "Beta"),
+        ("gamma", "Gamma"),
+        ("delta", "Delta"),
+    ]));
+    let recorded = events();
+    let seen = recorded.clone();
+    let items_for_view = items.clone();
+
+    let cx = open_host(cx, move || {
+        let recorded = recorded.clone();
+        let items = items_for_view.borrow();
+        let its: Vec<PickerItem> = items
+            .iter()
+            .map(|(key, label)| PickerItem::new(*key, *label))
+            .collect();
+        Select::new("sel-repair", its)
+            .on_selection_change(move |v, _, _| {
+                recorded
+                    .borrow_mut()
+                    .push(v.as_ref().map(ToString::to_string).unwrap_or_default());
+            })
+            .into_any_element()
+    });
+
+    // Open onto the first row, then walk to "gamma" (index 2 of 4).
+    press(cx, "tab");
+    press(cx, "down");
+    press(cx, "down");
+    press(cx, "down");
+
+    // The caller drops "gamma"; the next render must move the highlight on.
+    items.borrow_mut().remove(2);
+    cx.update(|window, _| window.refresh());
+    cx.run_until_parked();
+
+    press(cx, "enter");
+    assert_eq!(
+        seen.borrow().last().map(String::as_str),
+        Some("delta"),
+        "removing the highlighted row must repair the cursor to the next row"
+    );
+}
+
+/// A multiple Select seats the first selected key *in selection order* that
+/// is an enabled stop — not the first row and not alphabetical. With
+/// `selected_keys` ordered `["gamma", "alpha"]`, "gamma" (a later row) wins
+/// the seat over "alpha", so Enter toggles "gamma" off and leaves "alpha".
+#[gpui::test]
+fn multiple_open_seats_the_first_selected_key_in_selection_order(cx: &mut TestAppContext) {
+    let recorded = events();
+    let seen = recorded.clone();
+    let cx = open_host(cx, move || {
+        let recorded = recorded.clone();
+        Select::new(
+            "sel-open-multi",
+            vec![
+                PickerItem::new("alpha", "Alpha"),
+                PickerItem::new("beta", "Beta"),
+                PickerItem::new("gamma", "Gamma"),
+            ],
+        )
+        .selection_mode(SelectionMode::Multiple)
+        .selected_keys([SharedString::from("gamma"), SharedString::from("alpha")])
+        .on_selection_change_all(move |keys, _, _| {
+            recorded.borrow_mut().push(keys.join(","));
+        })
+        .into_any_element()
+    });
+
+    click(cx, 60., 18.);
+    press(cx, "enter");
+    assert_eq!(
+        seen.borrow().last().map(String::as_str),
+        Some("alpha"),
+        "the seat must land on the first selected key in selection order"
+    );
+}
