@@ -1,8 +1,8 @@
 {
   "schema_version": 2,
   "target": "v3.2.7",
-  "recorded_on": "2026-11-10T02:20:51.777882+00:00",
-  "inputs_sha256": "0a3882cc6c2599e7eb33cfec9638c938d49f63c3d0777484ca928d972c5914ae",
+  "recorded_on": "2026-11-10T02:32:34.611539+00:00",
+  "inputs_sha256": "f3ecb52852b873afd35bf787aa289d664c8b5e8a7d021029ec05b180da7aace5",
   "inputs_stable_during_run": true,
   "status": "passed",
   "note": "Static mapped coverage only; omissions, unreviewed specimens and runtime parity are separate.",
@@ -44,8 +44,8 @@
         ]
       },
       "reported_gaps": [],
-      "output_sha256": "5a7c2161facb5d6f86dc67eea7fcacd85e5808362c0b775409dcba28b4c9a367",
-      "output": "self-test PASS: the scanner fails a component that states no role, a raw gpui accessibility builder outside a11y.rs, accessibility state on a roleless element, a component in no table, a module in no wave, a stale NO_NODE/PENDING reason, a lost or doubled delegate and a stale table row; it matches `impl` blocks by brace, reads past comments and test modules, and does not mistake the theme's `cx.role(Color::..)` for an accessibility role.\n\ncomponent modules read    : 87\nRenderOnce impls read     : 105\nrole calls found          : 128\ncomponents with a role    : 59\ndelegating to another     : 6\nno node upstream either   : 39\npending components        : 1\npending modules           : 0\nraw gpui a11y calls       : 0\nfailures                  : 0\n/Users/svecherenko/work/HeroGPUI/.poracode/worktrees/poratake-control-slots/.shots/a11y_audit.py:1287: SyntaxWarning: \"\\`\" is an invalid escape sequence. Such sequences will not work in the future. Did you mean \"\\\\`\"? A raw string is also an option.\n  'a component-builder \\`.aria_label(..)\\` must not count as a raw '\n"
+      "output_sha256": "15fa9b977e0c0a40eb244d53eed4c7e4f8113750fbf1949da5920fec96524ae3",
+      "output": "self-test PASS: the scanner fails a component that states no role, a raw gpui accessibility builder outside a11y.rs, accessibility state on a roleless element, a component in no table, a module in no wave, a stale NO_NODE/PENDING reason, a lost or doubled delegate and a stale table row; it matches `impl` blocks by brace, reads past comments and test modules, and does not mistake the theme's `cx.role(Color::..)` for an accessibility role.\n\ncomponent modules read    : 87\nRenderOnce impls read     : 105\nrole calls found          : 128\ncomponents with a role    : 59\ndelegating to another     : 6\nno node upstream either   : 39\npending components        : 1\npending modules           : 0\nraw gpui a11y calls       : 0\nfailures                  : 0\nE:\\work\\HeroGPUI\\.poracode\\worktrees\\popover-viewport-release-43\\.shots\\a11y_audit.py:1287: SyntaxWarning: \"\\`\" is an invalid escape sequence. Such sequences will not work in the future. Did you mean \"\\\\`\"? A raw string is also an option.\n  'a component-builder \\`.aria_label(..)\\` must not count as a raw '\n"
     },
     {
       "audit": "anatomy_audit.py",

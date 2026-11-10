@@ -1204,6 +1204,10 @@ impl RenderOnce for Popover {
         // `.popover__dialog` `p-4` on both axes either way.
         let panel_padding_y = self.padding.unwrap_or(px(16.));
         let panel_padding_x = self.padding.unwrap_or(px(16.));
+        let panel_width = self
+            .panel_width
+            .unwrap_or(px(260.))
+            .min(window.viewport_size().width);
         let mut panel = gpui::div()
             // `popover/popover.js` composes RAC `Popover` around a `Dialog`,
             // and `react-aria/dist/private/dialog/useDialog.js` is what gives
@@ -1218,7 +1222,7 @@ impl RenderOnce for Popover {
                 a11y::Role::Dialog,
                 &a11y::Name::maybe(self.aria_label.clone().or(self.title.clone())),
             )
-            .w(self.panel_width.unwrap_or(px(260.)))
+            .w(panel_width)
             .flex()
             .flex_col()
             .gap(px(8.))
@@ -1284,7 +1288,7 @@ impl RenderOnce for Popover {
         let (slide_x, slide_y) = placement_entry_offset(entry_placement);
         let zoom = crate::anim::ZoomBox::panel(panel_padding_y, radius)
             .padding_x(panel_padding_x)
-            .sized(self.panel_width.unwrap_or(px(260.)));
+            .sized(panel_width);
         let zoom = crate::anim::ZoomBox {
             slide_x: (slide_x != 0.0).then(|| px(slide_x)),
             slide_y: (slide_y != 0.0).then(|| px(slide_y)),

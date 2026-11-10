@@ -253,6 +253,40 @@ fn popover_panel_width_and_padding_constrain_its_content(cx: &mut TestAppContext
 }
 
 #[gpui::test]
+fn popover_panel_width_stays_inside_a_narrow_viewport(cx: &mut TestAppContext) {
+    use herogpui_components::{Button, Popover};
+    harness::still();
+    let cx = harness::open_host(cx, || {
+        Popover::new(Button::new("narrow-trigger").label("Options"))
+            .id("narrow-popover")
+            .is_open(true)
+            .panel_width(px(500.))
+            .padding(px(6.))
+            .child(
+                gpui::div()
+                    .w_full()
+                    .h(px(20.))
+                    .debug_selector(|| "narrow-popover-body".into()),
+            )
+            .into_any_element()
+    });
+    cx.simulate_resize(gpui::size(px(240.), px(300.)));
+    harness::settle(cx);
+    let body = cx.debug_bounds("narrow-popover-body").unwrap();
+    assert_eq!(body.size.width, px(228.), "{body:?}");
+    assert!(
+        body.left() >= px(6.) && body.right() <= px(234.),
+        "{body:?}"
+    );
+    cx.simulate_resize(gpui::size(px(640.), px(300.)));
+    harness::settle(cx);
+    assert_eq!(
+        cx.debug_bounds("narrow-popover-body").unwrap().size.width,
+        px(488.)
+    );
+}
+
+#[gpui::test]
 fn modal_panel_width_and_padding_constrain_its_content(cx: &mut TestAppContext) {
     use herogpui_components::Modal;
     harness::still();
