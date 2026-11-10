@@ -25419,7 +25419,7 @@
     "sha256": "05b446692dfeb50449eb7ff3e1b974e787bdc86af15d2856f505cf34ca8689e6"
   },
   "source_snapshot": {
-    "sha256": "3a1536f3bc47364907ce7c7bfd0731295c0f588066e5b30a460f3e74f6f86242",
+    "sha256": "9aa60f14cf29fc054f9d2a133fda1da8f92f2b7fa8a2724fccb8792a34757ac4",
     "files": {
       ".cargo/config.toml": "6ce2a269fd46b2570763e8e446ac93e9d04614416af21134877cf7b388e776f9",
       ".gitattributes": "13aede5d4eaee3f19ecad6be9d4941dafe8bc4d596e83a2083f4143fb6e0f434",
@@ -25946,7 +25946,7 @@
       "web/src/data/reference.json": "10ddfffca5ae59afae1e2ea6cc85a17709023893c30a3a4300e81224579023f2",
       "web/src/data/releases.json": "57238224f36dc77bc7ade27a781c80b4f40b18e7714cd053ee2ce70aea0baaa5",
       "web/src/data/rust-examples.json": "05db622eeda14c3ad2c40aec52e823a04f5fbde9eb933b9ade294a92b135e0ab",
-      "web/src/data/wasm-parity.json": "bd1848eed9f68a0f5e2008340834b24303fce3dd91f564c76658912b6510988b",
+      "web/src/data/wasm-parity.json": "c785ae4f4c9c7f6eea2580d1007cac3867f169d2a2b6ef90a27a40a73200170e",
       "web/src/data/wasm-sections.json": "5f519c120fd4417cbbd18934166f881d81fcca02b7be80181b40a261a476368d",
       "web/src/lib/catalog.ts": "79681a0e1e0e12c9352ddc9eec0d6fe428906ceca07bfefb89623639396f81cf",
       "web/src/lib/docs-nav.ts": "ffb0d7fdaa0261395306f0bfa4e09c5ef88043c702c962f847983b05be67f55a",
@@ -150199,7 +150199,7 @@
       ]
     }
   ],
-  "verification_sha256": "703b048ee50572be7e9cee620d8570af1c66b872910cd8ccd3efe11ebda15ad9",
+  "verification_sha256": "fb9bf38b8e94d30d1e38992989a2d2d7bfc3f9620aa24a2cd1a040a59ef33229",
   "retired_source_changes": [
     {
       "path": "packages/react/src/components/autocomplete/autocomplete.stories.tsx",
