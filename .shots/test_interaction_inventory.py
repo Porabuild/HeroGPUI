@@ -43,7 +43,7 @@ class InventoryTests(unittest.TestCase):
         (checkout / '.gitattributes').write_bytes(attributes.read_bytes())
         (checkout / 'control.ps1').write_bytes(b'Write-Host "control"\r\n')
         (checkout / 'run-tests.sh').write_bytes(b'#!/bin/bash\nexit 0\n')
-        for path in ('Cargo.lock', 'index.html', 'OFL.txt', 'icon.svg', 'pnpm-lock.yaml'):
+        for path in ('Cargo.lock', 'index.html', 'OFL.txt', 'icon.svg', 'pnpm-lock.yaml', 'run.json'):
             (checkout / path).write_bytes(b'hashed input\n')
 
         def git(*args):
@@ -53,7 +53,7 @@ class InventoryTests(unittest.TestCase):
         git('init', '-q')
         git('-c', 'core.autocrlf=false', 'add', '.')
         for path in ('.gitattributes', 'control.ps1', 'run-tests.sh',
-                     'Cargo.lock', 'index.html', 'OFL.txt', 'icon.svg', 'pnpm-lock.yaml'):
+                     'Cargo.lock', 'index.html', 'OFL.txt', 'icon.svg', 'pnpm-lock.yaml', 'run.json'):
             with self.subTest(path=path):
                 unix = git('-c', 'core.autocrlf=false', 'cat-file', '--filters', ':' + path)
                 windows = git('-c', 'core.autocrlf=true', 'cat-file', '--filters', ':' + path)

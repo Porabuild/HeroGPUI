@@ -25419,10 +25419,10 @@
     "sha256": "05b446692dfeb50449eb7ff3e1b974e787bdc86af15d2856f505cf34ca8689e6"
   },
   "source_snapshot": {
-    "sha256": "53ad7af90915e80b4fc5c17f170ffd9c786196ac5da16e5217b0459d0c308204",
+    "sha256": "1cce7c5531ec184b40be68719f0eec2099fd5af0f001c4247f0f967aa65691b0",
     "files": {
       ".cargo/config.toml": "6ce2a269fd46b2570763e8e446ac93e9d04614416af21134877cf7b388e776f9",
-      ".gitattributes": "1490c4d1c7d4ccde9db9a0024b604bd7d3c341efbddb71f0c7a78d5737ed94a5",
+      ".gitattributes": "0a560d39f04292518fe72516d91e2418d61d5eaa12a15af564dc07e60d391034",
       ".shots/a11y_audit.py": "c1d4f45306ec015c83ec29fa174e724d9298118b162eadb45cd0b385337d0509",
       ".shots/anatomy_audit.py": "8f6798f5118908dfb95a418104ed89f60bb89565e54f59778f5a9c07823f62c7",
       ".shots/anim_audit.py": "090152877b56672703147ce72f6e833e3c0615058ca6aaa02146bd32424c6d8c",
@@ -25479,7 +25479,7 @@
       ".shots/test_bundle.py": "4ca12fc27d363ed6510267d39cd0a7a216fe603dffb9c131a8b1b40ccc764fea",
       ".shots/test_coverage_report.py": "6810bcd0056dce38cc565dbfd4cd232542d9c05c311db7c28c47a19112e42883",
       ".shots/test_inert.py": "931174dd8a73944fe6d70fc4856c59b90dfd408bb1624f5956e56e92b96e97f9",
-      ".shots/test_interaction_inventory.py": "c2f683e13f8e8f881ff6c3d24df6ba81e021863b859ad94a84c2cba192afca7f",
+      ".shots/test_interaction_inventory.py": "9495819f93b2a138754725d0fe9f3d7517457c280d7bb81c33707809bbcab22f",
       ".shots/test_native_capture.py": "372ada08c533d4e0917b8639d2fb1d6bcd802d0eed24aef3de7ed700709a479d",
       ".shots/test_parity_report.py": "28f4d44532bbecdf32438815fcbd3622bc918511fbe2cfcaf70707509664e511",
       ".shots/theme_serde_audit.py": "392a1968af4a65218e63ba8f06405684182bfcb1497d772489a0e14dd581b08f",
@@ -150199,7 +150199,7 @@
       ]
     }
   ],
-  "verification_sha256": "9dd76b503e74bd248e85a912604c8d2b8b0d358fbb179f5717eb3f5d7434b3e9",
+  "verification_sha256": "be17f61d1298ab06926c949df87583b5672190d48b27764537bfca96723bc304",
   "retired_source_changes": [
     {
       "path": "packages/react/src/components/autocomplete/autocomplete.stories.tsx",
@@ -151987,7 +151987,7 @@
   "scripted_runs": [
     {
       "path": "docs/parity/runs/interaction-sweep.json",
-      "sha256": "61c5e4d6654dac10172bb4388c47d3dac4179f1e9af8137780dc126d76630ef6",
+      "sha256": "ac71742a818f9c99c65cdc39110cc361e147dc5d5b57c84ad2a16a46d4453927",
       "kind": "interaction-sweep",
       "recorded_on": "2026-11-09",
       "identity": {
@@ -152814,7 +152814,7 @@
     },
     {
       "path": "docs/parity/runs/native-a11y.json",
-      "sha256": "74d07e742a99c8db4a0f804318119367e22314633a46d2bf6145ee3342bfc2eb",
+      "sha256": "2d8f6bc9a1d1a2811181e53d38e6b5a6e79c5d279a91a03562fd777eaa94630c",
       "kind": "native-a11y",
       "recorded_on": "2026-11-09",
       "identity": {
@@ -153643,7 +153643,7 @@
     },
     {
       "path": "docs/parity/runs/native-ce7bd3af.json",
-      "sha256": "b8835278d03a3c22a1e7f9ed3b91bc79bc7ad733d473956d8cf755f4f3801069",
+      "sha256": "e6be9989ae46543a935a75012a02cbf50e9ce42146c6da951c69c45775e1fbc8",
       "kind": "native-route-smoke",
       "recorded_on": null,
       "identity": {},
@@ -153658,7 +153658,7 @@
     },
     {
       "path": "docs/parity/runs/wasm-smoke.json",
-      "sha256": "a01c817df5e8ec6fa923242cfa1dd5988b36fb0d069caa8960a33c5bcad1ae44",
+      "sha256": "b85a51750b24065f3621fd9bd2aa8d7a1601c91c82b9a1f886e89914d0217f26",
       "kind": "wasm-smoke",
       "recorded_on": "2026-11-09",
       "identity": {

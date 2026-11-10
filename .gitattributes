@@ -13,6 +13,7 @@
 *.txt text eol=lf
 *.svg text eol=lf
 *.yaml text eol=lf
+*.json text eol=lf
 # The git hooks have no extension, so `* text=auto` above would check them out
 # with the platform's native endings -- CRLF on Windows, where Git Bash then
 # refuses the `#!/bin/sh\r` shebang and git reports the hook as failing. They
