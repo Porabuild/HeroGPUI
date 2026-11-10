@@ -1,8 +1,8 @@
 {
   "schema_version": 2,
   "target": "v3.2.7",
-  "recorded_on": "2026-11-10T02:39:39.392346+00:00",
-  "inputs_sha256": "33030b44580f7b673f1a0c5cbbc29141ee83b2d07d45755a2a287a9660a52aa7",
+  "recorded_on": "2026-11-10T02:45:35.369407+00:00",
+  "inputs_sha256": "b08bfde42c89a95f64ead1db99a3550f965d9c71b0e3d93ca439ff436e369231",
   "inputs_stable_during_run": true,
   "status": "passed",
   "note": "Static mapped coverage only; omissions, unreviewed specimens and runtime parity are separate.",
