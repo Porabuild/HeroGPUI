@@ -253,6 +253,8 @@ pub struct Select {
     trigger_text_size: Option<Pixels>,
     row_text_size: Option<Pixels>,
     panel_padding: Option<Pixels>,
+    panel_gap: Option<Pixels>,
+    panel_min_width: Option<Pixels>,
     /// Replaces the list rows' `py-1.5` vertical padding.
     row_padding_y: Option<Pixels>,
     /// The fill a hovered option row takes, in place of `--default`.
@@ -274,6 +276,9 @@ pub struct Select {
     indicator: Option<Box<dyn Fn(bool) -> gpui::AnyElement + 'static>>,
     #[allow(clippy::type_complexity)]
     item_leading: Option<Box<dyn Fn(&SharedString, bool) -> Option<gpui::AnyElement> + 'static>>,
+    item_content: Option<
+        std::sync::Arc<dyn Fn(&SharedString, bool, &mut Window, &mut App) -> gpui::AnyElement>,
+    >,
     /// `Select.Indicator` — draws the trigger indicator. The closure is handed
     /// whether the popover is open; arbitrary caller content is kept as-is,
     /// while the built-in SVG follows the pinned 150ms rotation.
@@ -388,6 +393,15 @@ impl Select {
         self
     }
 
+    #[doc = "Replaces an option’s visible content while keeping its label for accessibility and typeahead. The selected indicator remains owned by Select."]
+    pub fn item_content(
+        mut self,
+        render: impl Fn(&SharedString, bool, &mut Window, &mut App) -> gpui::AnyElement + 'static,
+    ) -> Self {
+        self.item_content = Some(std::sync::Arc::new(render));
+        self
+    }
+
     /// `Select.Indicator` — draw the trigger indicator yourself.
     ///
     /// The closure receives the current open state, which is the GPUI analog
@@ -498,6 +512,18 @@ impl Select {
         self
     }
 
+    #[doc = "Sets spacing between option rows, including fixed-height virtual rows."]
+    pub fn panel_gap(mut self, value: impl Into<Pixels>) -> Self {
+        self.panel_gap = Some(value.into());
+        self
+    }
+
+    #[doc = "Sets a minimum width for the detached option panel."]
+    pub fn panel_min_width(mut self, value: impl Into<Pixels>) -> Self {
+        self.panel_min_width = Some(value.into());
+        self
+    }
+
     /// Replaces the list rows' `px-2.5` horizontal padding.
     pub fn row_padding_x(mut self, p: impl Into<Pixels>) -> Self {
         self.row_padding_x = Some(p.into());
@@ -598,12 +624,15 @@ impl Select {
             trigger_text_size: None,
             row_text_size: None,
             panel_padding: None,
+            panel_gap: None,
+            panel_min_width: None,
             row_padding_y: None,
             row_hover_bg: None,
             trigger_hover_bg: None,
             row_font_family: None,
             font_family: None,
             item_leading: None,
+            item_content: None,
             radius: None,
             field: util::FieldBox::default(),
             sections: Vec::new(),
@@ -1381,6 +1410,8 @@ impl Select {
         self.row_padding_y = self.row_padding_y.or(select_theme.row_padding_y);
         self.row_text_size = self.row_text_size.or(select_theme.row_text_size);
         self.panel_padding = self.panel_padding.or(select_theme.panel_padding);
+        self.panel_gap = self.panel_gap.or(select_theme.panel_gap);
+        self.panel_min_width = self.panel_min_width.or(select_theme.panel_min_width);
         self.radius = self.radius.or(select_theme.radius);
         if self.row_hover_bg.is_none() {
             self.row_hover_bg = select_theme.row_hover_bg.map(|color| color.resolve(colors));
@@ -2029,9 +2060,11 @@ impl Select {
         let list_name = self.aria_label.clone().or(self.label.clone());
         gpui::div()
                 .w_full()
+                .when_some(self.panel_min_width, |panel, width| panel.min_w(width))
                 .flex()
                 .flex_col()
                 .p(self.panel_padding.unwrap_or(px(6.)))
+                .gap(self.panel_gap.unwrap_or(px(0.)))
                 .bg(colors.overlay.background)
                 .rounded(radius)
                 // v3 gives a floating panel no border: `.popover` and friends are
@@ -2193,6 +2226,7 @@ impl Select {
             focus_rows,
             indicator,
             item_leading,
+            item_content: self.item_content.clone(),
             on_change_all,
             on_change_one,
             indices_own,
@@ -2219,18 +2253,29 @@ impl Select {
             // height plus an outer scroller would nest two scroll
             // containers and strand rows between them.
             Some(row_height) => {
+                let gap = self.panel_gap.unwrap_or(px(0.));
                 panel = panel.child(
                     gpui::uniform_list(
                         element_id::scoped(&base_id, "rows"),
                         options_len,
                         move |range, _window, cx| {
                             range
-                                .map(|i| rows.row(i, Some(row_height), _window, cx))
+                                .map(|i| {
+                                    let row = rows.row(i, Some(row_height), _window, cx);
+                                    if gap <= px(0.) {
+                                        return row;
+                                    }
+                                    gpui::div()
+                                        .h(row_height + gap)
+                                        .child(row)
+                                        .into_any_element()
+                                })
                                 .collect::<Vec<_>>()
                         },
                     )
                     .track_scroll(&list_scroll_now)
                     .with_sizing_behavior(gpui::ListSizingBehavior::Infer)
+                    .mb(-gap)
                     .w_full(),
                 );
             }
@@ -2693,6 +2738,9 @@ struct SelectRows {
     indicator: Option<Rc<dyn Fn(bool) -> gpui::AnyElement>>,
     #[allow(clippy::type_complexity)]
     item_leading: Option<Rc<dyn Fn(&SharedString, bool) -> Option<gpui::AnyElement>>>,
+    item_content: Option<
+        std::sync::Arc<dyn Fn(&SharedString, bool, &mut Window, &mut App) -> gpui::AnyElement>,
+    >,
     on_change_all: Option<OnSelectionChangeAll>,
     on_change_one: Option<OnSelectionChange>,
     indices_own: Option<gpui::Entity<Vec<SharedString>>>,
@@ -2733,6 +2781,7 @@ impl SelectRows {
             ref focus_rows,
             ref indicator,
             ref item_leading,
+            ref item_content,
             ref base_row,
             ref base_row_id,
             row_text_size,
@@ -2783,19 +2832,6 @@ impl SelectRows {
                         // `aria-posinset`/`aria-setsize` pair is set only
                         // `if (isVirtualized)`, which is exactly this port's
                         // `row_height` path.
-                        .a11y_named(
-                            a11y::Role::ListBoxOption,
-                            &a11y::Name::labelled(opt.label().clone()),
-                        )
-                        .a11y_selected(is_sel)
-                        .when(row_virtualized, |item| {
-                            item.a11y_set_position(i, options_len)
-                        })
-                        // The trigger keeps the real focus while the list is
-                        // open, and a cursor walks the rows -- upstream's
-                        // `shouldUseVirtualFocus`. gpui states that relation
-                        // on the descendant rather than on the container.
-                        .when(cursor_at == Some(i), |item| item.a11y_active_descendant())
                         .debug_selector(move || row_selector)
                         .flex()
                         .items_center()
@@ -2868,13 +2904,17 @@ impl SelectRows {
         // text. It goes in before the label so the row's `gap-3` sets
         // it off, and it is `flex_none` so a long label cannot squeeze
         // a swatch or avatar out of its own size.
-        if let Some(render) = &item_leading {
-            if let Some(content) = render(&row_key, is_sel) {
-                item = item.child(gpui::div().flex_none().flex().items_center().child(content));
+        if let Some(render) = item_content {
+            item = item.child(render(&row_key, is_sel, window, cx));
+        } else {
+            if let Some(render) = &item_leading {
+                if let Some(content) = render(&row_key, is_sel) {
+                    item = item.child(gpui::div().flex_none().flex().items_center().child(content));
+                }
             }
+            let label = gpui::div().flex_1().min_w_0().whitespace_normal();
+            item = item.child(label.child(opt.label().to_string()));
         }
-        let label = gpui::div().flex_1().min_w_0().whitespace_normal();
-        item = item.child(label.child(opt.label().to_string()));
 
         match &indicator {
             Some(render) => {
@@ -2943,6 +2983,21 @@ impl SelectRows {
                 cx,
             );
         }
+
+        item = item
+                        .a11y_named(
+                            a11y::Role::ListBoxOption,
+                            &a11y::Name::labelled(opt.label().clone()),
+                        )
+                        .a11y_selected(is_sel)
+                        .when(row_virtualized, |item| {
+                            item.a11y_set_position(i, options_len)
+                        })
+                        // The trigger keeps the real focus while the list is
+                        // open, and a cursor walks the rows -- upstream's
+                        // `shouldUseVirtualFocus`. gpui states that relation
+                        // on the descendant rather than on the container.
+                        .when(cursor_at == Some(i), |item| item.a11y_active_descendant());
 
         if panel_interactive && !opt_disabled {
             item = self.attach_pick(item, row_key, focus_click);

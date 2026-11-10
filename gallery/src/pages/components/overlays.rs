@@ -1007,6 +1007,8 @@ impl Gallery {
                         .child(
                             h::Modal::new()
                                 .id("md-custom")
+                                .panel_width(px(560.))
+                                .padding(px(20.))
                                 .is_open(md_custom)
                                 .title("Jane Doe")
                                 .is_dismissible(true)
@@ -1510,6 +1512,10 @@ impl Gallery {
                                     ),
                             )
                             .id("po-custom-styles")
+                            .panel_width(px(256.))
+                            .radius(px(12.))
+                            .padding(px(0.))
+                            .aria_label("Details")
                             .is_open(po_custom_styles_open)
                             .on_open_change(cx.listener(
                                 |this, open: &bool, _, cx| {
@@ -1525,7 +1531,7 @@ impl Gallery {
                             .child(
                                 gpui::div()
                                     .relative()
-                                    .w(px(224.))
+                                    .w_full()
                                     .overflow_hidden()
                                     .rounded(px(12.))
                                     .border_1()

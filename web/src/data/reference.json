@@ -2823,10 +2823,10 @@
         "prop": "className",
         "type": "string",
         "default": "—",
-        "description": "Browser classes are unavailable.",
+        "description": "Native group sx controls spacing, wrapping and width; browser class strings are unavailable.",
         "rustOwner": "ColorSwatchPicker",
-        "rust": "—",
-        "status": "unavailable"
+        "rust": "sx(style)",
+        "status": "partial"
       },
       {
         "owner": "ColorSwatchPicker",
@@ -7790,6 +7790,16 @@
       "SwitchGroup.Items"
     ],
     "api": [
+      {
+        "owner": "Switch",
+        "prop": "control_scale",
+        "type": "f32",
+        "default": "1",
+        "description": "Repository extension: scales the painted control and thumb while preserving layout footprint and label metrics.",
+        "rustOwner": "Switch",
+        "rust": "control_scale(scale)",
+        "status": "implemented"
+      },
       {
         "owner": "Switch",
         "prop": "size",
@@ -16593,6 +16603,26 @@
     "api": [
       {
         "owner": "Modal",
+        "prop": "panel_width",
+        "type": "Pixels",
+        "default": "size preset",
+        "description": "Repository extension: overrides the preset width while retaining viewport containment and matching motion geometry.",
+        "rustOwner": "Modal",
+        "rust": "panel_width(px)",
+        "status": "implemented"
+      },
+      {
+        "owner": "Modal",
+        "prop": "padding",
+        "type": "Pixels",
+        "default": "24px",
+        "description": "Repository extension: overrides the dialog content inset.",
+        "rustOwner": "Modal",
+        "rust": "padding(px)",
+        "status": "implemented"
+      },
+      {
+        "owner": "Modal",
         "prop": "children",
         "type": "ReactNode",
         "default": "—",
@@ -19897,7 +19927,7 @@
         "prop": "className",
         "type": "string",
         "default": "—",
-        "description": "Additional CSS classes. Native trigger_text_size, row_text_size and panel_padding builders target the painted parts.",
+        "description": "Additional CSS classes. Native trigger_text_size, row_text_size, panel_padding, panel_gap and panel_min_width builders target the painted parts.",
         "rustOwner": "Select",
         "rust": "—",
         "status": "unavailable"
@@ -20017,9 +20047,9 @@
         "prop": "children",
         "type": "ReactNode",
         "default": "—",
-        "description": "The popover draws the typed options rather than arbitrary content children.",
+        "description": "The popover draws typed options with replaceable visible row content; arbitrary popover children remain unsupported.",
         "rustOwner": "Select",
-        "rust": "new(id, options)",
+        "rust": "item_content(render)",
         "status": "partial"
       },
       {
@@ -20357,6 +20387,26 @@
       "Popover.Heading"
     ],
     "api": [
+      {
+        "owner": "Popover",
+        "prop": "panel_width",
+        "type": "Pixels",
+        "default": "260px",
+        "description": "Repository extension: content width shared by positioning and entry/exit geometry.",
+        "rustOwner": "Popover",
+        "rust": "panel_width(px)",
+        "status": "implemented"
+      },
+      {
+        "owner": "Popover",
+        "prop": "aria_label",
+        "type": "SharedString",
+        "default": "heading",
+        "description": "Repository extension: accessible dialog name without a visible heading.",
+        "rustOwner": "Popover",
+        "rust": "aria_label(label)",
+        "status": "implemented"
+      },
       {
         "owner": "Popover",
         "prop": "children",

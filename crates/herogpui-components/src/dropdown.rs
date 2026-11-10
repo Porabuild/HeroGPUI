@@ -1293,17 +1293,6 @@ impl RenderOnce for Menu {
                         (None, Some(k)) => Some(k.clone()),
                         (Some(d), Some(k)) => Some(SharedString::from(format!("{d} {k}"))),
                     };
-                    row = row.a11y_named(
-                        item_role,
-                        &a11y::Name::labelled(label.clone()).described(described),
-                    );
-                    if has_submenu {
-                        let open_key =
-                            element_id::scoped(&element_id::scoped(&base_id, "sub"), key.clone());
-                        row = row.a11y_expanded(submenu_open.as_ref() == Some(&open_key));
-                    } else if self.selection_mode != SelectionMode::None {
-                        row = row.a11y_checked(is_selected, false);
-                    }
                     if is_item_disabled {
                         // `status-disabled` is `--disabled-opacity`; the muted
                         // text alone was this port's own idea of the state.
@@ -1545,6 +1534,18 @@ impl RenderOnce for Menu {
                             },
                             cx,
                         );
+                    }
+
+                    row = row.a11y_named(
+                        item_role,
+                        &a11y::Name::labelled(label.clone()).described(described),
+                    );
+                    if has_submenu {
+                        let open_key =
+                            element_id::scoped(&element_id::scoped(&base_id, "sub"), key.clone());
+                        row = row.a11y_expanded(submenu_open.as_ref() == Some(&open_key));
+                    } else if self.selection_mode != SelectionMode::None {
+                        row = row.a11y_checked(is_selected, false);
                     }
 
                     if !is_item_disabled && !has_submenu && !row_is_interactive {

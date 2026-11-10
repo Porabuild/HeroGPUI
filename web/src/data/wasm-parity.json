@@ -1,6 +1,6 @@
 {
   "version": 4,
-  "inputsSha256": "0c91e6b0f6c56efdc24681b1d5c407c25edc7b85fe318ac8dec0f4175ec160aa",
+  "inputsSha256": "22d1690b6526bfcec996013bb57202a134d8aa071dcde11f78c74a10c7020d01",
   "examples": {
     "accordion/Controlled": {
       "codeSha256": "ac39d58e626756503af3f2fedbcf0a3a791b32096093d62ca5c6aab77146d75b",
@@ -893,6 +893,10 @@
     "color-swatch-picker/Item Render State": {
       "codeSha256": "b414adb96d9fafe568085bea778c5c0b4ce54b4867bd44cffde9b7ff8205a81a",
       "descriptionSha256": "c3df44c9063584c77cf325d9cea52b5b48742a8023cbecb1af4274f52aa231ef"
+    },
+    "color-swatch-picker/Single-row Palette": {
+      "codeSha256": "88173cc4f11fcd0211f93608b1376d4c26b2e3cc2c2d438ae1f121592f36ce3b",
+      "descriptionSha256": "b818e4439a914a995d17a59a93b34620fbcb386079694a5316670b5e0e4259d0"
     },
     "color-swatch-picker/Sizes": {
       "codeSha256": "6cc62c0a204f60284dc904a59402c0dadae014303a1e03a38363fc83b9ba55e8",
@@ -1799,7 +1803,7 @@
       "descriptionSha256": "52a3983eab14c74d397f0ed417e0c67bf83b18e6f59514675615f3eb52845f78"
     },
     "modal/Custom Trigger": {
-      "codeSha256": "94f7fe8ee945294588f3aca77e8f57515e0f7af5e8660ef1b3baf1ad0957d0cb",
+      "codeSha256": "8ab8fa86511507e1b0382e8db7b33379583693e8188ba97f92db78cf1fff1a83",
       "descriptionSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     },
     "modal/Dismiss Behavior": {
@@ -1947,7 +1951,7 @@
       "descriptionSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     },
     "popover/Custom Styles": {
-      "codeSha256": "1a875f2d13b1979b49d3a27483fc91ebfe28aed9a1b3c30b0f78e8718021848a",
+      "codeSha256": "0ff3b01a7e2003dcfc438b691c4db71156b6b84aa4ade38b284bd4dc929aeab3",
       "descriptionSha256": "cd12040fef640a796060e4afa8996b239061a619d2c35dd65182ad02e3308c61"
     },
     "popover/Interactive Content": {
@@ -2302,6 +2306,10 @@
       "codeSha256": "8517e84d4249e902a17b1208e013ed7fac2de17a297b3682dc726871503571a5",
       "descriptionSha256": "89e957b3a925e971f2c0ad6718bfb51428e2c696ca9cf8b063914ef796828ebc"
     },
+    "select/Icon-only Options": {
+      "codeSha256": "145480be1f2d5da7a2a7deaa8299a1c23fed40b81d309e45d09c72d4d8db1114",
+      "descriptionSha256": "8ec251d5f246805b51955c849a84a4651b83d024afccc0c61916980bda8cef71"
+    },
     "select/In Surface": {
       "codeSha256": "29bcb4ae74ff9b754f941b317648af6cdd49c0c88d036d3f24fb836a10c45da2",
       "descriptionSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
@@ -2651,8 +2659,8 @@
       "descriptionSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     },
     "switch/Styling Overrides": {
-      "codeSha256": "75661b1a584bee8fe63c232f51ea51b0e72f923057d7437bbe2920560104ae9d",
-      "descriptionSha256": "07074dfa1cbd333654030683fa3c990c589a48d929f6e5604284c6532175e84a"
+      "codeSha256": "a540878ed5749441e82a015382b95366b53735f1acae89f1169671033729522b",
+      "descriptionSha256": "f2d8fd98e32dd65bb77e81f842e289fcbc398eee122c1e47bcfbab5235173fde"
     },
     "switch/Usage": {
       "codeSha256": "18751cd5555c7d1358e40f10115a539835ef6afaafbab5b4b32d2eb08cedcb95",

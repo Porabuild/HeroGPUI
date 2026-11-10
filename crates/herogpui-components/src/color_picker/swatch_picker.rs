@@ -100,6 +100,7 @@ pub struct ColorSwatchPicker {
         Option<Arc<dyn Fn(usize, ColorSwatchPickerItemState) -> gpui::AnyElement + 'static>>,
     indicator: Option<Arc<dyn Fn(usize, ColorSwatchPickerItemState) -> gpui::AnyElement + 'static>>,
     on_change: Option<OnColorChange>,
+    sx: Option<Box<gpui::StyleRefinement>>,
 }
 
 impl ColorSwatchPicker {
@@ -120,7 +121,14 @@ impl ColorSwatchPicker {
             item_content: None,
             indicator: None,
             on_change: None,
+            sx: None,
         }
+    }
+
+    #[doc = "Refines the swatch group layout, including spacing, wrapping and width."]
+    pub fn sx(mut self, style: impl FnOnce(gpui::Div) -> gpui::Div) -> Self {
+        util::refine_sx(&mut self.sx, style);
+        self
     }
 
     /// `defaultValue` — the uncontrolled initial colour.
@@ -285,11 +293,30 @@ impl RenderOnce for ColorSwatchPicker {
         // RAC's grid delegate moves Up and Down between the same column of the
         // adjacent row. A grid row holds the most cells of the active size
         // that fit under the picker's 280px maximum with its 8px gap.
-        let grid_columns = if self.layout == SwatchLayout::Grid {
-            (((280. + 8.) / (f32::from(item_edge) + 8.)) as usize).max(1)
-        } else {
-            0
-        };
+        let columns = window
+            .use_keyed_state(element_id::scoped(&self.id, "columns"), cx, |_, _| {
+                Rc::new(Cell::new(0usize))
+            })
+            .read(cx)
+            .clone();
+        let grid = self.layout == SwatchLayout::Grid;
+        let wraps =
+            self.sx.as_ref().and_then(|style| style.flex_wrap) != Some(gpui::FlexWrap::NoWrap);
+        let gap = self
+            .sx
+            .as_ref()
+            .and_then(|style| style.gap.width)
+            .and_then(|gap| match gap {
+                gpui::DefiniteLength::Absolute(gpui::AbsoluteLength::Pixels(value)) => {
+                    Some(f32::from(value))
+                }
+                _ => None,
+            })
+            .unwrap_or(8.);
+        let padding = util::sx_padding(&self.sx);
+        let horizontal_padding =
+            f32::from(padding.left.unwrap_or(px(0.))) + f32::from(padding.right.unwrap_or(px(0.)));
+        let count = self.swatches.len();
         let swatch_ring = util::focus_visible(cx);
 
         let clear_pointer_focus = pointer_focus.clone();
@@ -309,6 +336,26 @@ impl RenderOnce for ColorSwatchPicker {
             SwatchLayout::Grid => row.flex_row().flex_wrap().max_w(px(280.)),
             SwatchLayout::Stack => row.flex_col(),
         };
+
+        let measured_columns = columns.clone();
+        row = row.relative().child(
+            gpui::canvas(
+                move |bounds, _, _| {
+                    let width = (f32::from(bounds.size.width) - horizontal_padding).max(0.);
+                    let capacity = if !grid {
+                        0
+                    } else if !wraps {
+                        count
+                    } else {
+                        (((width + gap) / (f32::from(item_edge) + gap)) as usize).max(1)
+                    };
+                    measured_columns.set(capacity);
+                },
+                |_, _, _, _| {},
+            )
+            .absolute()
+            .size_full(),
+        );
 
         for (index, swatch) in self.swatches.iter().enumerate() {
             let item_id = element_id::indexed(&self.id, "swatch", index);
@@ -379,7 +426,6 @@ impl RenderOnce for ColorSwatchPicker {
                 // `.color-swatch-picker__swatch` owns the animated built-in
                 // color surface; the stable cell remains the interaction hit
                 // target and the selection border is layered above it.
-                let base_edge = f32::from(item_edge) - 2. * f32::from(border_width);
                 let base_radius = match (self.shape, self.size) {
                     (SwatchShape::Circle, _) => f32::from(item_radius),
                     (SwatchShape::Square, SizeXl::Xs) => 6.,
@@ -388,7 +434,7 @@ impl RenderOnce for ColorSwatchPicker {
                 };
                 let color = swatch.to_hsla();
                 let visual = div()
-                    .size(px(base_edge * scale.target()))
+                    .size(gpui::relative(scale.target()))
                     .rounded(px(base_radius * scale.target()))
                     .flex_shrink_0()
                     .overflow_hidden()
@@ -410,7 +456,7 @@ impl RenderOnce for ColorSwatchPicker {
                             move |el, delta| {
                                 let next = from + (target_scale - from) * delta;
                                 value.set(next);
-                                el.size(px(base_edge * next))
+                                el.size(gpui::relative(next))
                                     .rounded(px(base_radius * next))
                             },
                         )
@@ -603,7 +649,7 @@ impl RenderOnce for ColorSwatchPicker {
                 let stops = enabled.clone();
                 let moved = cursor.clone();
                 let pointer = pointer_focus.clone();
-                let columns = grid_columns;
+                let columns = columns.clone();
                 let commit_key = commit.clone();
                 cell = cell
                     .capture_key_down(move |event, window, _cx| {
@@ -635,19 +681,19 @@ impl RenderOnce for ColorSwatchPicker {
                         // target must be a real enabled swatch; otherwise the
                         // row does not exist, which is what the geometric
                         // delegate reports for a ragged grid too.
-                        "up" | "down" if columns > 0 => {
+                        "up" | "down" if columns.get() > 0 => {
                             let j = index as isize
                                 + if key == "down" {
-                                    columns as isize
+                                    columns.get() as isize
                                 } else {
-                                    -(columns as isize)
+                                    -(columns.get() as isize)
                                 };
                             if j < 0 || !stops.contains(&(j as usize)) {
                                 return;
                             }
                             j as usize
                         }
-                        key @ ("up" | "down") if columns == 0 => {
+                        key @ ("up" | "down") if columns.get() == 0 => {
                             let crate::list_nav::Move::To(next) =
                                 crate::list_nav::resolve(&stops, Some(index), key, false)
                             else {
@@ -694,7 +740,7 @@ impl RenderOnce for ColorSwatchPicker {
             row = row.child(focus_motion.render(cell, Vec::new(), item_radius, true, cx));
         }
 
-        row.a11y(a11y::Role::RadioGroup)
+        util::apply_sx(row, &self.sx).a11y(a11y::Role::RadioGroup)
     }
 }
 

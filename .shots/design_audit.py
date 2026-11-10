@@ -1551,7 +1551,8 @@ CHECKS = [
      r'Size::Md => \(px\(40\.\), px\(20\.\), px\(22\.\), px\((\d+(?:\.\d*)?)\.\)', None),
     ('switch', '.switch__thumb', 'ms', 'Switch thumb inset', SRC + 'switch.rs',
      r'let thumb_inset = px\((\d+(?:\.\d*)?)\.\);'
-     r'(?:(?!let mut thumb_el)[\s\S])*?\.px\(thumb_inset\)', None),
+     r'\s*let scaled_thumb_inset = thumb_inset \* scale;'
+     r'(?:(?!let mut thumb_el)[\s\S])*?\.px\(scaled_thumb_inset\)', None),
     ('input-otp', '.input-otp__slot', 'w', 'InputOTP slot width', SRC + 'input_otp.rs',
      r'let \(cell_w, cell_h, text, slot_gap\) = \(px\((\d+(?:\.\d*)?)\.?\)', None),
     ('input-otp', '.input-otp__slot', 'h', 'InputOTP slot height', SRC + 'input_otp.rs',

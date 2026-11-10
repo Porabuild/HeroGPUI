@@ -368,15 +368,6 @@ impl RenderOnce for ToggleButton {
         let name = a11y::Name::maybe(self.aria_label.clone().or(self.label.clone()));
         let mut el = div()
             .id(self.id.clone())
-            .map(|e| {
-                if single {
-                    e.a11y_named(a11y::Role::RadioButton, &name)
-                        .a11y_checked(is_selected, false)
-                } else {
-                    e.a11y_named(a11y::Role::Button, &name)
-                        .a11y_pressed(is_selected)
-                }
-            })
             .flex()
             .items_center()
             .justify_center()
@@ -500,6 +491,10 @@ impl RenderOnce for ToggleButton {
         // slot the focus handle below tracks.
         el = el.children(self.children);
 
+        let (skin_style, slot_style) =
+            crate::util::split_press_style(&self.sx.clone().unwrap_or_default());
+        el.style().refine(&skin_style);
+        let sx_size = crate::util::sx_pixel_size(&self.sx);
         // The press wrap (or the disabled dimming, which must cover the label
         // above the skin too) comes after every visual child: children added
         // after `pressed` land on the slot and fight the skin for width.
@@ -528,9 +523,11 @@ impl RenderOnce for ToggleButton {
                 el = crate::anim::pressed_with_background_ramp(
                     el,
                     crate::anim::PressBox {
-                        height,
+                        height: sx_size.height.unwrap_or(height),
                         padding_x: (!self.is_icon_only).then_some(pad_x),
-                        width: self.is_icon_only.then_some(height),
+                        width: sx_size
+                            .width
+                            .or_else(|| self.is_icon_only.then_some(height)),
                         min_width: None,
                         text_size: text,
                         line_height: line,
@@ -547,6 +544,17 @@ impl RenderOnce for ToggleButton {
                 );
             }
         }
+
+        el = el.map(|e| {
+            if single {
+                e.a11y_named(a11y::Role::RadioButton, &name)
+                    .a11y_checked(is_selected, false)
+            } else {
+                e.a11y_named(a11y::Role::Button, &name)
+                    .a11y_pressed(is_selected)
+            }
+        });
+        el = el.key_context("Button");
 
         // A disabled toggle mounts no fade for the slot to feed, so it
         // tracks nothing — same gate Button's `interactive` applies.
@@ -581,7 +589,8 @@ impl RenderOnce for ToggleButton {
         }
 
         if self.is_disabled {
-            return crate::util::apply_sx(el, &self.sx);
+            el.style().refine(&slot_style);
+            return el;
         }
         // The ring is the overlay form wherever the four corners resolve to
         // one radius, as `Button` does it: an overlay is crisp and concentric
@@ -609,7 +618,8 @@ impl RenderOnce for ToggleButton {
                 cx,
             ),
         };
-        let el = crate::util::apply_sx(el, &self.sx);
+        let mut el = el;
+        el.style().refine(&slot_style);
         crate::util::record_focus_bounds(el, &focus_handle, window, cx)
     }
 }

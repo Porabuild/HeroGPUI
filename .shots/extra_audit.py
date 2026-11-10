@@ -636,6 +636,10 @@ EXTRA_OK_SCOPED = {
     'Alert.radius': 'repository-radius-extension',
     'Toast.radius': 'repository-radius-extension',
     'Popover.radius': 'repository-radius-extension',
+    'Popover.panel_width': 'no-classname',
+    'Switch.control_scale': 'no-classname',
+    'Popover.aria_label': 'accessible-name-override',
+    'Modal.panel_width': 'no-classname',
     'Dropdown.radius': 'repository-radius-extension',
     'Table.radius': 'repository-radius-extension',
     'Skeleton.radius': 'repository-radius-extension',
@@ -874,6 +878,9 @@ EXTRA_OK_SCOPED = {
     # v3 composes per-option leading content (icons, swatches) through item
     # children; the port takes one per-row factory closure instead.
     'Select.item_leading': 'no-classname',
+    'Select.item_content': 'composition',
+    'Select.panel_gap': 'no-classname',
+    'Select.panel_min_width': 'no-classname',
     # v3's tooltip body is the composed children of the trigger's aria
     # relation; the port keeps the string as the accessible name and lets a
     # closure replace only the visual.

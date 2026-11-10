@@ -1365,19 +1365,6 @@ impl ListBox {
                         let owner = format!("{:?}", self.id);
                         move || format!("{owner}-item-{index}")
                     })
-                    .a11y_named(a11y::Role::ListBoxOption, &row_name)
-                    .when(self.selection_mode != SelectionMode::None, |row| {
-                        row.a11y_selected(selected)
-                    })
-                    .when(virtualized, |row| {
-                        row.a11y_set_position(option_index, option_count)
-                    })
-                    // The list holds one focus handle and moves a cursor
-                    // through the rows, which is `shouldUseVirtualFocus` in
-                    // upstream's terms. gpui states that relation on the
-                    // descendant rather than on the container, so the row the
-                    // cursor is on says so itself.
-                    .when(cursor_at == Some(index), |row| row.a11y_active_descendant())
                     .flex()
                     .flex_row()
                     .items_center()
@@ -1560,6 +1547,21 @@ impl ListBox {
                         row = util::track_interaction(row, slot);
                     }
                 }
+
+                row = row
+                    .a11y_named(a11y::Role::ListBoxOption, &row_name)
+                    .when(self.selection_mode != SelectionMode::None, |row| {
+                        row.a11y_selected(selected)
+                    })
+                    .when(virtualized, |row| {
+                        row.a11y_set_position(option_index, option_count)
+                    })
+                    // The list holds one focus handle and moves a cursor
+                    // through the rows, which is `shouldUseVirtualFocus` in
+                    // upstream's terms. gpui states that relation on the
+                    // descendant rather than on the container, so the row the
+                    // cursor is on says so itself.
+                    .when(cursor_at == Some(index), |row| row.a11y_active_descendant());
 
                 if !disabled {
                     let key = key.clone();

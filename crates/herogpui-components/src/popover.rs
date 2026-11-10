@@ -867,6 +867,8 @@ pub struct Popover {
     default_open: bool,
     placement: PopoverPlacement,
     title: Option<SharedString>,
+    aria_label: Option<SharedString>,
+    panel_width: Option<Pixels>,
     show_close_button: bool,
     offset: Pixels,
     should_flip: bool,
@@ -893,6 +895,8 @@ impl Popover {
             offset: px(8.),
             should_flip: true,
             title: None,
+            aria_label: None,
+            panel_width: None,
             show_close_button: false,
             on_open_change: None,
             children: Vec::new(),
@@ -951,6 +955,18 @@ impl Popover {
     /// prohibited and this is a per-component repository extension.
     pub fn radius(mut self, radius: impl Into<Pixels>) -> Self {
         self.radius = Some(radius.into());
+        self
+    }
+
+    #[doc = "Sets the detached dialog width without sizing the trigger."]
+    pub fn panel_width(mut self, width: impl Into<Pixels>) -> Self {
+        self.panel_width = Some(width.into());
+        self
+    }
+
+    #[doc = "Names the dialog without adding a visible heading."]
+    pub fn aria_label(mut self, label: impl Into<SharedString>) -> Self {
+        self.aria_label = Some(label.into());
         self
     }
 
@@ -1122,6 +1138,7 @@ impl RenderOnce for Popover {
             PopoverTriggerMeasure::new(trigger_wrap.child(self.trigger), anchor_bounds.clone());
         let mut root = gpui::div()
             .track_focus(&root_focus)
+            .when(is_open, |root| root.key_context("Popover"))
             .relative()
             .flex()
             .flex_col()
@@ -1187,6 +1204,10 @@ impl RenderOnce for Popover {
         // `.popover__dialog` `p-4` on both axes either way.
         let panel_padding_y = self.padding.unwrap_or(px(16.));
         let panel_padding_x = self.padding.unwrap_or(px(16.));
+        let panel_width = self
+            .panel_width
+            .unwrap_or(px(260.))
+            .min(window.viewport_size().width);
         let mut panel = gpui::div()
             // `popover/popover.js` composes RAC `Popover` around a `Dialog`,
             // and `react-aria/dist/private/dialog/useDialog.js` is what gives
@@ -1199,9 +1220,9 @@ impl RenderOnce for Popover {
             .id(element_id::scoped(&self.id, "dialog"))
             .a11y_named(
                 a11y::Role::Dialog,
-                &a11y::Name::maybe(self.title.clone()),
+                &a11y::Name::maybe(self.aria_label.clone().or(self.title.clone())),
             )
-            .w(px(260.))
+            .w(panel_width)
             .flex()
             .flex_col()
             .gap(px(8.))
@@ -1267,7 +1288,7 @@ impl RenderOnce for Popover {
         let (slide_x, slide_y) = placement_entry_offset(entry_placement);
         let zoom = crate::anim::ZoomBox::panel(panel_padding_y, radius)
             .padding_x(panel_padding_x)
-            .sized(px(260.));
+            .sized(panel_width);
         let zoom = crate::anim::ZoomBox {
             slide_x: (slide_x != 0.0).then(|| px(slide_x)),
             slide_y: (slide_y != 0.0).then(|| px(slide_y)),

@@ -214,6 +214,10 @@ component_style! {
         row_text_size: Pixels,
         /// Padding inside the option panel.
         panel_padding: Pixels,
+        #[doc = "Spacing between the Select option rows."]
+        panel_gap: Pixels,
+        #[doc = "Minimum width of the detached option panel."]
+        panel_min_width: Pixels,
         /// Corner radius.
         radius: Pixels,
         /// Background of a hovered option row.

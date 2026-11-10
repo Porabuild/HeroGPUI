@@ -860,7 +860,7 @@ mod example_quality {
     #[test]
     fn gallery_sections_are_preserved_while_reordering() {
         for (name, count) in [
-            ("select", 27),
+            ("select", 28),
             ("autocomplete", 23),
             ("combo_box", 31),
             ("slider", 22),
@@ -882,6 +882,18 @@ mod example_quality {
                 "page_{name} lost a gallery section"
             );
         }
+    }
+
+    #[test]
+    fn custom_control_examples_exercise_content_and_layout_hooks() {
+        let select = section_body(page_fn(SRC, "select"), "Icon-only Options");
+        assert!(select.contains(".item_content("));
+        assert!(select.contains(".panel_gap("));
+        assert!(select.contains(".panel_min_width("));
+        let swatch = section_body(page_fn(SRC, "color_swatch_picker"), "Single-row Palette");
+        assert!(swatch.contains(".sx("));
+        assert!(swatch.contains(".flex_nowrap()"));
+        assert!(swatch.contains(".gap("));
     }
 
     #[test]
@@ -1553,7 +1565,11 @@ mod example_quality {
 
         let custom = section_body(popover, "Custom Styles");
         for builder in [
-            ".w(px(224.))",
+            ".panel_width(px(256.))",
+            ".padding(px(0.))",
+            ".radius(px(12.))",
+            ".aria_label(\"Details\")",
+            ".w_full()",
             ".overflow_hidden()",
             ".rounded(px(12.))",
             ".border_color(custom_border)",

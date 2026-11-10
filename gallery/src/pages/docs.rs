@@ -7,7 +7,7 @@ use herogpui_theme::ActiveTheme;
 use crate::app::Gallery;
 use crate::pages::{code_block, doc_page, nav_sections, para, Page};
 
-const INSTALL_MAIN_RS: &str = r#"// Cargo.toml: herogpui = "0.12"
+const INSTALL_MAIN_RS: &str = r#"// Cargo.toml: herogpui = "0.15.1"
 // `herogpui` re-exports GPUI itself, so this glob is GPUI too.
 use herogpui::*;
 
@@ -128,7 +128,7 @@ impl Gallery {
         doc_page(
             "Installation",
             "Add one dependency. HeroGPUI re-exports GPUI, so `herogpui` is the whole install; then register its embedded assets and initialize the theme provider.",
-            r#"herogpui = "0.12""#,
+            r#"herogpui = "0.15.1""#,
             vec![
                 ("Setup GPUI", code_block(INSTALL_MAIN_RS, cx)),
                 (
@@ -338,7 +338,7 @@ use crate::app::FONT_FAMILY as _FONT;
 pub(super) fn doc_code_blocks() -> Vec<(&'static str, &'static str)> {
     vec![
         ("Installation/main.rs", INSTALL_MAIN_RS),
-        ("Installation/import", r#"herogpui = "0.12""#),
+        ("Installation/import", r#"herogpui = "0.15.1""#),
         (
             "Theming/import",
             "use herogpui::theme::{ThemeProvider, ActiveTheme};",

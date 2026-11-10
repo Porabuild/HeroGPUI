@@ -2,8 +2,8 @@
 # HeroGPUI parity coverage report
 
 Target: `v3.2.7` (`7cb1642606c6f96f424dad78a961ccf45436be72`)
-Inventory date: `2026-11-09`
-Inventory verification: `37b493bcf107d2803b28754f2419b3b9e9bb96c53ec5f01b6497a7ccc9f5d256`
+Inventory date: `2026-11-10`
+Inventory verification: `be17f61d1298ab06926c949df87583b5672190d48b27764537bfca96723bc304`
 Last evidence commit: `(none recorded)`
 
 This is a maintainer work-queue summary. It does not turn gallery section headings, static audits, or successful builds into parity evidence.
@@ -12,12 +12,12 @@ This is a maintainer work-queue summary. It does not turn gallery section headin
 
 | Metric | Count |
 | --- | --- |
-| Specimens | 816 |
+| Specimens | 818 |
 | Verified | 0 |
-| Outstanding | 816 |
-| Unobserved/unreviewed | 816 |
+| Outstanding | 818 |
+| Unobserved/unreviewed | 818 |
 | Components | 69 |
-| Gallery sections | 809 |
+| Gallery sections | 811 |
 
 ## Status distribution
 
@@ -29,29 +29,29 @@ This is a maintainer work-queue summary. It does not turn gallery section headin
 | not-applicable | 0 |
 | platform-limited | 0 |
 | specified | 0 |
-| unreviewed | 809 |
+| unreviewed | 811 |
 | verified | 0 |
 
 ## Evidence surfaces
 
 | Surface | With evidence | Missing evidence |
 | --- | --- | --- |
-| upstream | 5 | 811 |
-| native | 1 | 815 |
-| wasm | 1 | 815 |
-| tests | 5 | 811 |
-| all_surfaces | 1 | 815 |
+| upstream | 5 | 813 |
+| native | 1 | 817 |
+| wasm | 1 | 817 |
+| tests | 5 | 813 |
+| all_surfaces | 1 | 817 |
 
 ## Scripted runs
 
 | Run | Kind | Recorded | Current | Pass | Fail | Sections passing |
 | --- | --- | --- | --- | --- | --- | --- |
-| `docs/parity/runs/interaction-sweep.json` | interaction-sweep | 2026-11-09 | yes | 809 | 0 | 809 |
-| `docs/parity/runs/native-a11y.json` | native-a11y | 2026-11-09 | yes | 809 | 0 | 809 |
+| `docs/parity/runs/interaction-sweep.json` | interaction-sweep | 2026-11-09 | stale | 809 | 0 | 809 |
+| `docs/parity/runs/native-a11y.json` | native-a11y | 2026-11-09 | stale | 811 | 0 | 811 |
 | `docs/parity/runs/native-ce7bd3af.json` | native-route-smoke | - | unknown | 0 | 0 | 0 |
-| `docs/parity/runs/wasm-smoke.json` | wasm-smoke | 2026-11-09 | yes | 809 | 0 | 809 |
+| `docs/parity/runs/wasm-smoke.json` | wasm-smoke | 2026-11-09 | stale | 809 | 0 | 809 |
 
-Gallery sections with a current passing run: **809** of 809. A run is current while the sources or artifact it recorded are unchanged; it is regression evidence for those inputs, never a parity verdict.
+Gallery sections with a current passing run: **0** of 811. A run is current while the sources or artifact it recorded are unchanged; it is regression evidence for those inputs, never a parity verdict.
 
 ## Component queue
 
@@ -78,7 +78,7 @@ Gallery sections with a current passing run: **809** of 809. A run is current wh
 | Color Picker | 6 | 0 | 6 |
 | Color Slider | 9 | 0 | 9 |
 | Color Swatch | 7 | 0 | 7 |
-| Color Swatch Picker | 11 | 0 | 11 |
+| Color Swatch Picker | 12 | 0 | 12 |
 | Combo Box | 31 | 0 | 31 |
 | Date Field | 16 | 0 | 16 |
 | Date Picker | 10 | 0 | 10 |
@@ -106,7 +106,7 @@ Gallery sections with a current passing run: **809** of 809. A run is current wh
 | Range Calendar | 21 | 0 | 21 |
 | Scroll Shadow | 9 | 0 | 9 |
 | Search Field | 15 | 0 | 15 |
-| Select | 28 | 0 | 28 |
+| Select | 29 | 0 | 29 |
 | Separator | 8 | 0 | 8 |
 | Shared focus modality | 1 | 0 | 1 |
 | Sheet | 14 | 0 | 14 |
@@ -132,6 +132,6 @@ Gallery sections with a current passing run: **809** of 809. A run is current wh
 - Measured gaps: **0**
 - Intentional deviations: **0**
 - Platform limits: **0**
-- Unresolved specimen records: **816**
+- Unresolved specimen records: **818**
 
 The JSON file contains the complete unresolved id list and per-component detail. Add a concrete evidence record before changing a specimen to `verified`; record intentional deviations and platform limits with user-facing notes.

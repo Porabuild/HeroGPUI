@@ -2023,3 +2023,154 @@ fn button_press_uses_the_pinned_background_endpoint(cx: &mut TestAppContext) {
     );
     vcx.simulate_mouse_up(at, MouseButton::Left, Modifiers::none());
 }
+
+#[gpui::test]
+fn custom_press_styles_paint_only_the_resolved_skin(cx: &mut TestAppContext) {
+    let color = gpui::hsla(0.73, 0.83, 0.42, 1.);
+    for kind in 0..3 {
+        let (rest, _, held, _) = press_boxes(
+            cx,
+            move || match kind {
+                0 => Button::new("styled-button")
+                    .label("A")
+                    .sx(move |el| el.size(px(28.)).p(px(0.)).bg(color))
+                    .into_any_element(),
+                1 => ToggleButton::new("styled-toggle")
+                    .label("A")
+                    .sx(move |el| el.size(px(28.)).p(px(0.)).bg(color))
+                    .into_any_element(),
+                _ => CloseButton::new("styled-close")
+                    .sx(move |el| el.size(px(28.)).p(px(0.)).bg(color))
+                    .into_any_element(),
+            },
+            move |scene| {
+                scene
+                    .filled(color)
+                    .into_iter()
+                    .map(|quad| scene.bounds(quad))
+                    .max_by(|a, b| a.size.width.partial_cmp(&b.size.width).unwrap())
+                    .expect("custom skin must paint")
+            },
+        );
+        assert_eq!(rest.size, gpui::size(px(28.), px(28.)), "kind {kind}");
+        assert!(
+            held.size.width < rest.size.width && held.size.height < rest.size.height,
+            "kind {kind}: {rest:?} -> {held:?}"
+        );
+    }
+}
+
+#[gpui::test]
+fn content_fit_button_remeasures_after_its_label_changes(cx: &mut TestAppContext) {
+    let label = Rc::new(RefCell::new("A"));
+    let rendered = label.clone();
+    let vcx = open_host(cx, move || {
+        Button::new("dynamic-label")
+            .label(*rendered.borrow())
+            .into_any_element()
+    });
+    let resting = skin(&harness::painted(vcx));
+    *label.borrow_mut() = "A much longer label";
+    vcx.update(|window, _| window.refresh());
+    let updated = skin(&harness::painted(vcx));
+    assert!(
+        updated.size.width > resting.size.width + px(40.),
+        "{resting:?} -> {updated:?}"
+    );
+}
+
+#[gpui::test]
+fn relative_width_button_skin_fills_its_resting_slot(cx: &mut TestAppContext) {
+    let color = gpui::hsla(0.67, 0.83, 0.42, 1.);
+    let vcx = open_host(cx, move || {
+        gpui::div()
+            .w(px(200.))
+            .flex()
+            .child(
+                Button::new("relative-width")
+                    .label("Save")
+                    .sx(move |el| el.w(gpui::relative(0.5)).bg(color)),
+            )
+            .into_any_element()
+    });
+    let painted = harness::painted(vcx);
+    let widths: Vec<_> = painted
+        .filled(color)
+        .into_iter()
+        .map(|quad| painted.bounds(quad).size.width)
+        .collect();
+    assert!(widths.contains(&px(100.)), "{widths:?}");
+}
+
+#[gpui::test]
+fn identical_button_ids_in_distinct_windows_measure_independently(cx: &mut TestAppContext) {
+    let first_width = {
+        let first = open_host(cx, || {
+            Button::new("same-window-local-id")
+                .label("A")
+                .into_any_element()
+        });
+        skin(&harness::painted(first)).size.width
+    };
+    let second = open_host(cx, || {
+        Button::new("same-window-local-id")
+            .label("A much longer window-local label")
+            .into_any_element()
+    });
+    let second_width = skin(&harness::painted(second)).size.width;
+    assert!(
+        second_width > first_width + px(40.),
+        "{first_width:?} -> {second_width:?}"
+    );
+}
+
+#[gpui::test]
+fn explicit_button_metrics_override_theme_style_metrics(cx: &mut TestAppContext) {
+    use herogpui_theme::{ActiveTheme, ButtonStyle, ComponentTheme, ComponentThemes, Theme};
+    let color = gpui::hsla(0.67, 0.83, 0.42, 1.);
+    let vcx = open_host(cx, move || {
+        Button::new("metric-precedence")
+            .label("A")
+            .recipe("metrics")
+            .height(px(28.))
+            .width(px(40.))
+            .min_width(px(40.))
+            .padding_x(px(0.))
+            .radius(px(4.))
+            .sx(move |el| el.bg(color))
+            .into_any_element()
+    });
+    vcx.update(|_, cx| {
+        let base = cx.theme().clone();
+        herogpui_theme::set_theme(
+            Theme::builder("metrics", base)
+                .components(ComponentThemes::default().button(
+                    ComponentTheme::new(ButtonStyle::default()).recipe(
+                        "metrics",
+                        ButtonStyle::default().style(|el| {
+                            el.h(px(60.))
+                                .w(px(200.))
+                                .min_w(px(100.))
+                                .px(px(24.))
+                                .rounded(px(20.))
+                        }),
+                    ),
+                ))
+                .build(),
+            cx,
+        );
+    });
+    let scene = harness::painted(vcx);
+    let painted: Vec<_> = scene
+        .filled(color)
+        .into_iter()
+        .map(|quad| scene.bounds(quad).size)
+        .collect();
+    assert!(
+        painted
+            .iter()
+            .all(|size| *size == gpui::size(px(40.), px(28.))),
+        "{painted:?}"
+    );
+    assert!(!painted.is_empty());
+}
