@@ -2832,19 +2832,6 @@ impl SelectRows {
                         // `aria-posinset`/`aria-setsize` pair is set only
                         // `if (isVirtualized)`, which is exactly this port's
                         // `row_height` path.
-                        .a11y_named(
-                            a11y::Role::ListBoxOption,
-                            &a11y::Name::labelled(opt.label().clone()),
-                        )
-                        .a11y_selected(is_sel)
-                        .when(row_virtualized, |item| {
-                            item.a11y_set_position(i, options_len)
-                        })
-                        // The trigger keeps the real focus while the list is
-                        // open, and a cursor walks the rows -- upstream's
-                        // `shouldUseVirtualFocus`. gpui states that relation
-                        // on the descendant rather than on the container.
-                        .when(cursor_at == Some(i), |item| item.a11y_active_descendant())
                         .debug_selector(move || row_selector)
                         .flex()
                         .items_center()
@@ -2996,6 +2983,21 @@ impl SelectRows {
                 cx,
             );
         }
+
+        item = item
+                        .a11y_named(
+                            a11y::Role::ListBoxOption,
+                            &a11y::Name::labelled(opt.label().clone()),
+                        )
+                        .a11y_selected(is_sel)
+                        .when(row_virtualized, |item| {
+                            item.a11y_set_position(i, options_len)
+                        })
+                        // The trigger keeps the real focus while the list is
+                        // open, and a cursor walks the rows -- upstream's
+                        // `shouldUseVirtualFocus`. gpui states that relation
+                        // on the descendant rather than on the container.
+                        .when(cursor_at == Some(i), |item| item.a11y_active_descendant());
 
         if panel_interactive && !opt_disabled {
             item = self.attach_pick(item, row_key, focus_click);

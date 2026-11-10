@@ -156,6 +156,8 @@ pub struct Modal {
     /// The panel's corner radius, in place of the owning `container_radius`
     /// helper. `Full` paints no radius at all, override or not.
     radius: Option<Pixels>,
+    panel_width: Option<Pixels>,
+    padding: Option<Pixels>,
     /// The `sx` slot, refined over the root style at the end of render.
     sx: Option<Box<gpui::StyleRefinement>>,
 }
@@ -447,6 +449,8 @@ impl Modal {
             footer: Vec::new(),
             on_close: None,
             radius: None,
+            panel_width: None,
+            padding: None,
             sx: None,
         }
     }
@@ -507,6 +511,18 @@ impl Modal {
     /// per-component repository extension.
     pub fn radius(mut self, radius: impl Into<Pixels>) -> Self {
         self.radius = Some(radius.into());
+        self
+    }
+
+    #[doc = "Overrides the dialog width preset while retaining viewport containment."]
+    pub fn panel_width(mut self, width: impl Into<Pixels>) -> Self {
+        self.panel_width = Some(width.into());
+        self
+    }
+
+    #[doc = "Overrides the dialog's content inset; defaults to 24 pixels."]
+    pub fn padding(mut self, padding: impl Into<Pixels>) -> Self {
+        self.padding = Some(padding.into());
         self
     }
 
@@ -687,7 +703,7 @@ impl RenderOnce for Modal {
         let scroll_inside = self.scroll == ModalScroll::Inside;
         let full = self.size == ModalSize::Full;
         let panel_max = window.viewport_size().height - if full { px(0.) } else { px(80.) };
-        let inside_body_max = panel_max - px(48.);
+        let inside_body_max = panel_max - self.padding.unwrap_or(px(24.)) * 2.;
         // The panel radius: an instance override replaces the helper's value,
         // and `Full` paints none either way. Read off `self` before the body
         // and the footer are moved into the panel.
@@ -711,13 +727,16 @@ impl RenderOnce for Modal {
                 self.scroll == ModalScroll::Outside && self.placement == ModalPlacement::Bottom,
                 gpui::Styled::mt_auto,
             )
-            .when_some(self.size.max_width(), |e, w| e.max_w(w))
+            .when_some(self.panel_width.or(self.size.max_width()), |e, w| {
+                e.max_w(w)
+            })
             .when(
                 scroll_inside && matches!(self.size, ModalSize::Cover | ModalSize::Full),
                 |e| e.h_full().min_h_full(),
             )
             .when(self.scroll == ModalScroll::Outside, |e| e.flex_shrink_0())
             .p(px(24.))
+            .when_some(self.padding, |panel, padding| panel.p(padding))
             .when(self.scroll == ModalScroll::Inside, |e| e.max_h(panel_max))
             .bg(colors.overlay.background)
             .text_color(colors.foreground)
@@ -937,7 +956,7 @@ impl RenderOnce for Modal {
             // Fixed-width presets scale geometrically. `Cover` and `Full` have
             // no width here; Full also has no radius, so its zoom-100 rule is
             // the shared fade with no geometric interpolation.
-            width: self.size.max_width(),
+            width: self.panel_width.or(self.size.max_width()),
             radius: (!full).then_some(panel_radius),
             slide_x: (!full && placement_entry_offset(self.placement).0 != 0.0)
                 .then(|| px(placement_entry_offset(self.placement).0)),

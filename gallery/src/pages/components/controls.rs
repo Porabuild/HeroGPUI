@@ -620,8 +620,9 @@ impl Gallery {
                 ),
                 (
                     "Styling Overrides",
-                    "`hover_bg` paints a custom background behind the hovered control and label.",
+                    "`control_scale` shrinks the painted control while preserving its layout and label; `hover_bg` changes the hovered background.",
                     specimen_body("sw-hover-bg", col(vec![h::Switch::new("sw-hover")
+                        .control_scale(0.75)
                         .hover_bg(cx.colors().accent.soft_hover())
                         .label("Enable notifications")
                         .into_any_element()]), cx),

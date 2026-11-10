@@ -1,8 +1,8 @@
 {
   "schema_version": 2,
   "target": "v3.2.7",
-  "recorded_on": "2026-11-09T22:04:04.260728+00:00",
-  "inputs_sha256": "00cbd4a2e96d8a8dfaa21042e22566ea926b3b38488dd9f090872a4200ee4c37",
+  "recorded_on": "2026-11-10T00:18:16.002460+00:00",
+  "inputs_sha256": "969ce0865a14e4da8a5ba8661a18e57c9f0e4795811bd0fb00e51e11539a6911",
   "inputs_stable_during_run": true,
   "status": "passed",
   "note": "Static mapped coverage only; omissions, unreviewed specimens and runtime parity are separate.",
@@ -276,10 +276,10 @@
           114
         ],
         "element id sites read": [
-          929
+          933
         ],
         "structured helper uses": [
-          683
+          686
         ],
         "allowlisted constants": [
           8
@@ -295,8 +295,8 @@
         ]
       },
       "reported_gaps": [],
-      "output_sha256": "736c351f39e68be9beebd39f985cbd25b9f856b643ccfe578a09085ac68d8966",
-      "output": "self-test PASS: the scanner flags a synthetic constant id (`.id(\"textarea\")`, `ElementId::Name(\"nested\")`) and a synthetic formatted id (`.id(format!(..))`, `el_name(format!(..))` and the rustfmt-wrapped `ElementId::Name(\\n format!(..))`), reads past comments and string literals without mistaking prose for code, leaves derived ids and test-module callers alone, gates each constant on a per-file allowlist entry, reports a stale entry, and refuses to call an empty scan a pass.\n\nrust source files walked  : 114\nelement id sites read     : 929\nstructured helper uses    : 683\nallowlisted constants     : 8\nCONSTANT ids              : 0\nFORMAT-built ids          : 0\nstale allowlist entries   : 0\n"
+      "output_sha256": "20014f42b37126b8963ce5ebe243f5b7ca720aa7300b22f1561dee8c717de447",
+      "output": "self-test PASS: the scanner flags a synthetic constant id (`.id(\"textarea\")`, `ElementId::Name(\"nested\")`) and a synthetic formatted id (`.id(format!(..))`, `el_name(format!(..))` and the rustfmt-wrapped `ElementId::Name(\\n format!(..))`), reads past comments and string literals without mistaking prose for code, leaves derived ids and test-module callers alone, gates each constant on a per-file allowlist entry, reports a stale entry, and refuses to call an empty scan a pass.\n\nrust source files walked  : 114\nelement id sites read     : 933\nstructured helper uses    : 686\nallowlisted constants     : 8\nCONSTANT ids              : 0\nFORMAT-built ids          : 0\nstale allowlist entries   : 0\n"
     },
     {
       "audit": "example_audit.py",
@@ -470,8 +470,8 @@
         ]
       },
       "reported_gaps": [],
-      "output_sha256": "d5831995d4c13baee3dcd6828f0100b09eb86a9647921bbb49f68d61a7de1076",
-      "output": "component pages : 68\nmetadata pages  : 68\ndetailed        : 68/68\ngeneric fallback: 0/68\nmetadata rows   : API=1537, parts=364, states=369, styling=736\ncontract        : HeroUI v3.2.7, checked in; runtime network calls: 0\nPASS\n"
+      "output_sha256": "d7b2c38942a52f729bb5334376e68a3ee2c1066c22083b411d5ad7077e5e67d6",
+      "output": "component pages : 68\nmetadata pages  : 68\ndetailed        : 68/68\ngeneric fallback: 0/68\nmetadata rows   : API=1542, parts=364, states=369, styling=736\ncontract        : HeroUI v3.2.7, checked in; runtime network calls: 0\nPASS\n"
     },
     {
       "audit": "stale_docs_audit.py",

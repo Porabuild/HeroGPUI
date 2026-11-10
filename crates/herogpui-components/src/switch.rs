@@ -280,6 +280,7 @@ pub struct Switch {
     checked: Option<bool>,
     default_checked: bool,
     size: Size,
+    control_scale: f32,
     /// The label's and content's font size, in place of `text-sm`.
     text_size: Option<gpui::Pixels>,
     is_disabled: bool,
@@ -374,6 +375,7 @@ impl Switch {
             checked: None,
             default_checked: false,
             size: Size::Md,
+            control_scale: 1.0,
             text_size: None,
             is_disabled: false,
             is_invalid: false,
@@ -518,6 +520,14 @@ impl Switch {
     /// Stackable; a missing name adds no override.
     pub fn recipe(mut self, name: impl Into<gpui::SharedString>) -> Self {
         self.recipes.push(name.into());
+        self
+    }
+
+    #[doc = "Scales the painted control and thumb about their center, preserving the layout footprint and label metrics. Positive finite values only; defaults to 1."]
+    pub fn control_scale(mut self, scale: f32) -> Self {
+        if scale.is_finite() && scale > 0.0 {
+            self.control_scale = scale;
+        }
         self
     }
 
@@ -697,8 +707,20 @@ impl RenderOnce for Switch {
             Size::Md => (px(40.), px(20.), px(22.), px(16.), px(12.), px(8.)),
             Size::Lg => (px(48.), px(24.), px(27.5), px(20.), px(12.), px(12.)),
         };
+        let layout_width = w;
+        let layout_height = h;
+        let scale = self.control_scale;
+        let (w, h, thumb_w, thumb_h, track_r, thumb_r) = (
+            w * scale,
+            h * scale,
+            thumb_w * scale,
+            thumb_h * scale,
+            track_r * scale,
+            thumb_r * scale,
+        );
         let thumb_inset = px(2.);
-        let thumb_travel = w - thumb_w - thumb_inset * 2.;
+        let scaled_thumb_inset = thumb_inset * scale;
+        let thumb_travel = w - thumb_w - scaled_thumb_inset * 2.;
 
         let (
             accent_color,
@@ -770,7 +792,7 @@ impl RenderOnce for Switch {
             .bg(track_bg)
             .flex()
             .items_center()
-            .px(thumb_inset)
+            .px(scaled_thumb_inset)
             .when(!self.is_disabled, |t| t.cursor(crate::util::interactive_cursor(cx)));
         // v3's switch stylesheet has no invalid rule at all -- the state shows
         // in the field error below, not as a danger ring on the track, so the
@@ -881,6 +903,19 @@ impl RenderOnce for Switch {
             );
         }
 
+        let track = if (scale - 1.0).abs() > f32::EPSILON {
+            gpui::div()
+                .w(layout_width)
+                .h(layout_height)
+                .flex()
+                .items_center()
+                .justify_center()
+                .child(track)
+                .into_any_element()
+        } else {
+            track.into_any_element()
+        };
+
         // `.switch__content` is `gap-3`. v3 gets the label's side from the order
         // of its children, so `label_first` puts it before the control.
         let mut el = gpui::div()
@@ -978,7 +1013,7 @@ impl RenderOnce for Switch {
         }
         // Description and FieldError are direct siblings of Switch.Content.
         // Both use the size-specific track width plus the 12px content gap.
-        let indent = w + px(12.);
+        let indent = layout_width + px(12.);
         let mut root = gpui::div()
             .flex()
             .flex_col()

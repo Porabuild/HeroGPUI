@@ -46,11 +46,11 @@
 //! reaching for `with_animation` directly, so the reduced-motion check and the
 //! duration/easing live in exactly one place.
 
-use std::cell::{Cell, RefCell};
-use std::collections::HashMap;
+use std::cell::Cell;
 use std::rc::Rc;
 use std::time::Duration;
 
+use gpui::prelude::FluentBuilder;
 use gpui::{
     px, AnimationExt, AnyElement, App, ElementId, InteractiveElement, IntoElement, ParentElement,
     StatefulInteractiveElement, StyleRefinement, Styled, Window,
@@ -772,35 +772,58 @@ pub fn pressed_with_background(
     pressed_with_optional_background(el, b, Some(background), cx)
 }
 
-/// Resting slot widths, recorded by [`press_slot_recorder`] while a
-/// content-sized skin hugs its slot at rest and held while it is pressed.
-#[derive(Default)]
-struct PressSlotSizes(RefCell<HashMap<ElementId, f32>>);
-
-impl gpui::Global for PressSlotSizes {}
-
-fn press_slot_width(cx: &App, id: &ElementId) -> Option<f32> {
-    let slots = cx.try_global::<PressSlotSizes>()?;
-    slots.0.borrow().get(id).copied()
+#[derive(gpui::IntoElement)]
+struct PressSlotContent {
+    id: ElementId,
+    child: AnyElement,
+    height: gpui::Pixels,
+    frozen: Option<bool>,
 }
 
-/// An invisible layer over the slot that keeps its resting width fresh:
-/// recorded while the skin hugs the slot at rest, and held while it is
-/// pressed.
-fn press_slot_recorder(id: ElementId) -> AnyElement {
-    gpui::canvas(
-        |_, _, _| {},
-        move |bounds, _, _, cx| {
-            let width = f32::from(bounds.size.width);
-            let slots = cx.default_global::<PressSlotSizes>();
-            if slots.0.borrow().get(&id).copied() != Some(width) {
-                slots.0.borrow_mut().insert(id, width);
-            }
-        },
-    )
-    .absolute()
-    .inset_0()
-    .into_any_element()
+impl gpui::RenderOnce for PressSlotContent {
+    fn render(self, window: &mut Window, cx: &mut App) -> impl IntoElement {
+        let width = window
+            .use_keyed_state(element_id::scoped(&self.id, "rest-width"), cx, |_, _| {
+                Rc::new(Cell::new(None::<f32>))
+            })
+            .read(cx)
+            .clone();
+        let interaction = self.frozen.is_none().then(|| {
+            crate::util::interaction(element_id::scoped(&self.id, "instant-press"), window, cx)
+        });
+        let frozen = self
+            .frozen
+            .unwrap_or_else(|| interaction.as_ref().is_some_and(|state| state.read(cx).1));
+        let recorded = width.clone();
+        let mut content = gpui::div()
+            .id(self.id)
+            .relative()
+            .flex()
+            .flex_shrink_0()
+            .items_center()
+            .justify_center()
+            .min_h(self.height)
+            .when(frozen, |el| {
+                el.when_some(width.get(), |el, width| el.w(px(width)))
+            })
+            .child(self.child)
+            .child(
+                gpui::canvas(
+                    |_, _, _| {},
+                    move |bounds, _, _, _| {
+                        if !frozen {
+                            recorded.set(Some(f32::from(bounds.size.width)));
+                        }
+                    },
+                )
+                .absolute()
+                .inset_0(),
+            );
+        if let Some(interaction) = interaction {
+            content = crate::util::track_interaction(content, &interaction);
+        }
+        content
+    }
 }
 
 fn pressed_with_optional_background(
@@ -859,7 +882,7 @@ fn pressed_with_optional_background(
         return el;
     };
     let slot_corners = resting_slot_corners(&el.style().corner_radii, b.radius);
-    press_slot(el, id, b, &slot_corners, cx)
+    press_slot(el, id, b, &slot_corners, None)
 }
 
 /// Wraps a built skin in the stable press slot: the resting footprint that
@@ -870,7 +893,7 @@ fn press_slot(
     id: ElementId,
     b: PressBox,
     slot_corners: &gpui::Corners<Option<gpui::Pixels>>,
-    cx: &App,
+    frozen: Option<bool>,
 ) -> gpui::Stateful<gpui::Div> {
     // The slot keeps the resting footprint: fixed where the caller gave us a
     // width or asked for full width, and otherwise the skin's resting width
@@ -888,17 +911,16 @@ fn press_slot(
         // past the control minimum instead of being clipped to it.
         .min_h(b.height);
     slot = crate::util::round_sx_corners(slot, slot_corners);
-    slot = match b.width {
-        Some(width) => slot.w(width),
-        None if !b.shrink_x => slot.w_full(),
-        None => {
-            if let Some(width) = press_slot_width(cx, &id) {
-                slot = slot.w(px(width));
-            }
-            slot.child(press_slot_recorder(id))
-        }
-    };
-    slot.child(el)
+    match b.width {
+        Some(width) => slot.w(width).child(el),
+        None if !b.shrink_x => slot.w_full().child(el),
+        None => slot.child(PressSlotContent {
+            id: element_id::scoped(&id, "content-fit"),
+            child: el.into_any_element(),
+            height: b.height,
+            frozen,
+        }),
+    }
 }
 
 /// Resting corner radii resolved against a fallback, ready to be rescaled per
@@ -1160,7 +1182,8 @@ pub(crate) fn pressed_with_background_ramp(
         skin.into_any_element()
     };
 
-    let slot = press_slot(skin, id, b, &slot_corners, cx);
+    let frozen = animates || (scale_tween.value().get() - 1.0).abs() > f32::EPSILON;
+    let slot = press_slot(skin, id, b, &slot_corners, Some(frozen));
     match interaction {
         Some(_) => slot,
         None => crate::util::track_interaction(

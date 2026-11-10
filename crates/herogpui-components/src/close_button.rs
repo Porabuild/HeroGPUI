@@ -178,11 +178,23 @@ impl RenderOnce for CloseButton {
             .then_some((colors.default.color, colors.default.hover()))
             .and_then(|pair| crate::util::fade_endpoints(Some(pair), sx_background, self.hover_bg));
 
+        let name = a11y::Name::labelled(
+            self.aria_label
+                .clone()
+                .unwrap_or_else(|| crate::i18n::ui_string(crate::i18n::UiString::Close, cx)),
+        );
+        let (skin_style, slot_style) =
+            crate::util::split_press_style(&self.sx.clone().unwrap_or_default());
+        let sx_size = crate::util::sx_pixel_size(&self.sx);
+        let foreground = self
+            .sx
+            .as_ref()
+            .and_then(|style| style.text.color)
+            .unwrap_or(colors.muted);
         let mut el = div()
             .id(self.id.clone())
             // The icon has no text: use the explicit accessible name, then
             // the localized default, matching v3.2.7's label precedence.
-            .a11y_named(a11y::Role::Button, &a11y::Name::labelled(self.aria_label.clone().unwrap_or_else(|| crate::i18n::ui_string(crate::i18n::UiString::Close, cx))))
             .debug_selector({
                 let id = self.id.clone();
                 move || format!("{id:?}")
@@ -196,7 +208,7 @@ impl RenderOnce for CloseButton {
             .rounded(radius)
             .map(|el| crate::util::round_sx_corners(el, &sx_corners))
             .when(fade.is_none(), |e| e.bg(idle_bg))
-            .text_color(colors.muted);
+            .text_color(foreground);
 
         if let Some(fade_colors) = fade {
             el = crate::anim::hover_fade(
@@ -217,6 +229,7 @@ impl RenderOnce for CloseButton {
             el = el.hover(move |s| s.bg(hover_end));
         }
 
+        el.style().refine(&skin_style);
         el = match (self.content.clone(), self.icon) {
             (Some(render), _) => {
                 let (is_hovered, is_pressed) = interaction
@@ -251,7 +264,7 @@ impl RenderOnce for CloseButton {
                     .mx(px(-2.))
                     .my(px(2.))
                     .path(icons::CLOSE)
-                    .text_color(colors.muted),
+                    .text_color(foreground),
             ),
         };
         if !self.is_disabled {
@@ -278,9 +291,9 @@ impl RenderOnce for CloseButton {
             el = crate::anim::pressed_with_background_ramp(
                 el,
                 crate::anim::PressBox {
-                    height: box_size,
+                    height: sx_size.height.unwrap_or(box_size),
                     padding_x: None,
-                    width: Some(box_size),
+                    width: Some(sx_size.width.unwrap_or(box_size)),
                     min_width: None,
                     text_size: icon_size,
                     line_height: icon_size,
@@ -315,15 +328,12 @@ impl RenderOnce for CloseButton {
             }
         }
 
+        el = el
+            .a11y_named(a11y::Role::Button, &name)
+            .key_context("Button");
+        el.style().refine(&slot_style);
         if self.is_disabled {
-            let root = div()
-                .size(box_size)
-                .flex()
-                .flex_shrink_0()
-                .items_center()
-                .justify_center()
-                .child(el);
-            return crate::util::apply_sx(root, &self.sx);
+            return el;
         }
         // `.close-button:focus-visible` is `status-focused`: the ring and the
         // focus tracking land on the press slot — the element the ramp
@@ -342,15 +352,7 @@ impl RenderOnce for CloseButton {
             window,
             cx,
         );
-        let el = crate::util::record_focus_bounds(el, &focus_handle, window, cx);
-        let root = div()
-            .size(box_size)
-            .flex()
-            .flex_shrink_0()
-            .items_center()
-            .justify_center()
-            .child(el);
-        crate::util::apply_sx(root, &self.sx)
+        crate::util::record_focus_bounds(el, &focus_handle, window, cx)
     }
 }
 

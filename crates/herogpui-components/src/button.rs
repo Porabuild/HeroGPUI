@@ -788,6 +788,7 @@ impl RenderOnce for Button {
                 self.size = size;
             }
         }
+        let explicit_radius = self.radius;
         self.radius = self.radius.or(button_theme.radius);
         if self.hover_bg.is_none() {
             self.hover_bg = button_theme
@@ -831,13 +832,53 @@ impl RenderOnce for Button {
         // the fill the fade draws would otherwise paint the variant colour
         // back over the override.
         let sx_background = util::sx_background(&self.sx).or(theme_bg);
-        let instance_size = util::sx_pixel_size(&self.sx);
-        let theme_size = util::sx_pixel_size(&theme_style);
-        let sx_size = gpui::Size {
-            width: instance_size.width.or(theme_size.width),
-            height: instance_size.height.or(theme_size.height),
-        };
-        let sx_corners = util::sx_radius(&self.sx);
+        let mut resolved_style = theme_style.unwrap_or_default();
+        if let Some(height) = self.height {
+            resolved_style.size.height = Some(height.into());
+        }
+        if let Some(width) = self.width {
+            resolved_style.size.width = Some(width.into());
+        }
+        if let Some(padding) = self.padding_x {
+            resolved_style.padding.left = Some(padding.into());
+            resolved_style.padding.right = Some(padding.into());
+        }
+        if let Some(text) = self.text_size {
+            resolved_style.text.font_size = Some(text.into());
+        }
+        if let Some(weight) = self.font_weight {
+            resolved_style.text.font_weight = Some(weight);
+        }
+        if self.full_width && self.width.is_none() {
+            resolved_style.size.width = Some(gpui::relative(1.).into());
+        }
+        if self.grow {
+            resolved_style.flex_grow = Some(1.);
+            resolved_style.flex_shrink = Some(1.);
+            resolved_style.flex_basis = Some(gpui::px(0.).into());
+            resolved_style.min_size.width = Some(gpui::px(0.).into());
+        }
+        if let Some(width) = self.min_width {
+            resolved_style.min_size.width = Some(width.into());
+        }
+        if explicit_radius.is_some() {
+            resolved_style.corner_radii = Default::default();
+        }
+        if let Some(text) = self.text_size {
+            resolved_style.text.line_height = Some(gpui::DefiniteLength::from(
+                util::leading_for(text).unwrap_or_else(|| button_metrics(self.size).line_height),
+            ));
+        }
+        if let Some(style) = &self.sx {
+            resolved_style.refine(style);
+        }
+        let sx_size = util::sx_pixel_size(&Some(resolved_style.clone()));
+        let relative_width = matches!(
+            resolved_style.size.width,
+            Some(gpui::Length::Definite(gpui::DefiniteLength::Fraction(_)))
+        );
+        let (skin_style, slot_style) = util::split_press_style(&resolved_style);
+        let sx_corners = util::sx_radius(&Some(resolved_style.clone()));
         // The resting box, the hover fade's fill and the press box all take
         // the same resolved corner, so it is resolved once.
         let radius = self.radius.unwrap_or_else(|| util::control_radius(cx));
@@ -876,7 +917,6 @@ impl RenderOnce for Button {
         let name = a11y::Name::maybe(self.aria_label.clone().or(self.label.clone()));
         let mut el = div()
             .id(self.id.clone())
-            .a11y_named(a11y::Role::Button, &name)
             .flex()
             .flex_row()
             .items_center()
@@ -958,8 +998,29 @@ impl RenderOnce for Button {
             );
         }
 
-        if self.is_disabled || self.is_pending {
-            el = el.opacity(disabled_opacity);
+        el.style().refine(&skin_style);
+        let (hovered, pressed) = interaction
+            .as_ref()
+            .map(|slot| *slot.read(cx))
+            .unwrap_or_default();
+        let foreground = if !interactive {
+            theme_disabled_fg.or(theme_fg)
+        } else if pressed {
+            button_theme
+                .pressed_foreground
+                .map(|color| color.resolve(cx.colors()))
+                .or(theme_hover_fg)
+                .or(theme_fg)
+        } else if hovered {
+            theme_hover_fg.or(theme_fg)
+        } else {
+            theme_fg
+        };
+        if let Some(foreground) = foreground {
+            el = el.text_color(foreground);
+        }
+        if let Some(color) = self.sx.as_ref().and_then(|style| style.text.color) {
+            el = el.text_color(color);
         }
 
         if let Some(render) = self.content.clone() {
@@ -1023,7 +1084,10 @@ impl RenderOnce for Button {
                 line_height: metrics.line_height,
                 gap: metrics.gap,
                 radius,
-                shrink_x: !self.full_width,
+                shrink_x: !relative_width
+                    && !self.full_width
+                    && !self.grow
+                    && resolved_style.flex_grow.unwrap_or(0.) == 0.,
                 scale: press_scale,
             };
             if ActiveTheme::reduce_motion(cx) {
@@ -1117,28 +1181,10 @@ impl RenderOnce for Button {
             el = el.opacity(disabled_opacity);
         }
 
-        if let Some(style) = &theme_style {
-            el.style().refine(style);
-        }
-        if let Some(foreground) = theme_fg {
-            el = el.text_color(foreground);
-        }
-        if let Some(foreground) = theme_hover_fg {
-            el = el.hover(move |style| style.text_color(foreground));
-        }
-        // The fade folds `pressed_bg` into its pressed endpoint, so the
-        // `.active` refinement only applies where no fade owns the colour.
-        if fade.is_none()
-            && let Some(background) = theme_pressed_bg
-        {
-            el = el.active(move |style| style.bg(background));
-        }
-        if (self.is_disabled || self.is_pending)
-            && let Some(foreground) = theme_disabled_fg
-        {
-            el = el.text_color(foreground);
-        }
-        el = util::apply_sx(el, &self.sx);
+        el.style().refine(&slot_style);
+        el = el
+            .a11y_named(a11y::Role::Button, &name)
+            .key_context("Button");
         if focusable {
             el = util::record_focus_bounds(el, &focus_handle, window, cx);
         }

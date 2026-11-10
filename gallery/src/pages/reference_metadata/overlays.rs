@@ -618,6 +618,9 @@ const MODAL_REQUIRED_PARTS: &[&str] = &[
 ];
 
 const MODAL_API: &[ApiDoc] = &[
+    ApiDoc { owner: "Modal", prop: "panel_width", ty: "Pixels", default: "size preset", description: "Repository extension: overrides the preset width while retaining viewport containment and matching motion geometry.", rust_owner: "Modal", rust: "panel_width(px)", status: ImplementationStatus::Implemented },
+    ApiDoc { owner: "Modal", prop: "padding", ty: "Pixels", default: "24px", description: "Repository extension: overrides the dialog content inset.", rust_owner: "Modal", rust: "padding(px)", status: ImplementationStatus::Implemented },
+
     ApiDoc {
         owner: "Modal",
         prop: "children",
@@ -1273,6 +1276,9 @@ const POPOVER_REQUIRED_PARTS: &[&str] = &[
 ];
 
 const POPOVER_API: &[ApiDoc] = &[
+    ApiDoc { owner: "Popover", prop: "panel_width", ty: "Pixels", default: "260px", description: "Repository extension: content width shared by positioning and entry/exit geometry.", rust_owner: "Popover", rust: "panel_width(px)", status: ImplementationStatus::Implemented },
+    ApiDoc { owner: "Popover", prop: "aria_label", ty: "SharedString", default: "heading", description: "Repository extension: accessible dialog name without a visible heading.", rust_owner: "Popover", rust: "aria_label(label)", status: ImplementationStatus::Implemented },
+
     ApiDoc { owner: "Popover", prop: "children", ty: "React.ReactNode", default: "—", description: "Compound trigger and content children; the port takes the trigger positionally and panel children through ParentElement.", rust_owner: "Popover", rust: "new(trigger)", status: ImplementationStatus::Partial },
     ApiDoc { owner: "Popover", prop: "isOpen", ty: "boolean", default: "—", description: "Controlled open state.", rust_owner: "Popover", rust: "is_open(bool)", status: ImplementationStatus::Implemented },
     ApiDoc { owner: "Popover", prop: "defaultOpen", ty: "boolean", default: "false", description: "Initial uncontrolled open state.", rust_owner: "Popover", rust: "default_open(bool)", status: ImplementationStatus::Implemented },

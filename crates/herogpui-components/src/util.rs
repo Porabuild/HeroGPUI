@@ -2123,6 +2123,48 @@ pub(crate) fn refine_sx(
     }
 }
 
+pub(crate) fn split_press_style(
+    style: &gpui::StyleRefinement,
+) -> (gpui::StyleRefinement, gpui::StyleRefinement) {
+    let mut skin = style.clone();
+    let mut slot = gpui::StyleRefinement::default();
+    macro_rules! move_field {
+        ($($field:ident),+ $(,)?) => { $(slot.$field = std::mem::take(&mut skin.$field);)+ };
+    }
+    move_field!(
+        position,
+        inset,
+        margin,
+        align_self,
+        flex_basis,
+        flex_grow,
+        flex_shrink,
+        grid_location,
+        opacity
+    );
+    slot.size = skin.size.clone();
+    slot.min_size = skin.min_size.clone();
+    slot.max_size = skin.max_size.clone();
+    slot.aspect_ratio = skin.aspect_ratio;
+    slot.display = skin.display;
+    slot.visibility = skin.visibility;
+    slot.mouse_cursor = skin.mouse_cursor;
+    slot.overflow = skin.overflow.clone();
+    if matches!(
+        slot.size.width,
+        Some(gpui::Length::Definite(gpui::DefiniteLength::Fraction(_)))
+    ) {
+        skin.size.width = Some(gpui::relative(1.).into());
+    }
+    if matches!(
+        slot.size.height,
+        Some(gpui::Length::Definite(gpui::DefiniteLength::Fraction(_)))
+    ) {
+        skin.size.height = Some(gpui::relative(1.).into());
+    }
+    (skin, slot)
+}
+
 /// The `Styled` storage is the same root-only refinement that `sx` uses.
 /// Invoke this beside each component type with an `sx` field so GPUI's full
 /// style vocabulary can be used without forwarding styles into child parts.

@@ -585,6 +585,7 @@ const SWITCH_REQUIRED_PARTS: &[&str] = &[
 ];
 
 const SWITCH_API: &[ApiDoc] = &[
+    ApiDoc { owner: "Switch", prop: "control_scale", ty: "f32", default: "1", description: "Repository extension: scales the painted control and thumb while preserving layout footprint and label metrics.", rust_owner: "Switch", rust: "control_scale(scale)", status: ImplementationStatus::Implemented },
     ApiDoc {
         owner: "Switch",
         prop: "size",

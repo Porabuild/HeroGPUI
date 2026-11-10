@@ -228,3 +228,85 @@ fn icon_select_popover_respects_minimum_width_and_centred_placement(cx: &mut Tes
     assert_eq!(panel.size.width, px(64.));
     assert!((f32::from(panel.center().x - trigger.center().x)).abs() < 0.01);
 }
+
+#[gpui::test]
+fn popover_panel_width_and_padding_constrain_its_content(cx: &mut TestAppContext) {
+    use herogpui_components::{Button, Popover};
+    harness::still();
+    let cx = harness::open_host(cx, || {
+        Popover::new(Button::new("width-trigger").label("Options"))
+            .id("width-popover")
+            .is_open(true)
+            .aria_label("Options")
+            .panel_width(px(192.))
+            .padding(px(6.))
+            .child(
+                gpui::div()
+                    .w_full()
+                    .h(px(20.))
+                    .debug_selector(|| "popover-width-body".into()),
+            )
+            .into_any_element()
+    });
+    let body = cx.debug_bounds("popover-width-body").unwrap();
+    assert!((f32::from(body.size.width) - 180.).abs() < 0.1, "{body:?}");
+}
+
+#[gpui::test]
+fn modal_panel_width_and_padding_constrain_its_content(cx: &mut TestAppContext) {
+    use herogpui_components::Modal;
+    harness::still();
+    let cx = harness::open_host(cx, || {
+        Modal::new()
+            .id("width-modal")
+            .is_open(true)
+            .title("Edit data")
+            .panel_width(px(672.))
+            .padding(px(16.))
+            .child(
+                gpui::div()
+                    .w_full()
+                    .h(px(20.))
+                    .debug_selector(|| "modal-width-body".into()),
+            )
+            .into_any_element()
+    });
+    let body = cx.debug_bounds("modal-width-body").unwrap();
+    assert!((f32::from(body.size.width) - 640.).abs() < 0.1, "{body:?}");
+}
+
+#[gpui::test]
+fn scaled_switch_keeps_its_layout_and_activation_target(cx: &mut TestAppContext) {
+    use herogpui_components::{Size, Switch};
+    use herogpui_theme::ActiveTheme;
+    harness::still();
+    let changes = Rc::new(RefCell::new(Vec::new()));
+    let recorded = changes.clone();
+    let cx = harness::open_host(cx, move || {
+        let changes = changes.clone();
+        gpui::div()
+            .flex()
+            .items_start()
+            .child(
+                Switch::new("scaled-switch")
+                    .size(Size::Sm)
+                    .aria_label("Background")
+                    .control_scale(0.75)
+                    .is_selected(true)
+                    .on_change(move |value, _, _| changes.borrow_mut().push(*value)),
+            )
+            .into_any_element()
+    });
+    let accent = cx.update(|_, cx| cx.colors().accent.color);
+    let scene = harness::painted(cx);
+    assert!(
+        scene
+            .filled(accent)
+            .iter()
+            .any(|quad| scene.bounds(quad).size == gpui::size(px(24.), px(12.))),
+        "{}",
+        scene.describe()
+    );
+    harness::click(cx, 1., 8.);
+    assert_eq!(&*recorded.borrow(), &[false]);
+}
