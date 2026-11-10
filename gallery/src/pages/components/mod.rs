@@ -1565,7 +1565,11 @@ mod example_quality {
 
         let custom = section_body(popover, "Custom Styles");
         for builder in [
-            ".w(px(224.))",
+            ".panel_width(px(256.))",
+            ".padding(px(0.))",
+            ".radius(px(12.))",
+            ".aria_label(\"Details\")",
+            ".w_full()",
             ".overflow_hidden()",
             ".rounded(px(12.))",
             ".border_color(custom_border)",

@@ -1,14 +1,15 @@
 ---
 name: herogpui
-description: "HeroGPUI — native Rust/GPUI port of HeroUI v3.2.4. Use when building GPUI UIs with HeroGPUI: ThemeProvider, ThemeBuilder::components, named recipes, Buttons, forms, overlays, or reading crate docs. Keywords: HeroGPUI, herogpui, GPUI, HeroUI, ThemeBuilder, recipe."
+description: "HeroGPUI — native Rust/GPUI port of HeroUI v3.2.7. Use when building GPUI UIs with HeroGPUI: ThemeProvider, ThemeBuilder::components, named recipes, Buttons, forms, overlays, or reading crate docs. Keywords: HeroGPUI, herogpui, GPUI, HeroUI, ThemeBuilder, recipe."
 metadata:
   author: herogpui
-  version: "0.1.0"
+  source: https://github.com/Porabuild/HeroGPUI/blob/master/skills/herogpui/SKILL.md
+  version: "0.15.0"
 ---
 
 # HeroGPUI Development Guide
 
-HeroGPUI is a native Rust/GPUI port of **HeroUI v3.2.4**. Depend on the `herogpui` facade. It re-exports GPUI at its root and the theme/component layers behind features.
+HeroGPUI is a native Rust/GPUI port of **HeroUI v3.2.7**. Depend on the `herogpui` facade. It re-exports GPUI at its root and the theme/component layers behind features.
 
 This skill is for HeroGPUI only. Do not apply HeroUI v2 APIs, do not invent a CSS/`className` layer, and do not treat latest HeroUI docs as the contract. The pinned source of truth is this repository: implementations, tests, and `llms.txt`.
 
@@ -40,7 +41,7 @@ Do not invent Poratake-specific or app-specific field names in the library. App 
 ## Installation
 
 ```toml
-herogpui = { git = "https://github.com/Porabuild/HeroGPUI" }
+herogpui = "0.15.0"
 ```
 
 ```rust
@@ -164,6 +165,18 @@ Slider::new("vol", 0.5).recipe("pill");
 Input::new(&state).recipe("search");
 ```
 
+### Source patch APIs
+
+The workspace includes additive APIs beyond the crates.io 0.15.0 release. Use an exact tested Git `rev` when depending on these APIs; do not assume the published release contains them.
+
+- `Select::item_content(|key, selected, window, cx| ..)` replaces visible option content while preserving collection labels and typeahead. `panel_gap(px)` and `panel_min_width(px)` also resolve through SelectStyle recipes.
+- `ColorSwatchPicker::sx` customizes the group layout. Keyboard columns follow the rendered allocation.
+- `Popover::panel_width(px)` sizes the panel and its motion together; `aria_label` names a dialog without adding a heading. `Modal::panel_width(px)` and `padding(px)` override its preset width and inset.
+- `Switch::control_scale(f32)` scales the painted control and thumb while keeping layout, labels and the activation target stable.
+- Button, standalone ToggleButton and CloseButton apply painted styles to the skin and placement/opacity to the resting slot. Explicit builders beat theme metrics; instance `sx` wins last.
+- Pressable roots expose the `Button` keyboard context; open Popovers expose `Popover`. Scope application shortcuts so native controls own Enter and their list navigation.
+- For short option lists, use natural ListBox rows. `row_height` enables virtualization with its own viewport; set an explicit viewport bound when virtualization is needed.
+
 ### Public types and methods
 
 - `ThemeBuilder::components(ComponentThemes { … })` and fluent `ComponentThemes::{slider,switch,select,menu,button,text_field}(ComponentTheme<T>)`
@@ -199,7 +212,7 @@ cargo doc -p herogpui-components --no-deps --open
 3. Implementation and focused tests under `crates/herogpui-components/` and `crates/herogpui-theme/`.
 4. Gallery examples under `gallery/src/pages/components/` and getting-started pages under `gallery/src/pages/docs.rs`.
 
-Do not invent URLs, fetch scripts, or a CSS class catalog. HeroUI's `heroui.com` MDX is the React product; use tagged HeroUI **v3.2.4** source only when checking port parity, never as the Rust API.
+Do not invent URLs, fetch scripts, or a CSS class catalog. HeroUI's `heroui.com` MDX is the React product; use tagged HeroUI **v3.2.7** source only when checking port parity, never as the Rust API.
 
 ---
 
