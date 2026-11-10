@@ -4,7 +4,7 @@ description: "HeroGPUI — native Rust/GPUI port of HeroUI v3.2.7. Use when buil
 metadata:
   author: herogpui
   source: https://github.com/Porabuild/HeroGPUI/blob/master/skills/herogpui/SKILL.md
-  version: "0.15.0"
+  version: "0.15.1"
 ---
 
 # HeroGPUI Development Guide
@@ -41,7 +41,7 @@ Do not invent Poratake-specific or app-specific field names in the library. App 
 ## Installation
 
 ```toml
-herogpui = "0.15.0"
+herogpui = "0.15.1"
 ```
 
 ```rust
@@ -165,9 +165,9 @@ Slider::new("vol", 0.5).recipe("pill");
 Input::new(&state).recipe("search");
 ```
 
-### Source patch APIs
+### APIs added in 0.15.1
 
-The workspace includes additive APIs beyond the crates.io 0.15.0 release. Use an exact tested Git `rev` when depending on these APIs; do not assume the published release contains them.
+These APIs are included in HeroGPUI 0.15.1. Existing 0.15.0 code remains compatible.
 
 - `Select::item_content(|key, selected, window, cx| ..)` replaces visible option content while preserving collection labels and typeahead. `panel_gap(px)` and `panel_min_width(px)` also resolve through SelectStyle recipes.
 - `ColorSwatchPicker::sx` customizes the group layout. Keyboard columns follow the rendered allocation.

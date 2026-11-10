@@ -8,8 +8,38 @@ version covers `herogpui`, `herogpui-core`, `herogpui-theme`,
 
 ## [Unreleased]
 
+## [0.15.1] - 2026-11-10
+
+### Added
+
+- Select `item_content` replaces visible option content while preserving
+  collection labels, typeahead, selection and the owned indicator. Panel gap
+  and minimum width can be set directly or through SelectStyle recipes.
+- ColorSwatchPicker group `sx` supports constrained palettes; keyboard columns
+  follow the rendered allocation and swatches fit resized cells.
+- Popover panel width and accessible-name builders, Modal width and padding
+  builders, and Switch `control_scale` support compact composed panels while
+  preserving their interaction and motion ownership.
+
+### Fixed
+
+- Button, standalone ToggleButton and CloseButton apply painted styles to
+  their skins and placement/opacity to the resting slot. Explicit metrics
+  override theme values, semantic foregrounds reach the painted content, and
+  custom backgrounds scale with held controls.
+- Content-fit measurements are scoped to each window and instance and update
+  when labels change. Relative-width controls keep the requested footprint.
+- Pressable controls and collection rows keep accessibility metadata on the
+  actionable owner. Button and open-Popover keyboard contexts allow consumers
+  to isolate native activation from application shortcuts.
+- Gallery regression checks follow the complete custom popover surface,
+  including panel sizing and full-width content.
+
 ### Changed
 
+- The consumer skill targets HeroUI 3.2.7 and HeroGPUI 0.15.1, documents the
+  newly published APIs, and distinguishes natural ListBox rows from virtual
+  viewports.
 - `docs/migration-0.15.md` now also covers the behaviour and visual changes
   an application could rely on — validation timing, list/overlay keyboard and
   pointer behaviour, the Drawer handle, the Calendar year picker, the
@@ -937,7 +967,8 @@ for each breaking change with before/after code.
   `herogpui-components` and the `herogpui-gallery` CLI, built on the
   published `gpui-pre` 0.3.5 crates with no GPUI fork.
 
-[Unreleased]: https://github.com/Porabuild/HeroGPUI/compare/v0.15.0...HEAD
+[Unreleased]: https://github.com/Porabuild/HeroGPUI/compare/v0.15.1...HEAD
+[0.15.1]: https://github.com/Porabuild/HeroGPUI/compare/v0.15.0...v0.15.1
 [0.15.0]: https://github.com/Porabuild/HeroGPUI/compare/v0.14.0...v0.15.0
 [0.14.0]: https://github.com/Porabuild/HeroGPUI/compare/v0.13.0...v0.14.0
 [0.13.0]: https://github.com/Porabuild/HeroGPUI/compare/v0.12.0...v0.13.0
