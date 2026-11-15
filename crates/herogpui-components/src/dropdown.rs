@@ -882,7 +882,11 @@ impl RenderOnce for Menu {
         // old panel locations.
 
         let colors = cx.colors();
-        let menu_theme = cx.theme().components.menu.resolve(&self.recipes);
+        let menu_theme = cx
+            .theme()
+            .components
+            .menu
+            .resolve_named("menu", &self.recipes);
         self.panel_min_width = self.panel_min_width.or(menu_theme.panel_min_width);
         self.panel_max_width = self.panel_max_width.or(menu_theme.panel_max_width);
         self.panel_max_height = self.panel_max_height.or(menu_theme.panel_max_height);
@@ -966,8 +970,6 @@ impl RenderOnce for Menu {
             // the positioner's capped pass sizes it, and a short menu keeps its
             // natural height. A standalone menu keeps the old window share.
             .id(element_id::scoped(&base_id, "list"))
-            .overflow_y_scroll()
-            .track_scroll(&menu_scroll_now)
             .track_focus(&focus_handle)
             .key_context("Menu");
         // `menu/menu.js` renders the RAC `Menu`, and
@@ -1158,6 +1160,7 @@ impl RenderOnce for Menu {
         }
 
         let mut open_submenu = None;
+        let mut viewport_items = Vec::new();
         for (i, item) in self.items.into_iter().enumerate() {
             match item {
                 MenuItem::Separator => {
@@ -1171,23 +1174,26 @@ impl RenderOnce for Menu {
                     // absolute one on each edge, for a panel that has to sit
                     // beside a platform menu whose own rule is a fixed inset
                     // rather than a share of the width.
-                    panel = panel.child(match separator_inset {
-                        Some(inset) => gpui::div().w_full().my(px(4.)).px(inset).child(
-                            gpui::div()
-                                .w_full()
+                    viewport_items.push(
+                        match separator_inset {
+                            Some(inset) => gpui::div().w_full().my(px(4.)).px(inset).child(
+                                gpui::div()
+                                    .w_full()
+                                    .h(separator_thickness)
+                                    .bg(colors.separator),
+                            ),
+                            None => gpui::div()
+                                .my(px(4.))
+                                .mx(gpui::relative(0.03))
+                                .w(gpui::relative(0.94))
                                 .h(separator_thickness)
                                 .bg(colors.separator),
-                        ),
-                        None => gpui::div()
-                            .my(px(4.))
-                            .mx(gpui::relative(0.03))
-                            .w(gpui::relative(0.94))
-                            .h(separator_thickness)
-                            .bg(colors.separator),
-                    });
+                        }
+                        .into_any_element(),
+                    );
                 }
                 MenuItem::SectionLabel(label) => {
-                    panel = panel.child(
+                    viewport_items.push(
                         gpui::div()
                             .px(px(8.))
                             .pt(px(6.))
@@ -1196,7 +1202,8 @@ impl RenderOnce for Menu {
                             .line_height(px(16.))
                             .font_weight(gpui::FontWeight::MEDIUM)
                             .text_color(colors.muted)
-                            .child(label.to_string()),
+                            .child(label.to_string())
+                            .into_any_element(),
                     );
                 }
                 MenuItem::Item {
@@ -1642,13 +1649,21 @@ impl RenderOnce for Menu {
                         if is_sub_open {
                             open_submenu = Some((i, open_key, submenu));
                         }
-                        panel = panel.child(slot);
+                        viewport_items.push(slot.into_any_element());
                     } else {
-                        panel = panel.child(row);
+                        viewport_items.push(row.into_any_element());
                     }
                 }
             }
         }
+
+        panel = panel.child(crate::util::focus_guttered_scroll_viewport(
+            element_id::scoped(&base_id, "viewport"),
+            &menu_scroll_now,
+            self.panel_gap.unwrap_or(px(2.)),
+            crate::util::focus_ring_gutter(cx),
+            viewport_items,
+        ));
 
         // The flex surface's rectangular hull includes blank space between
         // unequal-height panels. The outside listener lives on the root panel

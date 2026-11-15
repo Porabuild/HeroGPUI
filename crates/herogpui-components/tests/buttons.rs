@@ -70,8 +70,8 @@ use gpui::{
     Keystroke, Modifiers, MouseButton, TestAppContext, VisualTestContext,
 };
 use herogpui_components::{
-    Alert, Button, ButtonGroup, Chip, ChipLabel, CloseButton, InteractiveState, Link, Orientation,
-    SelectionMode, ToggleButton, ToggleButtonGroup,
+    extend, Alert, Button, ButtonGroup, Chip, ChipLabel, CloseButton, Dropdown, InteractiveState,
+    Link, MenuItem, Orientation, SelectionMode, ToggleButton, ToggleButtonGroup,
 };
 
 use harness::{click, events, open_host, press};
@@ -1426,6 +1426,403 @@ fn button_content_render_prop_tracks_interleaved_keyboard_presses(cx: &mut TestA
         (false, false),
         "Enter up must still release the first press after focus moved"
     );
+}
+
+#[gpui::test]
+fn button_keyboard_press_releases_when_activation_moves_focus_out_of_root(cx: &mut TestAppContext) {
+    let pressed = Rc::new(RefCell::new(false));
+    cx.update(herogpui_theme::ThemeProvider::init);
+    let observed_pressed = pressed.clone();
+    let (view, cx) = cx.add_window_view(move |_, cx| FocusTransferHost {
+        target: cx.focus_handle(),
+        pressed: observed_pressed,
+        move_on_keydown: false,
+    });
+    cx.simulate_mouse_move(
+        point(px(-100.), px(-100.)),
+        None::<MouseButton>,
+        Modifiers::none(),
+    );
+
+    press(cx, "tab");
+    cx.simulate_keystrokes("enter");
+    flush_frame(cx);
+    assert!(
+        *pressed.borrow(),
+        "Enter down must report the held keyboard press before focus transfer"
+    );
+    cx.simulate_event(KeyUpEvent {
+        keystroke: Keystroke::parse("enter").unwrap(),
+    });
+    flush_frame(cx);
+    assert!(
+        cx.update(|window, cx| view.read(cx).target.is_focused(window)),
+        "button activation must move focus to the external focus handle"
+    );
+    assert!(
+        !*pressed.borrow(),
+        "Enter up must release the keyboard press after focus leaves the app root"
+    );
+}
+
+#[gpui::test]
+fn button_keyboard_press_releases_when_keydown_moves_focus_before_key_up(cx: &mut TestAppContext) {
+    let pressed = Rc::new(RefCell::new(false));
+    cx.update(herogpui_theme::ThemeProvider::init);
+    let observed_pressed = pressed.clone();
+    let (view, cx) = cx.add_window_view(move |_, cx| FocusTransferHost {
+        target: cx.focus_handle(),
+        pressed: observed_pressed,
+        move_on_keydown: true,
+    });
+    cx.simulate_mouse_move(
+        point(px(-100.), px(-100.)),
+        None::<MouseButton>,
+        Modifiers::none(),
+    );
+
+    press(cx, "tab");
+    cx.simulate_keystrokes("space");
+    flush_frame(cx);
+    assert!(
+        cx.update(|window, cx| view.read(cx).target.is_focused(window)),
+        "key-down handler must have moved focus to sibling target before key-up"
+    );
+    assert!(
+        *pressed.borrow(),
+        "Space down must still report the held keyboard press"
+    );
+
+    cx.simulate_event(KeyUpEvent {
+        keystroke: Keystroke::parse("space").unwrap(),
+    });
+    flush_frame(cx);
+    assert!(
+        !*pressed.borrow(),
+        "Space up must release the keyboard press after key-down moved focus away from the button"
+    );
+}
+
+struct FocusTransferHost {
+    target: gpui::FocusHandle,
+    pressed: Rc<RefCell<bool>>,
+    move_on_keydown: bool,
+}
+
+impl Render for FocusTransferHost {
+    fn render(
+        &mut self,
+        window: &mut gpui::Window,
+        cx: &mut Context<'_, Self>,
+    ) -> impl IntoElement {
+        let target = self.target.clone();
+        let keydown_target = self.target.clone();
+        let pressed = self.pressed.clone();
+        let move_on_keydown = self.move_on_keydown;
+        extend::app_focus_root(
+            gpui::div()
+                .on_key_down(move |event, window, cx| {
+                    if move_on_keydown && matches!(event.keystroke.key.as_str(), "enter" | "space")
+                    {
+                        window.focus(&keydown_target, cx);
+                        cx.stop_propagation();
+                    }
+                })
+                .child(
+                    Button::new("btn-focus-transfer")
+                        .content(move |state: InteractiveState| {
+                            *pressed.borrow_mut() = state.is_pressed;
+                            gpui::div()
+                                .child("transfer focus".to_owned())
+                                .into_any_element()
+                        })
+                        .on_press(move |_, window, cx| {
+                            if !move_on_keydown {
+                                window.focus(&target, cx);
+                                cx.stop_propagation();
+                            }
+                        }),
+                )
+                .when(move_on_keydown, |el| {
+                    el.child(
+                        gpui::div()
+                            .id("keydown-focus-target")
+                            .track_focus(&self.target),
+                    )
+                }),
+            window,
+            cx,
+        )
+    }
+}
+
+#[gpui::test]
+fn button_keyboard_press_releases_when_focus_leaves_app_root_or_window_deactivates(
+    cx: &mut TestAppContext,
+) {
+    struct ExternalSiblingFocusHost {
+        root_target: gpui::FocusHandle,
+        external_target: gpui::FocusHandle,
+        pressed: Rc<RefCell<bool>>,
+    }
+
+    impl Render for ExternalSiblingFocusHost {
+        fn render(
+            &mut self,
+            window: &mut gpui::Window,
+            cx: &mut Context<'_, Self>,
+        ) -> impl IntoElement {
+            let external_target = self.external_target.clone();
+            let pressed = self.pressed.clone();
+            gpui::div()
+                .child(extend::app_focus_root(
+                    gpui::div()
+                        .on_key_down(move |event, window, cx| {
+                            if event.keystroke.key == "enter" {
+                                window.focus(&external_target, cx);
+                                cx.stop_propagation();
+                            }
+                        })
+                        .child(Button::new("btn-external-focus-transfer").content(
+                            move |state: InteractiveState| {
+                                *pressed.borrow_mut() = state.is_pressed;
+                                gpui::div()
+                                    .child("transfer outside root".to_owned())
+                                    .into_any_element()
+                            },
+                        ))
+                        .child(
+                            gpui::div()
+                                .id("inner-focus-target")
+                                .track_focus(&self.root_target),
+                        ),
+                    window,
+                    cx,
+                ))
+                .child(
+                    gpui::div()
+                        .id("external-focus-target")
+                        .track_focus(&self.external_target),
+                )
+        }
+    }
+
+    let pressed = Rc::new(RefCell::new(false));
+    cx.update(herogpui_theme::ThemeProvider::init);
+    let observed_pressed = pressed.clone();
+    let (view, vcx) = cx.add_window_view(move |_, cx| ExternalSiblingFocusHost {
+        root_target: cx.focus_handle(),
+        external_target: cx.focus_handle(),
+        pressed: observed_pressed,
+    });
+    vcx.update(|window, _| window.activate_window());
+    flush_frame(vcx);
+    vcx.simulate_mouse_move(
+        point(px(-100.), px(-100.)),
+        None::<MouseButton>,
+        Modifiers::none(),
+    );
+
+    // 1. Focus leaves `app_focus_root` before key-up arrives (key-up captured outside root or never seen).
+    press(vcx, "tab");
+    vcx.simulate_keystrokes("enter");
+    flush_frame(vcx);
+    flush_frame(vcx);
+    assert!(
+        vcx.update(|window, cx| view.read(cx).external_target.is_focused(window)),
+        "Enter down must transfer focus to sibling outside app_focus_root"
+    );
+    assert!(
+        !*pressed.borrow(),
+        "focus_out from app_focus_root must release the active keyboard press even without KeyUp"
+    );
+
+    // 2. Focus button again, press Space, then deactivate the window before Space key-up arrives.
+    vcx.update(|window, cx| {
+        let root_target = view.read(cx).root_target.clone();
+        root_target.focus(window, cx);
+    });
+    press(vcx, "shift-tab");
+    vcx.simulate_keystrokes("space");
+    flush_frame(vcx);
+    assert!(
+        *pressed.borrow(),
+        "Space down must engage the button press before window deactivation"
+    );
+    vcx.deactivate_window();
+    flush_frame(vcx);
+    flush_frame(vcx);
+    assert!(
+        !*pressed.borrow(),
+        "window deactivation must release held keyboard presses even without KeyUp"
+    );
+}
+
+#[gpui::test]
+fn keyboard_press_releases_across_dropdown_open_dismissal_and_reentry(cx: &mut TestAppContext) {
+    let pressed = Rc::new(RefCell::new(false));
+    let is_open = Rc::new(RefCell::new(false));
+    let seen_pressed = pressed.clone();
+    let seen_open = is_open.clone();
+    let vcx = open_host(cx, move || {
+        let seen_pressed = seen_pressed.clone();
+        let seen_open = seen_open.clone();
+        Dropdown::uncontrolled(
+            "dd-key-press",
+            Button::new("dd-key-trigger").content(move |state: InteractiveState| {
+                *seen_pressed.borrow_mut() = state.is_pressed;
+                gpui::div().child("Menu".to_owned()).into_any_element()
+            }),
+            vec![
+                MenuItem::new("one", "First"),
+                MenuItem::new("two", "Second"),
+            ],
+        )
+        .on_open_change(move |open, _, _| {
+            *seen_open.borrow_mut() = *open;
+        })
+        .into_any_element()
+    });
+
+    press(vcx, "tab");
+    // Hold Space down: focus transfers to menu or trigger starts press.
+    vcx.simulate_keystrokes("space");
+    flush_frame(vcx);
+    assert!(*is_open.borrow(), "Space down must open the dropdown menu");
+    vcx.simulate_event(KeyUpEvent {
+        keystroke: Keystroke::parse("space").unwrap(),
+    });
+    flush_frame(vcx);
+    assert!(
+        !*pressed.borrow(),
+        "Space up must release the trigger's pressed state after menu takes focus"
+    );
+
+    // Dismiss with Escape and re-enter with Enter: must cleanly press & release again.
+    press(vcx, "escape");
+    flush_frame(vcx);
+    assert!(!*is_open.borrow(), "Escape must dismiss the dropdown");
+    assert!(
+        !*pressed.borrow(),
+        "dismissed trigger must remain unpressed"
+    );
+
+    vcx.simulate_keystrokes("enter");
+    flush_frame(vcx);
+    assert!(
+        *is_open.borrow(),
+        "re-entering the trigger with Enter must reopen the dropdown"
+    );
+    vcx.simulate_event(KeyUpEvent {
+        keystroke: Keystroke::parse("enter").unwrap(),
+    });
+    flush_frame(vcx);
+    assert!(
+        !*pressed.borrow(),
+        "Enter up on re-entry must release the trigger's pressed state"
+    );
+}
+
+#[gpui::test]
+fn button_keyboard_press_releases_when_child_stops_propagation_on_key_up(cx: &mut TestAppContext) {
+    let pressed = Rc::new(RefCell::new(false));
+    let stopped = Rc::new(RefCell::new(false));
+    let seen_pressed = pressed.clone();
+    let seen_stopped = stopped.clone();
+    let vcx = open_host(cx, move || {
+        let seen_pressed = seen_pressed.clone();
+        let seen_stopped = seen_stopped.clone();
+        gpui::div()
+            .on_key_up(move |_, _, cx| {
+                *seen_stopped.borrow_mut() = true;
+                cx.stop_propagation();
+            })
+            .child(
+                Button::new("btn-stop-prop").content(move |state: InteractiveState| {
+                    *seen_pressed.borrow_mut() = state.is_pressed;
+                    gpui::div().child("stop".to_owned()).into_any_element()
+                }),
+            )
+            .into_any_element()
+    });
+
+    press(vcx, "tab");
+    vcx.simulate_keystrokes("enter");
+    flush_frame(vcx);
+    assert!(*pressed.borrow(), "Enter down must record keyboard press");
+
+    vcx.simulate_event(KeyUpEvent {
+        keystroke: Keystroke::parse("enter").unwrap(),
+    });
+    flush_frame(vcx);
+    assert!(
+        *stopped.borrow(),
+        "child key-up handler must have run and stopped propagation"
+    );
+    assert!(
+        !*pressed.borrow(),
+        "capture-phase key-up listener on app_focus_root must release press despite stop_propagation"
+    );
+}
+
+#[gpui::test]
+fn button_keyboard_press_handles_reverse_release_order_and_multiple_keys(cx: &mut TestAppContext) {
+    let seen = Rc::new(RefCell::new((false, false)));
+    let record = seen.clone();
+    let cx = open_host(cx, move || {
+        let first = record.clone();
+        let second = record.clone();
+        gpui::div()
+            .child(Button::new("btn-rev-first").content(move |state| {
+                first.borrow_mut().0 = state.is_pressed;
+                gpui::div().child("first".to_owned()).into_any_element()
+            }))
+            .child(Button::new("btn-rev-second").content(move |state| {
+                second.borrow_mut().1 = state.is_pressed;
+                gpui::div().child("second".to_owned()).into_any_element()
+            }))
+            .into_any_element()
+    });
+
+    // Hold Enter on A, move focus to B, hold Space on B, then release Enter first.
+    press(cx, "tab");
+    cx.simulate_keystrokes("enter");
+    flush_frame(cx);
+    cx.simulate_keystrokes("tab");
+    flush_frame(cx);
+    cx.simulate_keystrokes("space");
+    flush_frame(cx);
+    assert_eq!(*seen.borrow(), (true, true));
+
+    cx.simulate_event(KeyUpEvent {
+        keystroke: Keystroke::parse("enter").unwrap(),
+    });
+    flush_frame(cx);
+    assert_eq!(
+        *seen.borrow(),
+        (false, true),
+        "releasing Enter must release A while leaving Space held on B"
+    );
+
+    // Also hold Enter on B simultaneously with Space; releasing Enter leaves Space held until Space up.
+    cx.simulate_keystrokes("enter");
+    flush_frame(cx);
+    assert_eq!(*seen.borrow(), (false, true));
+    cx.simulate_event(KeyUpEvent {
+        keystroke: Keystroke::parse("enter").unwrap(),
+    });
+    flush_frame(cx);
+    assert_eq!(
+        *seen.borrow(),
+        (false, true),
+        "releasing one key on a control must keep it pressed while another activation key remains down"
+    );
+
+    cx.simulate_event(KeyUpEvent {
+        keystroke: Keystroke::parse("space").unwrap(),
+    });
+    flush_frame(cx);
+    assert_eq!(*seen.borrow(), (false, false));
 }
 
 /// A second component's render prop must survive a full pointer cycle too, so

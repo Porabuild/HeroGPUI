@@ -93,6 +93,14 @@ pub struct Host {
     content: Box<dyn Fn() -> AnyElement>,
 }
 
+impl Host {
+    pub fn new(content: impl Fn() -> AnyElement + 'static) -> Self {
+        Self {
+            content: Box::new(content),
+        }
+    }
+}
+
 impl Render for Host {
     fn render(&mut self, window: &mut Window, cx: &mut Context<'_, Self>) -> impl IntoElement {
         let root = gpui::div().size_full().child((self.content)());

@@ -8,6 +8,18 @@ version covers `herogpui`, `herogpui-core`, `herogpui-theme`,
 
 ## [Unreleased]
 
+### Added
+
+- Reusable tooltip presentation boundary (`TooltipPresenter`, `TooltipPresenterMode`, `TooltipPresentationRequest`, `SeparateWindowTooltipPresenter`, `position_tooltip_popup`, and `Tooltip::{presenter_mode, presenter, exclude_from_capture}`) so compact owner windows can display tooltips in non-activating popup or native OS surfaces while retaining HeroGPUI hover, focus, delay, warmup, cooldown, Escape, and unmount lifecycles.
+- `Select::fit_panel_width` and `Select::intrinsic_panel_width` for intrinsic menu-width sizing across icons, labels, and selection indicators without manual app-side measurement.
+- `TooltipStyle`, `PopoverStyle`, `TextAreaStyle`, and `TabsStyle` in `ComponentThemes`, `.recipe(..)` on `Tooltip`, `Popover`, `TextArea`, and `Tabs`, opt-in unknown-recipe diagnostics via `set_unknown_recipe_diagnostic_handler` / `with_unknown_recipe_diagnostic_handler`, a serializable-recipes design proposal (`docs/serializable-recipes-proposal.md`), and Windows `gpui_windows` upstream patch drafts (`docs/upstream/prs/06`–`08`).
+
+### Fixed
+
+- Scrollable `Dropdown`/`Menu` and virtualized `Select` focus-ring clipping at viewport edges, including zero panel padding, narrow panels, first/selected/last rows, and fractional DPI alignment, without altering row geometry.
+- AccessKit `Expand` and `Collapse` actions on `Select` and `SetValue`, `Increment`, and `Decrement` actions on `Slider`, honoring disabled controls, controlled callbacks, range thumbs, and invalid bounds.
+- Keyboard `Enter` and `Space` press ownership across focus changes so shared pressable triggers clear pressed visuals when focus moves before key-up.
+
 ## [0.15.1] - 2026-11-10
 
 ### Added

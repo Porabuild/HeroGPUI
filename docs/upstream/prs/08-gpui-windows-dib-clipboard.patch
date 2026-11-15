@@ -1,0 +1,338 @@
+diff --git a/crates/gpui_windows/src/clipboard.rs b/crates/gpui_windows/src/clipboard.rs
+index 11eb2a8..d6e32e7 100644
+--- a/crates/gpui_windows/src/clipboard.rs
++++ b/crates/gpui_windows/src/clipboard.rs
+@@ -209,21 +209,31 @@ fn write_image(item: &Image) -> Result<()> {
+         set_clipboard_bytes(item.bytes(), format)?;
+     }
+ 
+-    // Also provide a PNG copy for broad compatibility.
++    // Also provide a PNG copy and a CF_DIB bitmap for broad compatibility.
+     // SVG can't be rasterized by the image crate, so skip it.
+-    if item.format != ImageFormat::Svg && native_format != Some(*CLIPBOARD_PNG_FORMAT) {
+-        if let Some(png_bytes) = convert_to_png(item.bytes(), item.format) {
+-            set_clipboard_bytes(&png_bytes, *CLIPBOARD_PNG_FORMAT)?;
++    if item.format != ImageFormat::Svg {
++        if let Some(decoded) = decode_image(item.bytes(), item.format) {
++            if native_format != Some(*CLIPBOARD_PNG_FORMAT)
++                && let Some(png_bytes) = encode_png(&decoded)
++            {
++                set_clipboard_bytes(&png_bytes, *CLIPBOARD_PNG_FORMAT)?;
++            }
++            if let Some(dib_bytes) = encode_dib(&decoded) {
++                set_clipboard_bytes(&dib_bytes, CF_DIB.0 as u32)?;
++            }
+         }
+     }
+     Ok(())
+ }
+ 
+-fn convert_to_png(bytes: &[u8], format: ImageFormat) -> Option<Vec<u8>> {
++fn decode_image(bytes: &[u8], format: ImageFormat) -> Option<image::DynamicImage> {
+     let img_format = gpui_to_image_format(format)?;
+-    let image = image::load_from_memory_with_format(bytes, img_format)
+-        .map_err(|e| log::warn!("Failed to decode image for PNG conversion: {e}"))
+-        .ok()?;
++    image::load_from_memory_with_format(bytes, img_format)
++        .map_err(|e| log::warn!("Failed to decode image for clipboard conversion: {e}"))
++        .ok()
++}
++
++fn encode_png(image: &image::DynamicImage) -> Option<Vec<u8>> {
+     let mut buf = Vec::new();
+     image
+         .write_to(&mut std::io::Cursor::new(&mut buf), image::ImageFormat::Png)
+@@ -232,6 +242,17 @@ fn convert_to_png(bytes: &[u8], format: ImageFormat) -> Option<Vec<u8>> {
+     Some(buf)
+ }
+ 
++fn encode_dib(image: &image::DynamicImage) -> Option<Vec<u8>> {
++    let rgba = image.to_rgba8();
++    let mut bmp = Vec::new();
++    image::DynamicImage::ImageRgba8(rgba)
++        .write_to(&mut std::io::Cursor::new(&mut bmp), image::ImageFormat::Bmp)
++        .map_err(|e| log::warn!("Failed to encode clipboard bitmap: {e}"))
++        .ok()?;
++    bmp.drain(..14);
++    Some(bmp)
++}
++
+ fn read_string() -> Option<ClipboardEntry> {
+     let text = get_clipboard_string(CF_UNICODETEXT.0 as u32)?;
+     let metadata = read_clipboard_metadata(&text);
+@@ -284,21 +305,31 @@ fn convert_dib_to_bmp(dib: &[u8]) -> Option<Vec<u8>> {
+     let bit_count = u16::from_le_bytes(dib[14..16].try_into().ok()?);
+     let compression = u32::from_le_bytes(dib[16..20].try_into().ok()?);
+ 
+-    let color_table_size = if bit_count <= 8 {
+-        let colors_used = u32::from_le_bytes(dib[32..36].try_into().ok()?);
+-        (if colors_used == 0 {
++    let colors_used = u32::from_le_bytes(dib[32..36].try_into().ok()?);
++    let palette_entries = if bit_count <= 8 {
++        if colors_used == 0 {
+             1u32 << bit_count
+         } else {
+             colors_used
+-        }) * 4
+-    } else if compression == 3 {
++        }
++    } else {
++        colors_used
++    };
++    let color_table_size = palette_entries.checked_mul(4)?;
++    let mask_size = if compression == 3 && header_size == 40 {
+         12 // BI_BITFIELDS
+     } else {
+         0
+     };
+ 
+-    let pixel_offset = 14 + header_size + color_table_size;
+-    let file_size = 14 + dib.len() as u32;
++    let pixel_offset = 14_u32
++        .checked_add(header_size)?
++        .checked_add(mask_size)?
++        .checked_add(color_table_size)?;
++    let file_size = u32::try_from(dib.len()).ok()?.checked_add(14)?;
++    if pixel_offset > file_size {
++        return None;
++    }
+ 
+     let mut bmp = Vec::with_capacity(file_size as usize);
+     bmp.extend_from_slice(b"BM");
+@@ -392,3 +423,236 @@ impl Drop for LockedGlobal {
+         unsafe { GlobalUnlock(self.global).ok() };
+     }
+ }
++
++#[cfg(test)]
++mod tests {
++    use super::*;
++    use windows::Win32::{
++        System::DataExchange::IsClipboardFormatAvailable,
++        UI::WindowsAndMessaging::{CreateWindowExW, DestroyWindow, WINDOW_EX_STYLE, WINDOW_STYLE},
++    };
++
++    #[test]
++    #[ignore = "requires an isolated Windows clipboard"]
++    fn native_clipboard_round_trips_text_png_and_dib() {
++        assert_eq!(
++            std::env::var("GPUI_ISOLATED_CLIPBOARD_TEST")
++                .as_deref()
++                .ok(),
++            Some("1"),
++            "this test replaces clipboard contents and needs an isolated session"
++        );
++        let text = ClipboardItem::new_string(format!("gpui clipboard test {}", std::process::id()));
++        write_to_clipboard(text.clone());
++        assert_eq!(read_from_clipboard(), Some(text));
++
++        let expected = image::RgbaImage::from_fn(3, 2, |x, y| {
++            image::Rgba([x as u8 * 80, y as u8 * 90, 180, 64 + x as u8 * 80])
++        });
++        let mut png = Vec::new();
++        image::DynamicImage::ImageRgba8(expected.clone())
++            .write_to(&mut std::io::Cursor::new(&mut png), image::ImageFormat::Png)
++            .unwrap();
++        write_to_clipboard(ClipboardItem::new_image(&Image::from_bytes(
++            ImageFormat::Png,
++            png.clone(),
++        )));
++
++        let dib = {
++            let _guard = ClipboardGuard::open().expect("open clipboard after writing image");
++            assert!(unsafe { IsClipboardFormatAvailable(*CLIPBOARD_PNG_FORMAT) }.is_ok());
++            assert!(unsafe { IsClipboardFormatAvailable(CF_DIB.0 as u32) }.is_ok());
++            let stored_png = get_clipboard_data(*CLIPBOARD_PNG_FORMAT).unwrap();
++            assert!(stored_png.as_bytes().starts_with(&png));
++            get_clipboard_data(CF_DIB.0 as u32)
++                .unwrap()
++                .as_bytes()
++                .to_vec()
++        };
++        let decoded = convert_dib_to_bmp(&dib).unwrap();
++        assert_eq!(
++            image::load_from_memory_with_format(&decoded, image::ImageFormat::Bmp)
++                .unwrap()
++                .to_rgba8(),
++            expected
++        );
++
++        let owner = unsafe {
++            CreateWindowExW(
++                WINDOW_EX_STYLE(0),
++                windows::core::w!("STATIC"),
++                windows::core::w!(""),
++                WINDOW_STYLE(0),
++                0,
++                0,
++                0,
++                0,
++                None,
++                None,
++                None,
++                None,
++            )
++        }
++        .expect("create clipboard owner");
++        for (format, bytes, expected_format, decoder) in [
++            (
++                *CLIPBOARD_PNG_FORMAT,
++                png.as_slice(),
++                ImageFormat::Png,
++                image::ImageFormat::Png,
++            ),
++            (
++                CF_DIB.0 as u32,
++                dib.as_slice(),
++                ImageFormat::Bmp,
++                image::ImageFormat::Bmp,
++            ),
++        ] {
++            unsafe {
++                OpenClipboard(Some(owner)).expect("open clipboard for image source");
++                EmptyClipboard().expect("clear clipboard for image source");
++            }
++            set_clipboard_bytes(bytes, format).expect("write single-format image source");
++            unsafe { CloseClipboard().expect("close image source") };
++            let image = read_from_clipboard()
++                .expect("read single-format clipboard")
++                .into_entries()
++                .find_map(|entry| match entry {
++                    ClipboardEntry::Image(image) => Some(image),
++                    _ => None,
++                })
++                .expect("clipboard contains an image");
++            assert_eq!(image.format, expected_format);
++            assert_eq!(
++                image::load_from_memory_with_format(image.bytes(), decoder)
++                    .unwrap()
++                    .to_rgba8(),
++                expected
++            );
++        }
++        unsafe { DestroyWindow(owner).expect("destroy clipboard owner") };
++    }
++
++    #[test]
++    fn reads_a_bitmap_with_embedded_color_masks() {
++        let expected = image::RgbaImage::from_fn(3, 2, |x, y| {
++            image::Rgba([x as u8 * 80, y as u8 * 90, 180, 64 + x as u8 * 80])
++        });
++        let mut bmp = Vec::new();
++        image::DynamicImage::ImageRgba8(expected.clone())
++            .write_to(&mut std::io::Cursor::new(&mut bmp), image::ImageFormat::Bmp)
++            .unwrap();
++        let restored = convert_dib_to_bmp(&bmp[14..]).unwrap();
++        assert_eq!(
++            image::load_from_memory_with_format(&restored, image::ImageFormat::Bmp)
++                .unwrap()
++                .to_rgba8(),
++            expected
++        );
++    }
++
++    #[test]
++    fn reads_a_bitmap_with_appended_color_masks() {
++        let mut dib = vec![0; 40];
++        dib[0..4].copy_from_slice(&40_u32.to_le_bytes());
++        dib[4..8].copy_from_slice(&1_i32.to_le_bytes());
++        dib[8..12].copy_from_slice(&1_i32.to_le_bytes());
++        dib[12..14].copy_from_slice(&1_u16.to_le_bytes());
++        dib[14..16].copy_from_slice(&32_u16.to_le_bytes());
++        dib[16..20].copy_from_slice(&3_u32.to_le_bytes());
++        dib[20..24].copy_from_slice(&4_u32.to_le_bytes());
++        for mask in [0x00ff0000_u32, 0x0000ff00, 0x000000ff] {
++            dib.extend_from_slice(&mask.to_le_bytes());
++        }
++        dib.extend_from_slice(&[3, 2, 1, 255]);
++        let bmp = convert_dib_to_bmp(&dib).unwrap();
++        assert_eq!(
++            image::load_from_memory_with_format(&bmp, image::ImageFormat::Bmp)
++                .unwrap()
++                .to_rgb8()
++                .get_pixel(0, 0)
++                .0,
++            [1, 2, 3]
++        );
++    }
++
++    #[test]
++    fn converts_png_to_a_bitmap_with_matching_pixels() {
++        let expected = image::RgbaImage::from_fn(3, 2, |x, y| {
++            image::Rgba([x as u8 * 80, y as u8 * 90, 180, 64 + x as u8 * 80])
++        });
++        let mut png = Vec::new();
++        image::DynamicImage::ImageRgba8(expected.clone())
++            .write_to(&mut std::io::Cursor::new(&mut png), image::ImageFormat::Png)
++            .unwrap();
++        let dib = encode_dib(&decode_image(&png, ImageFormat::Png).unwrap()).unwrap();
++        let bmp = convert_dib_to_bmp(&dib).unwrap();
++        assert_eq!(
++            image::load_from_memory_with_format(&bmp, image::ImageFormat::Bmp)
++                .unwrap()
++                .to_rgba8(),
++            expected
++        );
++    }
++
++    #[test]
++    fn converts_sixteen_bit_png_to_an_eight_bit_bitmap() {
++        let expected =
++            image::ImageBuffer::from_pixel(1, 1, image::Rgba([0_u16, 32768, 65535, 65535]));
++        let mut png = Vec::new();
++        image::DynamicImage::ImageRgba16(expected)
++            .write_to(&mut std::io::Cursor::new(&mut png), image::ImageFormat::Png)
++            .unwrap();
++        let dib = encode_dib(&decode_image(&png, ImageFormat::Png).unwrap()).unwrap();
++        let bmp = convert_dib_to_bmp(&dib).unwrap();
++        assert_eq!(
++            image::load_from_memory_with_format(&bmp, image::ImageFormat::Bmp)
++                .unwrap()
++                .to_rgba8()
++                .get_pixel(0, 0)
++                .0,
++            [0, 128, 255, 255]
++        );
++    }
++
++    #[test]
++    fn rejects_bitmap_headers_with_overflowing_offsets() {
++        let mut dib = vec![0; 40];
++        dib[0..4].copy_from_slice(&u32::MAX.to_le_bytes());
++        assert!(convert_dib_to_bmp(&dib).is_none());
++        dib[0..4].copy_from_slice(&40_u32.to_le_bytes());
++        dib[14..16].copy_from_slice(&8_u16.to_le_bytes());
++        dib[32..36].copy_from_slice(&u32::MAX.to_le_bytes());
++        assert!(convert_dib_to_bmp(&dib).is_none());
++    }
++
++    #[test]
++    fn reads_v4_32bit_dib_with_explicit_palette_entries_bottom_up_and_top_down() {
++        for height in [1_i32, -1_i32] {
++            let mut dib = vec![0; 108];
++            dib[0..4].copy_from_slice(&108_u32.to_le_bytes()); // BITMAPV4HEADER
++            dib[4..8].copy_from_slice(&1_i32.to_le_bytes());
++            dib[8..12].copy_from_slice(&height.to_le_bytes());
++            dib[12..14].copy_from_slice(&1_u16.to_le_bytes());
++            dib[14..16].copy_from_slice(&32_u16.to_le_bytes());
++            dib[16..20].copy_from_slice(&3_u32.to_le_bytes()); // BI_BITFIELDS
++            dib[20..24].copy_from_slice(&4_u32.to_le_bytes());
++            dib[32..36].copy_from_slice(&3_u32.to_le_bytes()); // biClrUsed = 3
++            dib[40..44].copy_from_slice(&0x00ff0000_u32.to_le_bytes());
++            dib[44..48].copy_from_slice(&0x0000ff00_u32.to_le_bytes());
++            dib[48..52].copy_from_slice(&0x000000ff_u32.to_le_bytes());
++            dib[52..56].copy_from_slice(&0xff000000_u32.to_le_bytes());
++            dib.extend_from_slice(&[0_u8; 12]); // 3 RGBQUAD palette entries
++            dib.extend_from_slice(&[0, 0, 255, 255]); // red pixel in BGRA
++            let bmp = convert_dib_to_bmp(&dib).unwrap();
++            assert_eq!(
++                image::load_from_memory_with_format(&bmp, image::ImageFormat::Bmp)
++                    .unwrap()
++                    .to_rgba8()
++                    .get_pixel(0, 0)
++                    .0,
++                [255, 0, 0, 255]
++            );
++        }
++    }
++}

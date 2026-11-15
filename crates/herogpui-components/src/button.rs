@@ -777,7 +777,11 @@ impl RenderOnce for Button {
             cx,
         ));
         let layout = cx.layout();
-        let button_theme = cx.theme().components.button.resolve(&self.recipes);
+        let button_theme = cx
+            .theme()
+            .components
+            .button
+            .resolve_named("button", &self.recipes);
         if !self.variant_is_set {
             if let Some(variant) = button_theme.variant {
                 self.variant = variant;

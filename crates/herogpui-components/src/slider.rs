@@ -614,12 +614,13 @@ impl RenderOnce for Slider {
     fn render(self, window: &mut Window, cx: &mut App) -> impl IntoElement {
         // `controlled` takes `cx` mutably, so it precedes the theme tokens.
         // Supplying `default_value` is what opts into the uncontrolled mode.
-        let steps: Vec<f32> = self
+        let steps: std::sync::Arc<[f32]> = self
             .steps
             .iter()
             .copied()
             .filter(|value| *value >= self.min && *value <= self.max)
-            .collect();
+            .collect::<Vec<_>>()
+            .into();
         let range_mode = self
             .values
             .as_ref()
@@ -941,7 +942,11 @@ impl RenderOnce for Slider {
         .any(Option::is_some);
         let sx_corners = crate::util::fill_unspecified_corners(
             sx_radius,
-            cx.theme().components.slider.resolve(&self.recipes).radius,
+            cx.theme()
+                .components
+                .slider
+                .resolve_named("slider", &self.recipes)
+                .radius,
         );
         let mut track = gpui::div()
             .id(self.id.clone())
@@ -1233,12 +1238,40 @@ impl RenderOnce for Slider {
             (None, true) => thumb_cross / 2.,
             (None, false) => crate::util::small_radius(cx),
         });
+        let commit_ctx = SliderCommitContext {
+            range_mode,
+            range_own: range_own.clone(),
+            own: own.clone(),
+            on_change: self.on_change.clone(),
+            on_change_all: self.on_change_all.clone(),
+            on_change_end: self.on_change_end.clone(),
+            on_change_end_all: self.on_change_end_all.clone(),
+            form_state: self.form_state.clone(),
+            form_thumb_states: self.form_thumb_states.clone(),
+            disabled_keys: self.disabled_keys.clone(),
+            is_disabled: self.is_disabled,
+        };
+        let pending_a11y_thumbs = Rc::new(RefCell::new(thumbs.clone()));
         for (index, f) in fractions.iter().copied().enumerate() {
             // Each thumb is an `<input type="range">` upstream: role `slider`,
             // with the thumb's own clamped min/max, the step and the
             // orientation.
+            let thumb_min = if range_mode && self.min <= self.max {
+                index
+                    .checked_sub(1)
+                    .and_then(|i| thumbs.get(i))
+                    .copied()
+                    .unwrap_or(self.min)
+            } else {
+                self.min
+            };
+            let thumb_max = if range_mode && self.min <= self.max {
+                thumbs.get(index + 1).copied().unwrap_or(self.max)
+            } else {
+                self.max
+            };
             let thumb_range =
-                crate::a11y::Range::new(self.min as f64, self.max as f64, thumbs[index] as f64)
+                crate::a11y::Range::new(thumb_min as f64, thumb_max as f64, thumbs[index] as f64)
                     .step(self.step as f64)
                     .text(thumb_labels.get(index).cloned());
             let mut thumb_el = gpui::div()
@@ -1265,6 +1298,35 @@ impl RenderOnce for Slider {
                         .when(small, |t| t.top(-cross_overhang))
                 })
                 .flex_shrink_0();
+            if thumb_enabled[index] {
+                let pending_thumbs = pending_a11y_thumbs.clone();
+                let action_steps = steps.clone();
+                let (min, max, step) = (self.min, self.max, self.step);
+                for action in [
+                    crate::a11y::Action::SetValue,
+                    crate::a11y::Action::Increment,
+                    crate::a11y::Action::Decrement,
+                ] {
+                    let pending_thumbs = pending_thumbs.clone();
+                    let action_commit = commit_ctx.clone();
+                    let action_steps = action_steps.clone();
+                    thumb_el = thumb_el.a11y_action(action, move |data, window, cx| {
+                        apply_slider_a11y_action(
+                            action,
+                            data,
+                            index,
+                            min,
+                            max,
+                            step,
+                            &action_steps,
+                            &pending_thumbs,
+                            &action_commit,
+                            window,
+                            cx,
+                        );
+                    });
+                }
+            }
             thumb_el = match &self.thumb {
                 Some(render) => thumb_el.child(render(index, thumbs[index])),
                 None if !small => {
@@ -1322,16 +1384,7 @@ impl RenderOnce for Slider {
         // move a value at all.
         if !self.is_disabled || dragging.read(cx).active.is_some() {
             let keys_thumbs = thumbs.clone();
-            let on_change_keys = self.on_change.clone();
-            let all_keys = self.on_change_all.clone();
-            let end_keys = self.on_change_end.clone();
-            let end_all_keys = self.on_change_end_all.clone();
-            let own_keys = own.clone();
-            let range_own_keys = range_own.clone();
-            let form_state_keys = self.form_state.clone();
-            let form_thumb_states_keys = self.form_thumb_states.clone();
-            let form_disabled_keys = self.disabled_keys.clone();
-            let form_is_disabled = self.is_disabled;
+            let key_commit = commit_ctx;
             let held_thumb = active_thumb.clone();
             let keys_enabled = thumb_enabled.clone();
             let (min, max) = (self.min, self.max);
@@ -1390,6 +1443,9 @@ impl RenderOnce for Slider {
                     if !keys_enabled.get(index).copied().unwrap_or(true) {
                         return;
                     }
+                    if !min.is_finite() || !max.is_finite() || min > max {
+                        return;
+                    }
                     let next = match key {
                         "right" | "up" => current + step,
                         "left" | "down" => current - step,
@@ -1402,47 +1458,15 @@ impl RenderOnce for Slider {
                     // Snapped and clamped the same way a drag is, so the two
                     // cannot land on different values.
                     let next = match key {
-                        "right" | "up" if !key_steps.is_empty() => key_steps
-                            .iter()
-                            .copied()
-                            .find(|v| *v > current)
-                            .unwrap_or(current),
-                        "left" | "down" if !key_steps.is_empty() => key_steps
-                            .iter()
-                            .copied()
-                            .rev()
-                            .find(|v| *v < current)
-                            .unwrap_or(current),
+                        "right" | "up" if !key_steps.is_empty() => {
+                            step_discrete_value(&key_steps, current, true)
+                        }
+                        "left" | "down" if !key_steps.is_empty() => {
+                            step_discrete_value(&key_steps, current, false)
+                        }
                         _ => snap_value(next, min, max, snap_step, &key_steps),
                     };
-                    let next_values = set_thumb(
-                        index,
-                        next,
-                        &keys_thumbs,
-                        range_mode,
-                        &range_own_keys,
-                        &on_change_keys,
-                        &all_keys,
-                        &own_keys,
-                        window,
-                        cx,
-                    );
-                    sync_form_values(
-                        &form_state_keys,
-                        &form_thumb_states_keys,
-                        &next_values,
-                        form_is_disabled,
-                        &form_disabled_keys,
-                    );
-                    // A keystroke is a finished change, so `onChangeEnd` fires
-                    // with it rather than waiting for a release that never comes.
-                    if range_mode {
-                        if let Some(cb) = &end_all_keys {
-                            cb(&next_values, window, cx);
-                        }
-                    } else if let Some(cb) = &end_keys {
-                        cb(&next_values[0], window, cx);
-                    }
+                    key_commit.commit_thumb(index, next, &keys_thumbs, window, cx);
                 });
 
             let target_down = DragTarget {
@@ -1809,7 +1833,7 @@ struct DragTarget {
     min: f32,
     span: f32,
     step: f32,
-    steps: Vec<f32>,
+    steps: std::sync::Arc<[f32]>,
     /// The current thumb set. With more than one, the nearest moves.
     thumbs: Vec<f32>,
     /// Which thumbs may follow the pointer — `Slider.Thumb.isDisabled`'s
@@ -1937,39 +1961,76 @@ fn snap_value(value: f32, min: f32, max: f32, step: f32, points: &[f32]) -> f32 
 }
 
 fn snap_to_step(value: f32, min: f32, max: f32, step: f32) -> f32 {
-    if step == 0.0 {
-        return value.clamp(min, max);
+    let min64 = f64::from(min);
+    let max64 = f64::from(max);
+    let step64 = f64::from(step);
+    let val64 = f64::from(value);
+    if !min64.is_finite()
+        || !max64.is_finite()
+        || min64 > max64
+        || !step64.is_finite()
+        || step64 < 0.0
+        || !val64.is_finite()
+    {
+        return value;
     }
-    let mut snapped = ((value - min) / step).round() * step + min;
-    if snapped < min {
-        snapped = min;
-    } else if snapped > max {
-        snapped = min + ((max - min) / step).floor() * step;
+    if step64 == 0.0 {
+        return val64.clamp(min64, max64) as f32;
     }
-    round_to_step_precision(snapped, step)
+    let intervals = (val64 - min64) / step64;
+    if !intervals.is_finite() {
+        return val64.clamp(min64, max64) as f32;
+    }
+    let mut snapped = intervals.round() * step64 + min64;
+    if !snapped.is_finite() {
+        return val64.clamp(min64, max64) as f32;
+    }
+    if snapped < min64 {
+        snapped = min64;
+    } else if snapped > max64 {
+        let floor_steps = ((max64 - min64) / step64).floor();
+        let capped = min64 + floor_steps * step64;
+        snapped = if capped.is_finite() && capped >= min64 {
+            capped
+        } else {
+            max64
+        };
+    }
+    let rounded = round_to_step_precision(snapped, min, step);
+    if !rounded.is_finite() {
+        return val64.clamp(min64, max64) as f32;
+    }
+    rounded.clamp(min64, max64) as f32
 }
 
-fn round_to_step_precision(value: f32, step: f32) -> f32 {
-    let step_text = step.to_string().to_ascii_lowercase();
-    let precision = if let Some((mantissa, exponent)) = step_text.split_once('e') {
-        let exponent = exponent.parse::<i32>().unwrap_or(0);
-        let fraction = mantissa
-            .split_once('.')
-            .map_or(0, |(_, fraction)| fraction.len() as i32);
-        (fraction - exponent).max(0)
+fn round_to_step_precision(value: f64, min: f32, step: f32) -> f64 {
+    let precision = decimal_places(min).max(decimal_places(step));
+    if precision <= 0 {
+        return value;
+    }
+    let scale = 10_f64.powi(precision);
+    let scaled = value * scale;
+    if !scale.is_finite() || !scaled.is_finite() {
+        return value;
+    }
+    scaled.round() / scale
+}
+
+fn step_discrete_value(steps: &[f32], current: f32, forward: bool) -> f32 {
+    if forward {
+        steps
+            .iter()
+            .copied()
+            .find(|value| *value > current)
+            .unwrap_or(current)
     } else {
-        step_text
-            .split_once('.')
-            .map_or(0, |(_, fraction)| fraction.len() as i32)
-    };
-    if precision == 0 {
-        return value;
+        steps
+            .iter()
+            .copied()
+            .rev()
+            .find(|value| *value < current)
+            .unwrap_or(current)
     }
-    let scale = 10_f32.powi(precision);
-    if !scale.is_finite() {
-        return value;
-    }
-    (value * scale).round() / scale
 }
 
 /// `data-fill-start`: whether the fill's low end sits at the range's start,
@@ -1989,6 +2050,164 @@ fn fill_reaches_start(thumb_count: usize, fill_from: f32, fill_to: f32) -> bool 
 /// which paints the track's end border accent.
 fn fill_reaches_end(fill_to: f32) -> bool {
     fill_to >= 1.0
+}
+
+#[derive(Clone)]
+struct SliderCommitContext {
+    range_mode: bool,
+    range_own: Option<gpui::Entity<Vec<f32>>>,
+    own: Option<gpui::Entity<f32>>,
+    on_change: Option<OnChange>,
+    on_change_all: Option<OnChangeAll>,
+    on_change_end: Option<OnChange>,
+    on_change_end_all: Option<OnChangeAll>,
+    form_state: Rc<RefCell<crate::form::LiveFormFieldState>>,
+    form_thumb_states: Rc<RefCell<Vec<Rc<RefCell<crate::form::LiveFormFieldState>>>>>,
+    disabled_keys: std::collections::HashSet<usize>,
+    is_disabled: bool,
+}
+
+impl SliderCommitContext {
+    fn commit_thumb(
+        &self,
+        index: usize,
+        next: f32,
+        current_thumbs: &[f32],
+        window: &mut Window,
+        cx: &mut App,
+    ) -> Vec<f32> {
+        let next_values = set_thumb(
+            index,
+            next,
+            current_thumbs,
+            self.range_mode,
+            &self.range_own,
+            &self.on_change,
+            &self.on_change_all,
+            &self.own,
+            window,
+            cx,
+        );
+        sync_form_values(
+            &self.form_state,
+            &self.form_thumb_states,
+            &next_values,
+            self.is_disabled,
+            &self.disabled_keys,
+        );
+        if self.range_mode {
+            if let Some(callback) = &self.on_change_end_all {
+                callback(&next_values, window, cx);
+            }
+        } else if let Some(callback) = &self.on_change_end {
+            callback(&next_values[0], window, cx);
+        }
+        next_values
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
+fn apply_slider_a11y_action(
+    action: crate::a11y::Action,
+    data: Option<&crate::a11y::ActionData>,
+    index: usize,
+    min: f32,
+    max: f32,
+    step: f32,
+    steps: &[f32],
+    pending_thumbs: &Rc<RefCell<Vec<f32>>>,
+    commit: &SliderCommitContext,
+    window: &mut Window,
+    cx: &mut App,
+) {
+    let current_thumbs: Vec<f32> = if commit.range_mode {
+        commit.range_own.as_ref().map_or_else(
+            || pending_thumbs.borrow().clone(),
+            |entity| {
+                entity
+                    .read(cx)
+                    .iter()
+                    .copied()
+                    .map(|v| snap_value(v, min, max, step, steps))
+                    .collect()
+            },
+        )
+    } else {
+        commit.own.as_ref().map_or_else(
+            || pending_thumbs.borrow().clone(),
+            |entity| vec![snap_value(*entity.read(cx), min, max, step, steps)],
+        )
+    };
+    let Some(&live_current) = current_thumbs.get(index) else {
+        return;
+    };
+    let Some(next) = resolve_slider_a11y_action(action, data, min, max, step, steps, live_current)
+    else {
+        return;
+    };
+    let next_values = commit.commit_thumb(index, next, &current_thumbs, window, cx);
+    *pending_thumbs.borrow_mut() = next_values;
+}
+
+fn resolve_slider_a11y_action(
+    action: crate::a11y::Action,
+    data: Option<&crate::a11y::ActionData>,
+    min: f32,
+    max: f32,
+    step: f32,
+    steps: &[f32],
+    current: f32,
+) -> Option<f32> {
+    if !min.is_finite()
+        || !max.is_finite()
+        || min > max
+        || !step.is_finite()
+        || step < 0.0
+        || !current.is_finite()
+    {
+        return None;
+    }
+    let min64 = f64::from(min);
+    let max64 = f64::from(max);
+    let delta64 = if step == 0.0 {
+        (max64 - min64) / 100.0
+    } else {
+        f64::from(step)
+    };
+    let raw = match action {
+        crate::a11y::Action::SetValue => {
+            let Some(crate::a11y::ActionData::NumericValue(value)) = data else {
+                return None;
+            };
+            if !value.is_finite() {
+                return None;
+            }
+            value.clamp(min64, max64) as f32
+        }
+        crate::a11y::Action::Increment if !steps.is_empty() => {
+            step_discrete_value(steps, current, true)
+        }
+        crate::a11y::Action::Decrement if !steps.is_empty() => {
+            step_discrete_value(steps, current, false)
+        }
+        crate::a11y::Action::Increment => {
+            let next = (f64::from(current) + delta64).clamp(min64, max64);
+            if !next.is_finite() {
+                return None;
+            }
+            next as f32
+        }
+        crate::a11y::Action::Decrement => {
+            let next = (f64::from(current) - delta64).clamp(min64, max64);
+            if !next.is_finite() {
+                return None;
+            }
+            next as f32
+        }
+        _ => return None,
+    };
+    let snapped = snap_value(raw, min, max, step, steps);
+    snapped.is_finite().then_some(snapped)
 }
 
 /// Where the pointer sits along the slider's own axis, as a 0..1 fraction of
@@ -2063,6 +2282,422 @@ mod tests {
             .next()
             .expect("the Slider implementation is always present");
         assert!(source.contains("font_features(crate::util::tabular_font_features())"));
+    }
+
+    #[test]
+    fn resolve_slider_a11y_action_handles_snapping_steps_continuous_and_invalid_inputs() {
+        use crate::a11y::{Action, ActionData};
+
+        // SetValue snaps to step and clamps within finite bounds.
+        assert_eq!(
+            super::resolve_slider_a11y_action(
+                Action::SetValue,
+                Some(&ActionData::NumericValue(37.0)),
+                0.0,
+                100.0,
+                5.0,
+                &[],
+                20.0,
+            ),
+            Some(35.0)
+        );
+        assert_eq!(
+            super::resolve_slider_a11y_action(
+                Action::SetValue,
+                Some(&ActionData::NumericValue(f64::MAX)),
+                0.0,
+                100.0,
+                5.0,
+                &[],
+                20.0,
+            ),
+            Some(100.0)
+        );
+
+        // Reject non-finite values, wrong ActionData variants, and missing data.
+        for bad in [
+            Some(ActionData::NumericValue(f64::NAN)),
+            Some(ActionData::NumericValue(f64::INFINITY)),
+            Some(ActionData::NumericValue(f64::NEG_INFINITY)),
+            Some(ActionData::Value("bad".into())),
+            None,
+        ] {
+            assert_eq!(
+                super::resolve_slider_a11y_action(
+                    Action::SetValue,
+                    bad.as_ref(),
+                    0.0,
+                    100.0,
+                    5.0,
+                    &[],
+                    20.0,
+                ),
+                None
+            );
+        }
+
+        // Invalid bounds are rejected across all actions.
+        for (min, max) in [
+            (100.0, 0.0),
+            (f32::NAN, 100.0),
+            (0.0, f32::NAN),
+            (f32::NEG_INFINITY, 100.0),
+            (0.0, f32::INFINITY),
+        ] {
+            assert_eq!(
+                super::resolve_slider_a11y_action(
+                    Action::SetValue,
+                    Some(&ActionData::NumericValue(50.0)),
+                    min,
+                    max,
+                    5.0,
+                    &[],
+                    20.0,
+                ),
+                None
+            );
+            assert_eq!(
+                super::resolve_slider_a11y_action(
+                    Action::Increment,
+                    None,
+                    min,
+                    max,
+                    5.0,
+                    &[],
+                    20.0
+                ),
+                None
+            );
+            assert_eq!(
+                super::resolve_slider_a11y_action(
+                    Action::Decrement,
+                    None,
+                    min,
+                    max,
+                    5.0,
+                    &[],
+                    20.0
+                ),
+                None
+            );
+        }
+
+        // Discrete .steps(...) visits exact stops.
+        let steps = [10.0, 35.0, 80.0];
+        let v1 = super::resolve_slider_a11y_action(
+            Action::Increment,
+            None,
+            0.0,
+            100.0,
+            1.0,
+            &steps,
+            10.0,
+        )
+        .unwrap();
+        assert_eq!(v1, 35.0);
+        let v2 =
+            super::resolve_slider_a11y_action(Action::Increment, None, 0.0, 100.0, 1.0, &steps, v1)
+                .unwrap();
+        assert_eq!(v2, 80.0);
+        let v3 =
+            super::resolve_slider_a11y_action(Action::Decrement, None, 0.0, 100.0, 1.0, &steps, v2)
+                .unwrap();
+        assert_eq!(v3, 35.0);
+
+        // Continuous step == 0.0 uses (max - min) / 100.0.
+        let c1 =
+            super::resolve_slider_a11y_action(Action::Increment, None, 0.0, 200.0, 0.0, &[], 25.0)
+                .unwrap();
+        assert_eq!(c1, 27.0);
+        let c2 =
+            super::resolve_slider_a11y_action(Action::Decrement, None, 0.0, 200.0, 0.0, &[], c1)
+                .unwrap();
+        assert_eq!(c2, 25.0);
+        let c3 =
+            super::resolve_slider_a11y_action(Action::Decrement, None, 0.0, 200.0, 0.0, &[], c2)
+                .unwrap();
+        assert_eq!(c3, 23.0);
+
+        // Fractional min offset precision (min = 0.25, step = 0.1) must preserve min's decimal places.
+        assert_eq!(
+            super::resolve_slider_a11y_action(
+                Action::SetValue,
+                Some(&ActionData::NumericValue(0.35)),
+                0.25,
+                1.0,
+                0.1,
+                &[],
+                0.25,
+            ),
+            Some(0.35)
+        );
+        assert_eq!(
+            super::resolve_slider_a11y_action(Action::Increment, None, 0.25, 1.0, 0.1, &[], 0.25,),
+            Some(0.35)
+        );
+    }
+
+    #[gpui::test]
+    fn range_set_thumb_clamps_to_neighbor_and_reports_end_values(cx: &mut gpui::TestAppContext) {
+        use gpui::AppContext;
+        use std::sync::{Arc, Mutex};
+
+        let (_, vcx) = cx.add_window_view(|_, _| gpui::Empty);
+        let all_changes: Arc<Mutex<Vec<Vec<f32>>>> = Arc::new(Mutex::new(Vec::new()));
+        let recorded = all_changes.clone();
+        let on_all: Option<super::OnChangeAll> = Some(Arc::new(move |vals: &[f32], _, _| {
+            recorded.lock().expect("test mutex").push(vals.to_vec());
+        }));
+
+        vcx.update(|window, cx| {
+            let range_own = Some(cx.new(|_| vec![20.0_f32, 80.0]));
+            let next_raw = super::resolve_slider_a11y_action(
+                crate::a11y::Action::SetValue,
+                Some(&crate::a11y::ActionData::NumericValue(f64::MAX)),
+                0.0,
+                100.0,
+                5.0,
+                &[],
+                20.0,
+            )
+            .unwrap();
+            let result = super::set_thumb(
+                0,
+                next_raw,
+                &[20.0, 80.0],
+                true,
+                &range_own,
+                &None,
+                &on_all,
+                &None,
+                window,
+                cx,
+            );
+            assert_eq!(result, vec![80.0, 80.0]);
+            assert_eq!(
+                range_own.as_ref().unwrap().read(cx).as_slice(),
+                [80.0, 80.0]
+            );
+            assert_eq!(
+                all_changes.lock().expect("test mutex").as_slice(),
+                [vec![80.0, 80.0]]
+            );
+        });
+    }
+
+    #[test]
+    fn resolve_slider_a11y_action_handles_sub_f32_steps_and_invalid_steps() {
+        use crate::a11y::{Action, ActionData};
+
+        // `0..1` with `step = 1e-39` must not overflow f32 division into infinity/NaN.
+        assert_eq!(
+            super::resolve_slider_a11y_action(
+                Action::SetValue,
+                Some(&ActionData::NumericValue(0.5)),
+                0.0,
+                1.0,
+                1e-39,
+                &[],
+                0.0,
+            ),
+            Some(0.5)
+        );
+
+        // Negative or non-finite step and non-finite current values are rejected.
+        for bad_step in [-1.0, f32::NAN, f32::INFINITY] {
+            assert_eq!(
+                super::resolve_slider_a11y_action(
+                    Action::SetValue,
+                    Some(&ActionData::NumericValue(50.0)),
+                    0.0,
+                    100.0,
+                    bad_step,
+                    &[],
+                    20.0,
+                ),
+                None
+            );
+        }
+        assert_eq!(
+            super::resolve_slider_a11y_action(
+                Action::Increment,
+                None,
+                0.0,
+                100.0,
+                1.0,
+                &[],
+                f32::NAN,
+            ),
+            None
+        );
+    }
+
+    #[gpui::test]
+    fn apply_slider_a11y_action_handles_unsnapped_range_consecutive_actions_form_sync_and_end_callbacks(
+        cx: &mut gpui::TestAppContext,
+    ) {
+        use crate::a11y::Action;
+        use gpui::AppContext;
+        use std::{
+            cell::RefCell,
+            collections::HashSet,
+            rc::Rc,
+            sync::{Arc, Mutex},
+        };
+
+        let (_, vcx) = cx.add_window_view(|_, _| gpui::Empty);
+
+        vcx.update(|window, cx| {
+            // 1. Uncontrolled range with initially unsnapped `[27., 80.]` and `steps([10., 35., 80.])`:
+            // Increment then Decrement before repaint moves `27 -> 35 -> 80 -> 35`, syncing form and end callbacks.
+            let steps = [10.0_f32, 35.0, 80.0];
+            let range_own = Some(cx.new(|_| vec![27.0_f32, 80.0]));
+            let initial_snapped: Vec<f32> = range_own
+                .as_ref()
+                .unwrap()
+                .read(cx)
+                .iter()
+                .copied()
+                .map(|v| super::snap_value(v, 0.0, 100.0, 1.0, &steps))
+                .collect();
+            assert_eq!(initial_snapped, vec![35.0, 80.0]);
+            let pending = Rc::new(RefCell::new(initial_snapped));
+            let range_changes: Arc<Mutex<Vec<Vec<f32>>>> = Arc::new(Mutex::new(Vec::new()));
+            let range_ends: Arc<Mutex<Vec<Vec<f32>>>> = Arc::new(Mutex::new(Vec::new()));
+            let rc_log = range_changes.clone();
+            let re_log = range_ends.clone();
+            let on_all: Option<super::OnChangeAll> = Some(Arc::new(move |vals: &[f32], _, _| {
+                rc_log.lock().unwrap().push(vals.to_vec());
+            }));
+            let on_end_all: Option<super::OnChangeAll> =
+                Some(Arc::new(move |vals: &[f32], _, _| {
+                    re_log.lock().unwrap().push(vals.to_vec());
+                }));
+            let form_state = super::live_form_state();
+            let thumb0_state = super::live_form_state();
+            let form_thumbs = Rc::new(RefCell::new(vec![thumb0_state.clone()]));
+            let disabled_keys = HashSet::new();
+            let range_commit = super::SliderCommitContext {
+                range_mode: true,
+                range_own: range_own.clone(),
+                own: None,
+                on_change: None,
+                on_change_all: on_all,
+                on_change_end: None,
+                on_change_end_all: on_end_all,
+                form_state,
+                form_thumb_states: form_thumbs,
+                disabled_keys: disabled_keys.clone(),
+                is_disabled: false,
+            };
+
+            super::apply_slider_a11y_action(
+                Action::Increment,
+                None,
+                0,
+                0.0,
+                100.0,
+                1.0,
+                &steps,
+                &pending,
+                &range_commit,
+                window,
+                cx,
+            );
+            super::apply_slider_a11y_action(
+                Action::Decrement,
+                None,
+                0,
+                0.0,
+                100.0,
+                1.0,
+                &steps,
+                &pending,
+                &range_commit,
+                window,
+                cx,
+            );
+
+            assert_eq!(
+                range_own.as_ref().unwrap().read(cx).as_slice(),
+                [35.0, 80.0]
+            );
+            assert_eq!(
+                range_changes.lock().unwrap().as_slice(),
+                [vec![80.0, 80.0], vec![35.0, 80.0]]
+            );
+            assert_eq!(
+                range_ends.lock().unwrap().as_slice(),
+                [vec![80.0, 80.0], vec![35.0, 80.0]]
+            );
+            assert_eq!(
+                thumb0_state.borrow().value,
+                crate::form::FormValue::Number(35.0)
+            );
+
+            // 2. Controlled single slider (`own = None`): consecutive Increment then Decrement before
+            // repaint advances `pending_thumbs` cleanly `20 -> 25 -> 20`.
+            let single_pending = Rc::new(RefCell::new(vec![20.0_f32]));
+            let single_changes: Arc<Mutex<Vec<f32>>> = Arc::new(Mutex::new(Vec::new()));
+            let single_ends: Arc<Mutex<Vec<f32>>> = Arc::new(Mutex::new(Vec::new()));
+            let sc_log = single_changes.clone();
+            let se_log = single_ends.clone();
+            let on_one: Option<super::OnChange> = Some(Arc::new(move |val: &f32, _, _| {
+                sc_log.lock().unwrap().push(*val);
+            }));
+            let on_end_one: Option<super::OnChange> = Some(Arc::new(move |val: &f32, _, _| {
+                se_log.lock().unwrap().push(*val);
+            }));
+            let single_form = super::live_form_state();
+            let single_form_thumbs = Rc::new(RefCell::new(Vec::new()));
+            let single_commit = super::SliderCommitContext {
+                range_mode: false,
+                range_own: None,
+                own: None,
+                on_change: on_one,
+                on_change_all: None,
+                on_change_end: on_end_one,
+                on_change_end_all: None,
+                form_state: single_form.clone(),
+                form_thumb_states: single_form_thumbs,
+                disabled_keys,
+                is_disabled: false,
+            };
+
+            super::apply_slider_a11y_action(
+                Action::Increment,
+                None,
+                0,
+                0.0,
+                100.0,
+                5.0,
+                &[],
+                &single_pending,
+                &single_commit,
+                window,
+                cx,
+            );
+            super::apply_slider_a11y_action(
+                Action::Decrement,
+                None,
+                0,
+                0.0,
+                100.0,
+                5.0,
+                &[],
+                &single_pending,
+                &single_commit,
+                window,
+                cx,
+            );
+
+            assert_eq!(single_changes.lock().unwrap().as_slice(), [25.0, 20.0]);
+            assert_eq!(single_ends.lock().unwrap().as_slice(), [25.0, 20.0]);
+            assert_eq!(
+                single_form.borrow().value,
+                crate::form::FormValue::Number(20.0)
+            );
+        });
     }
 }
 

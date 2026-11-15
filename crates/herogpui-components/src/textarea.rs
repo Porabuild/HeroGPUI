@@ -93,6 +93,13 @@ impl TextArea {
         self
     }
 
+    /// Named theme overlay from [`herogpui_theme::ComponentThemes::textarea`].
+    /// Stackable; a missing name adds no override.
+    pub fn recipe(mut self, name: impl Into<SharedString>) -> Self {
+        self.inner = self.inner.recipe(name);
+        self
+    }
+
     /// Sets the field variant (v3 `variant`).
     pub fn variant(mut self, variant: herogpui_core::FieldVariant) -> Self {
         self.inner = self.inner.variant(variant);
@@ -200,7 +207,10 @@ impl TextArea {
     pub fn new(state: impl std::borrow::Borrow<Entity<InputState>>) -> Self {
         Self {
             // v3 documents `rows` as defaulting to 3.
-            inner: Input::new(state).multiline(true).min_h(rows_height(3)),
+            inner: Input::new(state)
+                .multiline(true)
+                .min_h(rows_height(3))
+                .textarea_theme(true),
             min_w: None,
             sx: None,
         }

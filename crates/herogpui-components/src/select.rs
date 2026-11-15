@@ -255,6 +255,7 @@ pub struct Select {
     panel_padding: Option<Pixels>,
     panel_gap: Option<Pixels>,
     panel_min_width: Option<Pixels>,
+    fit_panel_width: bool,
     /// Replaces the list rows' `py-1.5` vertical padding.
     row_padding_y: Option<Pixels>,
     /// The fill a hovered option row takes, in place of `--default`.
@@ -524,6 +525,285 @@ impl Select {
         self
     }
 
+    /// Automatically expands [`Select::panel_min_width`] to [`Select::intrinsic_panel_width`]
+    /// while the popover is open so option labels, leading icons, and indicators
+    /// fit on one line without manual measurement.
+    pub fn fit_panel_width(mut self, fit: bool) -> Self {
+        self.fit_panel_width = fit;
+        self
+    }
+
+    /// Computes the detached panel width required to fit the widest option
+    /// (including active theme defaults and stacked [`Select::recipe`] overlays,
+    /// panel padding, hairline border, row padding, leading content or custom
+    /// [`Select::item_content`], shaped label text, custom or default
+    /// indicator gutter, and section headers), floored at [`Select::panel_min_width`].
+    ///
+    /// Must be called during element rendering/layout (`Render::render`,
+    /// `RenderOnce::render`, or prepaint) because it shapes text and lays out
+    /// custom row content with GPUI's layout context; for automatic sizing
+    /// without calling this manually, use [`Select::fit_panel_width`].
+    pub fn intrinsic_panel_width(&self, window: &mut Window, cx: &mut App) -> Pixels {
+        let select_theme = cx
+            .theme()
+            .components
+            .select
+            .resolve_named("select", &self.recipes);
+        let multiple = self.selection_mode == SelectionMode::Multiple;
+        let (single_sel, multi_sel) = window.with_id(std::any::type_name::<Self>(), |window| {
+            if multiple {
+                let (keys, _) = util::controlled(
+                    window,
+                    cx,
+                    element_id::scoped(&self.id, "values"),
+                    self.is_multiple_controlled.then(|| {
+                        crate::selection::normalize_selection(self.selected_keys.clone(), true)
+                    }),
+                    crate::selection::normalize_selection(self.default_selected_keys.clone(), true),
+                );
+                (None, keys)
+            } else {
+                let (sel, _) = util::controlled(
+                    window,
+                    cx,
+                    element_id::scoped(&self.id, "value"),
+                    self.is_controlled.then_some(self.selected.clone()),
+                    self.default_value.clone(),
+                );
+                (sel, Vec::new())
+            }
+        });
+        self.intrinsic_panel_width_with_selection(
+            &select_theme,
+            &single_sel,
+            &multi_sel,
+            window,
+            cx,
+        )
+        .0
+    }
+
+    fn resolved_panel_metrics(
+        &self,
+        select_theme: &herogpui_theme::SelectStyle,
+        cx: &App,
+    ) -> SelectPanelMetrics {
+        let layout = cx.layout();
+        SelectPanelMetrics {
+            panel_padding: self
+                .panel_padding
+                .or(select_theme.panel_padding)
+                .unwrap_or(px(6.)),
+            row_padding_x: self
+                .row_padding_x
+                .or(select_theme.row_padding_x)
+                .unwrap_or(px(10.)),
+            row_text_size: self
+                .row_text_size
+                .or(select_theme.row_text_size)
+                .unwrap_or(util::FIELD_TEXT),
+            min_panel_width: self
+                .panel_min_width
+                .or(select_theme.panel_min_width)
+                .unwrap_or(px(0.)),
+            hairline: if layout.overlay_hairline.is_some() {
+                layout.border_width * 2.
+            } else {
+                px(0.)
+            },
+        }
+    }
+
+    fn matches_plain_fit_width_cache(
+        &self,
+        cached: &SelectFitWidthKey,
+        metrics: SelectPanelMetrics,
+        window: &Window,
+    ) -> bool {
+        cached.metrics == metrics
+            && cached.row_font_family == self.row_font_family
+            && cached.base_font == window.text_style().font()
+            && cached.scale_factor_bits == window.scale_factor().to_bits()
+            && cached.sections == self.sections
+            && cached.items.len() == self.items.len()
+            && cached
+                .items
+                .iter()
+                .zip(&self.items)
+                .all(|((ck, cl), opt)| ck == opt.key() && cl == opt.label())
+    }
+
+    fn build_plain_fit_width_key(
+        &self,
+        metrics: SelectPanelMetrics,
+        window: &Window,
+    ) -> SelectFitWidthKey {
+        SelectFitWidthKey {
+            items: self
+                .items
+                .iter()
+                .map(|opt| (opt.key().clone(), opt.label().clone()))
+                .collect(),
+            sections: self.sections.clone(),
+            metrics,
+            row_font_family: self.row_font_family.clone(),
+            base_font: window.text_style().font(),
+            scale_factor_bits: window.scale_factor().to_bits(),
+        }
+    }
+
+    fn measure_custom_indicator_width(
+        indicator: Option<&(impl Fn(bool) -> gpui::AnyElement + ?Sized)>,
+        window: &mut Window,
+        cx: &mut App,
+    ) -> Option<Pixels> {
+        let render = indicator?;
+        let mut max_w = px(0.);
+        for selected in [false, true] {
+            let el = render(selected);
+            let w = gpui::div()
+                .flex_none()
+                .flex()
+                .items_center()
+                .justify_center()
+                .child(el)
+                .into_any_element()
+                .layout_as_root(
+                    gpui::size(
+                        gpui::AvailableSpace::MaxContent,
+                        gpui::AvailableSpace::MaxContent,
+                    ),
+                    window,
+                    cx,
+                )
+                .width;
+            if w > max_w {
+                max_w = w;
+            }
+        }
+        Some(max_w)
+    }
+
+    fn intrinsic_panel_width_with_selection(
+        &self,
+        select_theme: &herogpui_theme::SelectStyle,
+        selected: &Option<SharedString>,
+        selected_keys: &[SharedString],
+        window: &mut Window,
+        cx: &mut App,
+    ) -> (Pixels, Option<Pixels>) {
+        let metrics = self.resolved_panel_metrics(select_theme, cx);
+        let custom_indicator_width =
+            Self::measure_custom_indicator_width(self.indicator.as_deref(), window, cx);
+        let indicator_gutter = match custom_indicator_width {
+            Some(ind_w) => (ind_w + px(12.)).max(SELECT_INDICATOR_GUTTER),
+            None if !self.items.is_empty() => SELECT_INDICATOR_GUTTER,
+            None => px(0.),
+        };
+        let right_padding = indicator_gutter.max(metrics.row_padding_x);
+        let row_chrome_width =
+            metrics.panel_padding * 2. + metrics.hairline + metrics.row_padding_x + right_padding;
+
+        let base_font = window.text_style().font();
+        let mut row_font = base_font.clone();
+        if let Some(family) = &self.row_font_family {
+            row_font.family = family.clone();
+        }
+
+        let mut measured_max = px(0.);
+        for opt in &self.items {
+            let key = opt.key();
+            let is_sel = if self.selection_mode == SelectionMode::Multiple {
+                selected_keys.contains(key)
+            } else {
+                selected.as_ref() == Some(key)
+            };
+
+            let row_content_width = if let Some(render) = &self.item_content {
+                let custom = render(key, is_sel, window, cx);
+                gpui::div()
+                    .flex_shrink_0()
+                    .text_size(metrics.row_text_size)
+                    .line_height(px(20.))
+                    .when_some(self.row_font_family.clone(), |el, family| {
+                        el.font_family(family)
+                    })
+                    .child(custom)
+                    .into_any_element()
+                    .layout_as_root(
+                        gpui::size(
+                            gpui::AvailableSpace::MaxContent,
+                            gpui::AvailableSpace::MaxContent,
+                        ),
+                        window,
+                        cx,
+                    )
+                    .width
+            } else {
+                let leading_width = self
+                    .item_leading
+                    .as_ref()
+                    .and_then(|render| render(key, is_sel))
+                    .map_or(px(0.), |leading| {
+                        gpui::div()
+                            .flex_none()
+                            .flex()
+                            .items_center()
+                            .child(leading)
+                            .into_any_element()
+                            .layout_as_root(
+                                gpui::size(
+                                    gpui::AvailableSpace::MaxContent,
+                                    gpui::AvailableSpace::MaxContent,
+                                ),
+                                window,
+                                cx,
+                            )
+                            .width
+                    });
+                let label_width = util::shape_multiline_max_width(
+                    opt.label(),
+                    &row_font,
+                    metrics.row_text_size,
+                    window,
+                );
+                let gap = if leading_width > px(0.) && label_width > px(0.) {
+                    SELECT_ROW_GAP
+                } else {
+                    px(0.)
+                };
+                leading_width + gap + label_width
+            };
+
+            let total = px(f32::from(row_chrome_width + row_content_width).ceil());
+            if total > measured_max {
+                measured_max = total;
+            }
+        }
+
+        if !self.sections.is_empty() {
+            let mut section_font = base_font;
+            section_font.weight = gpui::FontWeight::MEDIUM;
+            let section_chrome = metrics.panel_padding * 2. + metrics.hairline + px(16.);
+            for (_, label) in &self.sections {
+                if label.is_empty() {
+                    continue;
+                }
+                let label_w =
+                    util::shape_multiline_max_width(label, &section_font, px(12.), window);
+                let total = px(f32::from(section_chrome + label_w).ceil());
+                if total > measured_max {
+                    measured_max = total;
+                }
+            }
+        }
+
+        (
+            measured_max.max(metrics.min_panel_width),
+            custom_indicator_width,
+        )
+    }
+
     /// Replaces the list rows' `px-2.5` horizontal padding.
     pub fn row_padding_x(mut self, p: impl Into<Pixels>) -> Self {
         self.row_padding_x = Some(p.into());
@@ -626,6 +906,7 @@ impl Select {
             panel_padding: None,
             panel_gap: None,
             panel_min_width: None,
+            fit_panel_width: false,
             row_padding_y: None,
             row_hover_bg: None,
             trigger_hover_bg: None,
@@ -978,7 +1259,12 @@ impl RenderOnce for Select {
         );
         let colors = cx.colors().clone();
         let layout = cx.layout().clone();
-        self.apply_theme(&colors, cx);
+        let select_theme = cx
+            .theme()
+            .components
+            .select
+            .resolve_named("select", &self.recipes);
+        self.apply_theme(&select_theme, &colors);
         let mut field = self.trigger_field(&frame, &colors, &layout, window, cx);
 
         // Down or Enter on a closed Select opens it, and the arrows then walk
@@ -1024,7 +1310,62 @@ impl RenderOnce for Select {
         root = self.root_dismissals(root, &frame);
         let blur_scope = frame.blur_scope.clone();
         if overlay_active && !self.items.is_empty() {
-            root = root.child(self.popover(frame, &colors, &layout, window, cx));
+            let mut measured_indicator_width = None;
+            if self.fit_panel_width {
+                let has_dynamic_factory = self.item_content.is_some()
+                    || self.item_leading.is_some()
+                    || self.indicator.is_some();
+                let fit_w = if has_dynamic_factory {
+                    let (w, ind_w) = self.intrinsic_panel_width_with_selection(
+                        &select_theme,
+                        &frame.selected,
+                        &frame.selected_keys,
+                        window,
+                        cx,
+                    );
+                    measured_indicator_width = ind_w;
+                    w
+                } else {
+                    let fit_width_cache = window.use_keyed_state(
+                        element_id::scoped(&self.id, "fit-width-cache"),
+                        cx,
+                        |_, _| None::<(SelectFitWidthKey, Pixels)>,
+                    );
+                    let metrics = self.resolved_panel_metrics(&select_theme, cx);
+                    if let Some(cached) = fit_width_cache.read(cx).as_ref().and_then(|(k, w)| {
+                        self.matches_plain_fit_width_cache(k, metrics, window)
+                            .then_some(*w)
+                    }) {
+                        cached
+                    } else {
+                        let (measured, _) = self.intrinsic_panel_width_with_selection(
+                            &select_theme,
+                            &frame.selected,
+                            &frame.selected_keys,
+                            window,
+                            cx,
+                        );
+                        let key = self.build_plain_fit_width_key(metrics, window);
+                        fit_width_cache.update(cx, |slot, _| {
+                            *slot = Some((key, measured));
+                        });
+                        measured
+                    }
+                };
+                self.panel_min_width = Some(self.panel_min_width.map_or(fit_w, |m| m.max(fit_w)));
+            }
+            if measured_indicator_width.is_none() && self.indicator.is_some() {
+                measured_indicator_width =
+                    Self::measure_custom_indicator_width(self.indicator.as_deref(), window, cx);
+            }
+            root = root.child(self.popover(
+                frame,
+                measured_indicator_width,
+                &colors,
+                &layout,
+                window,
+                cx,
+            ));
         }
 
         root = util::apply_sx(root, &self.sx);
@@ -1389,8 +1730,11 @@ impl Select {
     }
 
     /// Folds the theme's `select` recipe under the builder values.
-    fn apply_theme(&mut self, colors: &herogpui_theme::ThemeColors, cx: &App) {
-        let select_theme = cx.theme().components.select.resolve(&self.recipes);
+    fn apply_theme(
+        &mut self,
+        select_theme: &herogpui_theme::SelectStyle,
+        colors: &herogpui_theme::ThemeColors,
+    ) {
         if !self.variant_is_set {
             if let Some(variant) = select_theme.variant {
                 self.variant = variant;
@@ -1887,6 +2231,27 @@ impl Select {
             ..
         } = *frame;
         if !self.is_disabled && (self.on_open_change.is_some() || open_own.is_some()) {
+            let pending_open = Rc::new(Cell::new(is_open));
+            for (action, next_open) in [
+                (a11y::Action::Expand, true),
+                (a11y::Action::Collapse, false),
+            ] {
+                let pending_open = pending_open.clone();
+                let own = open_own.clone();
+                let on_open_change = self.on_open_change.clone();
+                let open_focus = open_focus.clone();
+                field = field.a11y_action(action, move |_, window, cx| {
+                    apply_select_a11y_action(
+                        next_open,
+                        &pending_open,
+                        &own,
+                        &on_open_change,
+                        &open_focus,
+                        window,
+                        cx,
+                    );
+                });
+            }
             let on_open_change = self.on_open_change.clone();
             let own = open_own.clone();
             let open = is_open;
@@ -2051,7 +2416,6 @@ impl Select {
         base: &str,
         base_id: &gpui::ElementId,
         radius: Pixels,
-        panel_scroll_now: &gpui::ScrollHandle,
         colors: &herogpui_theme::ThemeColors,
         layout: &herogpui_theme::LayoutTheme,
     ) -> gpui::Stateful<gpui::Div> {
@@ -2089,11 +2453,9 @@ impl Select {
                     let base = base.to_owned();
                     move || format!("{base}-panel")
                 })
-                .overflow_y_scroll()
                 // `overscroll-contain` upstream: a wheel over the popup must
                 // not scroll the page behind it (ColorPicker pattern).
                 .occlude()
-                .track_scroll(panel_scroll_now)
                 // RAC caps the popover at the available viewport height
                 // (`calculatePosition`'s `getMaxHeight`); the positioner
                 // below re-lays the panel out with that cap, so the panel
@@ -2105,6 +2467,7 @@ impl Select {
     fn popover(
         &mut self,
         frame: SelectFrame,
+        custom_indicator_width: Option<Pixels>,
         colors: &herogpui_theme::ThemeColors,
         layout: &herogpui_theme::LayoutTheme,
         window: &mut Window,
@@ -2141,7 +2504,7 @@ impl Select {
         // The entry zoom interpolates the panel's own radius, so one
         // binding feeds both the painted shape and the animation.
         let radius = self.radius.unwrap_or_else(|| util::picker_radius(cx));
-        let panel = self.panel_surface(&base, &base_id, radius, &panel_scroll_now, colors, layout);
+        let panel = self.panel_surface(&base, &base_id, radius, colors, layout);
 
         // React Aria dismisses the list on a press outside it. Escape is
         // already read by the trigger's key handler, so only the press half
@@ -2225,6 +2588,7 @@ impl Select {
             core: list_core,
             focus_rows,
             indicator,
+            custom_indicator_width,
             item_leading,
             item_content: self.item_content.clone(),
             on_change_all,
@@ -2242,6 +2606,8 @@ impl Select {
             row_padding_y,
         };
 
+        let gutter = util::focus_ring_gutter(cx);
+        let gap = self.panel_gap.unwrap_or(px(0.));
         match self.row_height {
             // Virtual: only the rows in view are built, which is what makes
             // a thousand options affordable. The list itself is the scroll
@@ -2249,11 +2615,10 @@ impl Select {
             // natural height on the positioner's measure pass (so the
             // flip sees the real extent, like upstream's `overlaySize`),
             // capped to the available height on the capped pass — while
-            // the ListBox stays `overflow-clip`, as in v3. A fixed inner
-            // height plus an outer scroller would nest two scroll
-            // containers and strand rows between them.
+            // the ListBox surface stays unclipped so the uniform_list's
+            // own gutter (`p(gutter).m(-gutter)`) keeps all four focus-ring
+            // edges intact even when `panel_padding` is zero.
             Some(row_height) => {
-                let gap = self.panel_gap.unwrap_or(px(0.));
                 panel = panel.child(
                     gpui::uniform_list(
                         element_id::scoped(&base_id, "rows"),
@@ -2275,14 +2640,19 @@ impl Select {
                     )
                     .track_scroll(&list_scroll_now)
                     .with_sizing_behavior(gpui::ListSizingBehavior::Infer)
-                    .mb(-gap)
-                    .w_full(),
+                    .when(options_len > 0, |list| {
+                        list.p(gutter).m(-gutter).mb(-gutter - gap)
+                    }),
                 );
             }
             None => {
-                for i in 0..options_len {
-                    panel = panel.child(rows.row(i, None, window, cx));
-                }
+                panel = panel.child(util::focus_guttered_scroll_viewport(
+                    element_id::scoped(&base_id, "viewport"),
+                    &panel_scroll_now,
+                    gap,
+                    gutter,
+                    (0..options_len).map(|i| rows.row(i, None, window, cx)),
+                ));
             }
         }
 
@@ -2322,6 +2692,63 @@ impl Select {
                 panel,
             ),
         )
+    }
+}
+
+const SELECT_INDICATOR_GUTTER: Pixels = px(28.);
+const SELECT_ROW_GAP: Pixels = px(12.);
+
+#[derive(Clone, Copy, PartialEq)]
+struct SelectPanelMetrics {
+    panel_padding: Pixels,
+    row_padding_x: Pixels,
+    row_text_size: Pixels,
+    min_panel_width: Pixels,
+    hairline: Pixels,
+}
+
+#[derive(Clone, PartialEq)]
+struct SelectFitWidthKey {
+    items: Vec<(SharedString, SharedString)>,
+    sections: Vec<(SharedString, SharedString)>,
+    metrics: SelectPanelMetrics,
+    row_font_family: Option<SharedString>,
+    base_font: gpui::Font,
+    scale_factor_bits: u32,
+}
+
+fn apply_select_a11y_action(
+    next_open: bool,
+    pending_open: &Rc<Cell<bool>>,
+    own: &Option<gpui::Entity<bool>>,
+    on_open_change: &Option<OnOpenChange>,
+    open_focus: &gpui::Entity<Option<crate::list_core::OpenFocus>>,
+    window: &mut Window,
+    cx: &mut App,
+) {
+    let currently_open = own
+        .as_ref()
+        .map_or_else(|| pending_open.get(), |held| *held.read(cx));
+    if next_open == currently_open {
+        return;
+    }
+    pending_open.set(next_open);
+    if next_open {
+        open_focus.update(cx, |focus, _| {
+            *focus = Some(crate::list_core::OpenFocus::First);
+        });
+    }
+    if let Some(held) = own {
+        held.update(cx, |value, cx| {
+            *value = next_open;
+            cx.notify();
+        });
+    }
+    if let Some(callback) = on_open_change {
+        callback(&next_open, window, cx);
+    }
+    if own.is_none() {
+        window.refresh();
     }
 }
 
@@ -2736,6 +3163,7 @@ struct SelectRows {
     core: crate::list_core::ListCore,
     focus_rows: gpui::FocusHandle,
     indicator: Option<Rc<dyn Fn(bool) -> gpui::AnyElement>>,
+    custom_indicator_width: Option<Pixels>,
     #[allow(clippy::type_complexity)]
     item_leading: Option<Rc<dyn Fn(&SharedString, bool) -> Option<gpui::AnyElement>>>,
     item_content: Option<
@@ -2780,6 +3208,7 @@ impl SelectRows {
             ref opt_disabled_keys,
             ref focus_rows,
             ref indicator,
+            custom_indicator_width,
             ref item_leading,
             ref item_content,
             ref base_row,
@@ -2821,6 +3250,14 @@ impl SelectRows {
             selected.as_ref() == Some(&row_key)
         };
         let has_indicator_slot = indicator.is_some() || is_sel;
+        let indicator_slot_width = custom_indicator_width
+            .filter(|w| *w > px(16.))
+            .unwrap_or(px(16.));
+        let indicator_pr = custom_indicator_width
+            .filter(|w| *w > px(16.))
+            .map_or(SELECT_INDICATOR_GUTTER, |w| {
+                (w + px(12.)).max(SELECT_INDICATOR_GUTTER)
+            });
         let opt_disabled = opt_disabled_keys.contains(&row_key);
         let row_selector = format!("{base}-opt-{i}");
         let mut item = gpui::div()
@@ -2848,7 +3285,7 @@ impl SelectRows {
                         .rounded(util::soft_radius(cx))
                         .px(row_padding_x)
                         .py(row_padding_y)
-                        .gap(px(12.))
+                        .gap(SELECT_ROW_GAP)
                         .text_size(row_text_size)
                         .line_height(px(20.))
                         // HeroUI's list-box item reserves `pe-7` whenever its
@@ -2856,7 +3293,7 @@ impl SelectRows {
                         // absolute at the inline end. Keeping it out of flex
                         // flow prevents long labels from pushing the checkmark.
                         .relative()
-                        .when(has_indicator_slot, |row| row.pr(px(28.)));
+                        .when(has_indicator_slot, |row| row.pr(indicator_pr));
         if let Some(family) = row_font_family.clone() {
             item = item.font_family(family);
         }
@@ -2924,7 +3361,7 @@ impl SelectRows {
                         .top_0()
                         .bottom_0()
                         .right(px(8.))
-                        .w(px(16.))
+                        .w(indicator_slot_width)
                         .flex()
                         .items_center()
                         .justify_center()
@@ -3439,6 +3876,403 @@ mod tests {
                 && source.contains("radius: util::soft_radius(cx)"),
             "Select options must use the shared 98% quart press ramp and keep their row radius"
         );
+    }
+
+    #[gpui::test]
+    fn a11y_expand_and_collapse_update_open_focus_and_callbacks(cx: &mut gpui::TestAppContext) {
+        use gpui::AppContext;
+        use std::sync::{Arc, Mutex};
+
+        let (_, vcx) = cx.add_window_view(|_, _| gpui::Empty);
+        let events: Arc<Mutex<Vec<bool>>> = Arc::new(Mutex::new(Vec::new()));
+        let recorded = events.clone();
+        let cb: OnOpenChange = Arc::new(move |open, _, _| {
+            recorded.lock().expect("test mutex").push(*open);
+        });
+
+        vcx.update(|window, cx| {
+            let own = cx.new(|_| false);
+            let open_focus = cx.new(|_| None);
+            let cb_opt = Some(cb.clone());
+            let pending = Rc::new(Cell::new(false));
+
+            // Expand from closed -> opens, arms OpenFocus::First, fires callback
+            apply_select_a11y_action(
+                true,
+                &pending,
+                &Some(own.clone()),
+                &cb_opt,
+                &open_focus,
+                window,
+                cx,
+            );
+            assert!(*own.read(cx));
+            assert_eq!(
+                *open_focus.read(cx),
+                Some(crate::list_core::OpenFocus::First)
+            );
+            assert_eq!(events.lock().expect("test mutex").as_slice(), [true]);
+
+            // Redundant Expand while already open is a no-op
+            apply_select_a11y_action(
+                true,
+                &pending,
+                &Some(own.clone()),
+                &cb_opt,
+                &open_focus,
+                window,
+                cx,
+            );
+            assert_eq!(events.lock().expect("test mutex").as_slice(), [true]);
+
+            // Collapse -> closes and fires callback
+            apply_select_a11y_action(
+                false,
+                &pending,
+                &Some(own.clone()),
+                &cb_opt,
+                &open_focus,
+                window,
+                cx,
+            );
+            assert!(!*own.read(cx));
+            assert_eq!(events.lock().expect("test mutex").as_slice(), [true, false]);
+
+            // Redundant Collapse while already closed is a no-op
+            apply_select_a11y_action(
+                false,
+                &pending,
+                &Some(own),
+                &cb_opt,
+                &open_focus,
+                window,
+                cx,
+            );
+            assert_eq!(events.lock().expect("test mutex").as_slice(), [true, false]);
+
+            // Controlled mode (own = None): Expand then Collapse before repaint fires [true, false]
+            events.lock().expect("test mutex").clear();
+            let controlled_pending = Rc::new(Cell::new(false));
+            apply_select_a11y_action(
+                true,
+                &controlled_pending,
+                &None,
+                &cb_opt,
+                &open_focus,
+                window,
+                cx,
+            );
+            apply_select_a11y_action(
+                false,
+                &controlled_pending,
+                &None,
+                &cb_opt,
+                &open_focus,
+                window,
+                cx,
+            );
+            assert_eq!(events.lock().expect("test mutex").as_slice(), [true, false]);
+        });
+    }
+
+    #[gpui::test]
+    fn fit_panel_width_caches_factories_and_handles_multiline_and_1000_virtual_rows(
+        cx: &mut gpui::TestAppContext,
+    ) {
+        use std::sync::atomic::Ordering;
+        use std::sync::{Arc, Mutex};
+
+        struct TestView(Box<dyn Fn(&mut Window, &mut Context<'_, Self>) -> gpui::AnyElement>);
+        impl Render for TestView {
+            fn render(
+                &mut self,
+                window: &mut Window,
+                cx: &mut Context<'_, Self>,
+            ) -> impl IntoElement {
+                (self.0)(window, cx)
+            }
+        }
+
+        cx.update(herogpui_theme::ThemeProvider::init);
+
+        // 1. Multiline item & section labels with LF and CRLF must not panic in `shape_line`.
+        let multi_width = Arc::new(Mutex::new(None::<Pixels>));
+        let multi_out = multi_width.clone();
+        let (_, vcx1) = cx.add_window_view(move |_, _| {
+            TestView(Box::new(move |_, _| {
+                let out = multi_out.clone();
+                gpui::canvas(
+                    move |_, window, cx| {
+                        let s = Select::new(
+                            "multi-line-sel",
+                            vec![
+                                PickerItem::new(
+                                    "a",
+                                    "Short line\nSecond Much Longer Wrapped Option",
+                                ),
+                                PickerItem::new("b", "Windows CRLF line\r\nNext"),
+                            ],
+                        )
+                        .section_before("a", "Header line\nSubheading");
+                        *out.lock().unwrap() = Some(s.intrinsic_panel_width(window, cx));
+                    },
+                    |_, _, _, _| {},
+                )
+                .size_full()
+                .into_any_element()
+            }))
+        });
+        vcx1.update(|window, _| window.refresh());
+        let measured_multi = multi_width
+            .lock()
+            .unwrap()
+            .expect("multiline intrinsic measurement");
+        assert!(measured_multi > px(180.));
+
+        // 2. Dynamic `item_content` and `item_leading` factories remeasure when captured state widens
+        // while the panel remains open, and oversized custom `indicator` widths expand the panel and row slot.
+        let wide_state = Arc::new(std::sync::atomic::AtomicBool::new(false));
+        let wide_render = wide_state.clone();
+        let label_probe = Arc::new(Mutex::new(None::<gpui::Bounds<Pixels>>));
+        let label_probe_render = label_probe.clone();
+        let ind_probe = Arc::new(Mutex::new(None::<gpui::Bounds<Pixels>>));
+        let ind_probe_render = ind_probe.clone();
+        let (_, vcx2) = cx.add_window_view(move |_, _| {
+            let wide_render = wide_render;
+            let label_probe = label_probe_render;
+            let ind_probe = ind_probe_render;
+            TestView(Box::new(move |window, cx| {
+                let is_wide = wide_render.load(Ordering::Relaxed);
+                let label_probe = label_probe.clone();
+                let ind_probe = ind_probe.clone();
+                util::app_focus_root(
+                    gpui::div().p(px(12.)).child(
+                        gpui::div().w(px(70.)).child(
+                            Select::new(
+                                "dynamic-fit",
+                                vec![PickerItem::new("a", "Short"), PickerItem::new("b", "Pick")],
+                            )
+                            .default_open(true)
+                            .default_value(Some("a".into()))
+                            .full_width(true)
+                            .fit_panel_width(true)
+                            .item_content(move |key, _sel, _, _| {
+                                let label = if is_wide && key.as_ref() == "a" {
+                                    "Much Wider Dynamic Option Content That Should Fit"
+                                } else {
+                                    "Ok"
+                                };
+                                let lp = label_probe.clone();
+                                gpui::div()
+                                    .flex_1()
+                                    .flex()
+                                    .child(label)
+                                    .when(key.as_ref() == "a", |el| {
+                                        el.child(
+                                            gpui::canvas(
+                                                move |bounds, _, _| {
+                                                    *lp.lock().unwrap() = Some(bounds);
+                                                },
+                                                |_, _, _, _| {},
+                                            )
+                                            .size_0(),
+                                        )
+                                    })
+                                    .into_any_element()
+                            })
+                            .indicator(move |sel| {
+                                let ip = ind_probe.clone();
+                                gpui::div()
+                                    .w(if sel { px(80.) } else { px(12.) })
+                                    .h(px(12.))
+                                    .when(sel, |el| {
+                                        el.child(
+                                            gpui::canvas(
+                                                move |bounds, _, _| {
+                                                    *ip.lock().unwrap() = Some(bounds);
+                                                },
+                                                |_, _, _, _| {},
+                                            )
+                                            .size_0(),
+                                        )
+                                    })
+                                    .into_any_element()
+                            })
+                            .on_selection_change(|_, _, _| {}),
+                        ),
+                    ),
+                    window,
+                    cx,
+                )
+                .into_any_element()
+            }))
+        });
+        vcx2.update(|window, _| window.refresh());
+        let narrow_panel = vcx2
+            .debug_bounds("select-list-Name(\"dynamic-fit\")-panel")
+            .expect("narrow panel bounds");
+        let label_b = label_probe.lock().unwrap().expect("label bounds");
+        let ind_b = ind_probe.lock().unwrap().expect("indicator bounds");
+        assert!(
+            narrow_panel.size.width >= px(120.),
+            "oversized 80px custom indicator must widen fitted panel beyond 70px trigger, got {:?}",
+            narrow_panel.size.width
+        );
+        assert!(
+            ind_b.origin.x >= label_b.origin.x + label_b.size.width || ind_b.size.width >= px(80.),
+            "indicator must fit cleanly inside widened panel (ind={ind_b:?}, label={label_b:?})"
+        );
+        wide_state.store(true, Ordering::Relaxed);
+        vcx2.update(|window, _| window.refresh());
+        let widened_panel = vcx2
+            .debug_bounds("select-list-Name(\"dynamic-fit\")-panel")
+            .expect("widened panel bounds");
+        assert!(
+            widened_panel.size.width > narrow_panel.size.width + px(80.),
+            "dynamic item_content widening must expand cached panel width: before={:?}, after={:?}",
+            narrow_panel.size.width,
+            widened_panel.size.width
+        );
+
+        // 3. Direct `intrinsic_panel_width` reads live uncontrolled selection from keyed state.
+        let live_sel_widths = Arc::new(Mutex::new(Vec::<Pixels>::new()));
+        let live_sel_out = live_sel_widths.clone();
+        let (_, vcx_sel) = cx.add_window_view(move |_, _| {
+            TestView(Box::new(move |window, cx| {
+                let sel = Select::new(
+                    "live-sel-measure",
+                    vec![PickerItem::new("a", "A"), PickerItem::new("b", "B")],
+                )
+                .default_open(true)
+                .default_value(Some("a".into()))
+                .item_content(|key, is_sel, _, _| {
+                    let w = if key.as_ref() == "b" && is_sel {
+                        px(260.)
+                    } else {
+                        px(20.)
+                    };
+                    gpui::div().w(w).h(px(24.)).into_any_element()
+                });
+                let measured = sel.intrinsic_panel_width(window, cx);
+                live_sel_out.lock().unwrap().push(measured);
+                util::app_focus_root(gpui::div().p(px(12.)).child(sel), window, cx)
+                    .into_any_element()
+            }))
+        });
+        vcx_sel.update(|window, _| window.refresh());
+        vcx_sel.run_until_parked();
+        let row_b = vcx_sel
+            .debug_bounds("select-list-Name(\"live-sel-measure\")-opt-1")
+            .expect("row b bounds");
+        vcx_sel.simulate_mouse_move(row_b.center(), None, gpui::Modifiers::none());
+        vcx_sel.simulate_mouse_down(
+            row_b.center(),
+            gpui::MouseButton::Left,
+            gpui::Modifiers::none(),
+        );
+        vcx_sel.simulate_mouse_up(
+            row_b.center(),
+            gpui::MouseButton::Left,
+            gpui::Modifiers::none(),
+        );
+        vcx_sel.run_until_parked();
+        vcx_sel.update(|window, _| window.refresh());
+        let recorded_widths = live_sel_widths.lock().unwrap();
+        assert!(
+            recorded_widths.first().copied().unwrap() < px(200.)
+                && recorded_widths.last().copied().unwrap() >= px(260.),
+            "direct intrinsic_panel_width must observe live keyed selection changes: {recorded_widths:?}"
+        );
+
+        // 4. 1,000-row virtualized plain-label Select with `fit_panel_width(true)` caches & scrolls smoothly.
+        let thousand: Vec<PickerItem> = (0..1000)
+            .map(|i| PickerItem::new(format!("row-{i}"), format!("Virtualized Option Entry #{i}")))
+            .collect();
+        let (_, vcx3) = cx.add_window_view(move |_, _| {
+            TestView(Box::new(move |window, cx| {
+                util::app_focus_root(
+                    gpui::div().p(px(12.)).child(
+                        Select::new("virt-fit-1000", thousand.clone())
+                            .default_open(true)
+                            .row_height(px(32.))
+                            .fit_panel_width(true),
+                    ),
+                    window,
+                    cx,
+                )
+                .into_any_element()
+            }))
+        });
+        vcx3.update(|window, _| window.refresh());
+        vcx3.simulate_event(gpui::ScrollEvent {
+            position: gpui::point(px(40.), px(90.)),
+            delta: gpui::ScrollDelta::Pixels(gpui::point(px(0.), px(-320.))),
+            ..Default::default()
+        });
+        vcx3.update(|window, _| window.refresh());
+    }
+
+    #[gpui::test]
+    fn controlled_declined_expand_recovers_after_refresh_for_retry(cx: &mut gpui::TestAppContext) {
+        use std::sync::atomic::{AtomicBool, Ordering};
+        use std::sync::{Arc, Mutex};
+
+        struct ControlledSelectHost {
+            accept: Arc<AtomicBool>,
+            events: Arc<Mutex<Vec<bool>>>,
+        }
+        impl Render for ControlledSelectHost {
+            fn render(
+                &mut self,
+                window: &mut Window,
+                cx: &mut Context<'_, Self>,
+            ) -> impl IntoElement {
+                let accept = self.accept.clone();
+                let events = self.events.clone();
+                let is_open = accept.load(Ordering::Relaxed);
+                util::app_focus_root(
+                    gpui::div().child(
+                        Select::new("ctrl-retry", vec![PickerItem::new("a", "Alpha")])
+                            .is_open(is_open)
+                            .on_open_change(move |open, _, _| {
+                                events.lock().unwrap().push(*open);
+                            }),
+                    ),
+                    window,
+                    cx,
+                )
+            }
+        }
+
+        cx.update(herogpui_theme::ThemeProvider::init);
+        let accept = Arc::new(AtomicBool::new(false));
+        let events = Arc::new(Mutex::new(Vec::new()));
+        let (_, vcx) = cx.add_window_view({
+            let events = events.clone();
+            move |_, _| ControlledSelectHost { accept, events }
+        });
+        vcx.update(|window, _| window.refresh());
+        // Simulate a declined Expand followed by refresh, then a second Expand retry.
+        vcx.update(|window, cx| {
+            let pending = Rc::new(Cell::new(false));
+            let open_focus = cx.new(|_| None);
+            let ev = events.clone();
+            let cb: Option<OnOpenChange> = Some(Arc::new(move |open, _, _| {
+                ev.lock().unwrap().push(*open);
+            }));
+            apply_select_a11y_action(true, &pending, &None, &cb, &open_focus, window, cx);
+        });
+        vcx.update(|window, _| window.refresh());
+        vcx.update(|window, cx| {
+            let pending = Rc::new(Cell::new(false));
+            let open_focus = cx.new(|_| None);
+            let ev = events.clone();
+            let cb: Option<OnOpenChange> = Some(Arc::new(move |open, _, _| {
+                ev.lock().unwrap().push(*open);
+            }));
+            apply_select_a11y_action(true, &pending, &None, &cb, &open_focus, window, cx);
+        });
+        assert_eq!(events.lock().unwrap().as_slice(), [true, true]);
     }
 }
 

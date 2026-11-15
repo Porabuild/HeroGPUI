@@ -126,6 +126,7 @@ pub(crate) type ResolvedPlacementHandle = std::rc::Rc<std::cell::Cell<Option<Pop
 /// outside any popover.
 pub struct PopoverArrow {
     resolved: std::rc::Rc<std::cell::Cell<Option<PopoverResolved>>>,
+    background: Option<gpui::Hsla>,
     children: Vec<AnyElement>,
 }
 
@@ -140,6 +141,7 @@ impl PopoverArrow {
     pub fn new() -> Self {
         Self {
             resolved: std::rc::Rc::new(std::cell::Cell::new(None)),
+            background: None,
             children: Vec::new(),
         }
     }
@@ -182,7 +184,9 @@ impl Element for PopoverArrow {
         let mut leaves = if custom {
             std::mem::take(&mut self.children)
         } else {
-            let color = cx.colors().overlay.background;
+            let color = self
+                .background
+                .unwrap_or_else(|| cx.colors().overlay.background);
             PopoverSide::ALL
                 .map(|side| {
                     gpui::div()
@@ -870,7 +874,7 @@ pub struct Popover {
     aria_label: Option<SharedString>,
     panel_width: Option<Pixels>,
     show_close_button: bool,
-    offset: Pixels,
+    offset: Option<Pixels>,
     should_flip: bool,
     on_open_change: Option<OnOpenChange>,
     children: Vec<AnyElement>,
@@ -881,6 +885,7 @@ pub struct Popover {
     radius: Option<Pixels>,
     /// The `sx` slot, refined over the root style at the end of render.
     sx: Option<Box<gpui::StyleRefinement>>,
+    recipes: Vec<SharedString>,
 }
 
 impl Popover {
@@ -892,7 +897,7 @@ impl Popover {
             is_open: None,
             default_open: false,
             placement: PopoverPlacement::Bottom,
-            offset: px(8.),
+            offset: None,
             should_flip: true,
             title: None,
             aria_label: None,
@@ -903,6 +908,7 @@ impl Popover {
             padding: None,
             radius: None,
             sx: None,
+            recipes: Vec::new(),
         }
     }
 
@@ -932,7 +938,7 @@ impl Popover {
 
     /// `offset` — distance from the trigger, 8px in v3.
     pub fn offset(mut self, offset: impl Into<Pixels>) -> Self {
-        self.offset = offset.into();
+        self.offset = Some(offset.into());
         self
     }
 
@@ -967,6 +973,13 @@ impl Popover {
     #[doc = "Names the dialog without adding a visible heading."]
     pub fn aria_label(mut self, label: impl Into<SharedString>) -> Self {
         self.aria_label = Some(label.into());
+        self
+    }
+
+    /// Named theme overlay from [`herogpui_theme::ComponentThemes::popover`].
+    /// Stackable; a missing name adds no override.
+    pub fn recipe(mut self, name: impl Into<SharedString>) -> Self {
+        self.recipes.push(name.into());
         self
     }
 
@@ -1081,8 +1094,24 @@ impl RenderOnce for Popover {
         // dispatch so an open trigger is owned by its own toggle, not by both
         // dismissal paths.
         let trigger_pressed = std::rc::Rc::new(std::cell::Cell::new(false));
+        let popover_theme = cx
+            .theme()
+            .components
+            .popover
+            .resolve_named("popover", &self.recipes);
+        let theme_offset = popover_theme.offset;
+        let theme_radius = popover_theme.radius;
+        let theme_padding = popover_theme.padding;
+        let theme_panel_width = popover_theme.panel_width;
+        let theme_background = popover_theme.background;
+        let theme_foreground = popover_theme.foreground;
         let colors = cx.colors();
         let layout = cx.layout();
+        let offset = self.offset.or(theme_offset).unwrap_or(px(8.));
+        let panel_bg =
+            theme_background.map_or(colors.overlay.background, |color| color.resolve(colors));
+        let panel_fg =
+            theme_foreground.map_or(colors.surface.foreground, |color| color.resolve(colors));
 
         let mut trigger_wrap = gpui::div()
             .id(element_id::scoped(&self.id, "trigger"))
@@ -1195,6 +1224,7 @@ impl RenderOnce for Popover {
         // `self` before the children are moved into the panel.
         let radius = self
             .radius
+            .or(theme_radius)
             .unwrap_or_else(|| crate::util::container_radius(cx));
         // The padding pair is read off `self` here for the same reason: the
         // resting panel's chain consumes it and so does the entry zoom below.
@@ -1202,10 +1232,11 @@ impl RenderOnce for Popover {
         // so the chain is then the only consumer — the override still reaches
         // the resting panel on every motion path. The defaults are v3's
         // `.popover__dialog` `p-4` on both axes either way.
-        let panel_padding_y = self.padding.unwrap_or(px(16.));
-        let panel_padding_x = self.padding.unwrap_or(px(16.));
+        let panel_padding_y = self.padding.or(theme_padding).unwrap_or(px(16.));
+        let panel_padding_x = self.padding.or(theme_padding).unwrap_or(px(16.));
         let panel_width = self
             .panel_width
+            .or(theme_panel_width)
             .unwrap_or(px(260.))
             .min(window.viewport_size().width);
         let mut panel = gpui::div()
@@ -1228,8 +1259,8 @@ impl RenderOnce for Popover {
             .gap(px(8.))
             .px(panel_padding_x)
             .py(panel_padding_y)
-            .bg(colors.overlay.background)
-            .text_color(colors.surface.foreground)
+            .bg(panel_bg)
+            .text_color(panel_fg)
             // `.popover` is `text-sm`.
             .text_size(px(14.))
             .line_height(px(20.))
@@ -1252,6 +1283,7 @@ impl RenderOnce for Popover {
         for child in &mut self.children {
             if let Some(arrow) = child.downcast_mut::<PopoverArrow>() {
                 arrow.resolved = resolved.clone();
+                arrow.background = Some(panel_bg);
                 has_arrow = true;
             }
         }
@@ -1316,7 +1348,7 @@ impl RenderOnce for Popover {
             anchor_bounds,
             resolved,
             self.placement,
-            self.offset,
+            offset,
             self.should_flip,
             has_arrow,
         )

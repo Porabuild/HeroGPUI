@@ -860,7 +860,7 @@ mod example_quality {
     #[test]
     fn gallery_sections_are_preserved_while_reordering() {
         for (name, count) in [
-            ("select", 28),
+            ("select", 29),
             ("autocomplete", 23),
             ("combo_box", 31),
             ("slider", 22),
@@ -890,6 +890,11 @@ mod example_quality {
         assert!(select.contains(".item_content("));
         assert!(select.contains(".panel_gap("));
         assert!(select.contains(".panel_min_width("));
+        let fit = section_body(page_fn(SRC, "select"), "Intrinsic Panel Width");
+        assert!(fit.contains(".fit_panel_width(true)"));
+        let tooltip = section_body(page_fn(SRC, "tooltip"), "Presenter Boundary");
+        assert!(tooltip.contains(".presenter_mode(h::TooltipPresenterMode::SeparateWindow)"));
+        assert!(tooltip.contains(".exclude_from_capture(true)"));
         let swatch = section_body(page_fn(SRC, "color_swatch_picker"), "Single-row Palette");
         assert!(swatch.contains(".sx("));
         assert!(swatch.contains(".flex_nowrap()"));

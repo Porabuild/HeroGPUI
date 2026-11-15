@@ -1,6 +1,9 @@
 //! Shared render helpers for HeroGPUI components.
 
-use gpui::{App, BorrowAppContext, Div, Hsla, ParentElement, Pixels, Refineable, Styled};
+use gpui::{
+    prelude::FluentBuilder, App, BorrowAppContext, Div, Hsla, InteractiveElement, ParentElement,
+    Pixels, Refineable, StatefulInteractiveElement, Styled,
+};
 use herogpui_core::{element_id, FieldVariant};
 use herogpui_theme::ActiveTheme;
 
@@ -535,7 +538,7 @@ pub fn floating(el: impl gpui::IntoElement) -> gpui::Deferred {
 }
 
 pub(crate) fn window_overlay(el: impl gpui::IntoElement, window: &gpui::Window) -> gpui::Deferred {
-    use gpui::InteractiveElement;
+    use InteractiveElement;
 
     let viewport = window.viewport_size();
     floating(
@@ -696,7 +699,7 @@ fn dismiss_captured_escape(window: &mut gpui::Window, cx: &mut App) -> bool {
 /// which would make every press inside the panel count as outside. Escape is a
 /// key event, so it needs the focus to be inside the panel -- pair it with
 /// [`panel_focus`] where nothing else there is focused.
-pub fn dismiss_on_escape_with_token<E: gpui::InteractiveElement>(
+pub fn dismiss_on_escape_with_token<E: InteractiveElement>(
     el: E,
     token: OverlayToken,
     close: impl Fn(&mut gpui::Window, &mut App) -> DismissResult + 'static,
@@ -715,7 +718,7 @@ pub fn dismiss_on_escape_with_token<E: gpui::InteractiveElement>(
 /// already part of a keyboard it owns -- a select and a combo box read Escape in
 /// the same handler that reads the arrows, and binding it twice would close
 /// twice.
-pub fn dismiss_on_press_outside_with_token<E: gpui::InteractiveElement>(
+pub fn dismiss_on_press_outside_with_token<E: InteractiveElement>(
     el: E,
     token: OverlayToken,
     close: impl Fn(&mut gpui::Window, &mut App) -> DismissResult + 'static,
@@ -733,7 +736,7 @@ pub fn dismiss_on_press_outside_with_token<E: gpui::InteractiveElement>(
 /// `isNonModal: true` to its `Popover`); Select, MenuTrigger and the dialog
 /// popovers render the full-window underlay instead and keep the consuming
 /// form above.
-pub fn dismiss_on_press_outside_passthrough_with_token<E: gpui::InteractiveElement>(
+pub fn dismiss_on_press_outside_passthrough_with_token<E: InteractiveElement>(
     el: E,
     token: OverlayToken,
     close: impl Fn(&mut gpui::Window, &mut App) -> DismissResult + 'static,
@@ -750,7 +753,7 @@ pub fn dismiss_on_press_outside_passthrough_with_token<E: gpui::InteractiveEleme
 /// Compound surfaces such as a menu and its deferred submenu use the pointer
 /// position to treat the union of both panels as inside, while the token still
 /// prevents a lower overlay from answering the same press.
-pub fn dismiss_on_press_outside_with_token_event<E: gpui::InteractiveElement>(
+pub fn dismiss_on_press_outside_with_token_event<E: InteractiveElement>(
     el: E,
     token: OverlayToken,
     close: impl Fn(&gpui::MouseDownEvent, &mut gpui::Window, &mut App) -> DismissResult + 'static,
@@ -1410,6 +1413,79 @@ fn has_active_keyboard_press(slot: &Interaction, window: &gpui::Window, cx: &App
         })
 }
 
+fn clear_inactive_keyboard_press(slot: &Interaction, window: &gpui::Window, cx: &mut App) {
+    if !has_active_keyboard_press(slot, window, cx) {
+        slot.update(cx, |state, cx| {
+            if state.1 {
+                state.1 = false;
+                cx.notify();
+            }
+        });
+    }
+}
+
+fn drain_window_keyboard_presses(key: Option<&str>, window: &gpui::Window, cx: &mut App) {
+    if key.is_some_and(|key| !matches!(key, "enter" | "space"))
+        || cx.try_global::<ActiveKeyboardPresses>().is_none()
+    {
+        return;
+    }
+    let window_id = window.window_handle().window_id();
+    let interactions = cx.update_global::<ActiveKeyboardPresses, _>(|pressed, _| {
+        let mut released = Vec::new();
+        pressed
+            .0
+            .retain(|(active_window, active_key, interaction)| {
+                let matches_key = key.is_none_or(|key| active_key == key);
+                if *active_window == window_id && matches_key {
+                    released.push(interaction.clone());
+                    false
+                } else {
+                    interaction.upgrade().is_some()
+                }
+            });
+        released
+    });
+    for interaction in interactions {
+        if let Some(interaction) = interaction.upgrade() {
+            clear_inactive_keyboard_press(&interaction, window, cx);
+        }
+    }
+}
+
+fn release_slot_keyboard_press(slot: &Interaction, key: &str, window: &gpui::Window, cx: &mut App) {
+    if !matches!(key, "enter" | "space") || cx.try_global::<ActiveKeyboardPresses>().is_none() {
+        return;
+    }
+    let window_id = window.window_handle().window_id();
+    let weak = slot.downgrade();
+    let removed = cx.update_global::<ActiveKeyboardPresses, _>(|pressed, _| {
+        let mut hit = false;
+        pressed
+            .0
+            .retain(|(active_window, active_key, interaction)| {
+                if *active_window == window_id && active_key == key && interaction == &weak {
+                    hit = true;
+                    false
+                } else {
+                    interaction.upgrade().is_some()
+                }
+            });
+        hit
+    });
+    if removed {
+        clear_inactive_keyboard_press(slot, window, cx);
+    }
+}
+
+fn release_active_keyboard_presses(key: &str, window: &gpui::Window, cx: &mut App) {
+    drain_window_keyboard_presses(Some(key), window, cx);
+}
+
+fn release_all_window_keyboard_presses(window: &gpui::Window, cx: &mut App) {
+    drain_window_keyboard_presses(None, window, cx);
+}
+
 pub(crate) fn begin_keyboard_press(
     slot: &Interaction,
     event: &gpui::KeyDownEvent,
@@ -1419,31 +1495,31 @@ pub(crate) fn begin_keyboard_press(
     if event.is_held || !matches!(event.keystroke.key.as_str(), "enter" | "space") {
         return;
     }
-    let began = slot.update(cx, |state, cx| {
-        if state.1 {
-            false
-        } else {
+    slot.update(cx, |state, cx| {
+        if !state.1 {
             state.1 = true;
             cx.notify();
-            true
         }
     });
-    if began {
-        if cx.try_global::<ActiveKeyboardPresses>().is_none() {
-            cx.set_global(ActiveKeyboardPresses::default());
-        }
-        let active = (
-            window.window_handle().window_id(),
-            event.keystroke.key.clone(),
-            slot.downgrade(),
-        );
-        cx.update_global::<ActiveKeyboardPresses, _>(|pressed, _| {
+    if cx.try_global::<ActiveKeyboardPresses>().is_none() {
+        cx.set_global(ActiveKeyboardPresses::default());
+    }
+    let window_id = window.window_handle().window_id();
+    let weak = slot.downgrade();
+    cx.update_global::<ActiveKeyboardPresses, _>(|pressed, _| {
+        pressed
+            .0
+            .retain(|(_, _, interaction)| interaction.upgrade().is_some());
+        if !pressed
+            .0
+            .iter()
+            .any(|(w, k, i)| *w == window_id && k == &event.keystroke.key && i == &weak)
+        {
             pressed
                 .0
-                .retain(|(_, _, interaction)| interaction.upgrade().is_some());
-            pressed.0.push(active);
-        });
-    }
+                .push((window_id, event.keystroke.key.clone(), weak));
+        }
+    });
 }
 
 /// The keyed `(hovered, pressed)` slot for one control.
@@ -1458,7 +1534,7 @@ pub fn interaction(id: gpui::ElementId, window: &mut gpui::Window, cx: &mut App)
 /// Wires the hover and press handlers that keep an [`Interaction`] current.
 pub fn track_interaction<T>(el: T, slot: &Interaction) -> T
 where
-    T: gpui::StatefulInteractiveElement + ParentElement,
+    T: StatefulInteractiveElement + ParentElement,
 {
     track_interaction_on_mouse_down(el, slot, |_, _| {})
 }
@@ -1471,13 +1547,14 @@ pub(crate) fn track_interaction_on_mouse_down<T>(
     on_mouse_down: impl Fn(&mut gpui::Window, &mut App) + 'static,
 ) -> T
 where
-    T: gpui::StatefulInteractiveElement + ParentElement,
+    T: StatefulInteractiveElement + ParentElement,
 {
     let hover = slot.clone();
     let down = slot.clone();
     let up = slot.clone();
     let key_down = slot.clone();
     let key_up = slot.clone();
+    let capture_key_up = slot.clone();
     let outside_up = slot.clone();
     // This listener is deliberately unconditional, not armed while the slot is
     // pressed: `Window::on_mouse_event` is `debug_assert_paint`-only, so a
@@ -1537,15 +1614,13 @@ where
     .on_key_down(move |event, window, cx| {
         begin_keyboard_press(&key_down, event, window, cx);
     })
-    .on_key_up(move |event, _, cx| {
-        if matches!(event.keystroke.key.as_str(), "enter" | "space") {
-            key_up.update(cx, |state, cx| {
-                if state.1 {
-                    state.1 = false;
-                    cx.notify();
-                }
-            });
-        }
+    .capture_key_up(move |event, window, cx| {
+        let key = event.keystroke.key.as_str();
+        release_slot_keyboard_press(&capture_key_up, key, window, cx);
+        release_active_keyboard_presses(key, window, cx);
+    })
+    .on_key_up(move |event, window, cx| {
+        release_slot_keyboard_press(&key_up, event.keystroke.key.as_str(), window, cx);
     })
     .child(release)
 }
@@ -1597,6 +1672,7 @@ struct FocusRoot {
     /// The focused element the root last saw painted inside it. Focus that
     /// stays on it after it has left the tree is focus on nothing.
     painted_focus: Option<gpui::WeakFocusHandle>,
+    _subscriptions: Vec<gpui::Subscription>,
 }
 
 /// Records keyboard-versus-pointer input, and moves the focus on Tab.
@@ -1620,14 +1696,26 @@ struct FocusRoot {
 ///   on — a descendant that stops propagation cannot hide the modality.
 pub fn app_focus_root<T>(el: T, window: &mut gpui::Window, cx: &mut App) -> T
 where
-    T: gpui::InteractiveElement,
+    T: InteractiveElement,
 {
     let state = window.use_keyed_state(
         gpui::ElementId::Name("herogpui-focus-root".into()),
         cx,
-        |_, cx| FocusRoot {
-            handle: cx.focus_handle(),
-            painted_focus: None,
+        |window, cx| {
+            let handle = cx.focus_handle();
+            let on_focus_out = cx.on_focus_out(&handle, window, |_, _, window, cx| {
+                release_all_window_keyboard_presses(window, cx);
+            });
+            let on_window_activation = cx.observe_window_activation(window, |_, window, cx| {
+                if !window.is_window_active() {
+                    release_all_window_keyboard_presses(window, cx);
+                }
+            });
+            FocusRoot {
+                handle,
+                painted_focus: None,
+                _subscriptions: vec![on_focus_out, on_window_activation],
+            }
         },
     );
     let root = state.read(cx).handle.clone();
@@ -1672,38 +1760,8 @@ where
                 cx.stop_propagation();
             }
         })
-        .on_key_up(|event, window, cx| {
-            if !matches!(event.keystroke.key.as_str(), "enter" | "space")
-                || cx.try_global::<ActiveKeyboardPresses>().is_none()
-            {
-                return;
-            }
-            let window_id = window.window_handle().window_id();
-            let key = event.keystroke.key.as_str();
-            let interactions = cx.update_global::<ActiveKeyboardPresses, _>(|pressed, _| {
-                let mut released = Vec::new();
-                pressed
-                    .0
-                    .retain(|(active_window, active_key, interaction)| {
-                        if *active_window == window_id && active_key == key {
-                            released.push(interaction.clone());
-                            false
-                        } else {
-                            interaction.upgrade().is_some()
-                        }
-                    });
-                released
-            });
-            for interaction in interactions {
-                if let Some(interaction) = interaction.upgrade() {
-                    interaction.update(cx, |state, cx| {
-                        if state.1 {
-                            state.1 = false;
-                            cx.notify();
-                        }
-                    });
-                }
-            }
+        .capture_key_up(|event, window, cx| {
+            release_active_keyboard_presses(event.keystroke.key.as_str(), window, cx);
         })
 }
 
@@ -1844,6 +1902,99 @@ pub(crate) fn ring_overlay_in(radius: Pixels, offset: bool, color: Hsla, cx: &Ap
 
 /// How far the ring's blur reaches past its outer edge, in logical pixels.
 const RING_BLUR_REACH: Pixels = gpui::px(3.);
+
+/// Full outward reach of [`focus_ring_overlay`] past the control's edge:
+/// offset gap plus stroke width plus Gaussian blur reach.
+pub(crate) fn focus_ring_reach(cx: &App) -> Pixels {
+    cx.layout().ring_offset_width + RING_WIDTH + RING_BLUR_REACH
+}
+
+/// Scroll-viewport gutter required to keep every edge of a row's focus ring
+/// unclipped, with 1px headroom so fractional-DPI pixel snapping never shaves
+/// off the outer blur edge.
+pub(crate) fn focus_ring_gutter(cx: &App) -> Pixels {
+    focus_ring_reach(cx) + gpui::px(1.)
+}
+
+/// Inner scroll viewport for non-virtualized popup lists (`Select`, `Menu`)
+/// whose rows paint an overlay focus ring outside their border-box.
+///
+/// The viewport itself extends `gutter` past the panel's content box on all
+/// four sides (even when `panel_padding` is zero), and each direct child gets
+/// symmetrical `py(gutter)` / negative inter-item vertical margins so its
+/// border-box used by `ScrollHandle::scroll_to_item` and the scroll endpoints
+/// always preserve the full `gutter` above and below the focused row without
+/// altering any row's position or width.
+pub(crate) fn focus_guttered_scroll_viewport<I>(
+    id: gpui::ElementId,
+    scroll: &gpui::ScrollHandle,
+    gap: Pixels,
+    gutter: Pixels,
+    items: I,
+) -> gpui::Stateful<Div>
+where
+    I: IntoIterator<Item = gpui::AnyElement>,
+    I::IntoIter: ExactSizeIterator,
+{
+    let iter = items.into_iter();
+    let len = iter.len();
+    let mut viewport = gpui::div()
+        .id(id)
+        .flex()
+        .flex_col()
+        .gap(gap)
+        .overflow_y_scroll()
+        .track_scroll(scroll)
+        .min_h(gpui::px(0.))
+        .flex_shrink(1.);
+    if len == 0 {
+        return viewport;
+    }
+    viewport = viewport.px(gutter).mx(-gutter).my(-gutter);
+    for (i, item) in iter.enumerate() {
+        viewport = viewport.child(
+            gpui::div()
+                .flex()
+                .flex_col()
+                .py(gutter)
+                .when(i > 0, |el| el.mt(-gutter))
+                .when(i + 1 < len, |el| el.mb(-gutter))
+                .child(item),
+        );
+    }
+    viewport
+}
+
+pub(crate) fn shape_multiline_max_width(
+    text: &str,
+    font: &gpui::Font,
+    text_size: Pixels,
+    window: &gpui::Window,
+) -> Pixels {
+    let mut max_w = gpui::px(0.);
+    for raw_line in text.split('\n') {
+        let line = raw_line.trim_end_matches('\r');
+        if line.is_empty() {
+            continue;
+        }
+        let run = gpui::TextRun {
+            len: line.len(),
+            font: font.clone(),
+            color: gpui::black(),
+            background_color: None,
+            underline: None,
+            strikethrough: None,
+        };
+        let w = window
+            .text_system()
+            .shape_line(line.to_owned().into(), text_size, &[run], None)
+            .width;
+        if w > max_w {
+            max_w = w;
+        }
+    }
+    max_w
+}
 /// The Gaussian's standard deviation, in logical pixels, tuned against the
 /// fork build's ring profile read one device pixel at a time at 2x.
 const RING_BLUR_SIGMA: f32 = 0.7;
@@ -1996,7 +2147,7 @@ pub fn ring_overlay_if_focused<T: Styled + ParentElement>(
 /// The step has to be ours rather than the app root's, so this stops
 /// propagation: `util::app_focus_root` binds Tab to `focus_next` on a listener
 /// higher in the tree, and both firing would move twice.
-pub fn trap_tab<T: gpui::InteractiveElement>(el: T, scope: &gpui::FocusHandle) -> T {
+pub fn trap_tab<T: InteractiveElement>(el: T, scope: &gpui::FocusHandle) -> T {
     let scope = scope.clone();
     el.on_key_down(move |event: &gpui::KeyDownEvent, window, cx| {
         if event.keystroke.key != "tab" {

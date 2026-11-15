@@ -5,6 +5,8 @@ mod harness;
 #[path = "source_scan/mod.rs"]
 mod source_scan;
 
+#[path = "a11y_actions_deep.rs"]
+mod a11y_actions_deep;
 #[path = "a11y_collections_deep.rs"]
 mod a11y_collections_deep;
 #[path = "a11y_deep.rs"]
@@ -17,6 +19,8 @@ mod a11y_pickers_deep;
 mod capability_hooks_deep;
 #[path = "cursor_token.rs"]
 mod cursor_token;
+#[path = "focus_ring_gutters_deep.rs"]
+mod focus_ring_gutters_deep;
 #[path = "focus_ring_overlay.rs"]
 mod focus_ring_overlay;
 #[path = "focus_root.rs"]

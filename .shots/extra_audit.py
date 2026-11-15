@@ -1045,6 +1045,13 @@ EXTRA_OK_SCOPED = {
     'InputGroup.height': 'no-classname',
     'InputGroup.padding_x': 'no-classname',
     'InputGroup.is_bare': 'no-context-propagation',
+    # Select intrinsic panel sizing (v3 uses CSS min-w-(--trigger-width) / utility classes).
+    'Select.fit_panel_width': 'no-classname',
+    'Select.intrinsic_panel_width': 'accessor',
+    # Tooltip external presentation boundary (cross-window HUD & capture exclusion).
+    'Tooltip.presenter_mode': 'herogpui-extension',
+    'Tooltip.presenter': 'herogpui-extension',
+    'Tooltip.exclude_from_capture': 'herogpui-extension',
 }
 
 

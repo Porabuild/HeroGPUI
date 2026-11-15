@@ -2,18 +2,18 @@
   "schema_version": 1,
   "target": "v3.2.7",
   "target_commit": "7cb1642606c6f96f424dad78a961ccf45436be72",
-  "inventory_recorded_on": "2026-11-10",
-  "inventory_verification_sha256": "be17f61d1298ab06926c949df87583b5672190d48b27764537bfca96723bc304",
-  "source_snapshot_sha256": "1cce7c5531ec184b40be68719f0eec2099fd5af0f001c4247f0f967aa65691b0",
+  "inventory_recorded_on": "2026-11-15",
+  "inventory_verification_sha256": "2af50f07ea1135cd5b75ff1f4c547f60de5a26eb7db82309bb935af25d941acc",
+  "source_snapshot_sha256": "3b2e3d961fedea585bab4a247f4a336c8820e597cc616053b5193f5d94deebac",
   "last_evidence_commit": null,
   "last_evidence_commit_recorded": false,
   "totals": {
-    "specimens": 818,
+    "specimens": 820,
     "verified": 0,
-    "outstanding": 818,
-    "unobserved": 818,
+    "outstanding": 820,
+    "unobserved": 820,
     "components": 69,
-    "gallery_sections": 811
+    "gallery_sections": 813
   },
   "status_counts": {
     "implemented-unverified": 7,
@@ -22,35 +22,35 @@
     "not-applicable": 0,
     "platform-limited": 0,
     "specified": 0,
-    "unreviewed": 811,
+    "unreviewed": 813,
     "verified": 0
   },
   "scope_counts": {
     "component-state": 4,
     "cross-component": 1,
-    "gallery-section": 811,
+    "gallery-section": 813,
     "platform-harness": 2
   },
   "evidence_counts": {
     "upstream": {
       "specimens_with_evidence": 5,
-      "specimens_missing_evidence": 813
+      "specimens_missing_evidence": 815
     },
     "native": {
       "specimens_with_evidence": 1,
-      "specimens_missing_evidence": 817
+      "specimens_missing_evidence": 819
     },
     "wasm": {
       "specimens_with_evidence": 1,
-      "specimens_missing_evidence": 817
+      "specimens_missing_evidence": 819
     },
     "tests": {
       "specimens_with_evidence": 5,
-      "specimens_missing_evidence": 813
+      "specimens_missing_evidence": 815
     },
     "all_surfaces": {
       "specimens_with_evidence": 1,
-      "specimens_missing_evidence": 817
+      "specimens_missing_evidence": 819
     }
   },
   "unobserved_statuses": [
@@ -4123,6 +4123,13 @@
       "state": "section-seed"
     },
     {
+      "id": "gallery/select/intrinsic-panel-width",
+      "component": "Select",
+      "scope": "gallery-section",
+      "status": "unreviewed",
+      "state": "section-seed"
+    },
+    {
       "id": "gallery/select/long-values-option-focus",
       "component": "Select",
       "scope": "gallery-section",
@@ -5678,6 +5685,13 @@
     },
     {
       "id": "gallery/tooltip/placement",
+      "component": "Tooltip",
+      "scope": "gallery-section",
+      "status": "unreviewed",
+      "state": "section-seed"
+    },
+    {
+      "id": "gallery/tooltip/presenter-boundary",
       "component": "Tooltip",
       "scope": "gallery-section",
       "status": "unreviewed",
@@ -7242,7 +7256,7 @@
     },
     {
       "component": "Select",
-      "specimens": 29,
+      "specimens": 30,
       "statuses": {
         "implemented-unverified": 1,
         "intentional-deviation": 0,
@@ -7250,11 +7264,11 @@
         "not-applicable": 0,
         "platform-limited": 0,
         "specified": 0,
-        "unreviewed": 28,
+        "unreviewed": 29,
         "verified": 0
       },
       "verified": 0,
-      "outstanding": 29,
+      "outstanding": 30,
       "unresolved_ids": [
         "gallery/select/asynchronous-loading",
         "gallery/select/box-customisation",
@@ -7269,6 +7283,7 @@
         "gallery/select/hover-colours",
         "gallery/select/icon-only-options",
         "gallery/select/in-surface",
+        "gallery/select/intrinsic-panel-width",
         "gallery/select/long-values-option-focus",
         "gallery/select/multiple-select",
         "gallery/select/placement",
@@ -7801,7 +7816,7 @@
     },
     {
       "component": "Tooltip",
-      "specimens": 8,
+      "specimens": 9,
       "statuses": {
         "implemented-unverified": 0,
         "intentional-deviation": 0,
@@ -7809,17 +7824,18 @@
         "not-applicable": 0,
         "platform-limited": 0,
         "specified": 0,
-        "unreviewed": 8,
+        "unreviewed": 9,
         "verified": 0
       },
       "verified": 0,
-      "outstanding": 8,
+      "outstanding": 9,
       "unresolved_ids": [
         "gallery/tooltip/custom-triggers",
         "gallery/tooltip/delay",
         "gallery/tooltip/hover-card",
         "gallery/tooltip/long-content",
         "gallery/tooltip/placement",
+        "gallery/tooltip/presenter-boundary",
         "gallery/tooltip/rich-content",
         "gallery/tooltip/usage",
         "gallery/tooltip/with-arrow"
@@ -7871,11 +7887,11 @@
       "recorded_on": "2026-11-09",
       "current": false,
       "counts": {
-        "pass": 811,
+        "pass": 813,
         "fail": 0,
         "skip": 0
       },
-      "sections_passing": 811,
+      "sections_passing": 813,
       "failing_ids": []
     },
     {
