@@ -1,6 +1,6 @@
 {
   "version": 4,
-  "inputsSha256": "22d1690b6526bfcec996013bb57202a134d8aa071dcde11f78c74a10c7020d01",
+  "inputsSha256": "0d17e6e4fa40b82676a3af892772f42a358d21736c3b7d20938ef9497377636a",
   "examples": {
     "accordion/Controlled": {
       "codeSha256": "ac39d58e626756503af3f2fedbcf0a3a791b32096093d62ca5c6aab77146d75b",
@@ -2314,6 +2314,10 @@
       "codeSha256": "29bcb4ae74ff9b754f941b317648af6cdd49c0c88d036d3f24fb836a10c45da2",
       "descriptionSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     },
+    "select/Intrinsic Panel Width": {
+      "codeSha256": "04c57146db1a972109a7efe7d55121f084747ce9b8d933ab8c1113806ff0ac61",
+      "descriptionSha256": "47e4d7392835b01f966c03503ebb061335aea695fa681dcaa6695e6f804d0fed"
+    },
     "select/Long Values & Option Focus": {
       "codeSha256": "646b13956024b644483b5f385871a092033ef3e9151e40655a2882dab90a6236",
       "descriptionSha256": "49ff46deccfbd7adf19d1696bcfd4beed751d14fd3b90f872a5fd01e207e3316"
@@ -3205,6 +3209,10 @@
     "tooltip/Placement": {
       "codeSha256": "6ee185f0c7eed5a8312f49c5de783bd4ee36c338b0d1a191e38bd5ece68c6868",
       "descriptionSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "tooltip/Presenter Boundary": {
+      "codeSha256": "2e55402d2861b0663f87d5786fb078b3c99e8bada0cc098a49de929b7168eb7a",
+      "descriptionSha256": "f42a216f06390e8c4386e418e5aafa08460fa974190dab1eeb65fc2a1a75688a"
     },
     "tooltip/Rich Content": {
       "codeSha256": "a4568aaa0988a47f99694a72cf1572224658785b9c3d543a70d6b29177b028f3",

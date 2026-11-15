@@ -2235,6 +2235,22 @@ impl Gallery {
                             .into_any_element(),
                     ]), cx),
                 ),
+                (
+                    "Presenter Boundary",
+                    "HeroGPUI extension, not a HeroUI v3 example: `presenter_mode(TooltipPresenterMode::SeparateWindow)` routes the tooltip into a non-activating secondary GPUI popup window for compact hosts, while `.presenter(Arc<dyn TooltipPresenter>)` attaches a custom native presenter; `exclude_from_capture` is advisory metadata ignored by the built-in GPUI popup.",
+                    specimen_body("tt-presenter-boundary", row(vec![
+                        h::Tooltip::new("Shown in a separate non-focusing GPUI popup window")
+                            .id("tip-separate-window")
+                            .presenter_mode(h::TooltipPresenterMode::SeparateWindow)
+                            .exclude_from_capture(true)
+                            .child(
+                                h::Button::new("tip-sep-btn")
+                                    .label("Separate window")
+                                    .variant(Variant::Secondary),
+                            )
+                            .into_any_element(),
+                    ]), cx),
+                ),
             ],
             cx,
         )

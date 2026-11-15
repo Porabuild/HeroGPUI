@@ -1560,6 +1560,28 @@ impl Gallery {
                         .radius(px(8.))
                         .into_any_element()]), cx),
                 ),
+                (
+                    "Intrinsic Panel Width",
+                    "HeroGPUI extension, not a HeroUI v3 example: `fit_panel_width(true)` measures options, icons, and indicators so narrow triggers expand their detached panel without wrapping labels (`intrinsic_panel_width` exposes the same measurement directly).",
+                    specimen_body("sel-fit-width", col(vec![
+                        gpui::div().w(px(140.)).child(
+                            h::Select::new("sel-fit-width", swatch_picker_items())
+                                .label("Accent")
+                                .placeholder("Pick")
+                                .full_width(true)
+                                .fit_panel_width(true)
+                                .item_leading(|key, _| {
+                                    Some(
+                                        gpui::div()
+                                            .size(px(14.))
+                                            .rounded(px(4.))
+                                            .bg(swatch_colour(key))
+                                            .into_any_element(),
+                                    )
+                                }),
+                        ).into_any_element(),
+                    ]), cx),
+                ),
             ],
             cx,
         )

@@ -811,7 +811,8 @@
     "Rich Content",
     "Long Content",
     "Delay",
-    "Hover Card"
+    "Hover Card",
+    "Presenter Boundary"
   ],
   "autocomplete": [
     "Usage",
@@ -899,7 +900,8 @@
     "Wrapping Trigger",
     "Custom Trigger Indicator",
     "Uncontrolled",
-    "Styling Overrides"
+    "Styling Overrides",
+    "Intrinsic Panel Width"
   ],
   "sheet": [
     "Usage",

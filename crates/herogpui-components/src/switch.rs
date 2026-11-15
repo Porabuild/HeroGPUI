@@ -748,7 +748,11 @@ impl RenderOnce for Switch {
         // a white overlay, so the track uses the solid role colour.
         let sx_corners = crate::util::fill_unspecified_corners(
             crate::util::sx_radius(&self.sx),
-            cx.theme().components.switch.resolve(&self.recipes).radius,
+            cx.theme()
+                .components
+                .switch
+                .resolve_named("switch", &self.recipes)
+                .radius,
         );
         let track_bg = if checked { accent_color } else { default_color };
         let hover_bg = self

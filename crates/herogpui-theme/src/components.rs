@@ -3,12 +3,79 @@
 //! Empty styles preserve each component's stock behavior. Recipes are resolved
 //! against the active theme during render, not captured when a builder is made.
 
+use std::cell::RefCell;
 use std::collections::HashMap;
+use std::sync::{Arc, RwLock};
 
 use gpui::{Div, Hsla, Pixels, SharedString, StyleRefinement, Styled};
 
 use crate::ThemeColors;
 use herogpui_core::{Color, FieldVariant, Size, Variant};
+
+/// Diagnostic report emitted when a component requests a recipe name that is
+/// absent from [`ComponentTheme::recipes`] while a diagnostic handler is
+/// installed via [`set_unknown_recipe_diagnostic_handler`].
+#[derive(Clone, Debug, PartialEq, Eq)]
+#[non_exhaustive]
+pub struct UnknownRecipeDiagnostic {
+    /// Component family name (for example `"button"` or `"select"`).
+    pub component: SharedString,
+    /// Requested recipe name that was not found.
+    pub requested: SharedString,
+    /// Sorted list of recipe names registered on the active theme for `component`.
+    pub available: Vec<SharedString>,
+}
+
+/// Callback invoked for unrecognized recipe lookups when enabled.
+pub type UnknownRecipeDiagnosticHandler = Arc<dyn Fn(&UnknownRecipeDiagnostic) + Send + Sync>;
+
+static UNKNOWN_RECIPE_HANDLER: RwLock<Option<UnknownRecipeDiagnosticHandler>> = RwLock::new(None);
+
+thread_local! {
+    static SCOPED_UNKNOWN_RECIPE_HANDLER: RefCell<Option<UnknownRecipeDiagnosticHandler>> =
+        const { RefCell::new(None) };
+}
+
+/// Installs or clears an opt-in diagnostic callback for unrecognized component
+/// recipe names.
+///
+/// The default handler is `None`, keeping missing recipe lookups silent with
+/// graceful fallback to theme defaults and stock styling. Applications can
+/// install a logger or panic hook during development without altering release
+/// behavior.
+///
+/// For thread-isolated checks (such as concurrent tests), prefer
+/// [`with_unknown_recipe_diagnostic_handler`].
+pub fn set_unknown_recipe_diagnostic_handler(handler: Option<UnknownRecipeDiagnosticHandler>) {
+    if let Ok(mut slot) = UNKNOWN_RECIPE_HANDLER.write() {
+        *slot = handler;
+    }
+}
+
+/// Runs `f` with a thread-local diagnostic callback installed for unrecognized
+/// component recipe names, restoring the previous thread-local handler even if
+/// `f` unwinds.
+///
+/// While active on the calling thread, this handler takes precedence over the
+/// process-global handler configured via [`set_unknown_recipe_diagnostic_handler`]
+/// without affecting other threads.
+pub fn with_unknown_recipe_diagnostic_handler<R>(
+    handler: UnknownRecipeDiagnosticHandler,
+    f: impl FnOnce() -> R,
+) -> R {
+    struct Restore(Option<UnknownRecipeDiagnosticHandler>);
+    impl Drop for Restore {
+        fn drop(&mut self) {
+            let prev = self.0.take();
+            SCOPED_UNKNOWN_RECIPE_HANDLER.with(|slot| {
+                *slot.borrow_mut() = prev;
+            });
+        }
+    }
+    let previous = SCOPED_UNKNOWN_RECIPE_HANDLER.with(|slot| slot.borrow_mut().replace(handler));
+    let _guard = Restore(previous);
+    f()
+}
 
 /// A color resolved from the active palette, or an application-defined literal.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -130,21 +197,69 @@ impl<T> ComponentTheme<T> {
 }
 
 impl<T: ComponentStyle> ComponentTheme<T> {
-    /// Resolve defaults, then named recipes in order. Missing names add no
-    /// override, so switching to a stock theme restores stock presentation.
-    pub fn resolve(&self, names: &[SharedString]) -> T {
+    fn resolve_with(&self, names: &[SharedString], mut on_missing: impl FnMut(&SharedString)) -> T {
         let mut style = self.defaults.clone();
         for name in names {
             if let Some(recipe) = self.recipes.get(name) {
                 style.refine(recipe);
+            } else {
+                on_missing(name);
             }
         }
         style
     }
+
+    /// Resolve defaults, then named recipes in order. Missing names add no
+    /// override, so switching to a stock theme restores stock presentation.
+    pub fn resolve(&self, names: &[SharedString]) -> T {
+        self.resolve_with(names, |_| {})
+    }
+
+    /// Like [`ComponentTheme::resolve`], while also notifying any handler
+    /// registered with [`set_unknown_recipe_diagnostic_handler`] when a
+    /// requested recipe name is absent from `self.recipes`.
+    pub fn resolve_named(&self, component: &str, names: &[SharedString]) -> T {
+        self.resolve_with(names, |name| {
+            if let Some(handler) = SCOPED_UNKNOWN_RECIPE_HANDLER
+                .with(|slot| slot.borrow().clone())
+                .or_else(|| {
+                    UNKNOWN_RECIPE_HANDLER
+                        .read()
+                        .ok()
+                        .and_then(|slot| slot.clone())
+                })
+            {
+                let mut available: Vec<SharedString> = self.recipes.keys().cloned().collect();
+                available.sort_by(|a, b| a.as_str().cmp(b.as_str()));
+                handler(&UnknownRecipeDiagnostic {
+                    component: SharedString::from(component.to_owned()),
+                    requested: name.clone(),
+                    available,
+                });
+            }
+        })
+    }
+}
+
+macro_rules! component_style_setter {
+    ($(#[$field_meta:meta])* $field:ident: @exact $ty:ty) => {
+        $(#[$field_meta])*
+        pub fn $field(mut self, value: $ty) -> Self {
+            self.$field = Some(value);
+            self
+        }
+    };
+    ($(#[$field_meta:meta])* $field:ident: $ty:ty) => {
+        $(#[$field_meta])*
+        pub fn $field(mut self, value: impl Into<$ty>) -> Self {
+            self.$field = Some(value.into());
+            self
+        }
+    };
 }
 
 macro_rules! component_style {
-    ($(#[$meta:meta])* $name:ident { $($(#[$field_meta:meta])* $field:ident: $ty:ty),* $(,)? }) => {
+    ($(#[$meta:meta])* $name:ident { $($(#[$field_meta:meta])* $field:ident: $(@$tag:ident)? $ty:ty),* $(,)? }) => {
         $(#[$meta])*
         #[must_use = "builder methods return a new value; the original is unchanged"]
         #[derive(Clone, Debug, Default)]
@@ -154,11 +269,7 @@ macro_rules! component_style {
         }
         impl $name {
             $(
-                $(#[$field_meta])*
-                pub fn $field(mut self, value: impl Into<$ty>) -> Self {
-                    self.$field = Some(value.into());
-                    self
-                }
+                component_style_setter!($(#[$field_meta])* $field: $(@$tag)? $ty);
             )*
         }
         impl ComponentStyle for $name {
@@ -296,6 +407,88 @@ component_style! {
         foreground: ComponentColor,
         /// Placeholder color.
         placeholder: ComponentColor,
+    }
+}
+component_style! {
+    /// Tooltip surface presentation and default hover timing.
+    TooltipStyle {
+        /// Corner radius of the tooltip surface.
+        radius: Pixels,
+        /// Distance in pixels between the trigger and the tooltip surface.
+        offset: Pixels,
+        /// Hover delay in milliseconds before opening.
+        delay_ms: @exact u64,
+        /// Hover delay in milliseconds before closing.
+        close_delay_ms: @exact u64,
+        /// Uniform inner padding inside the tooltip panel.
+        padding: Pixels,
+        /// Text size inside the tooltip surface.
+        text_size: Pixels,
+        /// Surface background color.
+        background: ComponentColor,
+        /// Text foreground color.
+        foreground: ComponentColor,
+    }
+}
+component_style! {
+    /// Popover dialog panel presentation.
+    PopoverStyle {
+        /// Corner radius of the popover panel.
+        radius: Pixels,
+        /// Uniform inner padding inside the popover panel.
+        padding: Pixels,
+        /// Distance in pixels between the trigger and the popover panel.
+        offset: Pixels,
+        /// Detached panel width.
+        panel_width: Pixels,
+        /// Panel background color.
+        background: ComponentColor,
+        /// Panel foreground color.
+        foreground: ComponentColor,
+    }
+}
+component_style! {
+    /// Multi-line TextArea presentation defaults and recipes.
+    TextAreaStyle {
+        /// Field variant.
+        variant: FieldVariant,
+        /// Horizontal padding inside the multi-line box.
+        padding_x: Pixels,
+        /// Text and placeholder size.
+        text_size: Pixels,
+        /// Corner radius.
+        radius: Pixels,
+        /// Whether the field drops its own chrome (background, border, shadow and rings).
+        is_bare: bool,
+        /// Whether the focus ring is drawn.
+        focus_ring: bool,
+        /// Background color.
+        background: ComponentColor,
+        /// Foreground (text) color.
+        foreground: ComponentColor,
+        /// Placeholder color.
+        placeholder: ComponentColor,
+    }
+}
+component_style! {
+    /// Tabs list container and indicator presentation.
+    TabsStyle {
+        /// Corner radius of the list container and sliding indicator.
+        radius: Pixels,
+        /// List container background color.
+        list_bg: ComponentColor,
+        /// Active indicator fill color.
+        indicator_bg: ComponentColor,
+        /// Whether the primary indicator renders its surface shadow.
+        indicator_shadow: bool,
+        /// Uniform padding inset inside the primary tab list tray.
+        list_padding: Pixels,
+        /// Whether unselected tabs render the hover wash overlay.
+        hover_fill: bool,
+        /// Label text size inside each tab.
+        text_size: Pixels,
+        /// Minimum width of each tab in a vertical tab list.
+        vertical_tab_min_width: Pixels,
     }
 }
 
@@ -452,6 +645,14 @@ pub struct ComponentThemes {
     pub button: ComponentTheme<ButtonStyle>,
     /// Text field defaults and recipes.
     pub text_field: ComponentTheme<TextFieldStyle>,
+    /// Tooltip defaults and recipes.
+    pub tooltip: ComponentTheme<TooltipStyle>,
+    /// Popover defaults and recipes.
+    pub popover: ComponentTheme<PopoverStyle>,
+    /// TextArea defaults and recipes.
+    pub textarea: ComponentTheme<TextAreaStyle>,
+    /// Tabs defaults and recipes.
+    pub tabs: ComponentTheme<TabsStyle>,
 }
 
 impl ComponentThemes {
@@ -490,6 +691,30 @@ impl ComponentThemes {
         self.text_field = text_field;
         self
     }
+
+    /// Sets the tooltip defaults and recipes.
+    pub fn tooltip(mut self, tooltip: ComponentTheme<TooltipStyle>) -> Self {
+        self.tooltip = tooltip;
+        self
+    }
+
+    /// Sets the popover defaults and recipes.
+    pub fn popover(mut self, popover: ComponentTheme<PopoverStyle>) -> Self {
+        self.popover = popover;
+        self
+    }
+
+    /// Sets the textarea defaults and recipes.
+    pub fn textarea(mut self, textarea: ComponentTheme<TextAreaStyle>) -> Self {
+        self.textarea = textarea;
+        self
+    }
+
+    /// Sets the tabs defaults and recipes.
+    pub fn tabs(mut self, tabs: ComponentTheme<TabsStyle>) -> Self {
+        self.tabs = tabs;
+        self
+    }
 }
 
 #[cfg(test)]
@@ -498,6 +723,9 @@ mod tests {
     use crate::ThemeColors;
     use gpui::px;
     use herogpui_core::oklch;
+    use std::sync::Mutex;
+
+    static DIAGNOSTIC_TEST_LOCK: Mutex<()> = Mutex::new(());
 
     #[test]
     fn empty_styles_resolve_to_stock_none_fields() {
@@ -507,6 +735,10 @@ mod tests {
         let button = themes.button.resolve(&[]);
         assert_eq!(button.variant, None);
         assert!(button.style.is_none());
+        assert_eq!(themes.tooltip.resolve(&[]).radius, None);
+        assert_eq!(themes.popover.resolve(&[]).padding, None);
+        assert_eq!(themes.textarea.resolve(&[]).padding_x, None);
+        assert_eq!(themes.tabs.resolve(&[]).indicator_shadow, None);
     }
 
     #[test]
@@ -539,6 +771,119 @@ mod tests {
             .recipe("ring", TextFieldStyle::default().focus_ring(true));
         assert_eq!(theme.resolve(&[]).focus_ring, Some(false));
         assert_eq!(theme.resolve(&["ring".into()]).focus_ring, Some(true));
+    }
+
+    #[test]
+    fn tooltip_popover_textarea_and_tabs_styles_refine_cleanly() {
+        let themes = ComponentThemes::default()
+            .tooltip(
+                ComponentTheme::new(TooltipStyle::default().padding(px(6.)).delay_ms(200))
+                    .recipe("compact", TooltipStyle::default().text_size(px(11.))),
+            )
+            .popover(
+                ComponentTheme::new(
+                    PopoverStyle::default()
+                        .padding(px(12.))
+                        .panel_width(px(220.)),
+                )
+                .recipe("flush", PopoverStyle::default().padding(px(4.))),
+            )
+            .textarea(
+                ComponentTheme::new(TextAreaStyle::default().focus_ring(false))
+                    .recipe("compact", TextAreaStyle::default().padding_x(px(8.))),
+            )
+            .tabs(
+                ComponentTheme::new(TabsStyle::default().indicator_shadow(false))
+                    .recipe("dense", TabsStyle::default().list_padding(px(0.))),
+            );
+
+        let tip = themes.tooltip.resolve(&["compact".into()]);
+        assert_eq!(tip.padding, Some(px(6.)));
+        assert_eq!(tip.delay_ms, Some(200));
+        assert_eq!(tip.text_size, Some(px(11.)));
+
+        let pop = themes.popover.resolve(&["flush".into()]);
+        assert_eq!(pop.panel_width, Some(px(220.)));
+        assert_eq!(pop.padding, Some(px(4.)));
+
+        let ta = themes.textarea.resolve(&["compact".into()]);
+        assert_eq!(ta.focus_ring, Some(false));
+        assert_eq!(ta.padding_x, Some(px(8.)));
+
+        let tabs = themes.tabs.resolve(&["dense".into()]);
+        assert_eq!(tabs.indicator_shadow, Some(false));
+        assert_eq!(tabs.list_padding, Some(px(0.)));
+    }
+
+    #[test]
+    fn unknown_recipe_diagnostics_are_opt_in_and_silent_by_default() {
+        let _guard = DIAGNOSTIC_TEST_LOCK.lock().unwrap();
+        set_unknown_recipe_diagnostic_handler(None);
+
+        let theme = ComponentTheme::new(TooltipStyle::default().padding(px(6.)))
+            .recipe("zeta", TooltipStyle::default())
+            .recipe("alpha", TooltipStyle::default());
+
+        // Default handler is None: silent fallback still returns defaults.
+        let resolved = theme.resolve_named("tooltip", &["missing".into()]);
+        assert_eq!(resolved.padding, Some(px(6.)));
+
+        let events = Arc::new(Mutex::new(Vec::<UnknownRecipeDiagnostic>::new()));
+        let recorded = events.clone();
+        set_unknown_recipe_diagnostic_handler(Some(Arc::new(move |diag| {
+            recorded.lock().unwrap().push(diag.clone());
+        })));
+
+        let _ = theme.resolve_named("tooltip", &["alpha".into(), "typo".into()]);
+        set_unknown_recipe_diagnostic_handler(None);
+
+        let captured = events.lock().unwrap();
+        assert_eq!(captured.len(), 1);
+        assert_eq!(captured[0].component, "tooltip");
+        assert_eq!(captured[0].requested, "typo");
+        assert_eq!(
+            captured[0].available,
+            vec![SharedString::from("alpha"), SharedString::from("zeta")]
+        );
+    }
+
+    #[test]
+    fn scoped_unknown_recipe_handler_is_thread_local_and_restores_on_unwind() {
+        let _guard = DIAGNOSTIC_TEST_LOCK.lock().unwrap();
+        set_unknown_recipe_diagnostic_handler(None);
+
+        let theme =
+            ComponentTheme::new(TooltipStyle::default()).recipe("known", TooltipStyle::default());
+        let seen = Arc::new(Mutex::new(Vec::<SharedString>::new()));
+        let sink = seen.clone();
+
+        let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            with_unknown_recipe_diagnostic_handler(
+                Arc::new(move |diag| {
+                    sink.lock().unwrap().push(diag.requested.clone());
+                }),
+                || {
+                    let _ = theme.resolve_named("tooltip", &["inside-before-panic".into()]);
+                    // Another thread must not inherit this thread-local handler.
+                    std::thread::spawn({
+                        let theme = theme.clone();
+                        move || {
+                            let _ = theme.resolve_named("tooltip", &["other-thread".into()]);
+                        }
+                    })
+                    .join()
+                    .unwrap();
+                    panic!("simulated unwind");
+                },
+            );
+        }));
+
+        // After unwinding, the scoped handler is restored and no longer active.
+        let _ = theme.resolve_named("tooltip", &["after-unwind".into()]);
+        assert_eq!(
+            seen.lock().unwrap().as_slice(),
+            [SharedString::from("inside-before-panic")]
+        );
     }
 
     #[test]

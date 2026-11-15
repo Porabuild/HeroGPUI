@@ -608,7 +608,12 @@ CHECKS = [
      r'\.rounded\(crate::util::(\w+_radius)', helper_px),
     ('tooltip', '.tooltip', 'p', 'Tooltip padding',
      SRC + 'tooltip.rs',
-     r'`\.tooltip` is `p-2` all round[\s\S]{0,120}?\.p\(px\((\d+(?:\.\d*)?)\.\)\)', None),
+     r'fn build_tooltip_surface[\s\S]*?`\.tooltip` is `p-2` all round[\s\S]{0,160}?\.p\(spec\.padding\)'
+     r'[\s\S]*?impl Render for SeparateTooltipView[\s\S]*?build_tooltip_surface\([\s\S]{0,400}?padding:\s*self\.padding'
+     r'[\s\S]*?let tip_padding = theme_padding\.unwrap_or\(px\((\d+(?:\.\d*)?)\)\);'
+     r'[\s\S]*?build_tooltip_surface\([\s\S]{0,400}?padding:\s*tip_padding'
+     r'[\s\S]*?if using_external_presenter[\s\S]*?if phase != util::OverlayPhase::Closed[\s\S]*?build_tooltip_surface\([\s\S]{0,400}?padding:\s*tip_padding',
+     None),
     ('switch-group', '.switch-group', 'gap', 'SwitchGroup gap',
      SRC + 'switch.rs',
      r'gpui::div\(\)\.flex\(\)\.flex_col\(\)\.gap\(px\((\d+(?:\.\d*)?)\.\)\)\.child', None),
@@ -1415,7 +1420,12 @@ CHECKS = [
     ('toast', '.toast', 'py', 'Toast padding_y', SRC + 'toast.rs',
      r'let panel_padding_y = self\.t\.padding\.unwrap_or\(px\((\d+(?:\.\d*)?)\)\);', None),
     ('tooltip', '.tooltip', 'text', 'Tooltip text', SRC + 'tooltip.rs',
-     r'\.text_size\(px\((\d+(?:\.\d*)?)\)\)', None),
+     r'fn build_tooltip_surface[\s\S]*?\.text_size\(spec\.text_size\)'
+     r'[\s\S]*?impl Render for SeparateTooltipView[\s\S]*?build_tooltip_surface\([\s\S]{0,400}?text_size:\s*self\.text_size'
+     r'[\s\S]*?let tip_text_size = theme_text_size\.unwrap_or\(px\((\d+(?:\.\d*)?)\)\);'
+     r'[\s\S]*?build_tooltip_surface\([\s\S]{0,400}?text_size:\s*tip_text_size'
+     r'[\s\S]*?if using_external_presenter[\s\S]*?if phase != util::OverlayPhase::Closed[\s\S]*?build_tooltip_surface\([\s\S]{0,400}?text_size:\s*tip_text_size',
+     None),
     ('chip', '.chip', 'radius', 'Chip -> util::_radius', SRC + 'chip.rs',
      r'let radius = self\.radius\.unwrap_or_else\(\|\| crate::util::(\w+_radius)\(cx\)\)',
      helper_px),
@@ -1423,8 +1433,9 @@ CHECKS = [
     ('chip', '.chip', 'gap', 'Chip gap', SRC + 'chip.rs',
      '\\.gap\\(px\\((\\d+(?:\\.\\d*)?)\\)\\)', None),
     ('popover', '.popover__dialog', 'p', 'Popover padding', SRC + 'popover.rs',
-     'let panel_padding_y = self\\.padding\\.unwrap_or\\(px\\(16\\.\\)\\);'
-     '\\s*let panel_padding_x = self\\.padding\\.unwrap_or\\(px\\((\\d+(?:\\.\\d*)?)\\)\\);', None),
+     'let panel_padding_y = self\\.padding\\.or\\(theme_padding\\)\\.unwrap_or\\(px\\(16\\.\\)\\);'
+     '\\s*let panel_padding_x = self\\.padding\\.or\\(theme_padding\\)\\.unwrap_or\\(px\\((\\d+(?:\\.\\d*)?)\\)\\);'
+     '[\\s\\S]{0,1600}?\\.px\\(panel_padding_x\\)\\s*\\.py\\(panel_padding_y\\)', None),
     ('pagination', '.pagination', 'gap', 'Pagination root gap', SRC + 'pagination.rs',
      r'\.justify_between\(\)[\s\S]{0,40}?\.gap\(px\((\d+(?:\.\d*)?)\.\)\)', None),
     ('alert', '.alert', 'gap', 'Alert gap', SRC + 'alert.rs',
@@ -4741,6 +4752,62 @@ def self_test():
            'Tabs radius drift must remain visible to the metric comparison')
     expect(re.search(tab_radius_pattern, '.rounded(crate::util::control_radius(cx))') is None,
            'a foreign radius must not satisfy the tab radius reader')
+
+    tip_p_pat = next(row[5] for row in CHECKS if row[3] == 'Tooltip padding')
+    tip_t_pat = next(row[5] for row in CHECKS if row[3] == 'Tooltip text')
+    tip_fixture = (
+        'fn build_tooltip_surface(spec: Spec) {\n'
+        '    // `.tooltip` is `p-2` all round.\n'
+        '    div().p(spec.padding).text_size(spec.text_size)\n'
+        '}\n'
+        'impl Render for SeparateTooltipView {\n'
+        '    fn render() { build_tooltip_surface(Spec { padding: self.padding, text_size: self.text_size }) }\n'
+        '}\n'
+        'let tip_padding = theme_padding.unwrap_or(px(8.));\n'
+        'let tip_text_size = theme_text_size.unwrap_or(px(12.));\n'
+        'build_tooltip_surface(Spec { padding: tip_padding, text_size: tip_text_size });\n'
+        'if using_external_presenter { return; }\n'
+        'if phase != util::OverlayPhase::Closed {\n'
+        '    build_tooltip_surface(Spec { padding: tip_padding, text_size: tip_text_size });\n'
+        '}\n'
+    )
+    expect(re.search(tip_p_pat, tip_fixture).group(1) == '8.',
+           'Tooltip padding reader must follow shared surface to fallback default')
+    expect(re.search(tip_t_pat, tip_fixture).group(1) == '12.',
+           'Tooltip text reader must follow shared surface to fallback default')
+    expect(re.search(tip_p_pat, tip_fixture.replace('px(8.)', 'px(99.)')).group(1) == '99.',
+           'Tooltip padding drift must remain visible to metric comparison')
+    expect(re.search(tip_t_pat, tip_fixture.replace('px(12.)', 'px(99.)')).group(1) == '99.',
+           'Tooltip text size drift must remain visible to metric comparison')
+    for broken in [
+        tip_fixture.replace('.p(spec.padding)', '.p(px(0.))'),
+        tip_fixture.replace('padding: self.padding', 'padding: px(0.)'),
+        tip_fixture.replace('padding: tip_padding', 'padding: px(0.)', 1),
+        tip_fixture.rsplit('padding: tip_padding', 1)[0] + 'padding: px(0.)' + tip_fixture.rsplit('padding: tip_padding', 1)[1],
+    ]:
+        expect(re.search(tip_p_pat, broken) is None,
+               'Tooltip padding reader must fail if any branch stops forwarding spec.padding')
+    for broken in [
+        tip_fixture.replace('.text_size(spec.text_size)', '.text_size(px(99.))'),
+        tip_fixture.replace('text_size: self.text_size', 'text_size: px(99.)'),
+        tip_fixture.replace('text_size: tip_text_size', 'text_size: px(99.)', 1),
+        tip_fixture.rsplit('text_size: tip_text_size', 1)[0] + 'text_size: px(99.)' + tip_fixture.rsplit('text_size: tip_text_size', 1)[1],
+    ]:
+        expect(re.search(tip_t_pat, broken) is None,
+               'Tooltip text reader must fail if any branch stops forwarding spec.text_size')
+
+    pop_p_pat = next(row[5] for row in CHECKS if row[3] == 'Popover padding')
+    pop_fixture = (
+        'let panel_padding_y = self.padding.or(theme_padding).unwrap_or(px(16.));\n'
+        'let panel_padding_x = self.padding.or(theme_padding).unwrap_or(px(16.));\n'
+        'div().px(panel_padding_x)\n.py(panel_padding_y)\n'
+    )
+    expect(re.search(pop_p_pat, pop_fixture).group(1) == '16.',
+           'Popover padding reader must verify panel_padding application')
+    expect(re.search(pop_p_pat, pop_fixture.replace('.px(panel_padding_x)', '.px(px(0.))')) is None,
+           'Popover padding reader must fail if .px(panel_padding_x) is dropped')
+    expect(re.search(pop_p_pat, pop_fixture.replace('.py(panel_padding_y)', '.py(px(0.))')) is None,
+           'Popover padding reader must fail if .py(panel_padding_y) is dropped')
 
     if failures:
         for failure in failures:

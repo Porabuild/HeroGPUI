@@ -1389,6 +1389,7 @@ pub struct Input {
     /// The `sx` slot, refined over the root style at the end of render.
     sx: Option<Box<gpui::StyleRefinement>>,
     recipes: Vec<SharedString>,
+    use_textarea_theme: bool,
 }
 
 impl Input {
@@ -1506,6 +1507,7 @@ impl Input {
             field_anchor: None,
             sx: None,
             recipes: Vec::new(),
+            use_textarea_theme: false,
         }
     }
 
@@ -1725,6 +1727,11 @@ impl Input {
 
     pub(crate) fn with_recipes(mut self, recipes: Vec<SharedString>) -> Self {
         self.recipes = recipes;
+        self
+    }
+
+    pub(crate) fn textarea_theme(mut self, v: bool) -> Self {
+        self.use_textarea_theme = v;
         self
     }
 
@@ -2143,7 +2150,32 @@ impl RenderOnce for Input {
         // snapshot so the remaining field labels and clear affordance can use
         // the same resolved tokens after the animation is installed.
         let colors = cx.colors().clone();
-        let field_theme = cx.theme().components.text_field.resolve(&self.recipes);
+        let field_theme = if self.use_textarea_theme {
+            use herogpui_theme::ComponentStyle as _;
+            let mut merged = cx.theme().components.text_field.defaults.clone();
+            let ta = cx
+                .theme()
+                .components
+                .textarea
+                .resolve_named("textarea", &self.recipes);
+            let mut overlay = herogpui_theme::TextFieldStyle::default();
+            overlay.variant = ta.variant;
+            overlay.padding_x = ta.padding_x;
+            overlay.text_size = ta.text_size;
+            overlay.radius = ta.radius;
+            overlay.is_bare = ta.is_bare;
+            overlay.focus_ring = ta.focus_ring;
+            overlay.background = ta.background;
+            overlay.foreground = ta.foreground;
+            overlay.placeholder = ta.placeholder;
+            merged.refine(&overlay);
+            merged
+        } else {
+            cx.theme()
+                .components
+                .text_field
+                .resolve_named("text_field", &self.recipes)
+        };
         if !self.variant_is_set {
             if let Some(variant) = field_theme.variant {
                 self.variant = variant;
@@ -2453,9 +2485,9 @@ impl RenderOnce for Input {
                     cx,
                 );
             }
-        }
-        if let Some(background) = theme_background {
-            field = field.bg(background);
+            if let Some(background) = theme_background {
+                field = field.bg(background);
+            }
         }
         if let Some(foreground) = theme_foreground {
             field = field.text_color(foreground);

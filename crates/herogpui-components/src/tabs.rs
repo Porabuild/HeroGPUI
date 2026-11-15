@@ -573,16 +573,17 @@ pub struct Tabs {
     /// Indicator fill override; the primary segment token and the secondary
     /// accent line are the defaults.
     indicator_bg: Option<gpui::Hsla>,
-    /// Gates the indicator's `shadow-surface`; the default keeps it.
-    indicator_shadow: bool,
+    /// Gates the indicator's `shadow-surface`; `None` keeps it.
+    indicator_shadow: Option<bool>,
     /// The primary tray's uniform inset override; the pinned default is 4px.
     list_padding: Option<gpui::Pixels>,
     /// A vertical list's per-tab width floor; the pinned default is 80px.
     vertical_tab_min_width: Option<gpui::Pixels>,
-    /// Gates the unselected-tab hover wash; the default keeps it.
-    hover_fill: bool,
+    /// Gates the unselected-tab hover wash; `None` keeps it.
+    hover_fill: Option<bool>,
     /// The `sx` slot, refined over the root style at the end of render.
     sx: Option<Box<gpui::StyleRefinement>>,
+    recipes: Vec<SharedString>,
 }
 
 impl Tabs {
@@ -648,12 +649,20 @@ impl Tabs {
             radius: None,
             list_bg: None,
             indicator_bg: None,
-            indicator_shadow: true,
+            indicator_shadow: None,
             list_padding: None,
             vertical_tab_min_width: None,
-            hover_fill: true,
+            hover_fill: None,
             sx: None,
+            recipes: Vec::new(),
         }
+    }
+
+    /// Named theme overlay from [`herogpui_theme::ComponentThemes::tabs`].
+    /// Stackable; a missing name adds no override.
+    pub fn recipe(mut self, name: impl Into<SharedString>) -> Self {
+        self.recipes.push(name.into());
+        self
     }
 
     /// Sets the visual variant (v3 `variant`).
@@ -736,7 +745,7 @@ impl Tabs {
     /// the reference's `shadow-none` does. The default keeps the pinned
     /// `shadow-surface`.
     pub fn indicator_shadow(mut self, v: bool) -> Self {
-        self.indicator_shadow = v;
+        self.indicator_shadow = Some(v);
         self
     }
 
@@ -787,7 +796,7 @@ impl Tabs {
     /// Not a v3 prop; v3's hover dim is stylesheet work, and turning it off
     /// there is className work on the tab too.
     pub fn hover_fill(mut self, v: bool) -> Self {
-        self.hover_fill = v;
+        self.hover_fill = Some(v);
         self
     }
 
@@ -934,23 +943,11 @@ impl RenderOnce for Tabs {
             (false, false)
         });
         let vertical = self.orientation == Orientation::Vertical;
-        let vertical_tab_min_width = self
-            .vertical_tab_min_width
-            .unwrap_or(VERTICAL_TAB_MIN_WIDTH);
         // `full_width` is a horizontal contract: equal shares of the list's
         // width. A vertical list's tabs are already `w_full`.
         let stretch = self.full_width && !vertical;
         let secondary = self.variant == TabsVariant::Secondary;
-        // The instance overrides refine the theme's resolved values; the
-        // reference segmented control uses all of them at once.
-        let radius_override = self.radius;
-        let list_bg = self.list_bg;
-        let indicator_bg = self.indicator_bg;
-        let indicator_shadow = self.indicator_shadow;
-        let hover_fill = self.hover_fill;
-        let list_padding = self.list_padding;
-        let (tab_h, tab_padding_x, tab_text) = self.size.metrics();
-        let tab_text = self.text_size.unwrap_or(tab_text);
+        let (tab_h, tab_padding_x, size_text) = self.size.metrics();
         let geometry = window.use_keyed_state(element_id::scoped(&base, "geometry"), cx, |_, _| {
             TabsGeometry::default()
         });
@@ -1015,6 +1012,31 @@ impl RenderOnce for Tabs {
 
         let colors = cx.colors().clone();
         let layout = cx.layout().clone();
+        let tabs_theme = cx
+            .theme()
+            .components
+            .tabs
+            .resolve_named("tabs", &self.recipes);
+        let vertical_tab_min_width = self
+            .vertical_tab_min_width
+            .or(tabs_theme.vertical_tab_min_width)
+            .unwrap_or(VERTICAL_TAB_MIN_WIDTH);
+        // The instance overrides refine the theme's resolved values; the
+        // reference segmented control uses all of them at once.
+        let radius_override = self.radius.or(tabs_theme.radius);
+        let list_bg = self
+            .list_bg
+            .or_else(|| tabs_theme.list_bg.map(|c| c.resolve(&colors)));
+        let indicator_bg = self
+            .indicator_bg
+            .or_else(|| tabs_theme.indicator_bg.map(|c| c.resolve(&colors)));
+        let indicator_shadow = self
+            .indicator_shadow
+            .or(tabs_theme.indicator_shadow)
+            .unwrap_or(true);
+        let hover_fill = self.hover_fill.or(tabs_theme.hover_fill).unwrap_or(true);
+        let list_padding = self.list_padding.or(tabs_theme.list_padding);
+        let tab_text = self.text_size.or(tabs_theme.text_size).unwrap_or(size_text);
         let tabs_hover_opacity = layout.tabs_hover_opacity;
         // The pinned stylesheet dims unselected tabs and overflow arrows to
         // `tabs_hover_opacity`. GPUI cannot animate an element's opacity

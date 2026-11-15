@@ -202,10 +202,12 @@ pub use ::herogpui_theme as theme;
 // install or switch a theme.
 #[cfg(feature = "theme")]
 pub use ::herogpui_theme::{
-    follow_system_appearance, set_reduce_motion, set_theme, stop_following_system_appearance,
-    toggle_light_dark, toggle_reduce_motion, use_theme, ActiveTheme, Appearance, ButtonStyle,
-    ComponentColor, ComponentTheme, ComponentThemes, MenuStyle, SelectStyle, SliderStyle,
-    SwitchStyle, TextFieldStyle, Theme, ThemeProvider,
+    follow_system_appearance, set_reduce_motion, set_theme, set_unknown_recipe_diagnostic_handler,
+    stop_following_system_appearance, toggle_light_dark, toggle_reduce_motion, use_theme,
+    with_unknown_recipe_diagnostic_handler, ActiveTheme, Appearance, ButtonStyle, ComponentColor,
+    ComponentTheme, ComponentThemes, MenuStyle, PopoverStyle, SelectStyle, SliderStyle,
+    SwitchStyle, TabsStyle, TextAreaStyle, TextFieldStyle, Theme, ThemeProvider, TooltipStyle,
+    UnknownRecipeDiagnostic, UnknownRecipeDiagnosticHandler,
 };
 #[cfg(feature = "serde")]
 pub use ::herogpui_theme::{
@@ -324,9 +326,12 @@ pub mod prelude {
     };
     #[cfg(feature = "theme")]
     pub use herogpui_theme::{
-        follow_system_appearance, set_reduce_motion, set_theme, stop_following_system_appearance,
-        toggle_light_dark, toggle_reduce_motion, use_theme, ActiveTheme, Appearance, ButtonStyle,
-        ComponentColor, ComponentTheme, ComponentThemes, MenuStyle, SelectStyle, SliderStyle,
-        SwitchStyle, TextFieldStyle, Theme, ThemeProvider,
+        follow_system_appearance, set_reduce_motion, set_theme,
+        set_unknown_recipe_diagnostic_handler, stop_following_system_appearance, toggle_light_dark,
+        toggle_reduce_motion, use_theme, with_unknown_recipe_diagnostic_handler, ActiveTheme,
+        Appearance, ButtonStyle, ComponentColor, ComponentTheme, ComponentThemes, MenuStyle,
+        PopoverStyle, SelectStyle, SliderStyle, SwitchStyle, TabsStyle, TextAreaStyle,
+        TextFieldStyle, Theme, ThemeProvider, TooltipStyle, UnknownRecipeDiagnostic,
+        UnknownRecipeDiagnosticHandler,
     };
 }

@@ -24,7 +24,7 @@ implementation under `src/` instead, and are not listed here.
 | Module | Covers | Tests |
 |---|---|---|
 | `button_geometry` | Button size ladder, box overrides, `grow`, and `font_weight` (style probe). | 8 |
-| `buttons` | Button, ButtonGroup, ToggleButton, CloseButton, Link, Chip-close and Alert-close press behavior. | 31 |
+| `buttons` | Button, ButtonGroup, ToggleButton, CloseButton, Link, Chip-close, Alert-close press behavior and focus-transfer keyboard press ownership. | 40 |
 | `close_button_deep` | CloseButton geometry, press and hover endpoints against pinned HeroUI v3.2.4 metrics. | 8 |
 | `choice_controls_deep` | Deeper keyboard/read-only behaviour for Switch, RadioGroup and ToggleButtonGroup. | 48 |
 | `checkbox_form_deep` | Checkbox keyboard, form, validation and focus contracts. | 22 |
@@ -59,6 +59,7 @@ implementation under `src/` instead, and are not listed here.
 | `dropdown_close` | Dropdown's close-on-activate contract, including submenus. | 25 |
 | `dropdown_seed_deep` | Dropdown.Menu's controlled/uncontrolled selection seeding. | 12 |
 | `dropdown_viewport_deep` | Dropdown menu viewport correction (flip/shift/clamp near edges). | 19 |
+| `focus_ring_gutters_deep` | Focus-ring viewport gutters on Select (natural & virtual, zero padding) and Dropdown/Menu (top/bottom edges, narrow panels, fractional DPI). | 4 |
 | `collections` | ListBox, Tabs, Accordion, Pagination, Breadcrumbs and TagGroup collection behaviour. | 16 |
 | `collections_deep` | Deeper collection behaviour: ListBox `onAction`, TagGroup edge cases, row padding. | 7 |
 | `collection_contracts` | Collection contracts inherited from pinned React Aria: ListBox/TagGroup/Table selection and keyboard. | 70 |
@@ -104,6 +105,7 @@ implementation under `src/` instead, and are not listed here.
 | `toast_update_deep` | `toast.update`: in-place content replacement. | 5 |
 | `placement` | Positional behaviour: surface placement, arrow, collision handling. | 19 |
 | `placement_extra` | Tooltip delays and the slider's other axis. | 10 |
+| `tooltip_presenter_deep` | `TooltipPresenter` boundary (`SeparateWindow` & custom presenters): hover/focus lifecycle, stale timers, Escape, unmount & presenter-swap dismissal, dynamic body/wrapped-text sizing, arrow overhang, trigger repositioning, multi-window isolation, monitor edge clamping, fractional DPI and `exclude_from_capture`. | 8 |
 
 ## Navigation (tabs/breadcrumbs/pagination/link)
 
@@ -156,12 +158,13 @@ implementation under `src/` instead, and are not listed here.
 | `a11y_overlays_deep` | Wave 2: accordion/disclosure/popover/dropdown/toast accessibility behaviour. | 6 |
 | `a11y_collections_deep` | Wave 3: list box/tabs/toolbar/breadcrumbs/pagination/tag group/table/autocomplete accessibility behaviour. | 10 |
 | `a11y_pickers_deep` | Wave 5: calendar/date field/time field/date picker/color picker accessibility behaviour. | 7 |
+| `a11y_actions_deep` | Operational AccessKit action handlers (`Select` Expand/Collapse & `Slider` SetValue/Increment/Decrement, disabled/controlled/range/invalid bounds). | 4 |
 
 ## Theming & tokens
 
 | Module | Covers | Tests |
 |---|---|---|
-| `component_themes` | Live `Theme.components` resolution: stock, defaults, recipes, instance overrides. | 11 |
+| `component_themes` | Live `Theme.components` resolution: stock, defaults, recipes (including Tooltip, Popover, TextArea, Tabs), unknown-recipe diagnostics, intrinsic Select panel sizing and instance overrides. | 17 |
 | `theme_platform` | Platform integration of the theme provider: OS appearance and GPUI window theme. | 4 |
 | `theme_repaint` | Theme provider repaint: global theme mutations must redraw every open window. | 1 |
 | `cursor_token` | The interactive cursor is a theme token, not a hard-coded call (source-shape check). | 2 |

@@ -182,7 +182,7 @@
 
 use gpui::{SharedString, StatefulInteractiveElement};
 
-pub use gpui::accesskit::{AriaCurrent, Role, Toggled};
+pub use gpui::accesskit::{Action, ActionData, AriaCurrent, Role, Toggled};
 
 use crate::validation::Validity;
 
@@ -595,6 +595,15 @@ pub trait A11y: StatefulInteractiveElement + Sized {
     /// not own the element upstream would have written it on.
     fn a11y_active_descendant(self) -> Self {
         self.aria_active_descendant()
+    }
+
+    /// Registers an AccessKit action handler on this element.
+    fn a11y_action(
+        self,
+        action: Action,
+        listener: impl FnMut(Option<&ActionData>, &mut gpui::Window, &mut gpui::App) + 'static,
+    ) -> Self {
+        self.on_a11y_action(action, listener)
     }
 }
 

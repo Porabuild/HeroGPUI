@@ -127,8 +127,12 @@ impl Gallery {
                         ),
                         mapping(
                             "Shared appearance",
-                            "Theme recipes: put height, padding, radius and semantic colours on \
-                             `ThemeBuilder::components` / `.recipe(\"name\")`. Instance `sx` is \
+                            "Theme recipes: put defaults and named `.recipe(\"name\")` overlays on \
+                             `ThemeBuilder::components` (`ButtonStyle`, `MenuStyle`, `SelectStyle`, \
+                             `SliderStyle`, `SwitchStyle`, `TextFieldStyle`, `TooltipStyle`, \
+                             `PopoverStyle`, `TextAreaStyle`, `TabsStyle`); inspect unknown recipe \
+                             names in development via `set_unknown_recipe_diagnostic_handler` or \
+                             scoped `with_unknown_recipe_diagnostic_handler`. Instance `sx` is \
                              for placement, width and flex.",
                             cx,
                         ),

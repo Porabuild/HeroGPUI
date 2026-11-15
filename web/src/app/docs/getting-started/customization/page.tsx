@@ -105,7 +105,7 @@ const BUILDER_ROWS: BuilderRow[] = [
   },
   {
     method: "components(ComponentThemes)",
-    sets: "Typed component defaults and named recipes. Resolved live from ThemeProvider each frame. Not a ThemeDocument JSON key.",
+    sets: "Typed defaults and named recipes for Button, Menu, Select, Slider, Switch, TextField, Tooltip, Popover, TextArea, and Tabs (`*Style`), with opt-in diagnostics via `set_unknown_recipe_diagnostic_handler` / `with_unknown_recipe_diagnostic_handler`. Resolved live from ThemeProvider each frame. Not a ThemeDocument JSON key.",
   },
   { method: "build()", sets: "Returns the `Theme`." },
 ];
