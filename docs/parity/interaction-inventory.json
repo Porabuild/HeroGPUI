@@ -25431,7 +25431,7 @@
     "sha256": "05b446692dfeb50449eb7ff3e1b974e787bdc86af15d2856f505cf34ca8689e6"
   },
   "source_snapshot": {
-    "sha256": "3b2e3d961fedea585bab4a247f4a336c8820e597cc616053b5193f5d94deebac",
+    "sha256": "f45f445c322d801fe3116aead6031a5949cb011ee0bc51e8d7e5b998f0cdd226",
     "files": {
       ".cargo/config.toml": "6ce2a269fd46b2570763e8e446ac93e9d04614416af21134877cf7b388e776f9",
       ".gitattributes": "0a560d39f04292518fe72516d91e2418d61d5eaa12a15af564dc07e60d391034",
@@ -25573,7 +25573,7 @@
       "crates/herogpui-components/src/resizable.rs": "9fd802962ae4aa7bfced9e23c129cb8edbb4f8eb288da920d4052fe95e034207",
       "crates/herogpui-components/src/scroll_shadow.rs": "cfc81ed435c6c6dc3e9e273bb73990305a8c4da5df12338cb3a80134fdc476a8",
       "crates/herogpui-components/src/scrollbar.rs": "23970a8a161ba361290ee77e28da454c59280e1d7752930785e5c4ee72952e9b",
-      "crates/herogpui-components/src/select.rs": "12a52c6fbc4896dd4a181666ed9b40595918ecc5be78f70fc4053419e9132d15",
+      "crates/herogpui-components/src/select.rs": "9b585462351b4e9a9a33afa6e02ece62633f1163a5f7ee05a0a1735db0f0c085",
       "crates/herogpui-components/src/selection.rs": "5cb1b59aa951da376a769c69fbf710999bf48b8751fd89cd0ce2b04196fcdf7d",
       "crates/herogpui-components/src/separator.rs": "231a2e9d5594435b835968ba953c52c6c04944ce3b1d06fc3e439f2fbf1f6ec7",
       "crates/herogpui-components/src/sheet.rs": "7e961a8f20ebfff47370c5f3c140f9c849bd3e57698bc81edcadb72735ab4c54",
@@ -25593,11 +25593,11 @@
       "crates/herogpui-components/src/toast.rs": "8c75b939373a8a8bdacda33bbc56ce0cfc1a7b3444e9ec146e5cc77f2f6a2126",
       "crates/herogpui-components/src/toggle_button.rs": "68346d6fa391e47e01fd6a03e362db4269251e68c60c7220559c61414dc32ae5",
       "crates/herogpui-components/src/toolbar.rs": "6cd180653760d98dab2b2f3e368d6642c73ffcaef5f4c560c926c58740b22110",
-      "crates/herogpui-components/src/tooltip.rs": "0c1eb477b8183b2e55d7342a5a2236e3168162eb734f7d194950b1d536e787ee",
+      "crates/herogpui-components/src/tooltip.rs": "584c77d68d85bef381812fd31eea75bc6e594f576d962524ef40d2ce65f15470",
       "crates/herogpui-components/src/traits.rs": "f006b26dc4613ddaff688baef7a157af089386fd9bd03ce296adac71c0bb0dc5",
       "crates/herogpui-components/src/tree_view.rs": "5022ca7d618c7bbb5dfc03bf9422da4a2398f825c6afaf49f01a0adef5093ca1",
       "crates/herogpui-components/src/typography.rs": "d9cd05830709531e4421294e95f80a76773f1b750333acd3350203204e73e0ec",
-      "crates/herogpui-components/src/util.rs": "81bae2764b66baefa00d3b64f96db06e8b41ba7406ef102a7c62ecc21bd59140",
+      "crates/herogpui-components/src/util.rs": "36c1b9e9e1f10f996d646f2886ad52d435a669dc7af33829806d693bfa997a15",
       "crates/herogpui-components/src/validation.rs": "d7d5020dcc215c8f1b843df96848beb7fa7a4ee109e7fe88e4b2e5e2fcce139e",
       "crates/herogpui-components/src/virtual_list.rs": "3a2e520fdc1a0cd4b1b00c20037764c963c5deef6439190a6d1ce721305ff7e5",
       "crates/herogpui-components/tests/a11y_actions_deep.rs": "7e7f88342a1777d1d10a85bfcc64726b286b01a8b0182200b67677a84f7479ed",
@@ -25961,7 +25961,7 @@
       "web/src/data/reference.json": "10ddfffca5ae59afae1e2ea6cc85a17709023893c30a3a4300e81224579023f2",
       "web/src/data/releases.json": "57238224f36dc77bc7ade27a781c80b4f40b18e7714cd053ee2ce70aea0baaa5",
       "web/src/data/rust-examples.json": "6ed06398a604369d8480c990313d98b3595b4ae4a7946227d998dd84aff822d8",
-      "web/src/data/wasm-parity.json": "ab5e7919c7f9097f9651781cc563b898ffdcef07168e5fe4e81c84fe9987aff0",
+      "web/src/data/wasm-parity.json": "0724444b546371f093fbc7c0acbe32b6c2ad316439629d89a5d8cbde323b2644",
       "web/src/data/wasm-sections.json": "3ec2df476f14a4bc474e31c51613397d5101e6f9026dbbe8e8db2b4da4bbee74",
       "web/src/lib/catalog.ts": "79681a0e1e0e12c9352ddc9eec0d6fe428906ceca07bfefb89623639396f81cf",
       "web/src/lib/docs-nav.ts": "ffb0d7fdaa0261395306f0bfa4e09c5ef88043c702c962f847983b05be67f55a",
@@ -150288,7 +150288,7 @@
       ]
     }
   ],
-  "verification_sha256": "2af50f07ea1135cd5b75ff1f4c547f60de5a26eb7db82309bb935af25d941acc",
+  "verification_sha256": "dc00879839136ad4b3b4b6f5e048291f6bdba5e1ea777e780f2c68a941c9026f",
   "retired_source_changes": [
     {
       "path": "packages/react/src/components/autocomplete/autocomplete.stories.tsx",

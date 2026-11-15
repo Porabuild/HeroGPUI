@@ -1308,7 +1308,6 @@ pub struct TooltipHover {
     focus_dismissed: bool,
     focus_open: bool,
     was_focused: bool,
-    _activation_sub: Option<gpui::Subscription>,
 }
 
 impl TooltipHover {
@@ -1319,7 +1318,6 @@ impl TooltipHover {
             focus_dismissed: false,
             focus_open: false,
             was_focused: false,
-            _activation_sub: None,
         }
     }
 
@@ -1754,18 +1752,25 @@ impl RenderOnce for Tooltip {
 
         // The state entity has to be created before the theme tokens are read;
         // `use_keyed_state` takes `cx` mutably and would conflict with them.
-        let state = window.use_keyed_state(key.clone(), cx, |window, cx| {
-            let mut hover = TooltipHover::new();
-            hover._activation_sub = Some(cx.observe_window_activation(
-                window,
-                |s: &mut TooltipHover, window, cx| {
-                    if !window.is_window_active() && s.close(true) {
-                        cx.notify();
+        let state = window.use_keyed_state(key.clone(), cx, |_, _| TooltipHover::new());
+        let weak_hover_activation = state.downgrade();
+        let _activation_watch = window.use_keyed_state(
+            element_id::scoped(&key, "activation-watch"),
+            cx,
+            move |window, cx| {
+                cx.observe_window_activation(window, move |_, window, cx| {
+                    if !window.is_window_active()
+                        && let Some(hover) = weak_hover_activation.upgrade()
+                    {
+                        hover.update(cx, |s, cx| {
+                            if s.close(true) {
+                                cx.notify();
+                            }
+                        });
                     }
-                },
-            ));
-            hover
-        });
+                })
+            },
+        );
         let current_tooltip = state.downgrade();
         let (
             theme_radius,
