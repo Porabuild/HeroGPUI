@@ -4,7 +4,7 @@ description: "HeroGPUI — native Rust/GPUI port of HeroUI v3.2.7. Use when buil
 metadata:
   author: herogpui
   source: https://github.com/Porabuild/HeroGPUI/blob/master/skills/herogpui/SKILL.md
-  version: "0.15.1"
+  version: "0.15.2"
 ---
 
 # HeroGPUI Development Guide
@@ -41,7 +41,7 @@ Do not invent Poratake-specific or app-specific field names in the library. App 
 ## Installation
 
 ```toml
-herogpui = "0.15.1"
+herogpui = "0.15.2"
 ```
 
 ```rust
@@ -165,9 +165,17 @@ Slider::new("vol", 0.5).recipe("pill");
 Input::new(&state).recipe("search");
 ```
 
+### APIs added in 0.15.2
+
+These APIs are included in HeroGPUI 0.15.2. Existing 0.15.x code remains compatible.
+
+- `Tooltip::{presenter_mode, presenter, exclude_from_capture}` with `TooltipPresenter`, `TooltipPresenterMode`, `TooltipPresentationRequest`, `SeparateWindowTooltipPresenter` and `position_tooltip_popup` route tooltips through a popup or native surface while HeroGPUI keeps the hover, focus, delay and Escape lifecycle.
+- `Select::fit_panel_width` and `Select::intrinsic_panel_width` size the menu to its icons, labels and indicators.
+- `TooltipStyle`, `PopoverStyle`, `TextAreaStyle` and `TabsStyle` join `ComponentThemes`; `.recipe(..)` is also on `Tooltip`, `Popover`, `TextArea` and `Tabs`. `set_unknown_recipe_diagnostic_handler` reports unknown recipe names.
+
 ### APIs added in 0.15.1
 
-These APIs are included in HeroGPUI 0.15.1. Existing 0.15.0 code remains compatible.
+These APIs are included in HeroGPUI 0.15.1.
 
 - `Select::item_content(|key, selected, window, cx| ..)` replaces visible option content while preserving collection labels and typeahead. `panel_gap(px)` and `panel_min_width(px)` also resolve through SelectStyle recipes.
 - `ColorSwatchPicker::sx` customizes the group layout. Keyboard columns follow the rendered allocation.
