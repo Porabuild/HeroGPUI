@@ -8,6 +8,8 @@ version covers `herogpui`, `herogpui-core`, `herogpui-theme`,
 
 ## [Unreleased]
 
+## [0.15.2] - 2026-11-15
+
 ### Added
 
 - Reusable tooltip presentation boundary (`TooltipPresenter`, `TooltipPresenterMode`, `TooltipPresentationRequest`, `SeparateWindowTooltipPresenter`, `position_tooltip_popup`, and `Tooltip::{presenter_mode, presenter, exclude_from_capture}`) so compact owner windows can display tooltips in non-activating popup or native OS surfaces while retaining HeroGPUI hover, focus, delay, warmup, cooldown, Escape, and unmount lifecycles.
@@ -979,7 +981,8 @@ for each breaking change with before/after code.
   `herogpui-components` and the `herogpui-gallery` CLI, built on the
   published `gpui-pre` 0.3.5 crates with no GPUI fork.
 
-[Unreleased]: https://github.com/Porabuild/HeroGPUI/compare/v0.15.1...HEAD
+[Unreleased]: https://github.com/Porabuild/HeroGPUI/compare/v0.15.2...HEAD
+[0.15.2]: https://github.com/Porabuild/HeroGPUI/compare/v0.15.1...v0.15.2
 [0.15.1]: https://github.com/Porabuild/HeroGPUI/compare/v0.15.0...v0.15.1
 [0.15.0]: https://github.com/Porabuild/HeroGPUI/compare/v0.14.0...v0.15.0
 [0.14.0]: https://github.com/Porabuild/HeroGPUI/compare/v0.13.0...v0.14.0
