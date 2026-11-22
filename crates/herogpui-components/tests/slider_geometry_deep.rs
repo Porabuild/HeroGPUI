@@ -364,22 +364,151 @@ fn small_shrinks_the_rail_the_inset_and_the_knob(cx: &mut TestAppContext) {
             .into_any_element()
     });
     flush_frame(cx);
-    assert_eq!(track_cross_axis(cx), px(6.), "Sm track cross axis");
+    assert_eq!(track_cross_axis(cx), px(18.), "Sm interactive cross axis");
     let thumb = probe.borrow().last().copied().expect("thumb bounds");
     assert_eq!(
         (thumb.size.width, thumb.size.height),
-        (12., 12.),
-        "Sm knob is a 12x12 square"
+        (14., 14.),
+        "Sm knob is a 14x14 square"
     );
-    // Value 0 centers the 12px knob one 8px inset in, and the knob straddles
-    // the 6px rail: its center stays on the rail center (y = 3).
-    assert_center(&probe, (8., 3.), "Sm axis inset and cross-axis centering");
+    // Value 0 centers the 14px knob one 8px inset in, and the knob straddles
+    // the 8px rail centered inside the 18px hit box (y = 9).
+    assert_center(&probe, (8., 9.), "Sm axis inset and cross-axis centering");
+}
+
+#[gpui::test]
+fn small_pointer_hits_the_overhanging_handle_outside_the_rail(cx: &mut TestAppContext) {
+    let recorded = harness::events();
+    let for_view = recorded.clone();
+    let cx = open_host(cx, move || {
+        let recorded = for_view.clone();
+        gpui::div()
+            .w(px(600.))
+            .child(
+                Slider::new("geo-sm-hit", 50.)
+                    .size(herogpui_components::SliderSize::Sm)
+                    .default_value(50.)
+                    .on_change(move |value, _, _| {
+                        recorded.borrow_mut().push(format!("{value}"));
+                    })
+                    .into_any_element(),
+            )
+            .into_any_element()
+    });
+    flush_frame(cx);
+
+    // Rail occupies y = 5..13 inside the 18px hit box; the 14px knob overhangs
+    // to y = 2..16. Pressing the top or bottom overhang must start a drag.
+    cx.simulate_mouse_down(
+        point(px(300.), px(3.)),
+        gpui::MouseButton::Left,
+        Modifiers::none(),
+    );
+    cx.simulate_mouse_move(
+        point(px(450.), px(3.)),
+        Some(gpui::MouseButton::Left),
+        Modifiers::none(),
+    );
+    cx.simulate_mouse_up(
+        point(px(450.), px(3.)),
+        gpui::MouseButton::Left,
+        Modifiers::none(),
+    );
+    flush_frame(cx);
+
+    cx.simulate_mouse_down(
+        point(px(450.), px(15.)),
+        gpui::MouseButton::Left,
+        Modifiers::none(),
+    );
+    cx.simulate_mouse_move(
+        point(px(150.), px(15.)),
+        Some(gpui::MouseButton::Left),
+        Modifiers::none(),
+    );
+    cx.simulate_mouse_up(
+        point(px(150.), px(15.)),
+        gpui::MouseButton::Left,
+        Modifiers::none(),
+    );
+    flush_frame(cx);
+
+    assert_eq!(
+        recorded.borrow().as_slice(),
+        ["75", "25"],
+        "dragging Sm from its overhanging handle above or below the rail must update the value"
+    );
+}
+
+#[gpui::test]
+fn vertical_small_pointer_hits_the_overhanging_handle_outside_the_rail(cx: &mut TestAppContext) {
+    let recorded = harness::events();
+    let for_view = recorded.clone();
+    let cx = open_host(cx, move || {
+        let recorded = for_view.clone();
+        gpui::div()
+            .w(px(600.))
+            .child(
+                Slider::new("geo-sm-vert-hit", 50.)
+                    .size(herogpui_components::SliderSize::Sm)
+                    .orientation(herogpui_core::Orientation::Vertical)
+                    .default_value(50.)
+                    .on_change(move |value, _, _| {
+                        recorded.borrow_mut().push(format!("{value}"));
+                    })
+                    .into_any_element(),
+            )
+            .into_any_element()
+    });
+    flush_frame(cx);
+
+    // Rail occupies x = 5..13 inside the 18px hit box; the 14px knob overhangs
+    // to x = 2..16. Pressing the left or right overhang must start a drag.
+    cx.simulate_mouse_down(
+        point(px(3.), px(80.)),
+        gpui::MouseButton::Left,
+        Modifiers::none(),
+    );
+    cx.simulate_mouse_move(
+        point(px(3.), px(40.)),
+        Some(gpui::MouseButton::Left),
+        Modifiers::none(),
+    );
+    cx.simulate_mouse_up(
+        point(px(3.), px(40.)),
+        gpui::MouseButton::Left,
+        Modifiers::none(),
+    );
+    flush_frame(cx);
+
+    cx.simulate_mouse_down(
+        point(px(15.), px(40.)),
+        gpui::MouseButton::Left,
+        Modifiers::none(),
+    );
+    cx.simulate_mouse_move(
+        point(px(15.), px(120.)),
+        Some(gpui::MouseButton::Left),
+        Modifiers::none(),
+    );
+    cx.simulate_mouse_up(
+        point(px(15.), px(120.)),
+        gpui::MouseButton::Left,
+        Modifiers::none(),
+    );
+    flush_frame(cx);
+
+    assert_eq!(
+        recorded.borrow().as_slice(),
+        ["75", "25"],
+        "dragging vertical Sm from its overhanging handle left or right of the rail must update the value"
+    );
 }
 
 /// The `Sm` default thumb is one round node in the foreground token, not
 /// `Md`'s pill-around-a-pill, and the `Sm` track and fill are pills. Read off
 /// the painted scene: the quads at the knob's bounds, and the corner radii of
-/// the rail's quads (fully rounded = half the 6px rail).
+/// the rail's quads (fully rounded = half the 8px rail).
 #[gpui::test]
 fn small_default_thumb_is_a_single_pill_layer(cx: &mut TestAppContext) {
     for (size, layers) in [
@@ -441,19 +570,19 @@ fn small_default_thumb_is_a_single_pill_layer(cx: &mut TestAppContext) {
                 .iter()
                 .filter(|q| {
                     let b = scene.bounds(q);
-                    (f32::from(b.size.height) - 6.).abs() < 0.5 && f32::from(b.size.width) > 6.
+                    (f32::from(b.size.height) - 8.).abs() < 0.5 && f32::from(b.size.width) > 8.
                 })
                 .all(|q| {
                     scene
                         .corners(q)
                         .iter()
-                        .all(|c| (c - 3.).abs() < 0.05 || *c < 0.05)
+                        .all(|c| (c - 4.).abs() < 0.05 || *c < 0.05)
                 });
             assert!(
                 rounded_rail
                     && scene.quads.iter().any(|q| {
                         let b = scene.bounds(q);
-                        (f32::from(b.size.height) - 6.).abs() < 0.5 && scene.is_uniform(q, 3.)
+                        (f32::from(b.size.height) - 8.).abs() < 0.5 && scene.is_uniform(q, 4.)
                     }),
                 "Sm's track and fill must be pills\n{}",
                 scene.describe()
@@ -620,7 +749,7 @@ fn single_thumb_fill_cap_joins_are_square_only_with_sx_corners(cx: &mut TestAppC
                         let (quads, scale) =
                             cx.update(|window, _| (window.painted_quads(), window.scale_factor()));
                         let inset = if small { 8. } else { 12. };
-                        let cross = if small { 6. } else { 20. };
+                        let cross = if small { 8. } else { 20. };
                         let extent = if vertical { 160. } else { 600. };
                         let length = (extent - 2. * inset) * value / 100.;
                         let origin = if vertical {

@@ -1,6 +1,6 @@
 {
   "version": 4,
-  "inputsSha256": "25a0ca55f3451739624214d56620408ae70780e98b044710fa6372a2332278e4",
+  "inputsSha256": "08382df70c3f5f9b6d5869da2e575c620781bcbf4edb3a3e59a9db8b2a35761d",
   "examples": {
     "accordion/Controlled": {
       "codeSha256": "ac39d58e626756503af3f2fedbcf0a3a791b32096093d62ca5c6aab77146d75b",
@@ -2556,7 +2556,7 @@
     },
     "slider/Sizes": {
       "codeSha256": "477f22977c163bff7b3dcb3157e882449c333882dfc81ae3f695733bab7555a3",
-      "descriptionSha256": "2d73dee7e26b276672b2bf6019a7d1fe14a24281cb439c2d48ac49aa8ed2230e"
+      "descriptionSha256": "0a772bc6341ed3664174008e3c7f873f1ca6c9252c6b7ee3ea4c4be92251e7ba"
     },
     "slider/Step & disabled": {
       "codeSha256": "49cbf97e33337cb03a87f6700d2f292b23fffae53f8d235d6c6b5e6c57b9100b",
