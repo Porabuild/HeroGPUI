@@ -1295,7 +1295,7 @@
     },
     {
       "heading": "Sizes",
-      "description": "`size` is HeroGPUI's additive scale: `Md` is v3's 20px rail with its two-layer thumb, and `Sm` is a 6px pill with a single 12px knob.",
+      "description": "`size` is HeroGPUI's additive scale: `Md` is v3's 20px rail with its two-layer thumb, and `Sm` is an 8px pill with a single 14px knob inside an 18px hit box.",
       "imports": "use herogpui::prelude::{Slider, SliderSize};\nuse herogpui::gpui::prelude::*;\nuse herogpui::gpui::px;\nuse herogpui::gpui;",
       "context": "app",
       "code": "gpui::div()\n    .flex()\n    .flex_col()\n    .items_start()\n    .justify_center()\n    .gap(px(12.))\n    .children(vec![\n        gpui::div()\n            .w(px(320.))\n            .child(Slider::new(\"slider-size-md\", 40.)\n                        .default_value(40.)\n                        .label(\"Md\")\n                        .show_value(true))\n            .into_any_element(),\n        gpui::div()\n            .w(px(320.))\n            .child(Slider::new(\"slider-size-sm\", 40.)\n                        .default_value(40.)\n                        .size(SliderSize::Sm)\n                        .label(\"Sm\")\n                        .show_value(true))\n            .into_any_element(),\n    ])"

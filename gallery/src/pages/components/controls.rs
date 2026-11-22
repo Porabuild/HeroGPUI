@@ -234,7 +234,7 @@ impl Gallery {
                     ]),
                 ),
                 (
-                    "Sizes", "`size` is HeroGPUI's additive scale: `Md` is v3's 20px rail with its two-layer thumb, and `Sm` is a 6px pill with a single 12px knob.",
+                    "Sizes", "`size` is HeroGPUI's additive scale: `Md` is v3's 20px rail with its two-layer thumb, and `Sm` is an 8px pill with a single 14px knob inside an 18px hit box.",
                     col(vec![
                         fixed_demo(
                             320.,
