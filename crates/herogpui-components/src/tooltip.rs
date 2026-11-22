@@ -35,6 +35,16 @@ use crate::{
 /// side when `show_arrow` is enabled (`ARROW_SIZE` matches `.size(px(12.))`).
 const TOOLTIP_ARROW_SIZE: Pixels = px(12.);
 
+/// HeroUI's default tooltip width cap (`max-w-xs` = 320px).
+const TOOLTIP_MAX_WIDTH: Pixels = px(320.);
+
+/// Minimum inset kept between an in-window tooltip and the window viewport edges.
+const TOOLTIP_VIEWPORT_MARGIN: Pixels = px(8.);
+
+/// Deferred draw priority for in-window tooltips, lifted above `util::floating`
+/// (priority `0`) so tooltips triggered inside popovers or menus paint on top.
+const TOOLTIP_DEFERRED_PRIORITY: usize = 10;
+
 /// Where the tip sits relative to its trigger.
 ///
 /// Shares the one placement vocabulary with the popovers and pickers — the
@@ -401,14 +411,67 @@ fn tooltip_text_with_break_opportunities(text: &str) -> String {
     result
 }
 
-fn tooltip_display_content(text: &str, natural_width: Pixels) -> (String, bool) {
-    let needs_breaks = natural_width > px(320.);
-    let display = if needs_breaks {
-        tooltip_text_with_break_opportunities(text)
-    } else {
-        text.to_owned()
-    };
-    (display, needs_breaks)
+fn in_window_viewport_bounds(viewport: Size<Pixels>) -> Bounds<Pixels> {
+    let margin = f32::from(TOOLTIP_VIEWPORT_MARGIN);
+    let width = f32::from(viewport.width).max(0.0);
+    let height = f32::from(viewport.height).max(0.0);
+    let inset_x = margin.min(width * 0.5);
+    let inset_y = margin.min(height * 0.5);
+    Bounds {
+        origin: point(px(inset_x), px(inset_y)),
+        size: size(
+            px((width - inset_x * 2.0).max(0.0)),
+            px((height - inset_y * 2.0).max(0.0)),
+        ),
+    }
+}
+
+fn in_window_tooltip_max_width(viewport: Size<Pixels>) -> Pixels {
+    (viewport.width - TOOLTIP_VIEWPORT_MARGIN * 2.)
+        .max(px(0.))
+        .min(TOOLTIP_MAX_WIDTH)
+}
+
+fn selector_base(id: &ElementId) -> String {
+    match id {
+        ElementId::Name(name) => name.to_string(),
+        other => format!("{other:?}"),
+    }
+}
+
+fn tooltip_display_content_for_width(
+    text: &str,
+    natural_width: Pixels,
+    max_width: Pixels,
+    available_text_width: Pixels,
+    mut measure_word: impl FnMut(&str) -> Pixels,
+) -> (String, bool) {
+    if natural_width <= max_width {
+        return (text.to_owned(), false);
+    }
+    let mut result = String::with_capacity(text.len());
+    let mut idx = 0;
+    while idx < text.len() {
+        let rest = &text[idx..];
+        let ch = rest.chars().next().unwrap();
+        if ch.is_whitespace() {
+            let ws_len = rest
+                .find(|c: char| !c.is_whitespace())
+                .unwrap_or(rest.len());
+            result.push_str(&rest[..ws_len]);
+            idx += ws_len;
+        } else {
+            let word_len = rest.find(|c: char| c.is_whitespace()).unwrap_or(rest.len());
+            let word = &rest[..word_len];
+            if measure_word(word) > available_text_width {
+                result.push_str(&tooltip_text_with_break_opportunities(word));
+            } else {
+                result.push_str(word);
+            }
+            idx += word_len;
+        }
+    }
+    (result, true)
 }
 
 fn measure_tooltip_text_width(window: &Window, text: &str, text_size: Pixels) -> Pixels {
@@ -422,6 +485,7 @@ struct TooltipSurfaceSpec<'a> {
     radius: Pixels,
     padding: Pixels,
     text_size: Pixels,
+    max_width: Pixels,
     background: Option<gpui::Hsla>,
     foreground: Option<gpui::Hsla>,
     show_arrow: bool,
@@ -443,6 +507,9 @@ fn build_tooltip_surface(
     } else {
         px(0.)
     };
+    let chrome_width = spec.padding * 2. + hairline_width;
+    let max_width = spec.max_width.max(px(0.));
+    let available_text_width = (max_width - chrome_width).max(px(0.));
 
     let (body_child, fixed_width, keep_nowrap): (AnyElement, Option<Pixels>, bool) = match spec.body
     {
@@ -450,24 +517,28 @@ fn build_tooltip_surface(
         None => {
             // Measure lines separately so embedded `\n` never trips GPUI's
             // single-line `shape_line` debug assertion, and insert zero-width
-            // break opportunities only when a single line exceeds the 320px cap.
+            // break opportunities only inside individual words wider than the
+            // available text width.
             let natural_text_width =
                 measure_tooltip_text_width(window, spec.content.as_ref(), spec.text_size);
-            let natural_width = natural_text_width + spec.padding * 2. + hairline_width;
-            let (display, needs_breaks) =
-                tooltip_display_content(spec.content.as_ref(), natural_width);
-            let measured_text_width = if needs_breaks {
-                measure_tooltip_text_width(window, &display, spec.text_size)
+            let natural_width = natural_text_width + chrome_width;
+            let (display, wraps) = tooltip_display_content_for_width(
+                spec.content.as_ref(),
+                natural_width,
+                max_width,
+                available_text_width,
+                |word| measure_tooltip_text_width(window, word, spec.text_size),
+            );
+            let tooltip_width = if wraps {
+                max_width
             } else {
-                natural_text_width
+                natural_width.min(max_width)
             };
-            let intrinsic_width = measured_text_width + spec.padding * 2. + hairline_width;
-            let tooltip_width = intrinsic_width.min(px(320.));
             let display_content: SharedString = display.into();
             (
                 display_content.into_any_element(),
                 Some(tooltip_width),
-                !needs_breaks,
+                !wraps,
             )
         }
     };
@@ -483,7 +554,7 @@ fn build_tooltip_surface(
         .p(spec.padding)
         .map(|el| match fixed_width {
             Some(width) => el.w(width),
-            None => el.max_w(px(320.)),
+            None => el.max_w(max_width),
         })
         .rounded(spec.radius)
         .bg(tip_bg)
@@ -497,20 +568,30 @@ fn build_tooltip_surface(
             el.border(layout.border_width).border_color(hairline)
         })
         .shadow(layout.overlay_shadow.clone())
+        .debug_selector({
+            let name = format!("{}-tip", selector_base(spec.key));
+            move || name
+        })
         .child(body_child);
 
     if spec.show_arrow {
-        let mut arrow = gpui::div().absolute().child(
-            gpui::svg()
-                .size(TOOLTIP_ARROW_SIZE)
-                .path(icons::TOOLTIP_ARROW)
-                // svg() never inherits text colour; the arrow has to be tinted
-                // to match the tip body explicitly.
-                .text_color(tip_bg)
-                .with_transformation(gpui::Transformation::rotate(gpui::radians(arrow_rotation(
-                    spec.placement,
-                )))),
-        );
+        let mut arrow = gpui::div()
+            .absolute()
+            .debug_selector({
+                let name = format!("{}-arrow", selector_base(spec.key));
+                move || name
+            })
+            .child(
+                gpui::svg()
+                    .size(TOOLTIP_ARROW_SIZE)
+                    .path(icons::TOOLTIP_ARROW)
+                    // svg() never inherits text colour; the arrow has to be tinted
+                    // to match the tip body explicitly.
+                    .text_color(tip_bg)
+                    .with_transformation(gpui::Transformation::rotate(gpui::radians(
+                        arrow_rotation(spec.placement),
+                    ))),
+            );
         arrow = if spec.placement.is_side() {
             let base = if spec.placement.is_start_side() {
                 arrow.left_full()
@@ -862,6 +943,7 @@ impl Render for SeparateTooltipView {
                 radius: self.radius,
                 padding: self.padding,
                 text_size: self.text_size,
+                max_width: TOOLTIP_MAX_WIDTH,
                 background: self.background,
                 foreground: self.foreground,
                 show_arrow: self.show_arrow,
@@ -1283,6 +1365,132 @@ impl Element for TooltipTriggerPresent {
 }
 
 impl IntoElement for TooltipTriggerPresent {
+    type Element = Self;
+
+    fn into_element(self) -> Self::Element {
+        self
+    }
+}
+
+struct TooltipPositioner {
+    trigger: std::rc::Rc<std::cell::Cell<Option<Bounds<Pixels>>>>,
+    resolved_placement: popover::ResolvedPlacementHandle,
+    requested_placement: TooltipPlacement,
+    built_placement: TooltipPlacement,
+    offset: Pixels,
+    container: AnyElement,
+}
+
+impl TooltipPositioner {
+    fn new(
+        trigger: std::rc::Rc<std::cell::Cell<Option<Bounds<Pixels>>>>,
+        resolved_placement: popover::ResolvedPlacementHandle,
+        requested_placement: TooltipPlacement,
+        built_placement: TooltipPlacement,
+        offset: Pixels,
+        child: impl IntoElement,
+    ) -> Self {
+        Self {
+            trigger,
+            resolved_placement,
+            requested_placement,
+            built_placement,
+            offset,
+            container: gpui::div().flex().child(child).into_any_element(),
+        }
+    }
+}
+
+impl Element for TooltipPositioner {
+    type RequestLayoutState = ();
+    type PrepaintState = bool;
+
+    fn id(&self) -> Option<ElementId> {
+        None
+    }
+
+    fn source_location(&self) -> Option<&'static core::panic::Location<'static>> {
+        None
+    }
+
+    fn request_layout(
+        &mut self,
+        _: Option<&GlobalElementId>,
+        _: Option<&InspectorElementId>,
+        window: &mut Window,
+        cx: &mut App,
+    ) -> (LayoutId, Self::RequestLayoutState) {
+        let _ = self.container.request_layout(window, cx);
+        let layout = window.request_layout(
+            gpui::Style {
+                position: gpui::Position::Absolute,
+                ..gpui::Style::default()
+            },
+            [],
+            cx,
+        );
+        (layout, ())
+    }
+
+    fn prepaint(
+        &mut self,
+        _: Option<&GlobalElementId>,
+        _: Option<&InspectorElementId>,
+        _: Bounds<Pixels>,
+        _: &mut Self::RequestLayoutState,
+        window: &mut Window,
+        cx: &mut App,
+    ) -> Self::PrepaintState {
+        let Some(trigger) = self.trigger.get() else {
+            return false;
+        };
+        let tip_size = self.container.layout_as_root(
+            size(
+                gpui::AvailableSpace::MaxContent,
+                gpui::AvailableSpace::MaxContent,
+            ),
+            window,
+            cx,
+        );
+        let viewport_bounds = in_window_viewport_bounds(window.viewport_size());
+        let (origin, resolved) = resolve_tooltip_popup_placement(
+            trigger,
+            tip_size,
+            viewport_bounds,
+            self.requested_placement,
+            self.offset,
+            window.scale_factor(),
+        );
+        if self.resolved_placement.get() != Some(resolved) {
+            self.resolved_placement.set(Some(resolved));
+        }
+        if resolved != self.built_placement {
+            window.defer(cx, |window, _| window.refresh());
+        }
+        window.with_absolute_element_offset(origin, |window| {
+            self.container.prepaint(window, cx);
+        });
+        true
+    }
+
+    fn paint(
+        &mut self,
+        _: Option<&GlobalElementId>,
+        _: Option<&InspectorElementId>,
+        _: Bounds<Pixels>,
+        _: &mut Self::RequestLayoutState,
+        prepainted: &mut Self::PrepaintState,
+        window: &mut Window,
+        cx: &mut App,
+    ) {
+        if !*prepainted {
+            return;
+        }
+        self.container.paint(window, cx);
+    }
+}
+
+impl IntoElement for TooltipPositioner {
     type Element = Self;
 
     fn into_element(self) -> Self::Element {
@@ -1917,16 +2125,14 @@ impl RenderOnce for Tooltip {
         let foreground = theme_foreground.map(|color| color.resolve(cx.colors()));
 
         let using_external_presenter = external_presenter.is_some();
+        let trigger_bounds = window
+            .use_keyed_state(element_id::scoped(&key, "trigger-bounds"), cx, |_, _| {
+                std::rc::Rc::new(std::cell::Cell::new(None::<Bounds<Pixels>>))
+            })
+            .read(cx)
+            .clone();
         let trigger: AnyElement = if let Some(presenter) = external_presenter {
             let lease = lease.expect("external presenter always allocates a lease");
-            let trigger_bounds = window
-                .use_keyed_state(
-                    element_id::scoped(&key, "presenter-trigger-bounds"),
-                    cx,
-                    |_, _| std::rc::Rc::new(std::cell::Cell::new(None::<Bounds<Pixels>>)),
-                )
-                .read(cx)
-                .clone();
             let request = if phase != util::OverlayPhase::Closed {
                 let tip_size = if let Some(render) = self.body.as_ref() {
                     let rendered_body = render(window, cx);
@@ -1938,6 +2144,7 @@ impl RenderOnce for Tooltip {
                             radius,
                             padding: tip_padding,
                             text_size: tip_text_size,
+                            max_width: TOOLTIP_MAX_WIDTH,
                             background,
                             foreground,
                             show_arrow: false,
@@ -1993,6 +2200,7 @@ impl RenderOnce for Tooltip {
                                 radius,
                                 padding: tip_padding,
                                 text_size: tip_text_size,
+                                max_width: TOOLTIP_MAX_WIDTH,
                                 background,
                                 foreground,
                                 show_arrow: false,
@@ -2053,7 +2261,7 @@ impl RenderOnce for Tooltip {
             TooltipTriggerPresent {
                 child: popover::PopoverTriggerMeasure::new(trigger_div, trigger_bounds.clone())
                     .into_any_element(),
-                trigger_bounds,
+                trigger_bounds: trigger_bounds.clone(),
                 presenter,
                 lease,
                 request,
@@ -2063,7 +2271,8 @@ impl RenderOnce for Tooltip {
             if let Some(lease) = &lease {
                 dismiss_lease(lease, window, cx);
             }
-            trigger_div.into_any_element()
+            popover::PopoverTriggerMeasure::new(trigger_div, trigger_bounds.clone())
+                .into_any_element()
         };
 
         let mut wrapper = gpui::div()
@@ -2160,6 +2369,8 @@ impl RenderOnce for Tooltip {
         // only built while it is visible: `shape_line` is the most expensive
         // call in this render, and a closed tooltip has no surface to size.
         if phase != util::OverlayPhase::Closed {
+            let (resolved_placement, effective_placement) =
+                popover::field_placement_feedback(window, cx, &key, self.placement);
             // The caller's body is built first: it takes `cx` mutably, and the
             // theme reads below hold it borrowed for the rest of this block.
             let body = self.body.take().map(|render| render(window, cx));
@@ -2171,10 +2382,11 @@ impl RenderOnce for Tooltip {
                     radius,
                     padding: tip_padding,
                     text_size: tip_text_size,
+                    max_width: in_window_tooltip_max_width(window.viewport_size()),
                     background,
                     foreground,
                     show_arrow: self.show_arrow,
-                    placement: self.placement,
+                    placement: effective_placement,
                 },
                 window,
                 cx,
@@ -2189,7 +2401,7 @@ impl RenderOnce for Tooltip {
 
             // `absolute` does not lift the tip above later siblings in the page,
             // so it has to paint last.
-            let (slide_x, slide_y) = entry_offset(self.placement);
+            let (slide_x, slide_y) = entry_offset(effective_placement);
             let zoom = anim::ZoomBox::panel(tip_padding, radius).padding_x(tip_padding);
             let zoom = anim::ZoomBox {
                 slide_x: (slide_x != 0.0).then(|| px(slide_x)),
@@ -2217,34 +2429,16 @@ impl RenderOnce for Tooltip {
                     cx,
                 )
             };
-            // Keep the placement anchor outside the animated surface. The
-            // inner `ZoomBox` can then apply its four-pixel relative slide
-            // without clobbering the anchor's absolute side constraint.
-            let mut anchor = gpui::div().absolute();
-            anchor = if self.placement.is_side() {
-                let base = if self.placement.is_start_side() {
-                    anchor.right_full().mr(resolved_offset)
-                } else {
-                    anchor.left_full().ml(resolved_offset)
-                };
-                match self.placement.align() {
-                    PlacementAlign::Start => base.top_0(),
-                    PlacementAlign::End => base.bottom_0(),
-                    PlacementAlign::Center => base.top_0().bottom_0().flex().items_center(),
-                }
-            } else {
-                let base = if self.placement.is_above() {
-                    anchor.bottom_full().mb(resolved_offset)
-                } else {
-                    anchor.top_full().mt(resolved_offset)
-                };
-                match self.placement.align() {
-                    PlacementAlign::Start => base.left_0(),
-                    PlacementAlign::End => base.right_0(),
-                    PlacementAlign::Center => base.left_0().right_0().flex().justify_center(),
-                }
-            };
-            wrapper = wrapper.child(util::floating(anchor.child(animated)));
+            let positioner = TooltipPositioner::new(
+                trigger_bounds,
+                resolved_placement,
+                self.placement,
+                effective_placement,
+                resolved_offset,
+                animated,
+            );
+            wrapper =
+                wrapper.child(util::floating(positioner).with_priority(TOOLTIP_DEFERRED_PRIORITY));
         }
 
         util::apply_sx(wrapper, &self.sx).into_any_element()
@@ -2256,9 +2450,10 @@ mod tests {
     use gpui::{point, px, size, Bounds};
 
     use super::{
-        arrow_rotation, entry_offset, flip_tooltip_placement, position_tooltip_popup,
-        resolve_tooltip_popup_placement, separate_popup_bounds, tooltip_display_content,
-        tooltip_text_with_break_opportunities, SeparateTooltipRegistry, TooltipPlacement,
+        arrow_rotation, entry_offset, flip_tooltip_placement, in_window_tooltip_max_width,
+        position_tooltip_popup, resolve_tooltip_popup_placement, separate_popup_bounds,
+        tooltip_display_content_for_width, tooltip_text_with_break_opportunities,
+        SeparateTooltipRegistry, TooltipPlacement,
     };
 
     #[test]
@@ -2274,14 +2469,54 @@ mod tests {
     }
 
     #[test]
-    fn short_tooltips_keep_their_label_while_long_content_gets_breaks() {
+    fn short_tooltips_keep_their_label_while_only_overflowing_words_get_breaks() {
+        let char_w = |s: &str| px(s.chars().count() as f32 * 8.);
+
+        // Fits within max width: unchanged, does not wrap.
         assert_eq!(
-            tooltip_display_content("Left", px(40.)),
+            tooltip_display_content_for_width("Left", px(40.), px(320.), px(304.), char_w),
             ("Left".to_owned(), false)
         );
-        let (long, needs_breaks) = tooltip_display_content("longtoken", px(321.));
-        assert!(needs_breaks);
-        assert!(long.contains('\u{200b}'));
+
+        // Multi-word sentence wider than max width, but each individual word fits:
+        // wraps cleanly at spaces without inserting zero-width breaks into normal words.
+        let (multi, wraps_multi) = tooltip_display_content_for_width(
+            "Wrap cleanly at spaces",
+            px(220.),
+            px(120.),
+            px(104.),
+            char_w,
+        );
+        assert!(wraps_multi);
+        assert_eq!(multi, "Wrap cleanly at spaces");
+        assert!(!multi.contains('\u{200b}'));
+
+        // Mixed sentence with an unbroken URL wider than available width:
+        // only the overflowing URL gets zero-width break opportunities.
+        let url = "https://example.com/unbroken/path";
+        let mixed = format!("Visit {url} now");
+        let (display, wraps_mixed) =
+            tooltip_display_content_for_width(&mixed, px(400.), px(160.), px(144.), char_w);
+        assert!(wraps_mixed);
+        assert!(display.starts_with("Visit "));
+        assert!(display.ends_with(" now"));
+        let middle = display
+            .strip_prefix("Visit ")
+            .and_then(|s| s.strip_suffix(" now"))
+            .unwrap();
+        assert!(middle.contains('\u{200b}'));
+        assert_eq!(middle.replace('\u{200b}', ""), url);
+
+        // Narrow viewport max-width helper caps to (viewport.width - margin * 2).min(320).
+        assert_eq!(
+            in_window_tooltip_max_width(size(px(800.), px(600.))),
+            px(320.)
+        );
+        assert_eq!(
+            in_window_tooltip_max_width(size(px(200.), px(300.))),
+            px(184.)
+        );
+        assert_eq!(in_window_tooltip_max_width(size(px(12.), px(100.))), px(0.));
     }
 
     #[test]
