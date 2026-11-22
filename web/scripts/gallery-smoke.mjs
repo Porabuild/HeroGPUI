@@ -352,7 +352,7 @@ async function launchChrome(chromePath, signal) {
       const timer = setTimeout(() => {
         cleanup();
         fail(new Error(`Chrome did not expose DevTools:\n${stderr}`));
-      }, 15000);
+      }, 60000);
       proc.stderr.on("data", onData);
       proc.once("exit", onExit);
       proc.once("error", onError);
@@ -647,6 +647,7 @@ async function browserVersion(cdp) {
 /** Run one Chrome worker over its assigned `examples` and optional checks. */
 async function runWorker({
   chrome,
+  launch = () => launchChrome(chrome, signal),
   base,
   examples,
   opts,
@@ -672,7 +673,7 @@ async function runWorker({
       .join("; ") || null;
   const ctx = { errors, setStep, failIfErrors };
 
-  const chromeHandle = await launchChrome(chrome, signal);
+  const chromeHandle = await launch();
   const { cdp, proc, profile } = chromeHandle;
   const onAbort = () => {
     cdp.close();
@@ -906,6 +907,14 @@ async function run(opts) {
 
   const controller = new AbortController();
   let firstError = null;
+  // Serialize cold browser startup across workers so multiple headless Chrome
+  // launches do not contend for CPU/fontconfig/DevTools startup on CI runners.
+  let launchGate = Promise.resolve();
+  const acquireLaunch = (fn) => {
+    const next = launchGate.then(fn, fn);
+    launchGate = next.catch(() => {});
+    return next;
+  };
   try {
     const buckets = partitionExamples(examples, opts.workers);
     const effectiveBuckets = buckets.length ? buckets : [[]];
@@ -914,6 +923,7 @@ async function run(opts) {
       effectiveBuckets.map((bucket, idx) =>
         runWorker({
           chrome,
+          launch: () => acquireLaunch(() => launchChrome(chrome, controller.signal)),
           base,
           examples: bucket,
           opts,
