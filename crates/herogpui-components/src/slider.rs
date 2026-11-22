@@ -121,8 +121,8 @@ fn default_output(labels: &[String]) -> String {
 
 /// Slider scale. HeroUI v3.2.4 draws exactly one slider size, which is
 /// [`SliderSize::Md`] here and stays the default; `Sm` is HeroGPUI's additive
-/// compact rail — a 6px track with a single-layer 12px round knob, fully
-/// rounded on every part.
+/// compact rail — an 8px track with a single-layer 14px round knob inside an
+/// 18px interactive hit box, fully rounded on every part.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum SliderSize {
     /// The compact scale.
@@ -860,17 +860,19 @@ impl RenderOnce for Slider {
         // 28x20 around a 24x16 centre horizontally, transposed vertically.
         let track_cross = px(20.);
         let thumb_along = px(28.);
-        // `Sm` is the additive compact rail: a 6px track with a single-layer
-        // 12x12 round knob, which is also its whole hit area.
+        // `Sm` is the additive compact rail: an 8px track with a single-layer
+        // 14x14 round knob centered inside an 18px interactive hit box so the
+        // overhanging handle always receives pointer input.
         let small = self.size == SliderSize::Sm;
         let (track_cross, thumb_along) = if small {
-            (px(6.), px(12.))
+            (px(8.), px(14.))
         } else {
             (track_cross, thumb_along)
         };
-        // The knob overhangs the 6px rail, so it centers on the cross axis by
+        // The knob overhangs the 8px rail, so it centers on the cross axis by
         // half the overhang; `Md`'s thumb matches the rail and needs none.
-        let thumb_cross = if small { px(12.) } else { track_cross };
+        let thumb_cross = if small { px(14.) } else { track_cross };
+        let hit_cross = if small { px(18.) } else { track_cross };
         let cross_overhang = (thumb_cross - track_cross) / 2.;
         let range_span = self.max - self.min;
 
@@ -949,7 +951,6 @@ impl RenderOnce for Slider {
                 .radius,
         );
         let mut track = gpui::div()
-            .id(self.id.clone())
             .relative()
             .flex()
             .items_center()
@@ -957,42 +958,15 @@ impl RenderOnce for Slider {
             .when(small, |t| t.rounded_full())
             .bg(default.color);
         track = if vertical {
-            track.w(track_cross).h(px(160.))
+            if small {
+                track.w(track_cross).h_full()
+            } else {
+                track.w(track_cross).h(px(160.))
+            }
         } else {
             track.w_full().h(track_cross)
         };
         track = crate::util::round_sx_corners(track, &sx_corners);
-
-        if !self.is_disabled {
-            track = crate::util::cursor_interactive(track, cx);
-        } else {
-            track = track.opacity(layout.disabled_opacity);
-        }
-
-        // bounds recorder
-        let recorder_bounds = bounds_slot.clone();
-        track = track.child(
-            gpui::canvas(
-                move |bounds: Bounds<gpui::Pixels>, _, cx| {
-                    recorder_bounds.update(cx, |slot, _| {
-                        *slot = Bounds {
-                            origin: gpui::point(
-                                f32::from(bounds.origin.x),
-                                f32::from(bounds.origin.y),
-                            ),
-                            size: gpui::size(
-                                f32::from(bounds.size.width),
-                                f32::from(bounds.size.height),
-                            ),
-                        };
-                    });
-                    bounds
-                },
-                |_, _, _, _| {},
-            )
-            .absolute()
-            .inset_0(),
-        );
 
         // v3's track keeps transparent 12px borders along the slider axis
         // (`border-x-[0.75rem]` horizontal, `border-y-[0.75rem]` vertical —
@@ -1005,7 +979,7 @@ impl RenderOnce for Slider {
         let fill_start = fill_reaches_start(thumbs.len(), fill_from, fill_to);
         let fill_end = fill_reaches_end(fill_to);
         let track_radius = crate::util::small_radius(cx);
-        // Half the 6px rail rounds `Sm`'s end caps into a pill.
+        // Half the 8px rail rounds `Sm`'s end caps into a pill.
         let track_radius = if small {
             track_cross / 2.
         } else {
@@ -1378,6 +1352,54 @@ impl RenderOnce for Slider {
         }
         track = track.child(content);
 
+        let mut interactive = if small {
+            let container = gpui::div()
+                .id(self.id.clone())
+                .relative()
+                .flex()
+                .items_center()
+                .justify_center();
+            let container = if vertical {
+                container.w(hit_cross).h(px(160.))
+            } else {
+                container.w_full().h(hit_cross)
+            };
+            container.child(track)
+        } else {
+            track.id(self.id.clone())
+        };
+
+        if !self.is_disabled {
+            interactive = crate::util::cursor_interactive(interactive, cx);
+        } else {
+            interactive = interactive.opacity(layout.disabled_opacity);
+        }
+
+        // bounds recorder
+        let recorder_bounds = bounds_slot.clone();
+        interactive = interactive.child(
+            gpui::canvas(
+                move |bounds: Bounds<gpui::Pixels>, _, cx| {
+                    recorder_bounds.update(cx, |slot, _| {
+                        *slot = Bounds {
+                            origin: gpui::point(
+                                f32::from(bounds.origin.x),
+                                f32::from(bounds.origin.y),
+                            ),
+                            size: gpui::size(
+                                f32::from(bounds.size.width),
+                                f32::from(bounds.size.height),
+                            ),
+                        };
+                    });
+                    bounds
+                },
+                |_, _, _, _| {},
+            )
+            .absolute()
+            .inset_0(),
+        );
+
         // v3 drives a slider from the keyboard: the arrows step it, Home and End
         // jump to the ends, and Page Up/Down move by a tenth of the range --
         // React Aria's page step. Without this the pointer was the only way to
@@ -1401,73 +1423,74 @@ impl RenderOnce for Slider {
             // the tab order, exactly as the group-wide flag does: the handle
             // exists but nothing tracks it, so Tab walks past the control.
             if any_enabled {
-                track = track.track_focus(&focus_handle);
+                interactive = interactive.track_focus(&focus_handle);
             }
-            track = track
-                .key_context("Slider")
-                .on_key_down(move |event, window, cx| {
-                    let key = event.keystroke.key.as_str();
-                    let key = match (rtl, key) {
-                        (true, "left") => "right",
-                        (true, "right") => "left",
-                        _ => key,
-                    };
-                    let index = (*held_thumb.read(cx)).min(keys_thumbs.len().saturating_sub(1));
-                    let current = keys_thumbs.get(index).copied().unwrap_or(min);
-                    // Tab-like movement between the thumbs of a range slider:
-                    // the roving stop advances to the next *enabled* thumb,
-                    // so it never lands on a disabled one (AGENTS.md's "a
-                    // disabled control must leave the tab order"). The scan
-                    // is bounded, so an all-disabled set cannot spin.
-                    if key == "tab" && keys_thumbs.len() > 1 {
-                        let mut next_i = index;
-                        for _ in 0..keys_thumbs.len() {
-                            next_i = (next_i + 1) % keys_thumbs.len();
-                            if keys_enabled[next_i] {
-                                break;
+            interactive =
+                interactive
+                    .key_context("Slider")
+                    .on_key_down(move |event, window, cx| {
+                        let key = event.keystroke.key.as_str();
+                        let key = match (rtl, key) {
+                            (true, "left") => "right",
+                            (true, "right") => "left",
+                            _ => key,
+                        };
+                        let index = (*held_thumb.read(cx)).min(keys_thumbs.len().saturating_sub(1));
+                        let current = keys_thumbs.get(index).copied().unwrap_or(min);
+                        // Tab-like movement between the thumbs of a range slider:
+                        // the roving stop advances to the next *enabled* thumb,
+                        // so it never lands on a disabled one (AGENTS.md's "a
+                        // disabled control must leave the tab order"). The scan
+                        // is bounded, so an all-disabled set cannot spin.
+                        if key == "tab" && keys_thumbs.len() > 1 {
+                            let mut next_i = index;
+                            for _ in 0..keys_thumbs.len() {
+                                next_i = (next_i + 1) % keys_thumbs.len();
+                                if keys_enabled[next_i] {
+                                    break;
+                                }
                             }
+                            // `next_i == index` only when no other thumb is
+                            // enabled; the stop stays where it is rather than
+                            // landing on a disabled thumb.
+                            if next_i != index {
+                                held_thumb.update(cx, |v, cx| {
+                                    *v = next_i;
+                                    cx.notify();
+                                });
+                            }
+                            return;
                         }
-                        // `next_i == index` only when no other thumb is
-                        // enabled; the stop stays where it is rather than
-                        // landing on a disabled thumb.
-                        if next_i != index {
-                            held_thumb.update(cx, |v, cx| {
-                                *v = next_i;
-                                cx.notify();
-                            });
+                        // A disabled thumb answers no key: v3 disables its input,
+                        // so the arrows never move it.
+                        if !keys_enabled.get(index).copied().unwrap_or(true) {
+                            return;
                         }
-                        return;
-                    }
-                    // A disabled thumb answers no key: v3 disables its input,
-                    // so the arrows never move it.
-                    if !keys_enabled.get(index).copied().unwrap_or(true) {
-                        return;
-                    }
-                    if !min.is_finite() || !max.is_finite() || min > max {
-                        return;
-                    }
-                    let next = match key {
-                        "right" | "up" => current + step,
-                        "left" | "down" => current - step,
-                        "pageup" => current + page,
-                        "pagedown" => current - page,
-                        "home" => min,
-                        "end" => max,
-                        _ => return,
-                    };
-                    // Snapped and clamped the same way a drag is, so the two
-                    // cannot land on different values.
-                    let next = match key {
-                        "right" | "up" if !key_steps.is_empty() => {
-                            step_discrete_value(&key_steps, current, true)
+                        if !min.is_finite() || !max.is_finite() || min > max {
+                            return;
                         }
-                        "left" | "down" if !key_steps.is_empty() => {
-                            step_discrete_value(&key_steps, current, false)
-                        }
-                        _ => snap_value(next, min, max, snap_step, &key_steps),
-                    };
-                    key_commit.commit_thumb(index, next, &keys_thumbs, window, cx);
-                });
+                        let next = match key {
+                            "right" | "up" => current + step,
+                            "left" | "down" => current - step,
+                            "pageup" => current + page,
+                            "pagedown" => current - page,
+                            "home" => min,
+                            "end" => max,
+                            _ => return,
+                        };
+                        // Snapped and clamped the same way a drag is, so the two
+                        // cannot land on different values.
+                        let next = match key {
+                            "right" | "up" if !key_steps.is_empty() => {
+                                step_discrete_value(&key_steps, current, true)
+                            }
+                            "left" | "down" if !key_steps.is_empty() => {
+                                step_discrete_value(&key_steps, current, false)
+                            }
+                            _ => snap_value(next, min, max, snap_step, &key_steps),
+                        };
+                        key_commit.commit_thumb(index, next, &keys_thumbs, window, cx);
+                    });
 
             let target_down = DragTarget {
                 rtl,
@@ -1491,7 +1514,7 @@ impl RenderOnce for Slider {
             let b_down = bounds_slot.clone();
             let d_down = dragging.clone();
             let on_drag_start = self.on_drag_start.clone();
-            track = track.on_mouse_down(
+            interactive = interactive.on_mouse_down(
                 gpui::MouseButton::Left,
                 move |ev: &MouseDownEvent, window, cx| {
                     let Some(value) =
@@ -1563,7 +1586,7 @@ impl RenderOnce for Slider {
             let on_drag_end = self.on_drag_end.clone();
             let on_change_end = self.on_change_end.clone();
             let on_change_end_all = self.on_change_end_all.clone();
-            track = track.child(
+            interactive = interactive.child(
                 gpui::canvas(
                     |bounds, _, _| bounds,
                     move |_, _, window, _| {
@@ -1640,12 +1663,18 @@ impl RenderOnce for Slider {
         }
 
         if any_enabled {
-            track = crate::util::record_focus_bounds(track, &focus_handle, window, cx);
+            interactive = crate::util::record_focus_bounds(interactive, &focus_handle, window, cx);
         }
         el = if vertical && has_marks {
-            el.child(gpui::div().flex().gap(px(8.)).child(track).child(marks))
+            el.child(
+                gpui::div()
+                    .flex()
+                    .gap(px(8.))
+                    .child(interactive)
+                    .child(marks),
+            )
         } else {
-            el.child(track).when(has_marks, |el| el.child(marks))
+            el.child(interactive).when(has_marks, |el| el.child(marks))
         };
         el = crate::util::apply_sx(el, &self.sx);
         el

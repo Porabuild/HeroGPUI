@@ -10,7 +10,7 @@
   },
   "gallery_source": {
     "path": "web/src/data/rust-examples.json",
-    "sha256": "6ed06398a604369d8480c990313d98b3595b4ae4a7946227d998dd84aff822d8"
+    "sha256": "b84ee4605e1e2a386af15902e90c2ebd120022a181b08649722fd38b38b02c0a"
   },
   "scope_note": "Inventory only, not parity evidence. Expand each demo into its individual rendered variants and state paths before verification. Include upstream stories, documented props, CSS modifiers and inherited React Aria semantics; demos alone are not exhaustive. Gallery and upstream keys are separate inventories, not an asserted one-to-one mapping.",
   "source_changes": [
@@ -17704,7 +17704,7 @@
       {
         "heading": "Sizes",
         "code_sha256": "22a3ab883e410e47e16515af0206933446d00ab6bcf3587dfe3d3b30bb0b1513",
-        "content_sha256": "d7f044d36ba07fa2f2f61869f3dc6c7cbd167197200225f08700a92c76e1066c",
+        "content_sha256": "0781326f3721ab1687cbc2aecadb84aa9fb697c3089879310038184ba73fed5b",
         "status": "unreviewed",
         "history": [
           {
@@ -17716,6 +17716,12 @@
             "heading": "Sizes",
             "code_sha256": "35b82e8f89fd3bcb2d72a935f1a28e8b6f17e7c44e3cb036deeb75f9425bcfb2",
             "content_sha256": "5bec23a4c7e38f44ef819296d3a54f8984ecbcfec7da51ed179419ffd18d95b5",
+            "status": "unreviewed"
+          },
+          {
+            "heading": "Sizes",
+            "code_sha256": "22a3ab883e410e47e16515af0206933446d00ab6bcf3587dfe3d3b30bb0b1513",
+            "content_sha256": "d7f044d36ba07fa2f2f61869f3dc6c7cbd167197200225f08700a92c76e1066c",
             "status": "unreviewed"
           }
         ]
@@ -25431,7 +25437,7 @@
     "sha256": "b0acf2ecfec0d800362f28150766408b05c9e0819a376473b7ce13db84a0e488"
   },
   "source_snapshot": {
-    "sha256": "14e1436afab76e607dd8012d4975dd0058b234442afb706de4f20cf6a74f9eaa",
+    "sha256": "715fa2ae6ff309746931567ac3ae14420db2d082bd2dcd0274ab1c1baa057b8d",
     "files": {
       ".cargo/config.toml": "6ce2a269fd46b2570763e8e446ac93e9d04614416af21134877cf7b388e776f9",
       ".gitattributes": "0a560d39f04292518fe72516d91e2418d61d5eaa12a15af564dc07e60d391034",
@@ -25497,7 +25503,7 @@
       ".shots/theme_serde_audit.py": "392a1968af4a65218e63ba8f06405684182bfcb1497d772489a0e14dd581b08f",
       ".shots/token_audit.py": "31756481a9ebd5bff76e143681b23f091ab5db5a8ca5c1732d8112e9d19e2309",
       ".shots/write_only.py": "ebfacd961c597d8fd625fb9a29f24efaff245dfad9b1032649537fca25f8954a",
-      "Cargo.lock": "70fc7013f1634a256c7c5d2d121bc3592259ff73822d3602dbb3f67224658c43",
+      "Cargo.lock": "0a4ea73fd7015fcadd29ebee397755ce2baa96eb01ece0dcd604edacf7b0539a",
       "Cargo.toml": "43d7a372c45ee9a6c9940a494c38b9f5414f6290955e0e10c4c2f7a3c676efe9",
       "crates/herogpui/Cargo.toml": "f2050009d547639653b27e5ce2666b71d6a00bd449b2093e427d16809a72c889",
       "crates/herogpui/src/lib.rs": "dd92a3397c009a4ff2ebe3ef71df64ff91e62a1b748479442cf8dc5613359c92",
@@ -25579,7 +25585,7 @@
       "crates/herogpui-components/src/sheet.rs": "7e961a8f20ebfff47370c5f3c140f9c849bd3e57698bc81edcadb72735ab4c54",
       "crates/herogpui-components/src/sidebar.rs": "cc56e6c9b3758e73770b03f2e714c34f0300b27b5090bed052ec411af97af110",
       "crates/herogpui-components/src/skeleton.rs": "c484b28bfdeb116b1a78e17284a1f55622a49204fd42d3ff66c511dc1979e69a",
-      "crates/herogpui-components/src/slider.rs": "2fc475845b29c57d2b2d80cf38442f473aaddc10f12bb7195c0ddd0867d062b9",
+      "crates/herogpui-components/src/slider.rs": "919c52c587cde35e08a2e9bed2d81730988609fd3d69716ae13d8d8e81d02152",
       "crates/herogpui-components/src/spinner.rs": "31ed2cf418a8251c835b3be4c812722a9455f9a1a147d2fd1b831fa49c26f5f8",
       "crates/herogpui-components/src/surface.rs": "8c1834486c06712ac18bfcfb32e40626df9e4026f1bd3aa554057e7995cc55a2",
       "crates/herogpui-components/src/switch.rs": "e4d0251ce203813c4212c4e2af568380e6caba6c7d7e91216a228063fb86b3fb",
@@ -25694,7 +25700,7 @@
       "crates/herogpui-components/tests/sidebar.rs": "f9e238203d29c591ed851dd658759ebe3777687f61ab94e15eb584cdf66fb449",
       "crates/herogpui-components/tests/size_enums_deep.rs": "cf7f2df1e1f4377f70eec02d5f53e58c07f567067693106d8fdf9387a00c560a",
       "crates/herogpui-components/tests/slider_form_deep.rs": "e6759248e45bd1699f9fe31278f87076b903d6100ce835d4fe77a14f26369a96",
-      "crates/herogpui-components/tests/slider_geometry_deep.rs": "d59b32e3592bde4b37bb661222dd8a547ce0220765f54f955c2e5552495237dc",
+      "crates/herogpui-components/tests/slider_geometry_deep.rs": "1f9870c0333863079feb1498682626e8ed2ee18f2c349f45a762a2777fe05247",
       "crates/herogpui-components/tests/slider_indicators.rs": "90a990ad54beb04f4c06c3978958f2499a7cc4c6d8522dc7591fb8bab1e168bf",
       "crates/herogpui-components/tests/slider_number_deep.rs": "d67a6dba293d79fa198f01c2e3db53b5fedaef273bf0ec12d13de2e0a3b7c2c9",
       "crates/herogpui-components/tests/source_scan/mod.rs": "1dfde092019a9c00d8fda168267effdc8410d9e7350930ee25bad6532bd83ff7",
@@ -25821,7 +25827,7 @@
       "gallery/src/pages/components/buttons.rs": "d61ec3b94aeb337117008b5ee93f94cfd6b550d7411223399bab95b771a1b21b",
       "gallery/src/pages/components/collections.rs": "2f73cd2efb4abecd0ae59b40b097bb00c42d42a9eea1442194007d00d5126f26",
       "gallery/src/pages/components/colors.rs": "3f6ce40be9611dd1fdfc58c2c8825727781f7e13c4da6cc3fc73bb3de5ddd588",
-      "gallery/src/pages/components/controls.rs": "7ef74c9fd75ee90d512128d67f1354ea786fe1be9c9008b2e527a44bac9923dc",
+      "gallery/src/pages/components/controls.rs": "71aedd38f1954b083d8d348fd445baae23c3ee7a8d76eedbe6818e4b55e2e205",
       "gallery/src/pages/components/data_display.rs": "908639c20cdefaf55dd0e89dbb44383fff84e2718382b08c6921f22bce979841",
       "gallery/src/pages/components/date_and_time.rs": "199f7235f245d768ed0afee99e63f3f093cd93820435d383c57b8aa4117fc16b",
       "gallery/src/pages/components/feedback.rs": "a34d85864c8beadcaadeeb972f131035042b8fe7a87f18fe2c951f5ab1f68dd3",
@@ -25961,8 +25967,8 @@
       "web/src/data/catalog.json": "b0acf2ecfec0d800362f28150766408b05c9e0819a376473b7ce13db84a0e488",
       "web/src/data/reference.json": "10ddfffca5ae59afae1e2ea6cc85a17709023893c30a3a4300e81224579023f2",
       "web/src/data/releases.json": "6f350e04b2e1d2f199539014c900a005c66e0c7f5b6980033ea9dfa0c908df89",
-      "web/src/data/rust-examples.json": "6ed06398a604369d8480c990313d98b3595b4ae4a7946227d998dd84aff822d8",
-      "web/src/data/wasm-parity.json": "c03a2d7552491c858dbc0a6da100760f399f9525d6a0d12d1b00a06872198e07",
+      "web/src/data/rust-examples.json": "b84ee4605e1e2a386af15902e90c2ebd120022a181b08649722fd38b38b02c0a",
+      "web/src/data/wasm-parity.json": "b203c8559e18aade534c8f0212cf1b64ade7c0bfe13183619c7bf7508563d4aa",
       "web/src/data/wasm-sections.json": "3ec2df476f14a4bc474e31c51613397d5101e6f9026dbbe8e8db2b4da4bbee74",
       "web/src/lib/catalog.ts": "79681a0e1e0e12c9352ddc9eec0d6fe428906ceca07bfefb89623639396f81cf",
       "web/src/lib/docs-nav.ts": "ffb0d7fdaa0261395306f0bfa4e09c5ef88043c702c962f847983b05be67f55a",
@@ -124679,7 +124685,7 @@
         "gallery": "web/src/data/rust-examples.json",
         "reference": "web/src/data/reference.json",
         "codeSha256": "22a3ab883e410e47e16515af0206933446d00ab6bcf3587dfe3d3b30bb0b1513",
-        "contentSha256": "d7f044d36ba07fa2f2f61869f3dc6c7cbd167197200225f08700a92c76e1066c",
+        "contentSha256": "0781326f3721ab1687cbc2aecadb84aa9fb697c3089879310038184ba73fed5b",
         "docsSource": "https://github.com/heroui-inc/heroui/blob/v3.2.7/apps/docs/content/docs/en/react/components/(controls)/slider.mdx"
       },
       "history": [
@@ -124792,6 +124798,43 @@
             "codeSha256": "22a3ab883e410e47e16515af0206933446d00ab6bcf3587dfe3d3b30bb0b1513",
             "contentSha256": "d7f044d36ba07fa2f2f61869f3dc6c7cbd167197200225f08700a92c76e1066c",
             "docsSource": "https://github.com/heroui-inc/heroui/blob/v3.2.6/apps/docs/content/docs/en/react/components/(controls)/slider.mdx"
+          }
+        },
+        {
+          "id": "gallery/slider/sizes",
+          "component": "Slider",
+          "scope": "gallery-section",
+          "status": "unreviewed",
+          "upstream": {
+            "tag": "v3.2.7",
+            "source": null,
+            "selector": null,
+            "demoSection": "Sizes"
+          },
+          "port": {
+            "module": "slider",
+            "galleryPage": "Slider",
+            "gallerySection": "Sizes",
+            "specimenKey": null
+          },
+          "configuration": {},
+          "state": "section-seed",
+          "setup": [],
+          "assertions": [
+            "Expand this section into concrete variant/state specimens before verification."
+          ],
+          "evidence": {
+            "upstream": [],
+            "native": [],
+            "wasm": [],
+            "tests": []
+          },
+          "source": {
+            "gallery": "web/src/data/rust-examples.json",
+            "reference": "web/src/data/reference.json",
+            "codeSha256": "22a3ab883e410e47e16515af0206933446d00ab6bcf3587dfe3d3b30bb0b1513",
+            "contentSha256": "d7f044d36ba07fa2f2f61869f3dc6c7cbd167197200225f08700a92c76e1066c",
+            "docsSource": "https://github.com/heroui-inc/heroui/blob/v3.2.7/apps/docs/content/docs/en/react/components/(controls)/slider.mdx"
           }
         }
       ]
@@ -150289,7 +150332,7 @@
       ]
     }
   ],
-  "verification_sha256": "dac5961bde12d467dbdc2047b5f8574cf000c531aa5613648aab41a3b0b63f06",
+  "verification_sha256": "506753fa81a7dfff66da519c1340b59497168020fbb0303bdd3808976eebd718",
   "retired_source_changes": [
     {
       "path": "packages/react/src/components/autocomplete/autocomplete.stories.tsx",
