@@ -126,7 +126,8 @@ is stored in GitHub.
    with `cargo install herogpui-gallery` on at least one clean machine.
 
 The web gallery (the WebAssembly build the website embeds) is **not** a
-release asset. CI builds it on every pull request and publishes it on master pushes as its
+release asset. CI builds it when wasm inputs change on pull requests and on
+every master push, and `wasm-publish` publishes it on master pushes as its
 own `gallery-<key16>` prerelease, keyed by its build inputs, and the website
 deploys from master on its own (`web/DEPLOYMENT.md`, section 6). The release
 workflow's CI run builds the tagged tree again. The reusable call allows

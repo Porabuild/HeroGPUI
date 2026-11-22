@@ -26,30 +26,90 @@ concurrency:
 permissions:
   contents: read
 
-# The gate is compile-bound, not test-bound: once built, the whole suite (every
-# test binary `cargo test` announces) finishes in seconds. So the jobs are split
-# by what has to be built, not by what is cheapest to name -- clippy and `cargo
-# test` cannot share artifacts (clippy drives the workspace through a different
-# wrapper), which the old single `check` job paid for twice in a row, serially,
-# in one 14m run.
+# The gate is compile-bound, not test-bound: once built, the test binaries
+# together finish in seconds. So the jobs are split by what has to be built,
+# not by what is cheapest to name -- clippy and `cargo test` cannot share
+# artifacts (clippy drives the workspace through a different wrapper), which the
+# old single `check` job paid for twice in a row, serially, in one 14m run.
 jobs:
+  # Which surfaces a pull request touches, so unaffected heavy jobs skip on PRs
+  # instead of burning runner slots. A pull request checks out GitHub's merge
+  # commit, whose first parent is the base branch tip, so a depth-2 checkout
+  # diffs the whole PR against its base with no API call and no token
+  # permission beyond `contents: read` (which matters: release.yml calls this
+  # workflow, and a called job cannot ask for more than its caller grants).
+  # Pull requests only; every other event runs the full suite unconditionally.
+  changes:
+    name: Changed paths
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-24.04
+    outputs:
+      build_config: ${{ steps.files.outputs.build_config }}
+      rust: ${{ steps.files.outputs.rust }}
+      rust_libs: ${{ steps.files.outputs.rust_libs }}
+      wasm: ${{ steps.files.outputs.wasm }}
+      web_site: ${{ steps.files.outputs.web_site }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 2
+
+      - id: files
+        run: |
+          set -euo pipefail
+          git diff --name-only HEAD^1 HEAD > "$RUNNER_TEMP/files"
+          cat "$RUNNER_TEMP/files"
+
+          emit() {
+            local key=$1 pattern=$2
+            if grep -qE "$pattern" "$RUNNER_TEMP/files"; then
+              echo "$key=true" >> "$GITHUB_OUTPUT"
+            else
+              echo "$key=false" >> "$GITHUB_OUTPUT"
+            fi
+          }
+
+          # What decides how the workspace is compiled: the profiles and the
+          # dependency graph, the toolchain pin, the cargo config, the CI
+          # profile override in rust-env, and the test-verdict wrapper.
+          emit build_config '^(Cargo\.toml|Cargo\.lock|rust-toolchain\.toml|\.cargo/config\.toml|\.github/actions/rust-env/action\.yml|\.shots/run-tests\.sh)$'
+          emit rust '^(Cargo\.toml|Cargo\.lock|rust-toolchain\.toml|rustfmt\.toml|deny\.toml|clippy\.toml|\.cargo/|crates/|gallery/|examples/|\.shots/(lint|run-tests)\.sh$|\.shots/(test-control|control|batch|smoke)\.ps1$|\.github/(workflows/|actions/)|web/src/data/rust-examples\.json$)'
+          emit rust_libs '^(Cargo\.toml|Cargo\.lock|rust-toolchain\.toml|\.cargo/|crates/herogpui(-core|-theme|-components)?/|\.github/(workflows/ci\.yml|actions/rust-env/))'
+          emit wasm '^(Cargo\.toml|Cargo\.lock|rust-toolchain\.toml|\.cargo/|crates/|gallery/|\.shots/build-wasm\.sh$|web/scripts/gallery-smoke(\.test)?\.mjs$|web/scripts/gallery-artifact\.mjs$|web/scripts/extract-wasm-sections\.mjs$|web/scripts/extract-rust-examples\.mjs$|web/scripts/lib/|web/public/gallery/index\.html$|web/src/data/rust-examples\.json$|\.github/workflows/ci\.yml$)'
+          emit web_site '^(web/|crates/|gallery/|examples/|Cargo\.toml$|Cargo\.lock$|rust-toolchain\.toml$|\.cargo/config\.toml$|CHANGELOG\.md$|llms\.txt$|\.shots/build-wasm\.sh$|\.shots/[^/]+-tile(-dark)?-v3\.png$|\.github/(workflows/ci\.yml|actions/))'
+
   # Everything that needs no Rust build. A formatting or gallery-sync failure
   # reports in under a minute instead of after a full compile.
   web:
     name: Format, gallery sync & website
+    needs: [changes]
+    if: >-
+      !cancelled() && (
+        github.event_name != 'pull_request' ||
+        needs.changes.outputs.rust == 'true' ||
+        needs.changes.outputs.web_site == 'true')
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v7
+
+      # Plain `cargo fmt --all -- --check`: the workspace has no patched
+      # dependencies and no generated sources, so rustfmt needs nothing
+      # materialized first.
+      - name: Format check
+        if: github.event_name != 'pull_request' || needs.changes.outputs.rust == 'true'
+        run: cargo fmt --all -- --check
 
       # There is no root package.json, so the action has to be told where the
       # pinned "packageManager" lives; without it the step fails outright
       # rather than defaulting to a version.
       - name: Install pnpm
+        if: github.event_name != 'pull_request' || needs.changes.outputs.web_site == 'true'
         uses: pnpm/action-setup@v6
         with:
           package_json_file: web/package.json
 
       - name: Install Node
+        if: github.event_name != 'pull_request' || needs.changes.outputs.web_site == 'true'
         uses: actions/setup-node@v7
         with:
           # Production (Vercel) runs Node 24.x; build on the same major.
@@ -58,14 +118,9 @@ jobs:
           cache-dependency-path: web/pnpm-lock.yaml
 
       - name: Install website dependencies
+        if: github.event_name != 'pull_request' || needs.changes.outputs.web_site == 'true'
         working-directory: web
         run: pnpm install --frozen-lockfile
-
-      # Plain `cargo fmt --all -- --check`: the workspace has no patched
-      # dependencies and no generated sources, so rustfmt needs nothing
-      # materialized first.
-      - name: Format check
-        run: cargo fmt --all -- --check
 
       # extract:check compares every generated dataset (reference, catalog and
       # versions, Rust snippets, releases from CHANGELOG.md) and the wasm
@@ -74,6 +129,7 @@ jobs:
       # snippets compile is the `test` job's: gallery/build.rs turns each one
       # into a test-only module of herogpui-gallery.
       - name: Component gallery sync
+        if: github.event_name != 'pull_request' || needs.changes.outputs.web_site == 'true'
         working-directory: web
         run: pnpm run extract:check
 
@@ -84,6 +140,7 @@ jobs:
       # or none -- and never fails for want of one: this job checks the site,
       # the Vercel build is what ships it.
       - name: Website typecheck, lint and production build
+        if: github.event_name != 'pull_request' || needs.changes.outputs.web_site == 'true'
         working-directory: web
         env:
           HEROGPUI_GALLERY_WAIT_SECONDS: "0"
@@ -161,7 +218,12 @@ jobs:
         run: python .shots/subset-fonts.py --check
 
   lint:
-    name: Lints & cargo-deny
+    name: Lints, cargo-deny & no-default-features
+    needs: [changes]
+    if: >-
+      !cancelled() && (
+        github.event_name != 'pull_request' ||
+        needs.changes.outputs.rust == 'true')
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v7
@@ -209,11 +271,12 @@ jobs:
 
       # A workspace build (clippy above, the tests) compiles each crate with
       # the union of the features its workspace dependents enable; it says
-      # nothing about any one feature alone. herogpui-components'
-      # `gallery-source` is the case that matters here: `--each-feature` builds
-      # it by itself, with no other feature unifying in dependencies it might
-      # otherwise lean on.
-      - name: Each feature alone
+      # nothing about any one feature alone or about `--no-default-features`.
+      # `--each-feature` checks every crate both with `--no-default-features`
+      # (the way a downstream `default-features = false` edge builds it) and
+      # with each feature isolated (including herogpui-components'
+      # `gallery-source`).
+      - name: Each feature alone & no default features
         run: cargo hack check --workspace --each-feature --locked
 
   # The test suite runs on all three hosts, not just Linux: the repo is
@@ -225,17 +288,29 @@ jobs:
   # family and are inert off their own targets, so the single dependency spec
   # in the workspace root builds everywhere with no per-OS feature matrix.
   #
-  # `lint`, `doc` and `install` stay Linux-only on purpose: this workspace's
-  # own sources carry almost no `cfg(windows)`/`cfg(macos)` branches (the wasm
-  # ones in herogpui/herogpui-web, and the two platform readers of
+  # `lint` and `doc` (plus the gallery CLI source install in `test`) stay
+  # Linux-only on purpose: this workspace's own sources carry almost no
+  # `cfg(windows)`/`cfg(macos)` branches (the wasm ones in
+  # herogpui/herogpui-web, and the two platform readers of
   # herogpui-components' `system_locale.rs`, a few lines each), so clippy and
   # rustdoc analyze essentially identical code on any host, while the
   # OS-sensitive surface -- linking and running the suite, which does compile
   # those readers -- is what this matrix exercises. `unsafe_code = "deny"` is a
   # rustc lint inherited through `[workspace.lints]`, so every matrix leg's
   # build enforces it on its own host even without clippy.
+  #
+  # On standard PRs, `sweep_shard_` (`gallery`'s headless `TestAppContext`
+  # interaction sweep, ~145s at -O0) runs in full on Linux and is skipped on
+  # macOS and Windows so those legs finish in ~3 minutes instead of ~6–7m.
+  # Pushes to master, release tags, `build_config` changes, and `ci:opt-levels`
+  # PRs still run the full suite on all three hosts.
   test:
     name: Tests
+    needs: [changes]
+    if: >-
+      !cancelled() && (
+        github.event_name != 'pull_request' ||
+        needs.changes.outputs.rust == 'true')
     strategy:
       # Which OS broke is exactly the information this matrix exists to
       # surface, and it is invisible when the surviving legs are cancelled at
@@ -252,6 +327,14 @@ jobs:
       - uses: ./.github/actions/rust-env
 
       - name: Workspace tests
+        env:
+          SKIP_SWEEP: >-
+            ${{
+              runner.os != 'Linux' &&
+              github.event_name == 'pull_request' &&
+              !contains(github.event.pull_request.labels.*.name, 'ci:opt-levels') &&
+              needs.changes.outputs.build_config != 'true'
+            }}
         # `.shots/run-tests.sh` wraps `cargo test`; a bare invocation reads
         # the process exit code alone, which cannot be trusted either
         # direction on this workspace — a killed binary with no summary line
@@ -263,7 +346,12 @@ jobs:
         # Windows runner is pwsh; the script is bash (its header says why)
         # and git-bash ships on every GitHub Windows runner.
         shell: bash
-        run: bash .shots/run-tests.sh --workspace --locked
+        run: |
+          if [ "$SKIP_SWEEP" = true ]; then
+            bash .shots/run-tests.sh --workspace --locked -- --skip sweep_shard_
+          else
+            bash .shots/run-tests.sh --workspace --locked
+          fi
 
       - name: Windows gallery control protocol
         if: runner.os == 'Windows'
@@ -276,8 +364,23 @@ jobs:
         shell: bash
         run: bash .shots/run-tests.sh -p herogpui-theme --features serde --locked
 
+      # `cargo install --path` is the contributor's route to the gallery CLI (the
+      # registry route, `cargo install herogpui-gallery`, is exercised at release
+      # time); this proves the workspace installs from a checkout with `--locked`.
+      # Run on the Linux test leg so it reuses the warm `target/` instead of
+      # paying for another runner and 900 MB cache restore.
+      - name: Install the gallery CLI from source
+        if: runner.os == 'Linux'
+        shell: bash
+        run: cargo install --path gallery --locked --debug --force --target-dir target
+
   doc:
     name: Rustdoc
+    needs: [changes]
+    if: >-
+      !cancelled() && (
+        github.event_name != 'pull_request' ||
+        needs.changes.outputs.rust == 'true')
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v7
@@ -293,56 +396,6 @@ jobs:
           # docs.rs page.
           RUSTDOCFLAGS: --cfg docsrs -D warnings
         run: cargo doc --workspace --no-deps --locked
-
-  # `cargo install --path` is the contributor's route to the gallery CLI (the
-  # registry route, `cargo install herogpui-gallery`, is exercised at release
-  # time); this proves the workspace installs from a checkout with `--locked`.
-  install:
-    name: Source install
-    runs-on: ubuntu-24.04
-    steps:
-      - uses: actions/checkout@v7
-
-      - uses: ./.github/actions/rust-env
-
-      - name: Install the gallery CLI from source
-        # `cargo install` builds into a throwaway directory unless it is told
-        # otherwise, so there was nothing for the job's cache to hold and this
-        # step rebuilt all 486 crates from scratch in 694s. Writing into the
-        # workspace `target/` makes the step cacheable: 14s once it is warm.
-        run: cargo install --path gallery --locked --debug --force --target-dir target
-
-  # Which build-configuration files a pull request touches, for `optimized`
-  # below. A pull request checks out GitHub's merge commit, whose first parent
-  # is the base branch tip, so a depth-2 checkout diffs the whole PR against
-  # its base with no API call and no token permission beyond `contents: read`
-  # (which matters: release.yml calls this workflow, and a called job cannot
-  # ask for more than its caller grants). Pull requests only; every other
-  # event runs `optimized` unconditionally.
-  changes:
-    name: Changed build configuration
-    if: github.event_name == 'pull_request'
-    runs-on: ubuntu-24.04
-    outputs:
-      build_config: ${{ steps.files.outputs.build_config }}
-    steps:
-      - uses: actions/checkout@v7
-        with:
-          fetch-depth: 2
-
-      - id: files
-        run: |
-          set -euo pipefail
-          git diff --name-only HEAD^1 HEAD > "$RUNNER_TEMP/files"
-          cat "$RUNNER_TEMP/files"
-          # What decides how the workspace is compiled: the profiles and the
-          # dependency graph, the toolchain pin, the cargo config, the CI
-          # profile override in rust-env, and the test-verdict wrapper.
-          if grep -qxE 'Cargo\.toml|Cargo\.lock|rust-toolchain\.toml|\.cargo/config\.toml|\.github/actions/rust-env/action\.yml|\.shots/run-tests\.sh' "$RUNNER_TEMP/files"; then
-            echo "build_config=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "build_config=false" >> "$GITHUB_OUTPUT"
-          fi
 
   # What the -O0 workspace gives up, this takes back. `test` builds the workspace
   # crates unoptimized; nothing else in the pipeline then compiles them the way a
@@ -413,6 +466,11 @@ jobs:
   # rejects a bad `#[wasm_bindgen]` surface, and it needs a real .wasm.
   wasm:
     name: Build (wasm32)
+    needs: [changes]
+    if: >-
+      !cancelled() && (
+        github.event_name != 'pull_request' ||
+        needs.changes.outputs.wasm == 'true')
     runs-on: ubuntu-24.04
     env:
       # binaryen's wasm-opt, pinned by version and archive digest (the
@@ -451,14 +509,21 @@ jobs:
       # emit and consume a shared, unstable descriptor format. A mismatch
       # fails with a schema-version error that names neither the lockfile nor
       # the installed CLI, so the version is read out of Cargo.lock rather
-      # than written down twice.
-      - name: Install wasm-bindgen-cli pinned to Cargo.lock
+      # than written down twice, and installed as a prebuilt binary (~2s vs
+      # ~72s compiling from source).
+      - name: Read wasm-bindgen version from Cargo.lock
+        id: bindgen
         run: |
           set -euo pipefail
           version=$(grep -A 1 '^name = "wasm-bindgen"$' Cargo.lock | grep '^version' | cut -d '"' -f 2)
           echo "wasm-bindgen from Cargo.lock: $version"
           test -n "$version"
-          cargo install -f wasm-bindgen-cli --version "$version"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+      - name: Install wasm-bindgen-cli pinned to Cargo.lock
+        uses: taiki-e/install-action@v2
+        with:
+          tool: wasm-bindgen-cli@${{ steps.bindgen.outputs.version }}
 
       - name: Install binaryen (wasm-opt) ${{ env.BINARYEN_VERSION }}
         run: |
@@ -520,6 +585,7 @@ jobs:
         run: >-
           node web/scripts/gallery-smoke.mjs
           --dir "$RUNNER_TEMP/gallery"
+          --workers 4
           --record "$RUNNER_TEMP/wasm-smoke.json"
           --shots "$RUNNER_TEMP/shots"
 
@@ -581,12 +647,19 @@ jobs:
   # `--release-type major` -- the label is the reviewer's acknowledgement, and
   # the break still needs its CHANGELOG and migration notes.
   #
-  # Pull requests only. On a push the version question was settled by the
-  # PR, and the release workflow runs the same check against the tag before
-  # anything is published.
+  # On pull requests, skips when no library crate or manifest changed. Also
+  # runs on pushes to master with `--release-type major` so `master` keeps a
+  # warm `target/semver-checks` cache (cutting PR cold-cache runs from ~7m to
+  # ~30-60s) without failing when a `semver:breaking` PR merges ahead of a
+  # release version bump. On tag pushes the release workflow runs its own
+  # `semver` job before publishing.
   semver:
     name: SemVer (cargo-semver-checks)
-    if: github.event_name == 'pull_request'
+    needs: [changes]
+    if: >-
+      !cancelled() && (
+        (github.event_name == 'push' && github.ref == 'refs/heads/master') ||
+        (github.event_name == 'pull_request' && needs.changes.outputs.rust_libs == 'true'))
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v7
@@ -605,43 +678,16 @@ jobs:
 
       - name: Public API against the latest crates.io release
         env:
+          EVENT_NAME: ${{ github.event_name }}
           BREAKING_OK: ${{ contains(github.event.pull_request.labels.*.name, 'semver:breaking') }}
         run: |
           set -euo pipefail
           args=(-p herogpui-core -p herogpui-theme -p herogpui-components -p herogpui)
-          if [ "$BREAKING_OK" = true ]; then
-            echo "semver:breaking label present: breaking changes are accepted"
+          if [ "$EVENT_NAME" = "push" ] || [ "$BREAKING_OK" = true ]; then
+            echo "accepting breaking changes (event=$EVENT_NAME, semver:breaking=$BREAKING_OK)"
             args+=(--release-type major)
           fi
           cargo semver-checks "${args[@]}"
-
-  # Each published library crate on its own with no default features, the
-  # way a downstream `default-features = false` edge builds it. cargo-hack's
-  # `--each-feature` in `lint` includes this configuration inside a sweep of
-  # every feature; this job names the contract (`package_audit.py` requires
-  # the facade's layers to be optional "so --no-default-features compiles")
-  # and reports it per crate. One job with a step per crate rather than a
-  # matrix: the four builds share one dependency cache instead of four
-  # runners each compiling GPUI.
-  no-default-features:
-    name: No default features
-    runs-on: ubuntu-24.04
-    steps:
-      - uses: actions/checkout@v7
-
-      - uses: ./.github/actions/rust-env
-
-      - name: herogpui-core
-        run: cargo check -p herogpui-core --no-default-features --locked
-
-      - name: herogpui-theme
-        run: cargo check -p herogpui-theme --no-default-features --locked
-
-      - name: herogpui-components
-        run: cargo check -p herogpui-components --no-default-features --locked
-
-      - name: herogpui
-        run: cargo check -p herogpui --no-default-features --locked
 
   # No MSRV job, deliberately: `rust-version` (1.99) is the same release as
   # `rust-toolchain.toml`'s pin (1.99.1), so every job above already builds
@@ -653,12 +699,14 @@ jobs:
   # workflow means adding its name to `needs` below; a job left out of that
   # list fails silently — branch protection just never learns it exists — so
   # this jq check is the one place a missed job fails loudly, in review, on
-  # the PR that added it. `changes` and `semver` run on pull requests only and
-  # `optimized` is opt-in there, so `skipped` counts as passing.
+  # the PR that added it. On pull requests `changes` filters unaffected jobs
+  # (`web`, `lint`, `test`, `doc`, `wasm`, `wasm-smoke`, `semver`) and
+  # `optimized` is opt-in; on non-PR events `changes` and `wasm-publish` (off
+  # `master`) skip, so `skipped` counts as passing.
   ci:
     name: ci
     if: always()
-    needs: [web, parity, lint, test, doc, install, changes, optimized, semver, no-default-features, wasm, wasm-smoke, wasm-publish]
+    needs: [web, parity, lint, test, doc, changes, optimized, semver, wasm, wasm-smoke, wasm-publish]
     runs-on: ubuntu-24.04
     steps:
       - name: decide

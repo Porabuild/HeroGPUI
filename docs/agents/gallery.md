@@ -274,7 +274,8 @@ node scripts/gallery-smoke.mjs --record ../target/wasm-smoke.json --shots ../tar
 node scripts/gallery-smoke.mjs --only table,input --skip-dark
 ```
 
-CI runs it on every pull request (`wasm-smoke`) against the artifact the
+CI runs it (`wasm-smoke`) whenever `wasm` builds (on pull requests touching
+wasm inputs, and on pushes, dispatches, and tags) against the artifact the
 `wasm` job just built, and uploads the run record and one PNG per example.
 It needs Chrome or Chromium (`--chrome <path>` or `$CHROME` otherwise); it
 launches with extensions disabled, because a developer profile's external

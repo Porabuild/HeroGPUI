@@ -9,6 +9,7 @@
 //   node scripts/gallery-smoke.mjs [--dir <gallery dir>] [--chrome <path>]
 //                                  [--record <run.json>] [--shots <dir>]
 //                                  [--only <slug>[,<slug>...]] [--skip-dark]
+//                                  [--workers <n>]
 //
 // `--dir` defaults to public/gallery and must hold index.html,
 // herogpui_web.js and herogpui_web_bg.wasm (`pnpm run gallery:fetch` or
@@ -100,6 +101,7 @@ const FLAGS = {
   "--record": "record",
   "--shots": "shots",
   "--only": "only",
+  "--workers": "workers",
 };
 
 /** Parse the CLI into options; throws on an unknown or valueless flag. */
@@ -111,6 +113,7 @@ export function parseArgs(argv) {
     shots: null,
     only: null,
     skipDark: false,
+    workers: 1,
   };
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i];
@@ -125,8 +128,16 @@ export function parseArgs(argv) {
       throw new Error(`${arg} requires a value`);
     }
     i++;
-    if (key === "only") opts.only = value.split(",").filter(Boolean);
-    else opts[key] = value;
+    if (key === "only") {
+      opts.only = value.split(",").filter(Boolean);
+    } else if (key === "workers") {
+      if (!/^[1-9]\d*$/.test(value)) {
+        throw new Error("--workers must be a positive integer");
+      }
+      opts.workers = Number(value);
+    } else {
+      opts[key] = value;
+    }
   }
   return opts;
 }
@@ -169,6 +180,41 @@ export function chromeCandidates({
 export function resolveChrome(options = {}) {
   const exists = options.exists ?? existsSync;
   return chromeCandidates({ ...options, exists }).find(exists) ?? null;
+}
+
+/**
+ * Partition examples across up to `workers` buckets while keeping all sections
+ * of a story slug together (so dark-mode first-section checks and `--shots`
+ * directory writes remain disjoint per worker).
+ */
+export function partitionExamples(examples, workers = 1) {
+  if (examples.length === 0) return [];
+  const normalized = Number.isFinite(workers) ? Math.max(1, Math.trunc(workers)) : 1;
+  if (normalized === 1) return [examples];
+
+  const bySlug = new Map();
+  for (const example of examples) {
+    let list = bySlug.get(example.slug);
+    if (!list) {
+      list = [];
+      bySlug.set(example.slug, list);
+    }
+    list.push(example);
+  }
+  const groups = [...bySlug.values()];
+  const count = Math.min(normalized, groups.length);
+  if (count === 1) return [examples];
+
+  groups.sort((a, b) => b.length - a.length);
+  const buckets = Array.from({ length: count }, () => []);
+  for (const group of groups) {
+    let target = buckets[0];
+    for (let i = 1; i < buckets.length; i++) {
+      if (buckets[i].length < target.length) target = buckets[i];
+    }
+    target.push(...group);
+  }
+  return buckets;
 }
 
 /**
@@ -243,8 +289,15 @@ async function serveGallery(dir) {
   return { server, port: server.address().port };
 }
 
+function abortError(signal) {
+  return signal?.reason instanceof Error
+    ? signal.reason
+    : new Error(String(signal?.reason ?? "smoke worker aborted"));
+}
+
 /** Launch headless Chrome and connect to its page target over CDP. */
-async function launchChrome(chromePath) {
+async function launchChrome(chromePath, signal) {
+  if (signal?.aborted) throw abortError(signal);
   const profile = await mkdtemp(join(tmpdir(), "herogpui-smoke-"));
   const args = [
     "--headless=new",
@@ -265,38 +318,64 @@ async function launchChrome(chromePath) {
   args.push("about:blank");
   const proc = spawn(chromePath, args, { stdio: ["ignore", "ignore", "pipe"] });
   let stderr = "";
-  proc.stderr.on("data", (chunk) => {
-    stderr += chunk;
-  });
+  const onAbort = () => proc.kill();
+  signal?.addEventListener("abort", onAbort, { once: true });
   try {
     const wsUrl = await new Promise((ready, fail) => {
-      const timer = setTimeout(
-        () => fail(new Error(`Chrome did not expose DevTools:\n${stderr}`)),
-        15000,
-      );
-      proc.stderr.on("data", () => {
+      const cleanup = () => {
+        clearTimeout(timer);
+        proc.stderr.off("data", onData);
+        proc.off("exit", onExit);
+        proc.off("error", onError);
+        signal?.removeEventListener("abort", onAbortReject);
+      };
+      const onAbortReject = () => {
+        cleanup();
+        fail(abortError(signal));
+      };
+      const onError = (error) => {
+        cleanup();
+        fail(error);
+      };
+      const onExit = (code, sig) => {
+        cleanup();
+        fail(new Error(`Chrome exited before exposing DevTools (${code ?? sig}):\n${stderr}`));
+      };
+      const onData = (chunk) => {
+        stderr += chunk;
         const match = stderr.match(/DevTools listening on (ws:\/\/\S+)/);
         if (match) {
-          clearTimeout(timer);
+          cleanup();
           ready(match[1]);
         }
-      });
+      };
+      const timer = setTimeout(() => {
+        cleanup();
+        fail(new Error(`Chrome did not expose DevTools:\n${stderr}`));
+      }, 15000);
+      proc.stderr.on("data", onData);
+      proc.once("exit", onExit);
+      proc.once("error", onError);
+      signal?.addEventListener("abort", onAbortReject, { once: true });
     });
     const httpBase = wsUrl.replace("ws://", "http://").replace(/\/devtools\/browser\/.*/, "");
-    const targets = await (await fetch(`${httpBase}/json`)).json();
+    const targets = await (await fetch(`${httpBase}/json`, { signal })).json();
     const page = targets.find((target) => target.type === "page");
     if (!page) throw new Error("Chrome opened no page target");
     const cdp = await Cdp.connect(page.webSocketDebuggerUrl);
+    signal?.removeEventListener("abort", onAbort);
     return { proc, cdp, profile };
   } catch (error) {
+    signal?.removeEventListener("abort", onAbort);
     proc.kill();
+    await Promise.race([new Promise((resolve) => proc.once("exit", resolve)), sleep(3000)]);
     await rm(profile, { recursive: true, force: true, maxRetries: 3 }).catch(() => {});
     throw error;
   }
 }
 
 /** A minimal CDP client over one page WebSocket. */
-class Cdp {
+export class Cdp {
   #ws;
   #id = 0;
   #pending = new Map();
@@ -313,6 +392,13 @@ class Cdp {
 
   constructor(ws) {
     this.#ws = ws;
+    const rejectAll = (reason) => {
+      const error = reason instanceof Error ? reason : new Error(String(reason));
+      for (const { reject } of this.#pending.values()) reject(error);
+      this.#pending.clear();
+    };
+    ws.addEventListener("close", () => rejectAll("CDP WebSocket closed"));
+    ws.addEventListener("error", (event) => rejectAll(event?.error ?? "CDP WebSocket error"));
     ws.addEventListener("message", (event) => {
       const message = JSON.parse(event.data);
       if (message.id && this.#pending.has(message.id)) {
@@ -328,6 +414,9 @@ class Cdp {
   }
 
   send(method, params = {}) {
+    if (this.#ws.readyState !== 1) {
+      return Promise.reject(new Error(`CDP WebSocket is not open (${method})`));
+    }
     const id = ++this.#id;
     return new Promise((resolve, reject) => {
       this.#pending.set(id, { resolve, reject });
@@ -362,17 +451,11 @@ async function screenshot(cdp) {
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
-/**
- * Settle after an action: two animation frames, then poll screenshots every
- * 100 ms until two consecutive PNGs are byte-equal (capped at 1500 ms, so an
- * animated example just yields its latest frame). Returns the stable PNG.
- */
-async function settleShot(cdp) {
-  await nextFrames(cdp);
+/** Poll screenshots every 50 ms until two consecutive PNGs are byte-equal (cap 1500 ms). */
+async function settleStable(cdp, previous) {
   const deadline = Date.now() + 1500;
-  let previous = await screenshot(cdp);
   while (Date.now() < deadline) {
-    await sleep(100);
+    await sleep(50);
     const current = await screenshot(cdp);
     if (current.equals(previous)) return current;
     previous = current;
@@ -381,28 +464,31 @@ async function settleShot(cdp) {
 }
 
 /**
- * Settle after a `preview-section` switch. Two consecutive equal frames can
- * both be the *previous* (or blank loading) frame before the new example
- * renders, so first wait until the frame differs from the blank baseline
- * (cap 3000 ms; a still-blank result is returned for the caller's blank check
- * to fail), then until two consecutive frames are byte-equal (cap 1500 ms).
+ * Settle after an action: two animation frames, then poll screenshots until
+ * two consecutive PNGs are byte-equal (capped at 1500 ms, so an animated
+ * example just yields its latest frame). Returns the stable PNG.
+ */
+async function settleShot(cdp) {
+  await nextFrames(cdp);
+  return settleStable(cdp, await screenshot(cdp));
+}
+
+/**
+ * Settle after a `preview-section` switch. Wait two animation frames so the
+ * newly requested example paints before capturing, then wait until the frame
+ * differs from the blank baseline (cap 3000 ms; a still-blank result is
+ * returned for the caller's blank check to fail), then until two consecutive
+ * frames are byte-equal (cap 1500 ms).
  */
 async function settleSwitch(cdp, blank) {
+  await nextFrames(cdp);
   let png = await screenshot(cdp);
   const diffDeadline = Date.now() + 3000;
   while (png.equals(blank) && Date.now() < diffDeadline) {
-    await sleep(100);
+    await sleep(50);
     png = await screenshot(cdp);
   }
-  const deadline = Date.now() + 1500;
-  let previous = png;
-  while (Date.now() < deadline) {
-    await sleep(100);
-    const current = await screenshot(cdp);
-    if (current.equals(previous)) return current;
-    previous = current;
-  }
-  return previous;
+  return settleStable(cdp, png);
 }
 
 async function mouseMove(cdp, x, y) {
@@ -558,6 +644,226 @@ async function browserVersion(cdp) {
   }
 }
 
+/** Run one Chrome worker over its assigned `examples` and optional checks. */
+async function runWorker({
+  chrome,
+  base,
+  examples,
+  opts,
+  signal,
+  runBootCheck,
+  runInputCheck,
+  runWheelCheck,
+}) {
+  const checks = [];
+  const rendered = [];
+  let browser = null;
+  let bootMs = null;
+
+  const errors = [];
+  let step = "boot";
+  const setStep = (name) => {
+    step = name;
+  };
+  const failIfErrors = (mark) =>
+    errors
+      .slice(mark)
+      .map((entry) => entry.text)
+      .join("; ") || null;
+  const ctx = { errors, setStep, failIfErrors };
+
+  const chromeHandle = await launchChrome(chrome, signal);
+  const { cdp, proc, profile } = chromeHandle;
+  const onAbort = () => {
+    cdp.close();
+    proc.kill();
+  };
+  signal?.addEventListener("abort", onAbort, { once: true });
+  try {
+    browser = await browserVersion(cdp);
+    const pageContexts = new Set();
+    cdp.on("Runtime.executionContextCreated", ({ context }) => {
+      if (context.auxData?.isDefault) pageContexts.add(context.id);
+    });
+    cdp.on("Runtime.executionContextsCleared", () => pageContexts.clear());
+    cdp.on("Runtime.consoleAPICalled", (params) => {
+      if (!pageContexts.has(params.executionContextId)) return;
+      const text = params.args.map((arg) => arg.value ?? arg.description ?? "").join(" ");
+      const panicked = /panicked at|RuntimeError|unreachable executed/.test(text);
+      if (params.type === "error" || panicked) errors.push({ step, text });
+    });
+    cdp.on("Runtime.exceptionThrown", (params) => {
+      const detail = params.exceptionDetails;
+      if (detail.executionContextId && !pageContexts.has(detail.executionContextId)) return;
+      errors.push({
+        step,
+        text: detail.exception?.description ?? detail.text,
+      });
+    });
+    cdp.on("Log.entryAdded", (params) => {
+      // Network resource failures (a 404 build-info.json, a missing favicon)
+      // are covered by the render assertions; app errors arrive through the
+      // console and exception channels instead.
+      if (params.entry.level === "error" && params.entry.source !== "network") {
+        errors.push({ step, text: params.entry.text });
+      }
+    });
+    await cdp.send("Runtime.enable");
+    await cdp.send("Page.enable");
+    await cdp.send("Log.enable");
+
+    // Phase 1: the gallery shell boots.
+    if (runBootCheck) {
+      if (signal?.aborted) throw abortError(signal);
+      const bootStart = Date.now();
+      const mark = errors.length;
+      setStep("boot");
+      await cdp.send("Page.navigate", { url: `${base}/index.html` });
+      const booted = await waitReady(cdp);
+      bootMs = Date.now() - bootStart;
+      const bootErrors = failIfErrors(mark);
+      checks.push({
+        name: "boot",
+        result: booted && !bootErrors ? "pass" : "fail",
+        detail: booted ? (bootErrors ?? `${bootMs} ms`) : "never reached a ready state",
+      });
+    }
+
+    // Phase 2: blank baselines in single-example preview mode.
+    if (signal?.aborted) throw abortError(signal);
+    setStep("blank");
+    const blankMark = errors.length;
+    await cdp.send("Page.navigate", {
+      url: `${base}/index.html?preview=component&story=button&section=__smoke_blank__`,
+    });
+    const blankReady = await waitReady(cdp);
+    const blankErrors = failIfErrors(blankMark);
+    if (runBootCheck) {
+      checks.push({
+        name: "blank-baseline",
+        result: blankReady && !blankErrors ? "pass" : "fail",
+        detail: blankErrors ?? (blankReady ? null : "blank stage never became ready"),
+      });
+    }
+    const blankLight = await settleShot(cdp);
+    let blankDark = null;
+    if (!opts.skipDark && examples.length > 0) {
+      await postGallery(cdp, { type: "herogpui:set-theme", dark: true });
+      blankDark = await settleShot(cdp);
+      await postGallery(cdp, { type: "herogpui:set-theme", dark: false });
+      await settleShot(cdp);
+    }
+
+    // Phase 3: every assigned example, light.
+    const shotLight = new Map();
+    for (const example of examples) {
+      if (signal?.aborted) throw abortError(signal);
+      const id = sectionId(example.slug, example.heading);
+      setStep(`light:${id}`);
+      const exampleMark = errors.length;
+      await postGallery(cdp, {
+        type: "herogpui:preview-section",
+        story: example.slug,
+        section: example.heading,
+      });
+      const png = await settleSwitch(cdp, blankLight);
+      shotLight.set(id, png);
+      const verdict = blankResult(id, png.equals(blankLight), EXPECTED_BLANK);
+      const stepError = exampleErrors(
+        id,
+        errors.slice(exampleMark).map((entry) => entry.text),
+      );
+      rendered.push({
+        id,
+        story: example.slug,
+        section: example.heading,
+        light: stepError ? "fail" : verdict.result,
+        dark: null,
+        screenshot_sha256: sha256(png),
+        detail: stepError ?? verdict.detail,
+      });
+      if (opts.shots) {
+        const dir = join(opts.shots, example.slug);
+        await mkdir(dir, { recursive: true });
+        await writeFile(join(dir, `${sectionSlug(example.heading)}-light.png`), png);
+      }
+    }
+
+    // Phase 4: dark, first example of each assigned page.
+    if (!opts.skipDark && examples.length > 0) {
+      if (signal?.aborted) throw abortError(signal);
+      setStep("dark");
+      await postGallery(cdp, { type: "herogpui:set-theme", dark: true });
+      await settleShot(cdp);
+      const first = firstSectionBySlug(examples);
+      for (const [slug, heading] of first) {
+        if (signal?.aborted) throw abortError(signal);
+        const id = sectionId(slug, heading);
+        setStep(`dark:${id}`);
+        const darkMark = errors.length;
+        await postGallery(cdp, {
+          type: "herogpui:preview-section",
+          story: slug,
+          section: heading,
+        });
+        const png = await settleSwitch(cdp, blankDark);
+        const light = shotLight.get(id);
+        const blank = png.equals(blankDark);
+        const sameAsLight = light ? png.equals(light) : false;
+        const stepError = exampleErrors(
+          id,
+          errors.slice(darkMark).map((entry) => entry.text),
+          {},
+        );
+        const dark = stepError || blank || sameAsLight ? "fail" : "pass";
+        const detail =
+          stepError ??
+          (blank
+            ? "rendered identical to the dark blank stage"
+            : sameAsLight
+              ? "identical to the light render"
+              : null);
+        const row = rendered.find((entry) => entry.id === id);
+        if (row) {
+          row.dark = dark;
+          if (dark === "fail" && !row.detail) row.detail = detail;
+        }
+        if (opts.shots) {
+          const dir = join(opts.shots, slug);
+          await mkdir(dir, { recursive: true });
+          await writeFile(join(dir, `${sectionSlug(heading)}-dark.png`), png);
+        }
+      }
+      if (runInputCheck || runWheelCheck) {
+        await postGallery(cdp, { type: "herogpui:set-theme", dark: false });
+        await settleShot(cdp);
+      }
+    }
+
+    // Phase 5: the browser IME text-input path.
+    if (runInputCheck) {
+      if (signal?.aborted) throw abortError(signal);
+      await runTextInput(cdp, checks, ctx, blankLight);
+    }
+    // Phase 6: wheel delivery — page vertical, table horizontal, the two
+    // real web bug candidates (scroll-shadow horizontal, shift+wheel).
+    if (runWheelCheck) {
+      if (signal?.aborted) throw abortError(signal);
+      await runWheelScroll(cdp, checks, ctx, blankLight);
+    }
+  } finally {
+    signal?.removeEventListener("abort", onAbort);
+    cdp.close();
+    proc.kill();
+    // Chrome keeps writing to its profile briefly after SIGTERM; wait for
+    // the exit before removing it, and never let cleanup mask the result.
+    await Promise.race([new Promise((resolve) => proc.once("exit", resolve)), sleep(3000)]);
+    await rm(profile, { recursive: true, force: true, maxRetries: 3 }).catch(() => {});
+  }
+
+  return { browser, bootMs, checks, examples: rendered };
+}
+
 /**
  * Run the whole smoke pass. Returns the run record; throws only on setup
  * failures (no Chrome, bad dir). Per-step failures land in the record.
@@ -597,183 +903,45 @@ async function run(opts) {
     allowlist: EXPECTED_BLANK,
     summary: { examples: examples.length, passed: 0, failed: 0, checks_failed: 0 },
   };
-  const errors = [];
-  let step = "boot";
-  const setStep = (name) => {
-    step = name;
-  };
-  const failIfErrors = (mark) =>
-    errors
-      .slice(mark)
-      .map((entry) => entry.text)
-      .join("; ") || null;
-  const ctx = { errors, setStep, failIfErrors };
 
-  let chromeHandle = null;
+  const controller = new AbortController();
+  let firstError = null;
   try {
-    chromeHandle = await launchChrome(chrome);
-    const { cdp, proc, profile } = chromeHandle;
-    try {
-      record.browser = await browserVersion(cdp);
-      const pageContexts = new Set();
-      cdp.on("Runtime.executionContextCreated", ({ context }) => {
-        if (context.auxData?.isDefault) pageContexts.add(context.id);
-      });
-      cdp.on("Runtime.executionContextsCleared", () => pageContexts.clear());
-      cdp.on("Runtime.consoleAPICalled", (params) => {
-        if (!pageContexts.has(params.executionContextId)) return;
-        const text = params.args.map((arg) => arg.value ?? arg.description ?? "").join(" ");
-        const panicked = /panicked at|RuntimeError|unreachable executed/.test(text);
-        if (params.type === "error" || panicked) errors.push({ step, text });
-      });
-      cdp.on("Runtime.exceptionThrown", (params) => {
-        const detail = params.exceptionDetails;
-        if (detail.executionContextId && !pageContexts.has(detail.executionContextId)) return;
-        errors.push({
-          step,
-          text: detail.exception?.description ?? detail.text,
-        });
-      });
-      cdp.on("Log.entryAdded", (params) => {
-        // Network resource failures (a 404 build-info.json, a missing favicon)
-        // are covered by the render assertions; app errors arrive through the
-        // console and exception channels instead.
-        if (params.entry.level === "error" && params.entry.source !== "network") {
-          errors.push({ step, text: params.entry.text });
-        }
-      });
-      await cdp.send("Runtime.enable");
-      await cdp.send("Page.enable");
-      await cdp.send("Log.enable");
-
-      // Phase 1: the gallery shell boots.
-      const bootStart = Date.now();
-      let mark = errors.length;
-      setStep("boot");
-      await cdp.send("Page.navigate", { url: `${base}/index.html` });
-      const booted = await waitReady(cdp);
-      record.boot_ms = Date.now() - bootStart;
-      const bootErrors = failIfErrors(mark);
-      record.checks.push({
-        name: "boot",
-        result: booted && !bootErrors ? "pass" : "fail",
-        detail: booted ? (bootErrors ?? `${record.boot_ms} ms`) : "never reached a ready state",
-      });
-
-      // Phase 2: blank baselines in single-example preview mode.
-      setStep("blank");
-      mark = errors.length;
-      await cdp.send("Page.navigate", {
-        url: `${base}/index.html?preview=component&story=button&section=__smoke_blank__`,
-      });
-      const blankReady = await waitReady(cdp);
-      const blankErrors = failIfErrors(mark);
-      record.checks.push({
-        name: "blank-baseline",
-        result: blankReady && !blankErrors ? "pass" : "fail",
-        detail: blankErrors ?? (blankReady ? null : "blank stage never became ready"),
-      });
-      const blankLight = await settleShot(cdp);
-      await postGallery(cdp, { type: "herogpui:set-theme", dark: true });
-      const blankDark = await settleShot(cdp);
-      await postGallery(cdp, { type: "herogpui:set-theme", dark: false });
-      await settleShot(cdp);
-
-      // Phase 3: every example, light.
-      const shotLight = new Map();
-      for (const example of examples) {
-        const id = sectionId(example.slug, example.heading);
-        setStep(`light:${id}`);
-        const exampleMark = errors.length;
-        await postGallery(cdp, {
-          type: "herogpui:preview-section",
-          story: example.slug,
-          section: example.heading,
-        });
-        const png = await settleSwitch(cdp, blankLight);
-        shotLight.set(id, png);
-        const verdict = blankResult(id, png.equals(blankLight), EXPECTED_BLANK);
-        const stepError = exampleErrors(
-          id,
-          errors.slice(exampleMark).map((entry) => entry.text),
-        );
-        record.examples.push({
-          id,
-          story: example.slug,
-          section: example.heading,
-          light: stepError ? "fail" : verdict.result,
-          dark: null,
-          screenshot_sha256: sha256(png),
-          detail: stepError ?? verdict.detail,
-        });
-        if (opts.shots) {
-          const dir = join(opts.shots, example.slug);
-          await mkdir(dir, { recursive: true });
-          await writeFile(join(dir, `${sectionSlug(example.heading)}-light.png`), png);
-        }
-      }
-
-      // Phase 4: dark, first example of each page.
-      if (!opts.skipDark) {
-        setStep("dark");
-        await postGallery(cdp, { type: "herogpui:set-theme", dark: true });
-        await settleShot(cdp);
-        const first = firstSectionBySlug(examples);
-        for (const [slug, heading] of first) {
-          const id = sectionId(slug, heading);
-          setStep(`dark:${id}`);
-          const darkMark = errors.length;
-          await postGallery(cdp, {
-            type: "herogpui:preview-section",
-            story: slug,
-            section: heading,
-          });
-          const png = await settleSwitch(cdp, blankDark);
-          const light = shotLight.get(id);
-          const blank = png.equals(blankDark);
-          const sameAsLight = light ? png.equals(light) : false;
-          const stepError = exampleErrors(
-            id,
-            errors.slice(darkMark).map((entry) => entry.text),
-            {},
-          );
-          const dark = stepError || blank || sameAsLight ? "fail" : "pass";
-          const detail =
-            stepError ??
-            (blank
-              ? "rendered identical to the dark blank stage"
-              : sameAsLight
-                ? "identical to the light render"
-                : null);
-          const row = record.examples.find((entry) => entry.id === id);
-          if (row) {
-            row.dark = dark;
-            if (dark === "fail" && !row.detail) row.detail = detail;
-          }
-          if (opts.shots) {
-            const dir = join(opts.shots, slug);
-            await mkdir(dir, { recursive: true });
-            await writeFile(join(dir, `${sectionSlug(heading)}-dark.png`), png);
-          }
-        }
-        await postGallery(cdp, { type: "herogpui:set-theme", dark: false });
-        await settleShot(cdp);
-      }
-
-      // Phase 5: the browser IME text-input path.
-      await runTextInput(cdp, record, ctx, blankLight);
-
-      // Phase 6: wheel delivery — page vertical, table horizontal, the two
-      // real web bug candidates (scroll-shadow horizontal, shift+wheel).
-      await runWheelScroll(cdp, record, ctx, blankLight);
-    } finally {
-      cdp.close();
-      proc.kill();
-      // Chrome keeps writing to its profile briefly after SIGTERM; wait for
-      // the exit before removing it, and never let cleanup mask the result.
-      await Promise.race([new Promise((resolve) => proc.once("exit", resolve)), sleep(3000)]);
-      await rm(profile, { recursive: true, force: true, maxRetries: 3 }).catch(() => {});
+    const buckets = partitionExamples(examples, opts.workers);
+    const effectiveBuckets = buckets.length ? buckets : [[]];
+    const bootWorkerIdx = effectiveBuckets.length > 2 ? 2 : 0;
+    const settled = await Promise.allSettled(
+      effectiveBuckets.map((bucket, idx) =>
+        runWorker({
+          chrome,
+          base,
+          examples: bucket,
+          opts,
+          signal: controller.signal,
+          runBootCheck: idx === bootWorkerIdx,
+          runInputCheck: idx === 0,
+          runWheelCheck: effectiveBuckets.length > 1 ? idx === 1 : idx === 0,
+        }).catch((error) => {
+          if (!firstError) firstError = error;
+          controller.abort(error);
+          throw error;
+        }),
+      ),
+    );
+    if (firstError) throw firstError;
+    const results = settled.map((entry) => entry.value);
+    record.browser = results.find((res) => res.browser)?.browser ?? null;
+    record.boot_ms = results.find((res) => res.bootMs !== null)?.bootMs ?? 0;
+    const byId = new Map();
+    const orderedResults =
+      bootWorkerIdx === 0
+        ? results
+        : [results[bootWorkerIdx], ...results.filter((_, idx) => idx !== bootWorkerIdx)];
+    for (const res of orderedResults) {
+      record.checks.push(...res.checks);
+      for (const row of res.examples) byId.set(row.id, row);
     }
+    record.examples = examples.map((example) => byId.get(sectionId(example.slug, example.heading)));
   } finally {
     server.close();
   }
@@ -782,7 +950,7 @@ async function run(opts) {
 }
 
 /** Type into each text field through insertText, Backspace and IME compose. */
-async function runTextInput(cdp, record, ctx, blank) {
+async function runTextInput(cdp, checks, ctx, blank) {
   const modifier = process.platform === "darwin" ? 4 : 2; // Meta on macOS, Ctrl else
   const stories = [...TEXT_INPUT_STORIES, "number-field"];
   for (const slug of stories) {
@@ -861,13 +1029,13 @@ async function runTextInput(cdp, record, ctx, blank) {
       await clickAt(cdp, 8, 8);
       await settleShot(cdp);
       const stepError = ctx.failIfErrors(mark);
-      record.checks.push({
+      checks.push({
         name,
         result: ok && !stepError ? "pass" : "fail",
         detail: stepError ?? detail,
       });
     } catch (error) {
-      record.checks.push({ name, result: "fail", detail: error.message });
+      checks.push({ name, result: "fail", detail: error.message });
     }
   }
 }
@@ -878,7 +1046,7 @@ async function runTextInput(cdp, record, ctx, blank) {
  * real web bug candidates (native scrolls the same components) and are kept
  * as failing assertions, not allowlisted.
  */
-async function runWheelScroll(cdp, record, ctx, blank) {
+async function runWheelScroll(cdp, checks, ctx, blank) {
   const cases = [
     // Plain horizontal wheel over Table "Narrow Width" — works.
     {
@@ -942,13 +1110,13 @@ async function runWheelScroll(cdp, record, ctx, blank) {
       const after = await settleShot(cdp);
       const changed = !before.equals(after);
       const stepError = ctx.failIfErrors(mark);
-      record.checks.push({
+      checks.push({
         name: c.name,
         result: changed && !stepError ? "pass" : "fail",
         detail: stepError ?? (changed ? null : "wheel did not scroll"),
       });
     } catch (error) {
-      record.checks.push({ name: c.name, result: "fail", detail: error.message });
+      checks.push({ name: c.name, result: "fail", detail: error.message });
     }
   }
 
@@ -971,13 +1139,13 @@ async function runWheelScroll(cdp, record, ctx, blank) {
     const after = await settleShot(cdp);
     const changed = !before.equals(after);
     const stepError = ctx.failIfErrors(mark);
-    record.checks.push({
+    checks.push({
       name,
       result: changed && !stepError ? "pass" : "fail",
       detail: stepError ?? (changed ? null : "wheel did not scroll the page"),
     });
   } catch (error) {
-    record.checks.push({ name, result: "fail", detail: error.message });
+    checks.push({ name, result: "fail", detail: error.message });
   }
 }
 
@@ -1014,7 +1182,7 @@ async function main() {
   } catch (error) {
     console.error(error.message);
     console.error(
-      "usage: gallery-smoke.mjs [--dir <dir>] [--chrome <path>] [--record <run.json>] [--shots <dir>] [--only <slug>[,<slug>...]] [--skip-dark]",
+      "usage: gallery-smoke.mjs [--dir <dir>] [--chrome <path>] [--record <run.json>] [--shots <dir>] [--only <slug>[,<slug>...]] [--skip-dark] [--workers <n>]",
     );
     process.exitCode = 2;
     return;

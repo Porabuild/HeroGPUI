@@ -112,7 +112,8 @@ replace ordinary test commands with watch mode.
 
 `.github/workflows/ci.yml` is authoritative. Every job that runs cargo does so
 on a plain checkout with no setup step; locally the same holds, so the first
-command in a fresh clone is just `cargo`. Its jobs cover:
+command in a fresh clone is just `cargo`. On pull requests, `changes` skips
+unaffected Rust, website, SemVer, or WASM jobs. Its jobs cover:
 
 - Formatting, generated gallery/WASM freshness, and website typecheck, lint
   and production build.
@@ -120,18 +121,24 @@ command in a fresh clone is just `cargo`. Its jobs cover:
   subset checks. The aggregate runs every `*audit.py` plus `write_only.py` and
   checks reported gaps as well as exit codes; see [parity](parity.md).
 - Workspace lint inheritance, Clippy and cargo-deny (`bash .shots/lint.sh`,
-  which runs on any host with bash), unused dependencies, each-feature
-  compilation, and each library crate with `--no-default-features`.
+  which runs on any host with bash), unused dependencies, and each-feature
+  compilation (including `--no-default-features` on every crate).
 - Workspace tests through `.shots/run-tests.sh` on Linux, macOS and Windows,
-  plus the theme's optional serde feature. Optimized (`Cargo.toml` profile)
-  tests run on pushes and manual dispatches, and on a pull request labelled
-  `ci:opt-levels` or touching build configuration. The Windows job also
-  exercises the gallery control-file helpers with `.shots/test-control.ps1`.
-- On pull requests, `cargo semver-checks` for the four library crates against
-  their latest crates.io release; a deliberate break carries the
-  `semver:breaking` label. The release repeats the check before publishing.
-- Rustdoc, gallery CLI installation from source, and a wasm32 build on the
-  pinned toolchain followed by the lockfile-matched wasm-bindgen pass.
+  plus the theme's optional serde feature (on standard PRs, `sweep_shard_`
+  runs on Linux and skips on macOS/Windows; pushes, tags, `build_config`
+  changes, and `ci:opt-levels` PRs run it on all three hosts). Optimized
+  (`Cargo.toml` profile) tests run on pushes and manual dispatches, and on a
+  pull request labelled `ci:opt-levels` or touching build configuration. The
+  Windows job also exercises the gallery control-file helpers with
+  `.shots/test-control.ps1`.
+- On pull requests touching library crates or workspace manifests, strict
+  `cargo semver-checks` for the four library crates against their latest
+  crates.io release; a deliberate break carries the `semver:breaking` label.
+  Pushes to `master` run it with `--release-type major` to keep the SemVer
+  build cache warm, and the release repeats the strict check before publishing.
+- Rustdoc, gallery CLI installation from source (in the Linux test leg), and a
+  wasm32 build on the pinned toolchain followed by the lockfile-matched
+  wasm-bindgen pass and headless Chrome smoke (`wasm-smoke`).
 
 Do not claim the full gate passed after running only a focused test or one audit.
 For documentation-only changes, verify the documentation directly rather than
