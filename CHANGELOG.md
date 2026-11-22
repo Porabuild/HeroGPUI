@@ -8,6 +8,12 @@ version covers `herogpui`, `herogpui-core`, `herogpui-theme`,
 
 ## [Unreleased]
 
+## [0.15.4] - 2026-11-23
+
+### Fixed
+
+- Shrunk in-window `Tooltip` viewport edge insets proportionally when a tooltip fits inside a compact window without room for 8px margins on both sides, preventing vertical or horizontal clipping inside compact bar windows.
+
 ## [0.15.3] - 2026-11-22
 
 ### Fixed
@@ -989,7 +995,8 @@ for each breaking change with before/after code.
   `herogpui-components` and the `herogpui-gallery` CLI, built on the
   published `gpui-pre` 0.3.5 crates with no GPUI fork.
 
-[Unreleased]: https://github.com/Porabuild/HeroGPUI/compare/v0.15.3...HEAD
+[Unreleased]: https://github.com/Porabuild/HeroGPUI/compare/v0.15.4...HEAD
+[0.15.4]: https://github.com/Porabuild/HeroGPUI/compare/v0.15.3...v0.15.4
 [0.15.3]: https://github.com/Porabuild/HeroGPUI/compare/v0.15.2...v0.15.3
 [0.15.2]: https://github.com/Porabuild/HeroGPUI/compare/v0.15.1...v0.15.2
 [0.15.1]: https://github.com/Porabuild/HeroGPUI/compare/v0.15.0...v0.15.1
