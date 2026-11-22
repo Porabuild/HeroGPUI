@@ -95,8 +95,8 @@ same sources the native binary does. Earlier layouts built the artifact from a
 second checkout pinned to an older commit and kept the two trees in step by
 hand; nothing of that survives, and no tool reports a component as behind.
 
-The artifact is **not committed**. CI's `wasm` job builds it on every pull
-request and master push, and `wasm-publish` publishes it as its own GitHub
+The artifact is **not committed**. CI's `wasm` job builds it when wasm build
+inputs change on a pull request and on every master push, and `wasm-publish` publishes it as its own GitHub
 prerelease, `gallery-<key16>`, keyed by the hash of every wasm build input
 (assets are attached while it is a draft, so immutable releases are fine);
 the Vercel build (`pnpm run build` in `web/`) downloads the artifact for its

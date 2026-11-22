@@ -269,10 +269,10 @@ copies). Vercel builds the site with `pnpm run build` and no Rust toolchain,
 so CI builds the artifact and the site build downloads it — with no secrets
 and no manual step:
 
-1. **CI builds it** — the `wasm` job in `.github/workflows/ci.yml`, on every
-   pull request and every master push, runs `.shots/build-wasm.sh`: wasm32
-   build on `rust-toolchain.toml`'s pinned stable, `wasm-bindgen`, `wasm-opt`,
-   then `build-info.json` recording
+1. **CI builds it** — the `wasm` job in `.github/workflows/ci.yml`, when wasm
+   build inputs change on pull requests and on every master push, runs
+   `.shots/build-wasm.sh`: wasm32 build on `rust-toolchain.toml`'s pinned
+   stable, `wasm-bindgen`, `wasm-opt`, then `build-info.json` recording
    the **artifact key** — the SHA-256 over every wasm build input (the
    component/theme/core/facade/web/gallery sources, the workspace manifests,
    the lockfile, build script and CI recipe;
@@ -419,7 +419,7 @@ no artifact rebuild is needed, CI makes it.
 4. `pnpm run gallery:smoke` renders every example of the installed artifact in
    headless Chrome and drives text input, wheel scrolling and the theme
    bridge; see the "Web gallery smoke" section of `docs/agents/gallery.md`.
-   CI's `wasm-smoke` job runs it on every pull request.
+   CI's `wasm-smoke` job runs it whenever `wasm` builds.
 
 ## Current status
 
