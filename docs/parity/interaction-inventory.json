@@ -1,6 +1,6 @@
 {
   "schema_version": 3,
-  "recorded_on": "2026-11-22",
+  "recorded_on": "2026-11-23",
   "upstream": {
     "repository": "https://github.com/heroui-inc/heroui",
     "baseline_tag": "v3.2.6",
@@ -25437,7 +25437,7 @@
     "sha256": "eb63ccde7886878280d3b93fc6cf1a9a99b685ec74f9493a82e6bedde224ad70"
   },
   "source_snapshot": {
-    "sha256": "4c43395fedd24d45de70d07ec9f918b04db386e2c60412f5d7c102da869049eb",
+    "sha256": "c5dd9abb0b4f198f16c9a8b705cbc6f00a29cf467afbb86061ecce0514b0b695",
     "files": {
       ".cargo/config.toml": "6ce2a269fd46b2570763e8e446ac93e9d04614416af21134877cf7b388e776f9",
       ".gitattributes": "0a560d39f04292518fe72516d91e2418d61d5eaa12a15af564dc07e60d391034",
@@ -25968,7 +25968,7 @@
       "web/src/data/reference.json": "10ddfffca5ae59afae1e2ea6cc85a17709023893c30a3a4300e81224579023f2",
       "web/src/data/releases.json": "c64f5cb5ab1927dd8e78696726c29cdec6622cd7bc897ae04dcf58fa5dd380f2",
       "web/src/data/rust-examples.json": "b84ee4605e1e2a386af15902e90c2ebd120022a181b08649722fd38b38b02c0a",
-      "web/src/data/wasm-parity.json": "bc43cb1d8975901a9a8d885c090f0975ce17415ca4032dddc02e778f49ab53e8",
+      "web/src/data/wasm-parity.json": "b24e4433715a9a84e89a79f6d20e476ec7cdfcfe623892330c90b54fe08018ff",
       "web/src/data/wasm-sections.json": "3ec2df476f14a4bc474e31c51613397d5101e6f9026dbbe8e8db2b4da4bbee74",
       "web/src/lib/catalog.ts": "79681a0e1e0e12c9352ddc9eec0d6fe428906ceca07bfefb89623639396f81cf",
       "web/src/lib/docs-nav.ts": "ffb0d7fdaa0261395306f0bfa4e09c5ef88043c702c962f847983b05be67f55a",
@@ -150332,7 +150332,7 @@
       ]
     }
   ],
-  "verification_sha256": "654223bdab4ef8b714bc4b28549ebece0f2d9c425ea845aba2ee593eca6d108f",
+  "verification_sha256": "b9692c32566ba0cd7106209654d6fcdea4b88cf4be514dab73425b25c136b3a9",
   "retired_source_changes": [
     {
       "path": "packages/react/src/components/autocomplete/autocomplete.stories.tsx",
