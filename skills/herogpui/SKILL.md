@@ -4,7 +4,7 @@ description: "HeroGPUI — native Rust/GPUI port of HeroUI v3.2.7. Use when buil
 metadata:
   author: herogpui
   source: https://github.com/Porabuild/HeroGPUI/blob/master/skills/herogpui/SKILL.md
-  version: "0.15.2"
+  version: "0.15.3"
 ---
 
 # HeroGPUI Development Guide
@@ -41,7 +41,7 @@ Do not invent Poratake-specific or app-specific field names in the library. App 
 ## Installation
 
 ```toml
-herogpui = "0.15.2"
+herogpui = "0.15.3"
 ```
 
 ```rust
@@ -165,9 +165,16 @@ Slider::new("vol", 0.5).recipe("pill");
 Input::new(&state).recipe("search");
 ```
 
+### Fixes in 0.15.3
+
+These fixes are included in HeroGPUI 0.15.3. Existing 0.15.x code remains compatible.
+
+- `SliderSize::Sm` increases its rail to 8px and knob to 14px inside an 18px interactive hit box (both horizontal and vertical) so clicks and drags anywhere on the overhanging handle register reliably while `SliderSize::Md` stays identical to HeroUI v3.2.7.
+- In-window `Tooltip` popups measure their trigger, flip across the primary axis, clamp within the viewport with an 8px margin, wrap overly wide tokens on narrow viewports, and paint above popovers and menus.
+
 ### APIs added in 0.15.2
 
-These APIs are included in HeroGPUI 0.15.2. Existing 0.15.x code remains compatible.
+These APIs are included in HeroGPUI 0.15.2.
 
 - `Tooltip::{presenter_mode, presenter, exclude_from_capture}` with `TooltipPresenter`, `TooltipPresenterMode`, `TooltipPresentationRequest`, `SeparateWindowTooltipPresenter` and `position_tooltip_popup` route tooltips through a popup or native surface while HeroGPUI keeps the hover, focus, delay and Escape lifecycle.
 - `Select::fit_panel_width` and `Select::intrinsic_panel_width` size the menu to its icons, labels and indicators.

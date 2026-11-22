@@ -8,6 +8,14 @@ version covers `herogpui`, `herogpui-core`, `herogpui-theme`,
 
 ## [Unreleased]
 
+## [0.15.3] - 2026-11-22
+
+### Fixed
+
+- Expanded `SliderSize::Sm` pointer hit testing across an 18px interactive hit box (both horizontal and vertical) and increased the compact rail and knob from 6px / 12px to 8px / 14px so clicks and drags anywhere on the overhanging handle register reliably without altering `SliderSize::Md`.
+- Kept in-window `Tooltip` popups inside the window viewport by measuring triggers, flipping across the primary axis and clamping with an 8px edge margin, aligning arrows and entry/exit slide offsets with the resolved placement, capping width and wrapping oversized tokens on narrow viewports, and raising deferred tooltip priority above popovers and menus.
+- Updated `url` from `2.5.8` to `2.5.9` to resolve `RUSTSEC-2026-0592`.
+
 ## [0.15.2] - 2026-11-15
 
 ### Added
@@ -981,7 +989,8 @@ for each breaking change with before/after code.
   `herogpui-components` and the `herogpui-gallery` CLI, built on the
   published `gpui-pre` 0.3.5 crates with no GPUI fork.
 
-[Unreleased]: https://github.com/Porabuild/HeroGPUI/compare/v0.15.2...HEAD
+[Unreleased]: https://github.com/Porabuild/HeroGPUI/compare/v0.15.3...HEAD
+[0.15.3]: https://github.com/Porabuild/HeroGPUI/compare/v0.15.2...v0.15.3
 [0.15.2]: https://github.com/Porabuild/HeroGPUI/compare/v0.15.1...v0.15.2
 [0.15.1]: https://github.com/Porabuild/HeroGPUI/compare/v0.15.0...v0.15.1
 [0.15.0]: https://github.com/Porabuild/HeroGPUI/compare/v0.14.0...v0.15.0
