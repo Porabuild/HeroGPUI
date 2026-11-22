@@ -3,6 +3,14 @@
   "repository": "Porabuild/HeroGPUI",
   "releases": [
     {
+      "tag": "v0.15.4",
+      "name": "v0.15.4",
+      "publishedAt": "2026-11-23",
+      "prerelease": false,
+      "url": "https://github.com/Porabuild/HeroGPUI/releases/tag/v0.15.4",
+      "body": "### Fixed\n\n- Shrunk in-window `Tooltip` viewport edge insets proportionally when a tooltip fits inside a compact window without room for 8px margins on both sides, preventing vertical or horizontal clipping inside compact bar windows."
+    },
+    {
       "tag": "v0.15.3",
       "name": "v0.15.3",
       "publishedAt": "2026-11-22",

@@ -411,12 +411,14 @@ fn tooltip_text_with_break_opportunities(text: &str) -> String {
     result
 }
 
-fn in_window_viewport_bounds(viewport: Size<Pixels>) -> Bounds<Pixels> {
+fn in_window_viewport_bounds(viewport: Size<Pixels>, tip_size: Size<Pixels>) -> Bounds<Pixels> {
     let margin = f32::from(TOOLTIP_VIEWPORT_MARGIN);
     let width = f32::from(viewport.width).max(0.0);
     let height = f32::from(viewport.height).max(0.0);
-    let inset_x = margin.min(width * 0.5);
-    let inset_y = margin.min(height * 0.5);
+    let tip_w = f32::from(tip_size.width).max(0.0);
+    let tip_h = f32::from(tip_size.height).max(0.0);
+    let inset_x = margin.min(((width - tip_w) * 0.5).max(0.0));
+    let inset_y = margin.min(((height - tip_h) * 0.5).max(0.0));
     Bounds {
         origin: point(px(inset_x), px(inset_y)),
         size: size(
@@ -1452,7 +1454,7 @@ impl Element for TooltipPositioner {
             window,
             cx,
         );
-        let viewport_bounds = in_window_viewport_bounds(window.viewport_size());
+        let viewport_bounds = in_window_viewport_bounds(window.viewport_size(), tip_size);
         let (origin, resolved) = resolve_tooltip_popup_placement(
             trigger,
             tip_size,
