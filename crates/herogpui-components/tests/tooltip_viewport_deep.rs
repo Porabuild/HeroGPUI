@@ -732,3 +732,57 @@ fn in_window_tooltip_snaps_clamped_coordinates_to_fractional_dpi_grid(cx: &mut T
         tip.origin
     );
 }
+
+#[gpui::test]
+fn in_window_tooltip_shrinks_margin_to_fit_compact_viewport(cx: &mut TestAppContext) {
+    still();
+    let vcx = open_host(cx, || {
+        gpui::div()
+            .size_full()
+            .flex()
+            .items_center()
+            .pl(px(12.))
+            .child(
+                Tooltip::new("Compact viewport tooltip")
+                    .id("compact-viewport")
+                    .placement(TooltipPlacement::Right)
+                    .delay(0)
+                    .body(|_, _| {
+                        gpui::div()
+                            .w(px(180.))
+                            .h(px(32.))
+                            .child("Fits 52px bar")
+                            .into_any_element()
+                    })
+                    .child(
+                        gpui::div()
+                            .id("compact-trigger")
+                            .debug_selector(|| "compact-trigger".into())
+                            .w(px(80.))
+                            .h(px(28.)),
+                    ),
+            )
+            .into_any_element()
+    });
+    for scale in [1.0_f32, 2.0] {
+        vcx.simulate_scale_factor_change(scale);
+        vcx.simulate_resize(size(px(360.), px(52.)));
+        vcx.update(|window, _| window.refresh());
+        let trigger = vcx
+            .debug_bounds("compact-trigger")
+            .expect("compact trigger bounds");
+        vcx.simulate_mouse_move(trigger.center(), None, Modifiers::none());
+        settle(vcx);
+        let tip = vcx
+            .debug_bounds("compact-viewport-tip")
+            .expect("compact tooltip must paint");
+        let viewport = vcx.update(|window, _| window.viewport_size());
+        assert!(
+            f32::from(tip.top()) >= -0.01
+                && f32::from(tip.bottom()) <= f32::from(viewport.height) + 0.01
+                && f32::from(tip.left()) >= -0.01
+                && f32::from(tip.right()) <= f32::from(viewport.width) + 0.01,
+            "compact tooltip {tip:?} must stay unclipped inside {viewport:?} at {scale}x"
+        );
+    }
+}
