@@ -562,6 +562,11 @@ jobs:
   wasm-smoke:
     name: Web gallery smoke (headless Chrome)
     needs: [wasm]
+    # `!cancelled() && needs.wasm.result == 'success'` because `wasm` depends
+    # on `changes`, which skips on every non-PR event; without a status
+    # function here, GitHub Actions' implicit `success()` sees the skipped
+    # `changes` ancestor and skips `wasm-smoke` too.
+    if: "!cancelled() && needs.wasm.result == 'success'"
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     steps:
@@ -611,7 +616,12 @@ jobs:
   wasm-publish:
     name: Publish web gallery artifact
     needs: [wasm]
-    if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+    # Same `!cancelled() && needs.wasm.result == 'success'` guard as `wasm-smoke` above.
+    if: >-
+      !cancelled() &&
+      needs.wasm.result == 'success' &&
+      github.event_name == 'push' &&
+      github.ref == 'refs/heads/master'
     runs-on: ubuntu-24.04
     permissions:
       contents: write
@@ -700,9 +710,11 @@ jobs:
   # list fails silently — branch protection just never learns it exists — so
   # this jq check is the one place a missed job fails loudly, in review, on
   # the PR that added it. On pull requests `changes` filters unaffected jobs
-  # (`web`, `lint`, `test`, `doc`, `wasm`, `wasm-smoke`, `semver`) and
-  # `optimized` is opt-in; on non-PR events `changes` and `wasm-publish` (off
-  # `master`) skip, so `skipped` counts as passing.
+  # (`web`, `lint`, `test`, `doc`, `wasm` and its downstream `wasm-smoke`,
+  # `semver`), `optimized` is opt-in, and `wasm-publish` skips; off pull
+  # requests `changes` and `wasm-publish` (off `master`) skip. Elsewhere
+  # `skipped` passes, while `decide` enforces that `wasm-smoke` succeeds when
+  # `wasm` does and that `wasm` + `wasm-publish` succeed on `master` pushes.
   ci:
     name: ci
     if: always()
@@ -712,6 +724,11 @@ jobs:
       - name: decide
         env:
           RESULTS: ${{ toJson(needs) }}
+          IS_MASTER_PUSH: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' }}
         run: |
           echo "$RESULTS"
-          echo "$RESULTS" | jq -e 'all(.[] | .result; . == "success" or . == "skipped")'
+          echo "$RESULTS" | jq -e --argjson master "$IS_MASTER_PUSH" '
+            all(.[] | .result; . == "success" or . == "skipped") and
+            (.wasm.result != "success" or ."wasm-smoke".result == "success") and
+            (($master | not) or (.wasm.result == "success" and ."wasm-publish".result == "success"))
+          '
