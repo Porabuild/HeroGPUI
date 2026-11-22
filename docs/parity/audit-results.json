@@ -1,8 +1,8 @@
 {
   "schema_version": 2,
   "target": "v3.2.7",
-  "recorded_on": "2026-11-15T17:38:11.032830+00:00",
-  "inputs_sha256": "c462c51e3c393b31e3b5c07a2111207bda0fde532d27a27478fc4fdd18279d9a",
+  "recorded_on": "2026-11-22T22:19:37.386411+00:00",
+  "inputs_sha256": "f94740dcb4d52608f0bb78ca0dee7c00146c01882f86a77a877b083a63ac1673",
   "inputs_stable_during_run": true,
   "status": "passed",
   "note": "Static mapped coverage only; omissions, unreviewed specimens and runtime parity are separate.",
@@ -44,8 +44,8 @@
         ]
       },
       "reported_gaps": [],
-      "output_sha256": "07e25e8be5a38c1e7d256b4c8f9043718e3f21735e7f3da8f71e9f38b0dae82b",
-      "output": "self-test PASS: the scanner fails a component that states no role, a raw gpui accessibility builder outside a11y.rs, accessibility state on a roleless element, a component in no table, a module in no wave, a stale NO_NODE/PENDING reason, a lost or doubled delegate and a stale table row; it matches `impl` blocks by brace, reads past comments and test modules, and does not mistake the theme's `cx.role(Color::..)` for an accessibility role.\n\ncomponent modules read    : 87\nRenderOnce impls read     : 105\nrole calls found          : 128\ncomponents with a role    : 59\ndelegating to another     : 6\nno node upstream either   : 39\npending components        : 1\npending modules           : 0\nraw gpui a11y calls       : 0\nfailures                  : 0\n/Users/svecherenko/work/HeroGPUI/.poracode/worktrees/poracode-tidy-pixel-b8817f90/.shots/a11y_audit.py:1287: SyntaxWarning: \"\\`\" is an invalid escape sequence. Such sequences will not work in the future. Did you mean \"\\\\`\"? A raw string is also an option.\n  'a component-builder \\`.aria_label(..)\\` must not count as a raw '\n"
+      "output_sha256": "152b23ece2d7cca8c86babc4f1bb57f3aa2057d3f5435e0844d726f02bf2726c",
+      "output": "self-test PASS: the scanner fails a component that states no role, a raw gpui accessibility builder outside a11y.rs, accessibility state on a roleless element, a component in no table, a module in no wave, a stale NO_NODE/PENDING reason, a lost or doubled delegate and a stale table row; it matches `impl` blocks by brace, reads past comments and test modules, and does not mistake the theme's `cx.role(Color::..)` for an accessibility role.\n\ncomponent modules read    : 87\nRenderOnce impls read     : 105\nrole calls found          : 128\ncomponents with a role    : 59\ndelegating to another     : 6\nno node upstream either   : 39\npending components        : 1\npending modules           : 0\nraw gpui a11y calls       : 0\nfailures                  : 0\n/Users/svecherenko/work/HeroGPUI/.shots/a11y_audit.py:1287: SyntaxWarning: \"\\`\" is an invalid escape sequence. Such sequences will not work in the future. Did you mean \"\\\\`\"? A raw string is also an option.\n  'a component-builder \\`.aria_label(..)\\` must not count as a raw '\n"
     },
     {
       "audit": "anatomy_audit.py",
@@ -276,7 +276,7 @@
           114
         ],
         "element id sites read": [
-          946
+          948
         ],
         "structured helper uses": [
           694
@@ -295,8 +295,8 @@
         ]
       },
       "reported_gaps": [],
-      "output_sha256": "17f4aa773c1c4adc4ef281eb726fa70bc0fdb06a1f0e948f384a5c2d3b4b6c29",
-      "output": "self-test PASS: the scanner flags a synthetic constant id (`.id(\"textarea\")`, `ElementId::Name(\"nested\")`) and a synthetic formatted id (`.id(format!(..))`, `el_name(format!(..))` and the rustfmt-wrapped `ElementId::Name(\\n format!(..))`), reads past comments and string literals without mistaking prose for code, leaves derived ids and test-module callers alone, gates each constant on a per-file allowlist entry, reports a stale entry, and refuses to call an empty scan a pass.\n\nrust source files walked  : 114\nelement id sites read     : 946\nstructured helper uses    : 694\nallowlisted constants     : 8\nCONSTANT ids              : 0\nFORMAT-built ids          : 0\nstale allowlist entries   : 0\n"
+      "output_sha256": "0adce0f97cc81535068020c34daa8af313ec806f23f492cab23bb7fc19f1a64d",
+      "output": "self-test PASS: the scanner flags a synthetic constant id (`.id(\"textarea\")`, `ElementId::Name(\"nested\")`) and a synthetic formatted id (`.id(format!(..))`, `el_name(format!(..))` and the rustfmt-wrapped `ElementId::Name(\\n format!(..))`), reads past comments and string literals without mistaking prose for code, leaves derived ids and test-module callers alone, gates each constant on a per-file allowlist entry, reports a stale entry, and refuses to call an empty scan a pass.\n\nrust source files walked  : 114\nelement id sites read     : 948\nstructured helper uses    : 694\nallowlisted constants     : 8\nCONSTANT ids              : 0\nFORMAT-built ids          : 0\nstale allowlist entries   : 0\n"
     },
     {
       "audit": "example_audit.py",
@@ -351,7 +351,7 @@
       "status": "passed",
       "metrics": {
         "rust files walked": [
-          249
+          250
         ],
         "doc-comment fences": [
           42
@@ -373,8 +373,8 @@
         ]
       },
       "reported_gaps": [],
-      "output_sha256": "ae1b204752e6bb09220d5141cd341b53fcbb354269c2085e5c594abd467131da",
-      "output": "self-test PASS: the scanner reads doc fences and only doc fences, flags ```ignore and every attribute list rustdoc reads as ignore (`rust,ignore`, `ignore-macos`), rejects unknown attributes by name, gates `no_run` on a per-file allowlist, reports a stale allowlist entry, and refuses to call an empty scan a pass.\n\nrust files walked         : 249\ndoc-comment fences        : 42\ncompiled by rustdoc       : 37\ndeclared non-Rust prose   : 5\nIGNORED (never compiled)  : 0\nunjustified / unknown     : 0\nstale allowlist entries   : 0\n"
+      "output_sha256": "9e79ea7f28138fdb9d05e9c0aaff20bb9a857f5b3db7fe4f612dafcc6295a65a",
+      "output": "self-test PASS: the scanner reads doc fences and only doc fences, flags ```ignore and every attribute list rustdoc reads as ignore (`rust,ignore`, `ignore-macos`), rejects unknown attributes by name, gates `no_run` on a per-file allowlist, reports a stale allowlist entry, and refuses to call an empty scan a pass.\n\nrust files walked         : 250\ndoc-comment fences        : 42\ncompiled by rustdoc       : 37\ndeclared non-Rust prose   : 5\nIGNORED (never compiled)  : 0\nunjustified / unknown     : 0\nstale allowlist entries   : 0\n"
     },
     {
       "audit": "inert_audit.py",
