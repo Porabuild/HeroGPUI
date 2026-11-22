@@ -48,3 +48,5 @@ mod popover_stack_deep;
 mod sheet_deep;
 #[path = "tooltip_presenter_deep.rs"]
 mod tooltip_presenter_deep;
+#[path = "tooltip_viewport_deep.rs"]
+mod tooltip_viewport_deep;

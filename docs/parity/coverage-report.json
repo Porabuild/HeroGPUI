@@ -3,8 +3,8 @@
   "target": "v3.2.7",
   "target_commit": "7cb1642606c6f96f424dad78a961ccf45436be72",
   "inventory_recorded_on": "2026-11-22",
-  "inventory_verification_sha256": "95c37de79adbadc6ca3588fae0252bd911f675d7ace3291435428741b8803c3d",
-  "source_snapshot_sha256": "eba83d0961b17143bddfe53cdaef43ea4dee59ba94b2569035140bbdd9ddf7f6",
+  "inventory_verification_sha256": "506753fa81a7dfff66da519c1340b59497168020fbb0303bdd3808976eebd718",
+  "source_snapshot_sha256": "715fa2ae6ff309746931567ac3ae14420db2d082bd2dcd0274ab1c1baa057b8d",
   "last_evidence_commit": null,
   "last_evidence_commit_recorded": false,
   "totals": {
