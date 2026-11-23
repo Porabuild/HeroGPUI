@@ -527,10 +527,10 @@ impl RenderOnce for ColorSlider {
                     size: gpui::size(0., 0.),
                 }
             });
-        let dragging = window.use_keyed_state(
+        let drag_state = window.use_keyed_state(
             element_id::scoped(&self.id, "slider-dragging"),
             cx,
-            |_, _| false,
+            |_, _| ColorDragState::Idle,
         );
         let thumb_hovered = window.use_keyed_state(
             element_id::scoped(&self.id, "slider-thumb-hovered"),
@@ -680,7 +680,8 @@ impl RenderOnce for ColorSlider {
         let thumb_offset = px(COLOR_SLIDER_TRACK_INSET_PX
             + travel * if vertical { 1.0 - norm } else { norm }
             - 8.0);
-        let is_dragging = !self.is_disabled && *dragging.read(cx);
+        let is_dragging =
+            !self.is_disabled && matches!(*drag_state.read(cx), ColorDragState::Active { .. });
         let is_focused = !self.is_disabled && focus_handle.is_focused(window);
         let is_focus_visible = is_focused && util::focus_visible(cx);
         let thumb_state = ColorSliderThumbState {
@@ -746,6 +747,19 @@ impl RenderOnce for ColorSlider {
                     }
                 });
             });
+            if self.on_change.is_some() || self.on_change_end.is_some() || own.is_some() {
+                thumb = attach_color_thumb_mouse_down(
+                    thumb,
+                    drag_state.clone(),
+                    focus_handle.clone(),
+                    ColorThumbAnchor {
+                        start_x_norm: norm,
+                        start_y_norm: 0.0,
+                        start_value: self.value,
+                        start_position: gpui::Point::default(),
+                    },
+                );
+            }
         }
         track = track.child(thumb);
 
@@ -802,35 +816,39 @@ impl RenderOnce for ColorSlider {
                 });
             if self.on_change.is_some() || self.on_change_end.is_some() || own.is_some() {
                 let down_bounds = bounds_slot.clone();
-                let down_dragging = dragging.clone();
+                let down_drag = drag_state.clone();
                 let down_change = self.on_change.clone();
                 let down_own = own.clone();
                 let focus_for_press = focus_handle.clone();
                 track = track.on_mouse_down(
                     gpui::MouseButton::Left,
                     move |event: &MouseDownEvent, window, cx| {
-                        if event.modifiers.alt
-                            || event.modifiers.control
-                            || event.modifiers.platform
-                        {
+                        if has_disqualifying_modifiers(event.modifiers) {
                             return;
                         }
-                        down_dragging.update(cx, |value, cx| {
-                            if !*value {
-                                *value = true;
-                                cx.notify();
-                            }
-                        });
                         window.focus(&focus_for_press, cx);
-                        if let Some(next) = slider_color_from_pointer(
+                        let resolved = slider_color_from_drag(
                             &down_bounds,
                             event.position,
+                            None,
                             vertical,
                             value,
                             channel,
                             space,
                             cx,
-                        ) {
+                        );
+                        let current = resolved.as_ref().map_or(value, |next| next.value);
+                        down_drag.update(cx, |state, cx| {
+                            let was_idle = matches!(*state, ColorDragState::Idle);
+                            *state = ColorDragState::Active {
+                                current,
+                                anchor: None,
+                            };
+                            if was_idle {
+                                cx.notify();
+                            }
+                        });
+                        if let Some(next) = resolved {
                             if next.changed {
                                 report_color_change(
                                     next.value,
@@ -845,7 +863,7 @@ impl RenderOnce for ColorSlider {
                 );
 
                 let global_bounds = bounds_slot;
-                let global_dragging = dragging;
+                let global_drag = drag_state;
                 let global_change = self.on_change;
                 let global_end = self.on_change_end;
                 let global_own = own;
@@ -854,55 +872,74 @@ impl RenderOnce for ColorSlider {
                         |bounds, _, _| bounds,
                         move |_, _, window, _| {
                             let move_bounds = global_bounds.clone();
-                            let move_dragging = global_dragging.clone();
+                            let move_drag = global_drag.clone();
                             let move_change = global_change.clone();
                             let move_own = global_own.clone();
                             window.on_mouse_event(
                                 move |event: &MouseMoveEvent, phase, window, cx| {
-                                    if phase == gpui::DispatchPhase::Capture
-                                        && event.pressed_button == Some(gpui::MouseButton::Left)
-                                        && *move_dragging.read(cx)
+                                    if phase != gpui::DispatchPhase::Capture
+                                        || event.pressed_button != Some(gpui::MouseButton::Left)
                                     {
-                                        if let Some(next) = slider_color_from_pointer(
-                                            &move_bounds,
-                                            event.position,
-                                            vertical,
-                                            value,
-                                            channel,
-                                            space,
-                                            cx,
-                                        ) {
-                                            if next.changed {
-                                                report_color_change(
-                                                    next.value,
-                                                    &move_own,
-                                                    &move_change,
-                                                    window,
-                                                    cx,
-                                                );
-                                            }
+                                        return;
+                                    }
+                                    let ColorDragState::Active { current, anchor } =
+                                        *move_drag.read(cx)
+                                    else {
+                                        return;
+                                    };
+                                    if let Some(next) = slider_color_from_drag(
+                                        &move_bounds,
+                                        event.position,
+                                        anchor,
+                                        vertical,
+                                        current,
+                                        channel,
+                                        space,
+                                        cx,
+                                    ) {
+                                        if next.changed {
+                                            move_drag.update(cx, |state, _| {
+                                                if let ColorDragState::Active { current, .. } =
+                                                    state
+                                                {
+                                                    *current = next.value;
+                                                }
+                                            });
+                                            report_color_change(
+                                                next.value,
+                                                &move_own,
+                                                &move_change,
+                                                window,
+                                                cx,
+                                            );
                                         }
                                     }
                                 },
                             );
 
                             let up_bounds = global_bounds.clone();
-                            let up_dragging = global_dragging.clone();
+                            let up_drag = global_drag.clone();
                             let up_end = global_end.clone();
                             window.on_mouse_event(
                                 move |event: &MouseUpEvent, phase, window, cx| {
                                     if phase == gpui::DispatchPhase::Capture
                                         && event.button == gpui::MouseButton::Left
                                     {
-                                        finish_slider_drag(
-                                            &up_dragging,
-                                            &up_bounds,
-                                            event.position,
-                                            vertical,
-                                            value,
-                                            channel,
-                                            space,
+                                        finish_color_drag(
+                                            &up_drag,
                                             &up_end,
+                                            |anchor, current, cx| {
+                                                slider_color_from_drag(
+                                                    &up_bounds,
+                                                    event.position,
+                                                    anchor,
+                                                    vertical,
+                                                    current,
+                                                    channel,
+                                                    space,
+                                                    cx,
+                                                )
+                                            },
                                             window,
                                             cx,
                                         );
@@ -1021,68 +1058,60 @@ pub(super) fn lightness_gradient_colors(
     )
 }
 
-#[allow(clippy::float_cmp)] // snapped channel values are exact state coordinates
-pub(super) fn slider_color_from_pointer(
+#[allow(clippy::float_cmp, clippy::too_many_arguments)] // snapped channel values are exact state coordinates
+pub(super) fn slider_color_from_drag(
     bounds: &Entity<Bounds<f32>>,
     position: gpui::Point<Pixels>,
+    anchor: Option<ColorThumbAnchor>,
     vertical: bool,
-    value: PickerColor,
+    current: PickerColor,
     channel: ColorChannel,
     color_space: ColorSpace,
     cx: &App,
 ) -> Option<PointerColor> {
     let bounds = *bounds.read(cx);
-    let (reach, extent) = if vertical {
-        (
-            bounds.origin.y + bounds.size.height
-                - COLOR_SLIDER_TRACK_INSET_PX
-                - f32::from(position.y),
-            bounds.size.height - COLOR_SLIDER_TRACK_INSET_PX * 2.0,
-        )
+    let extent = if vertical {
+        bounds.size.height - COLOR_SLIDER_TRACK_INSET_PX * 2.0
     } else {
-        (
-            f32::from(position.x) - bounds.origin.x - COLOR_SLIDER_TRACK_INSET_PX,
-            bounds.size.width - COLOR_SLIDER_TRACK_INSET_PX * 2.0,
-        )
+        bounds.size.width - COLOR_SLIDER_TRACK_INSET_PX * 2.0
     };
     if extent <= 0.0 {
         return None;
     }
-    let fraction = (reach / extent).clamp(0.0, 1.0);
-    let (min, max) = channel.range();
-    let next = snap_color_channel(channel, min + fraction * (max - min));
+    let next = match anchor {
+        Some(anchor) => {
+            let delta_px = if vertical {
+                f32::from(anchor.start_position.y) - f32::from(position.y)
+            } else {
+                f32::from(position.x) - f32::from(anchor.start_position.x)
+            };
+            if delta_px == 0.0 {
+                anchor.start_value
+            } else {
+                let fraction = (anchor.start_x_norm + delta_px / extent).clamp(0.0, 1.0);
+                let (min, max) = channel.range();
+                let snapped = snap_color_channel(channel, min + fraction * (max - min));
+                current.with_channel_in(channel, color_space, snapped)
+            }
+        }
+        None => {
+            let reach = if vertical {
+                bounds.origin.y + bounds.size.height
+                    - COLOR_SLIDER_TRACK_INSET_PX
+                    - f32::from(position.y)
+            } else {
+                f32::from(position.x) - bounds.origin.x - COLOR_SLIDER_TRACK_INSET_PX
+            };
+            let fraction = (reach / extent).clamp(0.0, 1.0);
+            let (min, max) = channel.range();
+            let snapped = snap_color_channel(channel, min + fraction * (max - min));
+            current.with_channel_in(channel, color_space, snapped)
+        }
+    };
     Some(PointerColor {
-        changed: next != value.channel_in(channel, color_space),
-        value: value.with_channel_in(channel, color_space, next),
+        changed: next.channel_in(channel, color_space) != current.channel_in(channel, color_space),
+        value: next,
     })
-}
-
-#[allow(clippy::too_many_arguments)] // the channel and callback are the color-slider drag state
-pub(super) fn finish_slider_drag(
-    dragging: &Entity<bool>,
-    bounds: &Entity<Bounds<f32>>,
-    position: gpui::Point<Pixels>,
-    vertical: bool,
-    value: PickerColor,
-    channel: ColorChannel,
-    color_space: ColorSpace,
-    on_change_end: &Option<OnColorChange>,
-    window: &mut Window,
-    cx: &mut App,
-) {
-    if !*dragging.read(cx) {
-        return;
-    }
-    dragging.update(cx, |value, cx| {
-        *value = false;
-        cx.notify();
-    });
-    if let (Some(callback), Some(next)) = (
-        on_change_end,
-        slider_color_from_pointer(bounds, position, vertical, value, channel, color_space, cx),
-    ) {
-        callback(&next.value, window, cx);
-    }
 }
 
 // ---------------------------------------------------------------------------

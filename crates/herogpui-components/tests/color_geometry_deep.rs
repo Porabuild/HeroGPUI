@@ -896,7 +896,7 @@ fn color_slider_pointer_snaps_to_the_channel_step(cx: &mut TestAppContext) {
             .child(
                 ColorSlider::new(
                     "snap-slider",
-                    PickerColor::hsb(0., 1., 1.),
+                    PickerColor::hsb(180., 1., 1.),
                     ColorChannel::Hue,
                 )
                 .length(px(240.))
@@ -1689,4 +1689,310 @@ fn color_swatch_color_name_overrides_hex_accessible_name() {
     assert!(source.contains("pub fn color_name"));
     assert!(source.contains("SharedString::from(self.color.to_hex())"));
     assert!(source.contains("a11y::Name::labelled(accessible_name)"));
+}
+
+#[gpui::test]
+fn clicking_color_slider_thumb_does_not_change_color_and_drag_preserves_grab_offset(
+    cx: &mut TestAppContext,
+) {
+    let changes = events();
+    let ends = events();
+    let changes_for_view = changes.clone();
+    let ends_for_view = ends.clone();
+    let cx = open_host(cx, move || {
+        let on_change = changes_for_view.clone();
+        let on_end = ends_for_view.clone();
+        ColorSlider::new(
+            "thumb-click-cs",
+            PickerColor::hsb(180., 1., 1.),
+            ColorChannel::Hue,
+        )
+        .default_value(PickerColor::hsb(180., 1., 1.))
+        .length(px(240.))
+        .show_label(false)
+        .on_change(move |c, _, _| on_change.borrow_mut().push(format!("{:.0}", c.hue)))
+        .on_change_end(move |c, _, _| on_end.borrow_mut().push(format!("{:.0}", c.hue)))
+        .into_any_element()
+    });
+
+    // Thumb at hue=180 is centered at x=120 (spans 112..128). Clicking off-center
+    // at x=126 must not change the hue, and must still focus the slider.
+    click(cx, 126., 10.);
+    flush_frame(cx);
+    assert!(
+        changes.borrow().is_empty(),
+        "clicking thumb must not fire on_change"
+    );
+    assert_eq!(ends.borrow().as_slice(), ["180"]);
+    press(cx, "right");
+    flush_frame(cx);
+    assert_eq!(changes.borrow().as_slice(), ["181"]);
+
+    // Dragging starting off-center on the thumb (now at 181, centered ~120.6,
+    // click at x=126 -> drag +22px = +36 deg to x=148) must move by delta (to 217),
+    // not jump on mouse down.
+    changes.borrow_mut().clear();
+    ends.borrow_mut().clear();
+    cx.simulate_mouse_down(
+        point(px(126.), px(10.)),
+        MouseButton::Left,
+        Modifiers::none(),
+    );
+    flush_frame(cx);
+    assert!(
+        changes.borrow().is_empty(),
+        "mouse down on thumb must not jump hue"
+    );
+    cx.simulate_mouse_move(
+        point(px(148.), px(10.)),
+        Some(MouseButton::Left),
+        Modifiers::none(),
+    );
+    flush_frame(cx);
+    cx.simulate_mouse_up(
+        point(px(148.), px(10.)),
+        MouseButton::Left,
+        Modifiers::none(),
+    );
+    flush_frame(cx);
+    assert_eq!(changes.borrow().as_slice(), ["217"]);
+    assert_eq!(ends.borrow().as_slice(), ["217"]);
+
+    // Clicking the track outside the thumb still jumps directly.
+    changes.borrow_mut().clear();
+    click(cx, 54., 10.);
+    flush_frame(cx);
+    assert_eq!(changes.borrow().as_slice(), ["72"]);
+    // Dragging away and back to start_position restores initial hue both
+    // across frames and within a single frame.
+    changes.borrow_mut().clear();
+    ends.borrow_mut().clear();
+    cx.simulate_mouse_down(
+        point(px(54.), px(10.)),
+        MouseButton::Left,
+        Modifiers::none(),
+    );
+    flush_frame(cx);
+    cx.simulate_mouse_move(
+        point(px(87.), px(10.)),
+        Some(MouseButton::Left),
+        Modifiers::none(),
+    );
+    flush_frame(cx);
+    cx.simulate_mouse_move(
+        point(px(54.), px(10.)),
+        Some(MouseButton::Left),
+        Modifiers::none(),
+    );
+    flush_frame(cx);
+    cx.simulate_mouse_up(
+        point(px(54.), px(10.)),
+        MouseButton::Left,
+        Modifiers::none(),
+    );
+    flush_frame(cx);
+    assert_eq!(changes.borrow().as_slice(), ["126", "72"]);
+    assert_eq!(ends.borrow().as_slice(), ["72"]);
+
+    // Same-frame drag away and back to start_position.
+    changes.borrow_mut().clear();
+    ends.borrow_mut().clear();
+    cx.simulate_mouse_down(
+        point(px(54.), px(10.)),
+        MouseButton::Left,
+        Modifiers::none(),
+    );
+    cx.simulate_mouse_move(
+        point(px(87.), px(10.)),
+        Some(MouseButton::Left),
+        Modifiers::none(),
+    );
+    cx.simulate_mouse_move(
+        point(px(54.), px(10.)),
+        Some(MouseButton::Left),
+        Modifiers::none(),
+    );
+    cx.simulate_mouse_up(
+        point(px(54.), px(10.)),
+        MouseButton::Left,
+        Modifiers::none(),
+    );
+    flush_frame(cx);
+    assert_eq!(changes.borrow().as_slice(), ["126", "72"]);
+    assert_eq!(ends.borrow().as_slice(), ["72"]);
+
+    // Vertical ColorSlider thumb click/drag off-center does not jump on press.
+    let changes = events();
+    let ends = events();
+    let changes_for_view = changes.clone();
+    let ends_for_view = ends.clone();
+    let cx = open_host(cx, move || {
+        let on_change = changes_for_view.clone();
+        let on_end = ends_for_view.clone();
+        ColorSlider::new(
+            "thumb-click-cs-vert",
+            PickerColor::hsb(180., 1., 1.),
+            ColorChannel::Hue,
+        )
+        .default_value(PickerColor::hsb(180., 1., 1.))
+        .orientation(Orientation::Vertical)
+        .length(px(240.))
+        .show_label(false)
+        .on_change(move |c, _, _| on_change.borrow_mut().push(format!("{:.0}", c.hue)))
+        .on_change_end(move |c, _, _| on_end.borrow_mut().push(format!("{:.0}", c.hue)))
+        .into_any_element()
+    });
+    // Vertical thumb at hue=180 is centered at y=120; press off-center y=126 and drag up 22px (+36 deg).
+    cx.simulate_mouse_down(
+        point(px(10.), px(126.)),
+        MouseButton::Left,
+        Modifiers::none(),
+    );
+    flush_frame(cx);
+    assert!(changes.borrow().is_empty());
+    cx.simulate_mouse_move(
+        point(px(10.), px(104.)),
+        Some(MouseButton::Left),
+        Modifiers::none(),
+    );
+    flush_frame(cx);
+    cx.simulate_mouse_up(
+        point(px(10.), px(104.)),
+        MouseButton::Left,
+        Modifiers::none(),
+    );
+    flush_frame(cx);
+    assert_eq!(changes.borrow().as_slice(), ["216"]);
+    assert_eq!(ends.borrow().as_slice(), ["216"]);
+}
+
+#[gpui::test]
+fn clicking_color_area_thumb_does_not_change_color_and_drag_preserves_grab_offset(
+    cx: &mut TestAppContext,
+) {
+    let changes = events();
+    let ends = events();
+    let changes_for_view = changes.clone();
+    let ends_for_view = ends.clone();
+    let cx = open_host(cx, move || {
+        let on_change = changes_for_view.clone();
+        let on_end = ends_for_view.clone();
+        ColorArea::new("thumb-click-ca", PickerColor::hsb(210., 0.5, 0.5))
+            .default_value(PickerColor::hsb(210., 0.5, 0.5))
+            .size(px(200.), px(200.))
+            .on_change(move |c, _, _| {
+                on_change
+                    .borrow_mut()
+                    .push(format!("{:.2},{:.2}", c.saturation, c.brightness));
+            })
+            .on_change_end(move |c, _, _| {
+                on_end
+                    .borrow_mut()
+                    .push(format!("{:.2},{:.2}", c.saturation, c.brightness));
+            })
+            .into_any_element()
+    });
+
+    // Thumb at (0.5, 0.5) on a 200x200 area is centered at (100, 100), spanning
+    // 90..110 x 90..110. Clicking off-center at (108, 92) must not change color.
+    click(cx, 108., 92.);
+    flush_frame(cx);
+    assert!(
+        changes.borrow().is_empty(),
+        "clicking area thumb must not fire on_change"
+    );
+    assert_eq!(ends.borrow().as_slice(), ["0.50,0.50"]);
+    press(cx, "right");
+    flush_frame(cx);
+    assert_eq!(changes.borrow().as_slice(), ["0.51,0.50"]);
+
+    // Dragging off-center from (108, 92) by (+20, -20) must add (+0.10, +0.10) -> (0.61, 0.60).
+    changes.borrow_mut().clear();
+    ends.borrow_mut().clear();
+    cx.simulate_mouse_down(
+        point(px(108.), px(92.)),
+        MouseButton::Left,
+        Modifiers::none(),
+    );
+    flush_frame(cx);
+    assert!(
+        changes.borrow().is_empty(),
+        "mouse down on area thumb must not jump"
+    );
+    cx.simulate_mouse_move(
+        point(px(128.), px(72.)),
+        Some(MouseButton::Left),
+        Modifiers::none(),
+    );
+    flush_frame(cx);
+    cx.simulate_mouse_up(
+        point(px(128.), px(72.)),
+        MouseButton::Left,
+        Modifiers::none(),
+    );
+    flush_frame(cx);
+    assert_eq!(changes.borrow().as_slice(), ["0.61,0.60"]);
+    assert_eq!(ends.borrow().as_slice(), ["0.61,0.60"]);
+
+    // Clicking the area outside the thumb still jumps directly.
+    changes.borrow_mut().clear();
+    click(cx, 40., 160.);
+    flush_frame(cx);
+    assert_eq!(changes.borrow().as_slice(), ["0.20,0.20"]);
+    // Dragging away and back to start_position restores initial (0.20, 0.20)
+    // both across frames and within the same frame.
+    changes.borrow_mut().clear();
+    ends.borrow_mut().clear();
+    cx.simulate_mouse_down(
+        point(px(40.), px(160.)),
+        MouseButton::Left,
+        Modifiers::none(),
+    );
+    flush_frame(cx);
+    cx.simulate_mouse_move(
+        point(px(60.), px(140.)),
+        Some(MouseButton::Left),
+        Modifiers::none(),
+    );
+    flush_frame(cx);
+    cx.simulate_mouse_move(
+        point(px(40.), px(160.)),
+        Some(MouseButton::Left),
+        Modifiers::none(),
+    );
+    flush_frame(cx);
+    cx.simulate_mouse_up(
+        point(px(40.), px(160.)),
+        MouseButton::Left,
+        Modifiers::none(),
+    );
+    flush_frame(cx);
+    assert_eq!(changes.borrow().as_slice(), ["0.30,0.30", "0.20,0.20"]);
+    assert_eq!(ends.borrow().as_slice(), ["0.20,0.20"]);
+
+    changes.borrow_mut().clear();
+    ends.borrow_mut().clear();
+    cx.simulate_mouse_down(
+        point(px(40.), px(160.)),
+        MouseButton::Left,
+        Modifiers::none(),
+    );
+    cx.simulate_mouse_move(
+        point(px(60.), px(140.)),
+        Some(MouseButton::Left),
+        Modifiers::none(),
+    );
+    cx.simulate_mouse_move(
+        point(px(40.), px(160.)),
+        Some(MouseButton::Left),
+        Modifiers::none(),
+    );
+    cx.simulate_mouse_up(
+        point(px(40.), px(160.)),
+        MouseButton::Left,
+        Modifiers::none(),
+    );
+    flush_frame(cx);
+    assert_eq!(changes.borrow().as_slice(), ["0.30,0.30", "0.20,0.20"]);
+    assert_eq!(ends.borrow().as_slice(), ["0.20,0.20"]);
 }

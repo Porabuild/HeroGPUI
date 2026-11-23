@@ -731,6 +731,109 @@ pub(super) fn normalize_hue(hue: f32) -> f32 {
 
 pub(super) type OnColorChange = Arc<dyn Fn(&PickerColor, &mut Window, &mut App) + 'static>;
 
+struct PointerColor {
+    value: PickerColor,
+    changed: bool,
+}
+
+fn report_color_change(
+    next: PickerColor,
+    own: &Option<Entity<PickerColor>>,
+    on_change: &Option<OnColorChange>,
+    window: &mut Window,
+    cx: &mut App,
+) {
+    if let Some(held) = own {
+        held.update(cx, |value, cx| {
+            *value = next;
+            cx.notify();
+        });
+    }
+    if let Some(callback) = on_change {
+        callback(&next, window, cx);
+    }
+}
+
+#[derive(Clone, Copy)]
+struct ColorThumbAnchor {
+    start_x_norm: f32,
+    start_y_norm: f32,
+    start_value: PickerColor,
+    start_position: gpui::Point<Pixels>,
+}
+
+#[derive(Clone, Copy, Default)]
+enum ColorDragState {
+    #[default]
+    Idle,
+    Active {
+        current: PickerColor,
+        anchor: Option<ColorThumbAnchor>,
+    },
+}
+
+fn has_disqualifying_modifiers(modifiers: gpui::Modifiers) -> bool {
+    modifiers.alt || modifiers.control || modifiers.platform
+}
+
+fn attach_color_thumb_mouse_down(
+    thumb: gpui::Stateful<gpui::Div>,
+    drag_state: Entity<ColorDragState>,
+    focus_handle: gpui::FocusHandle,
+    anchor: ColorThumbAnchor,
+) -> gpui::Stateful<gpui::Div> {
+    thumb.on_mouse_down(
+        gpui::MouseButton::Left,
+        move |event: &MouseDownEvent, window, cx| {
+            if has_disqualifying_modifiers(event.modifiers) {
+                return;
+            }
+            cx.stop_propagation();
+            let mut anchor = anchor;
+            anchor.start_position = event.position;
+            drag_state.update(cx, |state, cx| {
+                let was_idle = matches!(*state, ColorDragState::Idle);
+                *state = ColorDragState::Active {
+                    current: anchor.start_value,
+                    anchor: Some(anchor),
+                };
+                if was_idle {
+                    cx.notify();
+                }
+            });
+            window.focus(&focus_handle, cx);
+        },
+    )
+}
+
+fn finish_color_drag(
+    drag_state: &Entity<ColorDragState>,
+    on_change_end: &Option<OnColorChange>,
+    resolve: impl FnOnce(Option<ColorThumbAnchor>, PickerColor, &App) -> Option<PointerColor>,
+    window: &mut Window,
+    cx: &mut App,
+) {
+    let prev = drag_state.update(cx, |state, cx| {
+        let prev = *state;
+        if !matches!(prev, ColorDragState::Idle) {
+            *state = ColorDragState::Idle;
+            cx.notify();
+        }
+        prev
+    });
+    let ColorDragState::Active { current, anchor } = prev else {
+        return;
+    };
+    let final_value = match resolve(anchor, current, cx) {
+        Some(next) => next.value,
+        None if anchor.is_some() => current,
+        None => return,
+    };
+    if let Some(callback) = on_change_end {
+        callback(&final_value, window, cx);
+    }
+}
+
 pub(super) fn color_swatch_indicator_color(swatch: PickerColor) -> Hsla {
     let (r, g, b) = swatch.to_rgb();
     let luminance = 0.2126 * r + 0.7152 * g + 0.0722 * b;

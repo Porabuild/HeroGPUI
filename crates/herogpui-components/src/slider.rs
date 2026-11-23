@@ -1300,6 +1300,42 @@ impl RenderOnce for Slider {
                         );
                     });
                 }
+                if range_span.is_finite() && range_span > 0.0 {
+                    let thumb_drag_start = self.on_drag_start.clone();
+                    let thumb_focus = focus_handle.clone();
+                    let thumb_active = active_thumb.clone();
+                    let thumb_dragging = dragging.clone();
+                    let thumb_values = thumbs.clone();
+                    thumb_el = thumb_el.on_mouse_down(
+                        gpui::MouseButton::Left,
+                        move |ev: &MouseDownEvent, window, cx| {
+                            // Match React Aria `useSliderThumb` / `useSlider`: pressing
+                            // directly on a thumb focuses it and begins dragging from its
+                            // current value without jumping to the pointer coordinate.
+                            cx.stop_propagation();
+                            if let Some(cb) = &thumb_drag_start {
+                                cb(window, cx);
+                            }
+                            window.focus(&thumb_focus, cx);
+                            thumb_active.update(cx, |active, cx| {
+                                if *active != index {
+                                    *active = index;
+                                    cx.notify();
+                                }
+                            });
+                            thumb_dragging.update(cx, |drag, cx| {
+                                drag.active = Some(index);
+                                drag.thumb_anchor = Some(ThumbDragAnchor {
+                                    start_fraction: f,
+                                    start_value: thumb_values[index],
+                                    start_position: ev.position,
+                                });
+                                drag.values = thumb_values.clone();
+                                cx.notify();
+                            });
+                        },
+                    );
+                }
             }
             thumb_el = match &self.thumb {
                 Some(render) => thumb_el.child(render(index, thumbs[index])),
@@ -1518,7 +1554,7 @@ impl RenderOnce for Slider {
                 gpui::MouseButton::Left,
                 move |ev: &MouseDownEvent, window, cx| {
                     let Some(value) =
-                        value_from_pointer(&b_down, ev.position, vertical, &target_down, cx)
+                        value_from_drag(&b_down, ev.position, None, vertical, &target_down, cx)
                     else {
                         return;
                     };
@@ -1557,9 +1593,11 @@ impl RenderOnce for Slider {
                         form_is_disabled_down,
                         &form_disabled_keys_down,
                     );
-                    d_down.update(cx, |drag, _| {
+                    d_down.update(cx, |drag, cx| {
                         drag.active = Some(index);
                         drag.values = next;
+                        drag.thumb_anchor = None;
+                        cx.notify();
                     });
                 },
             );
@@ -1598,36 +1636,49 @@ impl RenderOnce for Slider {
                             {
                                 return;
                             }
-                            let (Some(index), values) = ({
+                            let (Some(index), thumb_anchor) = ({
                                 let drag = d_move.read(cx);
-                                (drag.active, drag.values.clone())
+                                (drag.active, drag.thumb_anchor)
                             }) else {
                                 return;
                             };
-                            if let Some(value) =
-                                value_from_pointer(&b_move, ev.position, vertical, &target_move, cx)
+                            let Some(value) = value_from_drag(
+                                &b_move,
+                                ev.position,
+                                thumb_anchor,
+                                vertical,
+                                &target_move,
+                                cx,
+                            ) else {
+                                return;
+                            };
+                            let values = d_move.read(cx).values.clone();
+                            if values
+                                .get(index)
+                                .is_some_and(|current| current.to_bits() == value.to_bits())
                             {
-                                let next = set_thumb(
-                                    index,
-                                    value,
-                                    &values,
-                                    range_mode,
-                                    &range_own_move,
-                                    &on_change_move,
-                                    &all_move,
-                                    &own_move,
-                                    window,
-                                    cx,
-                                );
-                                sync_form_values(
-                                    &form_state_move,
-                                    &form_thumb_states_move,
-                                    &next,
-                                    form_is_disabled_move,
-                                    &form_disabled_keys_move,
-                                );
-                                d_move.update(cx, |drag, _| drag.values = next);
+                                return;
                             }
+                            let next = set_thumb(
+                                index,
+                                value,
+                                &values,
+                                range_mode,
+                                &range_own_move,
+                                &on_change_move,
+                                &all_move,
+                                &own_move,
+                                window,
+                                cx,
+                            );
+                            sync_form_values(
+                                &form_state_move,
+                                &form_thumb_states_move,
+                                &next,
+                                form_is_disabled_move,
+                                &form_disabled_keys_move,
+                            );
+                            d_move.update(cx, |drag, _| drag.values = next);
                         });
 
                         let d_up = dragging;
@@ -1637,7 +1688,13 @@ impl RenderOnce for Slider {
                             {
                                 return;
                             }
+                            if d_up.read(cx).active.is_none()
+                                && d_up.read(cx).thumb_anchor.is_none()
+                            {
+                                return;
+                            }
                             let final_values = d_up.update(cx, |drag, cx| {
+                                drag.thumb_anchor = None;
                                 let values = drag.active.take().map(|_| drag.values.clone());
                                 cx.notify();
                                 values
@@ -1870,10 +1927,18 @@ struct DragTarget {
     enabled: Vec<bool>,
 }
 
+#[derive(Clone, Copy)]
+struct ThumbDragAnchor {
+    start_fraction: f32,
+    start_value: f32,
+    start_position: gpui::Point<gpui::Pixels>,
+}
+
 #[derive(Default)]
 struct DragState {
     active: Option<usize>,
     values: Vec<f32>,
+    thumb_anchor: Option<ThumbDragAnchor>,
 }
 
 /// Writes one thumb's value through the uncontrolled copy and both callbacks.
@@ -1939,9 +2004,10 @@ fn set_thumb(
     vec![value]
 }
 
-fn value_from_pointer(
+fn value_from_drag(
     slot: &gpui::Entity<Bounds<f32>>,
     pos: gpui::Point<gpui::Pixels>,
+    anchor: Option<ThumbDragAnchor>,
     vertical: bool,
     target: &DragTarget,
     cx: &App,
@@ -1952,11 +2018,35 @@ fn value_from_pointer(
     } else {
         b.size.width
     };
-    if extent <= 0.0 || target.span <= 0.0 {
+    if extent <= 0.0 || !target.span.is_finite() || target.span <= 0.0 {
         return None;
     }
-    let frac = axis_fraction(pos, b, vertical);
-    let frac = if target.rtl { 1. - frac } else { frac };
+    let frac = match anchor {
+        Some(anchor) => {
+            let delta_px = if vertical {
+                f32::from(anchor.start_position.y) - f32::from(pos.y)
+            } else {
+                let dx = f32::from(pos.x) - f32::from(anchor.start_position.x);
+                if target.rtl {
+                    -dx
+                } else {
+                    dx
+                }
+            };
+            if delta_px == 0.0 {
+                return Some(anchor.start_value);
+            }
+            (anchor.start_fraction + delta_px / extent).clamp(0.0, 1.0)
+        }
+        None => {
+            let frac = axis_fraction(pos, b, vertical);
+            if target.rtl {
+                1. - frac
+            } else {
+                frac
+            }
+        }
+    };
     let raw = target.min + frac * target.span;
     Some(snap_value(
         raw,
