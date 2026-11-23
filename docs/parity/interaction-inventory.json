@@ -25437,7 +25437,7 @@
     "sha256": "ab923258c09ccac82cbff39b74c84db7712bab1f4f8a0b8c7eab63a9d46b83b2"
   },
   "source_snapshot": {
-    "sha256": "ff120a395220368e95842bd3c327a51ca9ae7da8586913a723a644dfef87e9f0",
+    "sha256": "08fa5dd88eb8fa2da4254ce02a46614f5ea2f99a65a57bb2f7d2ef2744a54d53",
     "files": {
       ".cargo/config.toml": "6ce2a269fd46b2570763e8e446ac93e9d04614416af21134877cf7b388e776f9",
       ".gitattributes": "0a560d39f04292518fe72516d91e2418d61d5eaa12a15af564dc07e60d391034",
@@ -25968,7 +25968,7 @@
       "web/src/data/reference.json": "10ddfffca5ae59afae1e2ea6cc85a17709023893c30a3a4300e81224579023f2",
       "web/src/data/releases.json": "182dfd2830177e13b1f5e8322313fe7cc2ef5b1fba42681f06f98e78170eb680",
       "web/src/data/rust-examples.json": "b84ee4605e1e2a386af15902e90c2ebd120022a181b08649722fd38b38b02c0a",
-      "web/src/data/wasm-parity.json": "623b8f9aee20176f1342e6eedd99970f67344cb421d447013d73ce220ce41207",
+      "web/src/data/wasm-parity.json": "a32584a185f1fe060ec48fc50186fb7b3e92ee838a279410a1e64de610372c99",
       "web/src/data/wasm-sections.json": "3ec2df476f14a4bc474e31c51613397d5101e6f9026dbbe8e8db2b4da4bbee74",
       "web/src/lib/catalog.ts": "79681a0e1e0e12c9352ddc9eec0d6fe428906ceca07bfefb89623639396f81cf",
       "web/src/lib/docs-nav.ts": "ffb0d7fdaa0261395306f0bfa4e09c5ef88043c702c962f847983b05be67f55a",
@@ -150332,7 +150332,7 @@
       ]
     }
   ],
-  "verification_sha256": "d7cd95b7f2f0c98785d5167b47629e60957d4edfb7139924ca7899f90c8e0f8b",
+  "verification_sha256": "6277d2ff0659f6d06c2c35406f027f358d602a726b41708504470d973668db4c",
   "retired_source_changes": [
     {
       "path": "packages/react/src/components/autocomplete/autocomplete.stories.tsx",
