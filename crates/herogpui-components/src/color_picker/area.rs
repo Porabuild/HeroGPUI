@@ -288,9 +288,9 @@ impl RenderOnce for ColorArea {
                     size: gpui::size(0., 0.),
                 }
             });
-        let dragging =
+        let drag_state =
             window.use_keyed_state(element_id::scoped(&self.id, "area-dragging"), cx, |_, _| {
-                false
+                ColorDragState::Idle
             });
         let thumb_hovered = window.use_keyed_state(
             element_id::scoped(&self.id, "area-thumb-hovered"),
@@ -487,7 +487,8 @@ impl RenderOnce for ColorArea {
                 .shadow(vec![color_inner_shadow()]),
         );
 
-        let is_dragging = !self.is_disabled && *dragging.read(cx);
+        let is_dragging =
+            !self.is_disabled && matches!(*drag_state.read(cx), ColorDragState::Active { .. });
         let is_focused = !self.is_disabled && area_focus.is_focused(window);
         let is_focus_visible = is_focused && util::focus_visible(cx);
         let thumb_state = ColorAreaThumbState {
@@ -545,6 +546,19 @@ impl RenderOnce for ColorArea {
                     }
                 });
             });
+            if self.on_change.is_some() || self.on_change_end.is_some() || own.is_some() {
+                thumb = attach_color_thumb_mouse_down(
+                    thumb,
+                    drag_state.clone(),
+                    area_focus.clone(),
+                    ColorThumbAnchor {
+                        start_x_norm: x_norm,
+                        start_y_norm: y_norm,
+                        start_value: self.value,
+                        start_position: gpui::Point::default(),
+                    },
+                );
+            }
         }
         area = area.child(thumb);
 
@@ -652,7 +666,7 @@ impl RenderOnce for ColorArea {
 
         if self.on_change.is_some() || self.on_change_end.is_some() || own.is_some() {
             let down_bounds = bounds_slot.clone();
-            let down_dragging = dragging.clone();
+            let down_drag = drag_state.clone();
             let down_focus = area_focus.clone();
             let down_change = self.on_change.clone();
             let down_own = own.clone();
@@ -661,25 +675,32 @@ impl RenderOnce for ColorArea {
             area = area.cursor(util::interactive_cursor(cx)).on_mouse_down(
                 gpui::MouseButton::Left,
                 move |event: &MouseDownEvent, window, cx| {
-                    if event.modifiers.alt || event.modifiers.control || event.modifiers.platform {
+                    if has_disqualifying_modifiers(event.modifiers) {
                         return;
                     }
-                    down_dragging.update(cx, |value, cx| {
-                        if !*value {
-                            *value = true;
-                            cx.notify();
-                        }
-                    });
                     window.focus(&down_focus, cx);
-                    if let Some(next) = area_color_from_pointer(
+                    let resolved = area_color_from_drag(
                         &down_bounds,
                         event.position,
+                        None,
                         down_value,
                         color_space,
                         x_channel,
                         y_channel,
                         cx,
-                    ) {
+                    );
+                    let current = resolved.as_ref().map_or(down_value, |next| next.value);
+                    down_drag.update(cx, |state, cx| {
+                        let was_idle = matches!(*state, ColorDragState::Idle);
+                        *state = ColorDragState::Active {
+                            current,
+                            anchor: None,
+                        };
+                        if was_idle {
+                            cx.notify();
+                        }
+                    });
+                    if let Some(next) = resolved {
                         if next.changed {
                             report_color_change(next.value, &down_own, &down_change, window, cx);
                         }
@@ -688,62 +709,77 @@ impl RenderOnce for ColorArea {
             );
 
             let global_bounds = bounds_slot;
-            let global_dragging = dragging;
+            let global_drag = drag_state;
             let global_change = self.on_change;
             let global_end = self.on_change_end;
             let global_own = own;
-            let global_value = self.value;
             area = area.child(
                 gpui::canvas(
                     |bounds, _, _| bounds,
                     move |_, _, window, _| {
                         let move_bounds = global_bounds.clone();
-                        let move_dragging = global_dragging.clone();
+                        let move_drag = global_drag.clone();
                         let move_change = global_change.clone();
                         let move_own = global_own.clone();
                         window.on_mouse_event(move |event: &MouseMoveEvent, phase, window, cx| {
-                            if phase == gpui::DispatchPhase::Capture
-                                && event.pressed_button == Some(gpui::MouseButton::Left)
-                                && *move_dragging.read(cx)
+                            if phase != gpui::DispatchPhase::Capture
+                                || event.pressed_button != Some(gpui::MouseButton::Left)
                             {
-                                if let Some(next) = area_color_from_pointer(
-                                    &move_bounds,
-                                    event.position,
-                                    global_value,
-                                    color_space,
-                                    x_channel,
-                                    y_channel,
-                                    cx,
-                                ) {
-                                    if next.changed {
-                                        report_color_change(
-                                            next.value,
-                                            &move_own,
-                                            &move_change,
-                                            window,
-                                            cx,
-                                        );
-                                    }
+                                return;
+                            }
+                            let ColorDragState::Active { current, anchor } = *move_drag.read(cx)
+                            else {
+                                return;
+                            };
+                            if let Some(next) = area_color_from_drag(
+                                &move_bounds,
+                                event.position,
+                                anchor,
+                                current,
+                                color_space,
+                                x_channel,
+                                y_channel,
+                                cx,
+                            ) {
+                                if next.changed {
+                                    move_drag.update(cx, |state, _| {
+                                        if let ColorDragState::Active { current, .. } = state {
+                                            *current = next.value;
+                                        }
+                                    });
+                                    report_color_change(
+                                        next.value,
+                                        &move_own,
+                                        &move_change,
+                                        window,
+                                        cx,
+                                    );
                                 }
                             }
                         });
 
                         let up_bounds = global_bounds.clone();
-                        let up_dragging = global_dragging.clone();
+                        let up_drag = global_drag.clone();
                         let up_end = global_end.clone();
                         window.on_mouse_event(move |event: &MouseUpEvent, phase, window, cx| {
                             if phase == gpui::DispatchPhase::Capture
                                 && event.button == gpui::MouseButton::Left
                             {
-                                finish_area_drag(
-                                    &up_dragging,
-                                    &up_bounds,
-                                    event.position,
-                                    global_value,
-                                    color_space,
-                                    x_channel,
-                                    y_channel,
+                                finish_color_drag(
+                                    &up_drag,
                                     &up_end,
+                                    |anchor, current, cx| {
+                                        area_color_from_drag(
+                                            &up_bounds,
+                                            event.position,
+                                            anchor,
+                                            current,
+                                            color_space,
+                                            x_channel,
+                                            y_channel,
+                                            cx,
+                                        )
+                                    },
                                     window,
                                     cx,
                                 );
@@ -763,42 +799,6 @@ impl RenderOnce for ColorArea {
         // `useColorArea` is `role: 'group'` on the area; the thumb is
         // `role: 'presentation'` and has no node of its own.
         area.a11y(a11y::Role::Group)
-    }
-}
-
-#[allow(clippy::too_many_arguments)] // the two axes and callback are the color-area drag state
-pub(super) fn finish_area_drag(
-    dragging: &Entity<bool>,
-    bounds: &Entity<Bounds<f32>>,
-    position: gpui::Point<Pixels>,
-    value: PickerColor,
-    color_space: ColorSpace,
-    x_channel: ColorChannel,
-    y_channel: ColorChannel,
-    on_change_end: &Option<OnColorChange>,
-    window: &mut Window,
-    cx: &mut App,
-) {
-    if !*dragging.read(cx) {
-        return;
-    }
-    dragging.update(cx, |value, cx| {
-        *value = false;
-        cx.notify();
-    });
-    if let (Some(callback), Some(next)) = (
-        on_change_end,
-        area_color_from_pointer(
-            bounds,
-            position,
-            value,
-            color_space,
-            x_channel,
-            y_channel,
-            cx,
-        ),
-    ) {
-        callback(&next.value, window, cx);
     }
 }
 
@@ -1122,16 +1122,12 @@ pub(super) fn color_area_channel_grid(
     grid
 }
 
-pub(super) struct PointerColor {
-    pub(super) value: PickerColor,
-    pub(super) changed: bool,
-}
-
-#[allow(clippy::float_cmp)] // snapped channel values are exact state coordinates
-pub(super) fn area_color_from_pointer(
+#[allow(clippy::float_cmp, clippy::too_many_arguments)] // snapped channel values are exact state coordinates
+pub(super) fn area_color_from_drag(
     bounds: &Entity<Bounds<f32>>,
     position: gpui::Point<Pixels>,
-    value: PickerColor,
+    anchor: Option<ColorThumbAnchor>,
+    current: PickerColor,
     color_space: ColorSpace,
     x_channel: ColorChannel,
     y_channel: ColorChannel,
@@ -1141,37 +1137,44 @@ pub(super) fn area_color_from_pointer(
     if bounds.size.width <= 0.0 || bounds.size.height <= 0.0 {
         return None;
     }
-    let x = ((f32::from(position.x) - bounds.origin.x) / bounds.size.width).clamp(0.0, 1.0);
-    let y = ((f32::from(position.y) - bounds.origin.y) / bounds.size.height).clamp(0.0, 1.0);
-    let (x_min, x_max) = x_channel.range();
-    let (y_min, y_max) = y_channel.range();
-    let x_value = snap_color_channel(x_channel, x_min + x * (x_max - x_min));
-    let y_value = snap_color_channel(y_channel, y_min + (1.0 - y) * (y_max - y_min));
+    let next = match anchor {
+        Some(anchor) => {
+            let dx = f32::from(position.x) - f32::from(anchor.start_position.x);
+            let dy = f32::from(anchor.start_position.y) - f32::from(position.y);
+            if dx == 0.0 && dy == 0.0 {
+                anchor.start_value
+            } else {
+                let x = (anchor.start_x_norm + dx / bounds.size.width).clamp(0.0, 1.0);
+                let y = (anchor.start_y_norm + dy / bounds.size.height).clamp(0.0, 1.0);
+                let (x_min, x_max) = x_channel.range();
+                let (y_min, y_max) = y_channel.range();
+                let x_value = snap_color_channel(x_channel, x_min + x * (x_max - x_min));
+                let y_value = snap_color_channel(y_channel, y_min + y * (y_max - y_min));
+                current
+                    .with_channel_in(x_channel, color_space, x_value)
+                    .with_channel_in(y_channel, color_space, y_value)
+            }
+        }
+        None => {
+            let x = ((f32::from(position.x) - bounds.origin.x) / bounds.size.width).clamp(0.0, 1.0);
+            let y =
+                ((f32::from(position.y) - bounds.origin.y) / bounds.size.height).clamp(0.0, 1.0);
+            let (x_min, x_max) = x_channel.range();
+            let (y_min, y_max) = y_channel.range();
+            let x_value = snap_color_channel(x_channel, x_min + x * (x_max - x_min));
+            let y_value = snap_color_channel(y_channel, y_min + (1.0 - y) * (y_max - y_min));
+            current
+                .with_channel_in(x_channel, color_space, x_value)
+                .with_channel_in(y_channel, color_space, y_value)
+        }
+    };
     Some(PointerColor {
-        changed: x_value != value.channel_in(x_channel, color_space)
-            || y_value != value.channel_in(y_channel, color_space),
-        value: value
-            .with_channel_in(x_channel, color_space, x_value)
-            .with_channel_in(y_channel, color_space, y_value),
+        changed: next.channel_in(x_channel, color_space)
+            != current.channel_in(x_channel, color_space)
+            || next.channel_in(y_channel, color_space)
+                != current.channel_in(y_channel, color_space),
+        value: next,
     })
-}
-
-pub(super) fn report_color_change(
-    next: PickerColor,
-    own: &Option<Entity<PickerColor>>,
-    on_change: &Option<OnColorChange>,
-    window: &mut Window,
-    cx: &mut App,
-) {
-    if let Some(held) = own {
-        held.update(cx, |value, cx| {
-            *value = next;
-            cx.notify();
-        });
-    }
-    if let Some(callback) = on_change {
-        callback(&next, window, cx);
-    }
 }
 
 pub(super) fn live_color_form_state(

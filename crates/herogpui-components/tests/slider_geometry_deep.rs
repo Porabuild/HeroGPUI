@@ -203,8 +203,8 @@ fn pointer_values_reach_the_full_border_box(cx: &mut TestAppContext) {
         gpui::div()
             .w(px(600.))
             .child(
-                Slider::new("geo-pointer", 3.)
-                    .default_value(3.)
+                Slider::new("geo-pointer", 50.)
+                    .default_value(50.)
                     .on_change(move |value, _, _| {
                         recorded.borrow_mut().push(format!("{value}"));
                     })
@@ -214,17 +214,18 @@ fn pointer_values_reach_the_full_border_box(cx: &mut TestAppContext) {
     });
 
     // The whole border box maps to the value range, including the 12px border
-    // zones the thumb never quite reaches: the edges give min/max and the
-    // inset edge (x=12) is not dead space.
-    cx.simulate_click(point(px(0.5), px(10.)), Modifiers::none());
-    flush_frame(cx);
+    // zones the thumb never quite reaches: the inset edge (x=12) is not dead
+    // space, and the outer edges give min/max. Click x=12 while the thumb sits
+    // at 50 (x=300) so the click lands on the track rather than the thumb.
     cx.simulate_click(point(px(12.), px(10.)), Modifiers::none());
+    flush_frame(cx);
+    cx.simulate_click(point(px(0.5), px(10.)), Modifiers::none());
     flush_frame(cx);
     cx.simulate_click(point(px(599.5), px(10.)), Modifiers::none());
     flush_frame(cx);
     assert_eq!(
         recorded.borrow().as_slice(),
-        ["0", "2", "100"],
+        ["2", "0", "100"],
         "pointer presses must map over the full border box"
     );
 }
@@ -238,8 +239,8 @@ fn vertical_pointer_values_reach_the_full_border_box(cx: &mut TestAppContext) {
         gpui::div()
             .w(px(600.))
             .child(
-                Slider::new("geo-vert-pointer", 0.)
-                    .default_value(0.)
+                Slider::new("geo-vert-pointer", 50.)
+                    .default_value(50.)
                     .orientation(herogpui_core::Orientation::Vertical)
                     .on_change(move |value, _, _| {
                         recorded.borrow_mut().push(format!("{value}"));
@@ -830,4 +831,367 @@ fn single_thumb_fill_cap_joins_are_square_only_with_sx_corners(cx: &mut TestAppC
             }
         }
     }
+}
+
+#[gpui::test]
+fn clicking_thumb_does_not_move_value_and_still_focuses(cx: &mut TestAppContext) {
+    // 1. Md horizontal at edge value 0: thumb center is at x=12, which would map
+    // to 2 under a track press. Clicking center or off-center must not move it.
+    let recorded = harness::events();
+    let for_view = recorded.clone();
+    let cx = open_host(cx, move || {
+        let on_start = for_view.clone();
+        let on_change = for_view.clone();
+        let on_end = for_view.clone();
+        gpui::div()
+            .w(px(600.))
+            .child(
+                Slider::new("thumb-click-zero", 0.)
+                    .default_value(0.)
+                    .on_drag_start(move |_, _| on_start.borrow_mut().push("start".into()))
+                    .on_change(move |value, _, _| {
+                        on_change.borrow_mut().push(format!("change:{value}"));
+                    })
+                    .on_drag_end(move |_, _| on_end.borrow_mut().push("end".into()))
+                    .into_any_element(),
+            )
+            .into_any_element()
+    });
+    cx.simulate_click(point(px(12.), px(10.)), Modifiers::none());
+    flush_frame(cx);
+    cx.simulate_click(point(px(22.), px(10.)), Modifiers::none());
+    flush_frame(cx);
+    assert_eq!(
+        recorded.borrow().as_slice(),
+        ["start", "end", "start", "end"],
+        "clicking on a thumb at 0 (center or off-center) must not jump the value"
+    );
+    harness::press(cx, "right");
+    flush_frame(cx);
+    assert_eq!(
+        recorded.borrow().as_slice(),
+        ["start", "end", "start", "end", "change:1"],
+        "clicking the thumb must still focus the slider for keyboard navigation"
+    );
+
+    // 2. Md horizontal off-center, Sm overhanging, vertical, and custom thumb clicks.
+    let recorded = harness::events();
+    let for_view = recorded.clone();
+    let cx = open_host(cx, move || {
+        let a = for_view.clone();
+        let b = for_view.clone();
+        let c = for_view.clone();
+        let d = for_view.clone();
+        gpui::div()
+            .flex()
+            .flex_col()
+            .gap(px(10.))
+            .w(px(600.))
+            .child(
+                Slider::new("thumb-click-md", 50.)
+                    .default_value(50.)
+                    .on_change(move |v, _, _| a.borrow_mut().push(format!("md:{v}"))),
+            )
+            .child(
+                Slider::new("thumb-click-sm", 50.)
+                    .size(herogpui_components::SliderSize::Sm)
+                    .default_value(50.)
+                    .on_change(move |v, _, _| b.borrow_mut().push(format!("sm:{v}"))),
+            )
+            .child(
+                Slider::new("thumb-click-custom", 50.)
+                    .default_value(50.)
+                    .thumb(|_, _| gpui::div().size(px(20.)).into_any_element())
+                    .on_change(move |v, _, _| c.borrow_mut().push(format!("custom:{v}"))),
+            )
+            .child(
+                Slider::new("thumb-click-vert", 0.)
+                    .default_value(0.)
+                    .orientation(herogpui_core::Orientation::Vertical)
+                    .on_change(move |v, _, _| d.borrow_mut().push(format!("vert:{v}"))),
+            )
+            .into_any_element()
+    });
+    // Row 0: Md y=0..20, thumb at x=286..314 -> click off-center x=310
+    cx.simulate_click(point(px(310.), px(10.)), Modifiers::none());
+    flush_frame(cx);
+    // Row 1: Sm y=30..48, thumb at x=293..307, overhang y=32..46 -> click off-center (304, 33)
+    cx.simulate_click(point(px(304.), px(33.)), Modifiers::none());
+    flush_frame(cx);
+    // Row 2: Custom y=58..78, thumb at x=286..314 -> click off-center x=290
+    cx.simulate_click(point(px(290.), px(68.)), Modifiers::none());
+    flush_frame(cx);
+    // Row 3: Vertical y=88..248, thumb at value 0 centered at y=88+148=236 -> click off-center y=228
+    cx.simulate_click(point(px(10.), px(228.)), Modifiers::none());
+    flush_frame(cx);
+    assert!(
+        recorded.borrow().is_empty(),
+        "off-center clicks on Md, Sm, custom, and vertical thumbs must not change values, got {:?}",
+        recorded.borrow()
+    );
+
+    // 3. Range slider: clicking each thumb activates that thumb without moving values.
+    let recorded = harness::events();
+    let for_view = recorded.clone();
+    let cx = open_host(cx, move || {
+        let on_change = for_view.clone();
+        gpui::div()
+            .w(px(600.))
+            .child(
+                Slider::new("thumb-click-range", 0.)
+                    .default_values([20., 80.])
+                    .on_change_all(move |vs, _, _| {
+                        on_change.borrow_mut().push(format!("{},{}", vs[0], vs[1]));
+                    }),
+            )
+            .into_any_element()
+    });
+    // Thumb 0 centered at 127.2, click off-center at 118.
+    cx.simulate_click(point(px(118.), px(10.)), Modifiers::none());
+    flush_frame(cx);
+    assert!(recorded.borrow().is_empty());
+    harness::press(cx, "right");
+    flush_frame(cx);
+    // Thumb 1 centered at 472.8, click off-center at 482.
+    cx.simulate_click(point(px(482.), px(10.)), Modifiers::none());
+    flush_frame(cx);
+    harness::press(cx, "right");
+    flush_frame(cx);
+    assert_eq!(
+        recorded.borrow().as_slice(),
+        ["21,80", "21,81"],
+        "clicking each range thumb must activate it without moving it"
+    );
+}
+
+#[gpui::test]
+fn dragging_off_center_on_thumb_moves_by_delta_without_initial_jump(cx: &mut TestAppContext) {
+    // Horizontal off-center drag: press at x=310 (right edge of thumb at 50), drag +60px to x=370.
+    let recorded = harness::events();
+    let for_view = recorded.clone();
+    let cx = open_host(cx, move || {
+        let on_change = for_view.clone();
+        let on_end = for_view.clone();
+        gpui::div()
+            .w(px(600.))
+            .child(
+                Slider::new("thumb-drag-h", 50.)
+                    .default_value(50.)
+                    .on_change(move |v, _, _| on_change.borrow_mut().push(format!("change:{v}")))
+                    .on_change_end(move |v, _, _| on_end.borrow_mut().push(format!("end:{v}"))),
+            )
+            .into_any_element()
+    });
+    cx.simulate_mouse_down(
+        point(px(310.), px(10.)),
+        gpui::MouseButton::Left,
+        Modifiers::none(),
+    );
+    flush_frame(cx);
+    assert!(
+        recorded.borrow().is_empty(),
+        "mouse down on thumb must not jump"
+    );
+    cx.simulate_mouse_move(
+        point(px(370.), px(10.)),
+        Some(gpui::MouseButton::Left),
+        Modifiers::none(),
+    );
+    flush_frame(cx);
+    cx.simulate_mouse_up(
+        point(px(370.), px(10.)),
+        gpui::MouseButton::Left,
+        Modifiers::none(),
+    );
+    flush_frame(cx);
+    assert_eq!(recorded.borrow().as_slice(), ["change:60", "end:60"]);
+
+    // Vertical off-center drag: press at y=72 (8px above thumb center at 50 -> y=80), drag 16px up to y=56 (+10%).
+    let recorded = harness::events();
+    let for_view = recorded.clone();
+    let cx = open_host(cx, move || {
+        let on_change = for_view.clone();
+        gpui::div()
+            .w(px(600.))
+            .child(
+                Slider::new("thumb-drag-v", 50.)
+                    .default_value(50.)
+                    .orientation(herogpui_core::Orientation::Vertical)
+                    .on_change(move |v, _, _| on_change.borrow_mut().push(format!("{v}"))),
+            )
+            .into_any_element()
+    });
+    cx.simulate_mouse_down(
+        point(px(10.), px(72.)),
+        gpui::MouseButton::Left,
+        Modifiers::none(),
+    );
+    flush_frame(cx);
+    cx.simulate_mouse_move(
+        point(px(10.), px(56.)),
+        Some(gpui::MouseButton::Left),
+        Modifiers::none(),
+    );
+    flush_frame(cx);
+    cx.simulate_mouse_up(
+        point(px(10.), px(56.)),
+        gpui::MouseButton::Left,
+        Modifiers::none(),
+    );
+    flush_frame(cx);
+    assert_eq!(recorded.borrow().as_slice(), ["60"]);
+
+    // RTL off-center drag: value 20 is at x = 600 - (12 + 0.2*576) = 472.8.
+    // Press at x=480, drag 60px left to x=420 -> increases value by 10 to 30.
+    let recorded = harness::events();
+    let for_view = recorded.clone();
+    let cx = open_host(cx, move || {
+        let on_change = for_view.clone();
+        gpui::div()
+            .w(px(600.))
+            .child(
+                Slider::new("thumb-drag-rtl", 20.)
+                    .default_value(20.)
+                    .on_change(move |v, _, _| on_change.borrow_mut().push(format!("{v}"))),
+            )
+            .into_any_element()
+    });
+    cx.update(|window, cx| {
+        herogpui_components::i18n::set_locale("ar", cx);
+        window.refresh();
+    });
+    cx.simulate_mouse_down(
+        point(px(480.), px(10.)),
+        gpui::MouseButton::Left,
+        Modifiers::none(),
+    );
+    flush_frame(cx);
+    assert!(
+        recorded.borrow().is_empty(),
+        "mouse down on RTL thumb must not jump"
+    );
+    cx.simulate_mouse_move(
+        point(px(420.), px(10.)),
+        Some(gpui::MouseButton::Left),
+        Modifiers::none(),
+    );
+    flush_frame(cx);
+    cx.simulate_mouse_up(
+        point(px(420.), px(10.)),
+        gpui::MouseButton::Left,
+        Modifiers::none(),
+    );
+    flush_frame(cx);
+    assert_eq!(recorded.borrow().as_slice(), ["30"]);
+    cx.update(|window, cx| {
+        herogpui_components::i18n::set_locale("en", cx);
+        window.refresh();
+    });
+
+    // Dragging away from thumb and back to start_position restores the start
+    // value (both cross-frame and same-frame), while orthogonal jitter at
+    // delta_px == 0 before moving emits no change.
+    let recorded = harness::events();
+    let for_view = recorded.clone();
+    let cx = open_host(cx, move || {
+        let on_change = for_view.clone();
+        let on_end = for_view.clone();
+        gpui::div()
+            .w(px(600.))
+            .child(
+                Slider::new("thumb-drag-back", 50.)
+                    .default_value(50.)
+                    .on_change(move |v, _, _| on_change.borrow_mut().push(format!("change:{v}")))
+                    .on_change_end(move |v, _, _| on_end.borrow_mut().push(format!("end:{v}"))),
+            )
+            .into_any_element()
+    });
+    cx.simulate_mouse_down(
+        point(px(310.), px(10.)),
+        gpui::MouseButton::Left,
+        Modifiers::none(),
+    );
+    flush_frame(cx);
+    // Cross-axis jitter only (delta_px == 0) must not emit change.
+    cx.simulate_mouse_move(
+        point(px(310.), px(14.)),
+        Some(gpui::MouseButton::Left),
+        Modifiers::none(),
+    );
+    flush_frame(cx);
+    assert!(recorded.borrow().is_empty());
+    // Drag +60px -> 60, then back to start x=310 -> 50.
+    cx.simulate_mouse_move(
+        point(px(370.), px(10.)),
+        Some(gpui::MouseButton::Left),
+        Modifiers::none(),
+    );
+    flush_frame(cx);
+    cx.simulate_mouse_move(
+        point(px(310.), px(12.)),
+        Some(gpui::MouseButton::Left),
+        Modifiers::none(),
+    );
+    flush_frame(cx);
+    cx.simulate_mouse_up(
+        point(px(310.), px(12.)),
+        gpui::MouseButton::Left,
+        Modifiers::none(),
+    );
+    flush_frame(cx);
+    assert_eq!(
+        recorded.borrow().as_slice(),
+        ["change:60", "change:50", "end:50"]
+    );
+
+    // Same-frame drag away and back.
+    recorded.borrow_mut().clear();
+    cx.simulate_mouse_down(
+        point(px(310.), px(10.)),
+        gpui::MouseButton::Left,
+        Modifiers::none(),
+    );
+    cx.simulate_mouse_move(
+        point(px(370.), px(10.)),
+        Some(gpui::MouseButton::Left),
+        Modifiers::none(),
+    );
+    cx.simulate_mouse_move(
+        point(px(310.), px(10.)),
+        Some(gpui::MouseButton::Left),
+        Modifiers::none(),
+    );
+    cx.simulate_mouse_up(
+        point(px(310.), px(10.)),
+        gpui::MouseButton::Left,
+        Modifiers::none(),
+    );
+    flush_frame(cx);
+    assert_eq!(
+        recorded.borrow().as_slice(),
+        ["change:60", "change:50", "end:50"]
+    );
+
+    // Zero-span slider ignores thumb presses just like track presses.
+    let recorded = harness::events();
+    let for_view = recorded.clone();
+    let cx = open_host(cx, move || {
+        let on_start = for_view.clone();
+        let on_end = for_view.clone();
+        let on_drag_end = for_view.clone();
+        gpui::div()
+            .w(px(600.))
+            .child(
+                Slider::new("thumb-zero-span", 50.)
+                    .min_value(50.)
+                    .max_value(50.)
+                    .on_drag_start(move |_, _| on_start.borrow_mut().push("start".into()))
+                    .on_change_end(move |v, _, _| on_end.borrow_mut().push(format!("end:{v}")))
+                    .on_drag_end(move |_, _| on_drag_end.borrow_mut().push("drag_end".into())),
+            )
+            .into_any_element()
+    });
+    cx.simulate_click(point(px(12.), px(10.)), Modifiers::none());
+    flush_frame(cx);
+    assert!(recorded.borrow().is_empty());
 }
