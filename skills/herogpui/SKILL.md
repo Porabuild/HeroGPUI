@@ -4,7 +4,7 @@ description: "HeroGPUI — native Rust/GPUI port of HeroUI v3.2.7. Use when buil
 metadata:
   author: herogpui
   source: https://github.com/Porabuild/HeroGPUI/blob/master/skills/herogpui/SKILL.md
-  version: "0.15.4"
+  version: "0.15.5"
 ---
 
 # HeroGPUI Development Guide
@@ -41,7 +41,7 @@ Do not invent Poratake-specific or app-specific field names in the library. App 
 ## Installation
 
 ```toml
-herogpui = "0.15.4"
+herogpui = "0.15.5"
 ```
 
 ```rust
@@ -165,9 +165,16 @@ Slider::new("vol", 0.5).recipe("pill");
 Input::new(&state).recipe("search");
 ```
 
+### Fixes in 0.15.5
+
+These fixes are included in HeroGPUI 0.15.5. Existing 0.15.x code remains compatible.
+
+- `Slider`, `ColorSlider`, and `ColorArea` thumbs no longer jump to the pointer when grabbed off-center.
+- `Dropdown`/`Menu` panel entry and exit motion now continues smoothly from the visible frame when interrupted or reopened mid-exit, rather than snapping.
+
 ### Fixes in 0.15.4
 
-These fixes are included in HeroGPUI 0.15.4. Existing 0.15.x code remains compatible.
+These fixes are included in HeroGPUI 0.15.4.
 
 - In-window `Tooltip` shrinks its 8px viewport inset proportionally when a tooltip fits inside a compact window (such as a 52px bar) without room for 8px margins on both sides, preventing bottom/right edge clipping.
 

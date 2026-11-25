@@ -49,6 +49,7 @@
 use std::cell::Cell;
 use std::rc::Rc;
 use std::time::Duration;
+use web_time::Instant;
 
 use gpui::prelude::FluentBuilder;
 use gpui::{
@@ -1272,6 +1273,55 @@ fn lerp(value: gpui::Pixels, factor: f32) -> gpui::Pixels {
     px(f32::from(value) * factor)
 }
 
+fn apply_zoom_metrics<E: Styled>(mut el: E, b: ZoomBox, factor: f32) -> E {
+    if let Some(w) = b.width {
+        el = el.w(lerp(w, factor));
+    }
+    if let Some(h) = b.height {
+        el = el.h(lerp(h, factor));
+    }
+    if let Some(p) = b.padding_x {
+        el = el.px(lerp(p, factor));
+    }
+    if let Some(p) = b.padding_y {
+        el = el.py(lerp(p, factor));
+    }
+    if let Some(p) = b.padding_top {
+        el = el.pt(lerp(p, factor));
+    }
+    if let Some(p) = b.padding_bottom {
+        el = el.pb(lerp(p, factor));
+    }
+    if let Some(g) = b.gap {
+        el = el.gap(lerp(g, factor));
+    }
+    if let Some(t) = b.text_size {
+        el = el.text_size(lerp(t, factor));
+    }
+    if let Some(l) = b.line_height {
+        el = el.line_height(lerp(l, factor));
+    }
+    if let Some(r) = b.radius {
+        el = el.rounded(lerp(r, factor));
+    }
+    el
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+struct ZoomFrame {
+    opacity: f32,
+    scale: f32,
+}
+
+impl ZoomFrame {
+    fn interpolate(self, to: Self, delta: f32) -> Self {
+        Self {
+            opacity: self.opacity + (to.opacity - self.opacity) * delta,
+            scale: self.scale + (to.scale - self.scale) * delta,
+        }
+    }
+}
+
 /// v3's `[data-entering]` in full: `zoom-in-90 fade-in-0 duration-200`.
 ///
 /// gpui 0.2.2 has no transform for a div, so the zoom is reproduced the same
@@ -1303,36 +1353,7 @@ where
             // `scale` may be above 1.0: a modal panel settles down from 105%.
             let f = m.scale + (1.0 - m.scale) * delta;
             let mut el = el.opacity(delta);
-            if let Some(w) = b.width {
-                el = el.w(lerp(w, f));
-            }
-            if let Some(h) = b.height {
-                el = el.h(lerp(h, f));
-            }
-            if let Some(p) = b.padding_x {
-                el = el.px(lerp(p, f));
-            }
-            if let Some(p) = b.padding_y {
-                el = el.py(lerp(p, f));
-            }
-            if let Some(p) = b.padding_top {
-                el = el.pt(lerp(p, f));
-            }
-            if let Some(p) = b.padding_bottom {
-                el = el.pb(lerp(p, f));
-            }
-            if let Some(g) = b.gap {
-                el = el.gap(lerp(g, f));
-            }
-            if let Some(t) = b.text_size {
-                el = el.text_size(lerp(t, f));
-            }
-            if let Some(l) = b.line_height {
-                el = el.line_height(lerp(l, f));
-            }
-            if let Some(r) = b.radius {
-                el = el.rounded(lerp(r, f));
-            }
+            el = apply_zoom_metrics(el, b, f);
             if b.slide_x.is_some() || b.slide_y.is_some() {
                 el = el.relative();
             }
@@ -1373,40 +1394,110 @@ where
             // `delta` runs 0 -> 1 over the exit, so the scale runs 1 -> m.scale.
             let f = 1.0 - (1.0 - m.scale) * delta;
             let mut el = el.opacity(1.0 - delta);
-            if let Some(w) = b.width {
-                el = el.w(lerp(w, f));
-            }
-            if let Some(h) = b.height {
-                el = el.h(lerp(h, f));
-            }
-            if let Some(p) = b.padding_x {
-                el = el.px(lerp(p, f));
-            }
-            if let Some(p) = b.padding_y {
-                el = el.py(lerp(p, f));
-            }
-            if let Some(p) = b.padding_top {
-                el = el.pt(lerp(p, f));
-            }
-            if let Some(p) = b.padding_bottom {
-                el = el.pb(lerp(p, f));
-            }
-            if let Some(g) = b.gap {
-                el = el.gap(lerp(g, f));
-            }
-            if let Some(t) = b.text_size {
-                el = el.text_size(lerp(t, f));
-            }
-            if let Some(l) = b.line_height {
-                el = el.line_height(lerp(l, f));
-            }
-            if let Some(r) = b.radius {
-                el = el.rounded(lerp(r, f));
-            }
+            el = apply_zoom_metrics(el, b, f);
             el
         },
     )
     .into_any_element()
+}
+
+/// What one menu's reversible zoom remembers between frames: the motion
+/// target, the snapshot the current run started from, the last painted frame a
+/// reversal resumes from, and when that run started. `started_at` is the
+/// background executor's clock — the same clock gpui's own `Animation` reads
+/// since 0.3.11 — so tests step the motion deterministically.
+#[derive(Clone, Copy)]
+struct ZoomMotionState {
+    target: ZoomFrame,
+    from: ZoomFrame,
+    value: ZoomFrame,
+    started_at: Instant,
+    animating: bool,
+}
+
+/// One motion identity for a panel whose enter and exit can reverse into each
+/// other. The interpolation is clock-driven and applied straight to the
+/// caller's element — no animation wrapper, no generation in the element id —
+/// so the descendant element-id path is byte-identical on every frame and row
+/// interaction state survives settlement and reversals (sheet.rs uses the same
+/// clock pattern for its snap interpolation). A reversal resumes from the last
+/// painted frame and eases to the new endpoint over that direction's full
+/// duration.
+#[allow(clippy::too_many_arguments)] // the enter/exit motion pair and entry opt-out are the caller's contract
+pub(crate) fn reversible_zoom<E>(
+    el: E,
+    id: &ElementId,
+    b: ZoomBox,
+    open: bool,
+    enter: Motion,
+    exit: Motion,
+    instant_entry: bool,
+    window: &mut Window,
+    cx: &mut App,
+) -> AnyElement
+where
+    E: IntoElement + Styled + 'static,
+{
+    let open_frame = ZoomFrame {
+        opacity: 1.0,
+        scale: 1.0,
+    };
+    let target = if open {
+        open_frame
+    } else {
+        ZoomFrame {
+            opacity: 0.0,
+            scale: exit.scale,
+        }
+    };
+    // A panel mounted open starts at the entry's first frame; one mounted
+    // exiting starts full-size, where a settled menu leaves off.
+    let initial = if open {
+        ZoomFrame {
+            opacity: 0.0,
+            scale: enter.scale,
+        }
+    } else {
+        open_frame
+    };
+    let now = cx.background_executor().now();
+    let state = window.use_keyed_state(element_id::scoped(id, "reversible-zoom"), cx, |_, _| {
+        ZoomMotionState {
+            target,
+            from: initial,
+            value: initial,
+            started_at: now,
+            animating: initial != target,
+        }
+    });
+    let mut current = *state.read(cx);
+    if current.target != target {
+        // Phase reversal: resume from the frame actually on screen, not from
+        // either endpoint, and restart the clock for the new direction.
+        current.target = target;
+        current.from = current.value;
+        current.started_at = now;
+        current.animating = current.value != target;
+    }
+    let reduce_motion = ActiveTheme::reduce_motion(cx);
+    if reduce_motion || (open && instant_entry) {
+        current.animating = false;
+        current.value = target;
+    } else if current.animating {
+        let motion = if open { enter } else { exit };
+        let elapsed = (now - current.started_at).as_secs_f32() * 1000.0 / motion.ms as f32;
+        if elapsed >= 1.0 {
+            current.value = target;
+            current.animating = false;
+        } else {
+            current.value = current.from.interpolate(target, motion.curve.at(elapsed));
+        }
+    }
+    state.update(cx, |stored, _| *stored = current);
+    if current.animating {
+        window.request_animation_frame();
+    }
+    apply_zoom_metrics(el.opacity(current.value.opacity), b, current.value.scale).into_any_element()
 }
 
 /// v3's `transition-colors`: the background eases between two colours instead

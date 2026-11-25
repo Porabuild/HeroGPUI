@@ -3,6 +3,14 @@
   "repository": "Porabuild/HeroGPUI",
   "releases": [
     {
+      "tag": "v0.15.5",
+      "name": "v0.15.5",
+      "publishedAt": "2026-11-25",
+      "prerelease": false,
+      "url": "https://github.com/Porabuild/HeroGPUI/releases/tag/v0.15.5",
+      "body": "### Fixed\n\n- `Slider`, `ColorSlider`, and `ColorArea` thumbs no longer jump to the pointer when grabbed off-center; drags follow the pointer delta from the grab point, while pressing the track outside a thumb still seeks directly.\n- `Dropdown` and `Menu` panels no longer snap when a transition is interrupted: closing during entry or reopening during exit continues smoothly from the visible frame."
+    },
+    {
       "tag": "v0.15.4",
       "name": "v0.15.4",
       "publishedAt": "2026-11-23",

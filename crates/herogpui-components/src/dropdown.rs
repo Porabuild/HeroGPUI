@@ -631,12 +631,20 @@ impl RenderOnce for Menu {
         let overlay_token = if let Some(token) = self.overlay_token.clone() {
             Some(token)
         } else if self.on_dismiss.is_some() {
+            // A menu stripped to nothing by the reduced-motion exit must
+            // release its dismissal order in the same frame it stops painting:
+            // a registration left Open would keep an invisible overlay on top
+            // of the stack and shield every overlay below it from
+            // outside-press dismissal. `is_open` was hardcoded true here, so
+            // `keep_exiting` never had an effect to preserve; the stripped
+            // close must not start one either.
+            let stripped = self.exiting && cx.reduce_motion();
             let (_, token) = crate::util::overlay_scope(
                 window,
                 cx,
                 element_id::scoped(&base_id, "overlay"),
-                true,
-                self.exiting,
+                !stripped,
+                false,
             );
             Some(token)
         } else {
@@ -1718,25 +1726,17 @@ impl RenderOnce for Menu {
         // Animating the surface instead would hang its `py` between the
         // placed box and the painted panel (one RAC gap plus ~6px).
         let zoom = crate::anim::ZoomBox::panel(panel_padding, radius);
-        let panel = if self.exiting {
-            crate::anim::exiting(
-                panel,
-                element_id::scoped(&base_id, "panel-out"),
-                zoom,
-                crate::anim::Motion::LIST_OUT,
-                cx,
-            )
-        } else if self.animate_entry {
-            crate::anim::entering_zoom(
-                panel,
-                element_id::scoped(&base_id, "panel"),
-                zoom,
-                crate::anim::Motion::POPOVER_IN,
-                cx,
-            )
-        } else {
-            panel.into_any_element()
-        };
+        let panel = crate::anim::reversible_zoom(
+            panel,
+            &base_id,
+            zoom,
+            !self.exiting,
+            crate::anim::Motion::POPOVER_IN,
+            crate::anim::Motion::LIST_OUT,
+            !self.animate_entry,
+            window,
+            cx,
+        );
 
         // Parent and child menus share one deferred surface. The submenu is its
         // own popover positioned against its row -- pinned RAC 1.20.0 renders
@@ -1857,6 +1857,14 @@ impl RenderOnce for Menu {
             surface
         };
         let surface = crate::util::apply_sx(surface, &self.sx);
+
+        // A caller-retained standalone menu keeps rendering while `exiting`.
+        // Reduced motion has no exit run to show, so the snapped-transparent
+        // panel must not leave clickable rows or accessibility nodes behind
+        // for as long as the caller keeps the view mounted.
+        if self.exiting && cx.reduce_motion() {
+            return gpui::div().into_any_element();
+        }
 
         if self.deferred {
             crate::util::floating(surface).into_any_element()
@@ -2179,13 +2187,15 @@ impl RenderOnce for Dropdown {
             self.default_selected_keys.clone(),
         );
         self.selected_keys = selected_keys;
-        // `overlay_scope` takes `cx` mutably too, so it goes here.
+        // `overlay_scope` takes `cx` mutably too, so it goes here. Reduced
+        // motion has no exit to play, so the close must not retain the panel:
+        // a transparent menu would otherwise stay actionable for 100ms.
         let (phase, overlay_token) = crate::util::overlay_scope(
             window,
             cx,
             element_id::scoped(&wrap_base_id, "phase"),
             is_open,
-            true,
+            !cx.reduce_motion(),
         );
         let focus_first = window.use_keyed_state(
             element_id::scoped(&wrap_base_id, "focus-first"),

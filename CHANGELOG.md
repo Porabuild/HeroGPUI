@@ -8,6 +8,13 @@ version covers `herogpui`, `herogpui-core`, `herogpui-theme`,
 
 ## [Unreleased]
 
+## [0.15.5] - 2026-11-25
+
+### Fixed
+
+- `Slider`, `ColorSlider`, and `ColorArea` thumbs no longer jump to the pointer when grabbed off-center; drags follow the pointer delta from the grab point, while pressing the track outside a thumb still seeks directly.
+- `Dropdown` and `Menu` panels no longer snap when a transition is interrupted: closing during entry or reopening during exit continues smoothly from the visible frame.
+
 ## [0.15.4] - 2026-11-23
 
 ### Fixed
@@ -995,7 +1002,8 @@ for each breaking change with before/after code.
   `herogpui-components` and the `herogpui-gallery` CLI, built on the
   published `gpui-pre` 0.3.5 crates with no GPUI fork.
 
-[Unreleased]: https://github.com/Porabuild/HeroGPUI/compare/v0.15.4...HEAD
+[Unreleased]: https://github.com/Porabuild/HeroGPUI/compare/v0.15.5...HEAD
+[0.15.5]: https://github.com/Porabuild/HeroGPUI/compare/v0.15.4...v0.15.5
 [0.15.4]: https://github.com/Porabuild/HeroGPUI/compare/v0.15.3...v0.15.4
 [0.15.3]: https://github.com/Porabuild/HeroGPUI/compare/v0.15.2...v0.15.3
 [0.15.2]: https://github.com/Porabuild/HeroGPUI/compare/v0.15.1...v0.15.2
