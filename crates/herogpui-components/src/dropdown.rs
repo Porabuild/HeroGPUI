@@ -1718,25 +1718,17 @@ impl RenderOnce for Menu {
         // Animating the surface instead would hang its `py` between the
         // placed box and the painted panel (one RAC gap plus ~6px).
         let zoom = crate::anim::ZoomBox::panel(panel_padding, radius);
-        let panel = if self.exiting {
-            crate::anim::exiting(
-                panel,
-                element_id::scoped(&base_id, "panel-out"),
-                zoom,
-                crate::anim::Motion::LIST_OUT,
-                cx,
-            )
-        } else if self.animate_entry {
-            crate::anim::entering_zoom(
-                panel,
-                element_id::scoped(&base_id, "panel"),
-                zoom,
-                crate::anim::Motion::POPOVER_IN,
-                cx,
-            )
-        } else {
-            panel.into_any_element()
-        };
+        let panel = crate::anim::reversible_zoom(
+            panel,
+            &base_id,
+            zoom,
+            !self.exiting,
+            crate::anim::Motion::POPOVER_IN,
+            crate::anim::Motion::LIST_OUT,
+            !self.animate_entry,
+            window,
+            cx,
+        );
 
         // Parent and child menus share one deferred surface. The submenu is its
         // own popover positioned against its row -- pinned RAC 1.20.0 renders

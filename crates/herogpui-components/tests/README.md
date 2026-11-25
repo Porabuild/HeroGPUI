@@ -57,6 +57,7 @@ implementation under `src/` instead, and are not listed here.
 | `select_clear_deep` | Select.ClearButton: real pointer and keyboard dispatch. | 5 |
 | `dropdown_anatomy_deep` | Dropdown composition metrics, explicit identity, nested overlay behavior, row leading content. | 5 |
 | `dropdown_close` | Dropdown's close-on-activate contract, including submenus. | 25 |
+| `dropdown_motion` | Dropdown menu panel reversible entry/exit motion, interruption continuity, instant entry and reduced motion. | 3 |
 | `dropdown_seed_deep` | Dropdown.Menu's controlled/uncontrolled selection seeding. | 12 |
 | `dropdown_viewport_deep` | Dropdown menu viewport correction (flip/shift/clamp near edges). | 19 |
 | `focus_ring_gutters_deep` | Focus-ring viewport gutters on Select (natural & virtual, zero padding) and Dropdown/Menu (top/bottom edges, narrow panels, fractional DPI). | 4 |

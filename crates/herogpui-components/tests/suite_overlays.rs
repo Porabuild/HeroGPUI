@@ -13,6 +13,8 @@ mod drawer_deep;
 mod dropdown_anatomy_deep;
 #[path = "dropdown_close.rs"]
 mod dropdown_close;
+#[path = "dropdown_motion.rs"]
+mod dropdown_motion;
 #[path = "dropdown_seed_deep.rs"]
 mod dropdown_seed_deep;
 #[path = "dropdown_viewport_deep.rs"]

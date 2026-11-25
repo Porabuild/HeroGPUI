@@ -583,12 +583,18 @@ impl<T: Copy + PartialEq + 'static> Tween<T> {
         current
     }
 
+    pub(crate) fn snap_to_target(&mut self) {
+        if self.value.get() != self.target {
+            self.from = self.target;
+            self.value.set(self.target);
+        }
+    }
+
     /// Lands the value on the target under reduced motion — the state still
     /// applies, with no animation mounted.
     pub(crate) fn snap_if_reduced(&mut self, reduce_motion: bool) {
-        if reduce_motion && self.value.get() != self.target {
-            self.from = self.target;
-            self.value.set(self.target);
+        if reduce_motion {
+            self.snap_to_target();
         }
     }
 
@@ -1272,6 +1278,55 @@ fn lerp(value: gpui::Pixels, factor: f32) -> gpui::Pixels {
     px(f32::from(value) * factor)
 }
 
+fn apply_zoom_metrics<E: Styled>(mut el: E, b: ZoomBox, factor: f32) -> E {
+    if let Some(w) = b.width {
+        el = el.w(lerp(w, factor));
+    }
+    if let Some(h) = b.height {
+        el = el.h(lerp(h, factor));
+    }
+    if let Some(p) = b.padding_x {
+        el = el.px(lerp(p, factor));
+    }
+    if let Some(p) = b.padding_y {
+        el = el.py(lerp(p, factor));
+    }
+    if let Some(p) = b.padding_top {
+        el = el.pt(lerp(p, factor));
+    }
+    if let Some(p) = b.padding_bottom {
+        el = el.pb(lerp(p, factor));
+    }
+    if let Some(g) = b.gap {
+        el = el.gap(lerp(g, factor));
+    }
+    if let Some(t) = b.text_size {
+        el = el.text_size(lerp(t, factor));
+    }
+    if let Some(l) = b.line_height {
+        el = el.line_height(lerp(l, factor));
+    }
+    if let Some(r) = b.radius {
+        el = el.rounded(lerp(r, factor));
+    }
+    el
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+struct ZoomFrame {
+    opacity: f32,
+    scale: f32,
+}
+
+impl ZoomFrame {
+    fn interpolate(self, to: Self, delta: f32) -> Self {
+        Self {
+            opacity: self.opacity + (to.opacity - self.opacity) * delta,
+            scale: self.scale + (to.scale - self.scale) * delta,
+        }
+    }
+}
+
 /// v3's `[data-entering]` in full: `zoom-in-90 fade-in-0 duration-200`.
 ///
 /// gpui 0.2.2 has no transform for a div, so the zoom is reproduced the same
@@ -1303,36 +1358,7 @@ where
             // `scale` may be above 1.0: a modal panel settles down from 105%.
             let f = m.scale + (1.0 - m.scale) * delta;
             let mut el = el.opacity(delta);
-            if let Some(w) = b.width {
-                el = el.w(lerp(w, f));
-            }
-            if let Some(h) = b.height {
-                el = el.h(lerp(h, f));
-            }
-            if let Some(p) = b.padding_x {
-                el = el.px(lerp(p, f));
-            }
-            if let Some(p) = b.padding_y {
-                el = el.py(lerp(p, f));
-            }
-            if let Some(p) = b.padding_top {
-                el = el.pt(lerp(p, f));
-            }
-            if let Some(p) = b.padding_bottom {
-                el = el.pb(lerp(p, f));
-            }
-            if let Some(g) = b.gap {
-                el = el.gap(lerp(g, f));
-            }
-            if let Some(t) = b.text_size {
-                el = el.text_size(lerp(t, f));
-            }
-            if let Some(l) = b.line_height {
-                el = el.line_height(lerp(l, f));
-            }
-            if let Some(r) = b.radius {
-                el = el.rounded(lerp(r, f));
-            }
+            el = apply_zoom_metrics(el, b, f);
             if b.slide_x.is_some() || b.slide_y.is_some() {
                 el = el.relative();
             }
@@ -1373,37 +1399,76 @@ where
             // `delta` runs 0 -> 1 over the exit, so the scale runs 1 -> m.scale.
             let f = 1.0 - (1.0 - m.scale) * delta;
             let mut el = el.opacity(1.0 - delta);
-            if let Some(w) = b.width {
-                el = el.w(lerp(w, f));
-            }
-            if let Some(h) = b.height {
-                el = el.h(lerp(h, f));
-            }
-            if let Some(p) = b.padding_x {
-                el = el.px(lerp(p, f));
-            }
-            if let Some(p) = b.padding_y {
-                el = el.py(lerp(p, f));
-            }
-            if let Some(p) = b.padding_top {
-                el = el.pt(lerp(p, f));
-            }
-            if let Some(p) = b.padding_bottom {
-                el = el.pb(lerp(p, f));
-            }
-            if let Some(g) = b.gap {
-                el = el.gap(lerp(g, f));
-            }
-            if let Some(t) = b.text_size {
-                el = el.text_size(lerp(t, f));
-            }
-            if let Some(l) = b.line_height {
-                el = el.line_height(lerp(l, f));
-            }
-            if let Some(r) = b.radius {
-                el = el.rounded(lerp(r, f));
-            }
+            el = apply_zoom_metrics(el, b, f);
             el
+        },
+    )
+    .into_any_element()
+}
+
+#[allow(clippy::too_many_arguments)] // the enter/exit motion pair and entry opt-out are the caller's contract
+pub(crate) fn reversible_zoom<E>(
+    el: E,
+    id: &ElementId,
+    b: ZoomBox,
+    open: bool,
+    enter: Motion,
+    exit: Motion,
+    instant_entry: bool,
+    window: &mut Window,
+    cx: &mut App,
+) -> AnyElement
+where
+    E: IntoElement + Styled + 'static,
+{
+    let open_frame = ZoomFrame {
+        opacity: 1.0,
+        scale: 1.0,
+    };
+    let target = if open {
+        open_frame
+    } else {
+        ZoomFrame {
+            opacity: 0.0,
+            scale: exit.scale,
+        }
+    };
+    let initial = if open {
+        ZoomFrame {
+            opacity: 0.0,
+            scale: enter.scale,
+        }
+    } else {
+        open_frame
+    };
+    let reduce_motion = ActiveTheme::reduce_motion(cx);
+    let mut tween =
+        Tween::keyed_with_initial(id, "reversible-zoom", target, Some(initial), window, cx);
+    if reduce_motion || (open && instant_entry) {
+        tween.snap_to_target();
+    }
+
+    if !tween.animates(reduce_motion) {
+        tween.settle();
+        return apply_zoom_metrics(el.opacity(target.opacity), b, target.scale).into_any_element();
+    }
+
+    let motion = if open { enter } else { exit };
+    let from = tween.from();
+    let to = tween.target();
+    let value = tween.value();
+    el.with_animation(
+        element_id::indexed(id, "reversible-zoom", tween.generation()),
+        gpui::Animation::new(Duration::from_millis(motion.ms))
+            .with_easing(move |t| motion.curve.at(t)),
+        move |el, delta| {
+            let frame = if delta >= 1.0 {
+                to
+            } else {
+                from.interpolate(to, delta)
+            };
+            value.set(frame);
+            apply_zoom_metrics(el.opacity(frame.opacity), b, frame.scale)
         },
     )
     .into_any_element()
