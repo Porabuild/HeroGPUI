@@ -49,6 +49,7 @@
 use std::cell::Cell;
 use std::rc::Rc;
 use std::time::Duration;
+use web_time::Instant;
 
 use gpui::prelude::FluentBuilder;
 use gpui::{
@@ -583,18 +584,12 @@ impl<T: Copy + PartialEq + 'static> Tween<T> {
         current
     }
 
-    pub(crate) fn snap_to_target(&mut self) {
-        if self.value.get() != self.target {
-            self.from = self.target;
-            self.value.set(self.target);
-        }
-    }
-
     /// Lands the value on the target under reduced motion — the state still
     /// applies, with no animation mounted.
     pub(crate) fn snap_if_reduced(&mut self, reduce_motion: bool) {
-        if reduce_motion {
-            self.snap_to_target();
+        if reduce_motion && self.value.get() != self.target {
+            self.from = self.target;
+            self.value.set(self.target);
         }
     }
 
@@ -1406,6 +1401,28 @@ where
     .into_any_element()
 }
 
+/// What one menu's reversible zoom remembers between frames: the motion
+/// target, the snapshot the current run started from, the last painted frame a
+/// reversal resumes from, and when that run started. `started_at` is the
+/// background executor's clock — the same clock gpui's own `Animation` reads
+/// since 0.3.11 — so tests step the motion deterministically.
+#[derive(Clone, Copy)]
+struct ZoomMotionState {
+    target: ZoomFrame,
+    from: ZoomFrame,
+    value: ZoomFrame,
+    started_at: Instant,
+    animating: bool,
+}
+
+/// One motion identity for a panel whose enter and exit can reverse into each
+/// other. The interpolation is clock-driven and applied straight to the
+/// caller's element — no animation wrapper, no generation in the element id —
+/// so the descendant element-id path is byte-identical on every frame and row
+/// interaction state survives settlement and reversals (sheet.rs uses the same
+/// clock pattern for its snap interpolation). A reversal resumes from the last
+/// painted frame and eases to the new endpoint over that direction's full
+/// duration.
 #[allow(clippy::too_many_arguments)] // the enter/exit motion pair and entry opt-out are the caller's contract
 pub(crate) fn reversible_zoom<E>(
     el: E,
@@ -1433,6 +1450,8 @@ where
             scale: exit.scale,
         }
     };
+    // A panel mounted open starts at the entry's first frame; one mounted
+    // exiting starts full-size, where a settled menu leaves off.
     let initial = if open {
         ZoomFrame {
             opacity: 0.0,
@@ -1441,37 +1460,44 @@ where
     } else {
         open_frame
     };
+    let now = cx.background_executor().now();
+    let state = window.use_keyed_state(element_id::scoped(id, "reversible-zoom"), cx, |_, _| {
+        ZoomMotionState {
+            target,
+            from: initial,
+            value: initial,
+            started_at: now,
+            animating: initial != target,
+        }
+    });
+    let mut current = *state.read(cx);
+    if current.target != target {
+        // Phase reversal: resume from the frame actually on screen, not from
+        // either endpoint, and restart the clock for the new direction.
+        current.target = target;
+        current.from = current.value;
+        current.started_at = now;
+        current.animating = current.value != target;
+    }
     let reduce_motion = ActiveTheme::reduce_motion(cx);
-    let mut tween =
-        Tween::keyed_with_initial(id, "reversible-zoom", target, Some(initial), window, cx);
     if reduce_motion || (open && instant_entry) {
-        tween.snap_to_target();
+        current.animating = false;
+        current.value = target;
+    } else if current.animating {
+        let motion = if open { enter } else { exit };
+        let elapsed = (now - current.started_at).as_secs_f32() * 1000.0 / motion.ms as f32;
+        if elapsed >= 1.0 {
+            current.value = target;
+            current.animating = false;
+        } else {
+            current.value = current.from.interpolate(target, motion.curve.at(elapsed));
+        }
     }
-
-    if !tween.animates(reduce_motion) {
-        tween.settle();
-        return apply_zoom_metrics(el.opacity(target.opacity), b, target.scale).into_any_element();
+    state.update(cx, |stored, _| *stored = current);
+    if current.animating {
+        window.request_animation_frame();
     }
-
-    let motion = if open { enter } else { exit };
-    let from = tween.from();
-    let to = tween.target();
-    let value = tween.value();
-    el.with_animation(
-        element_id::indexed(id, "reversible-zoom", tween.generation()),
-        gpui::Animation::new(Duration::from_millis(motion.ms))
-            .with_easing(move |t| motion.curve.at(t)),
-        move |el, delta| {
-            let frame = if delta >= 1.0 {
-                to
-            } else {
-                from.interpolate(to, delta)
-            };
-            value.set(frame);
-            apply_zoom_metrics(el.opacity(frame.opacity), b, frame.scale)
-        },
-    )
-    .into_any_element()
+    apply_zoom_metrics(el.opacity(current.value.opacity), b, current.value.scale).into_any_element()
 }
 
 /// v3's `transition-colors`: the background eases between two colours instead

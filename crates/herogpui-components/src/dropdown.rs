@@ -1850,6 +1850,14 @@ impl RenderOnce for Menu {
         };
         let surface = crate::util::apply_sx(surface, &self.sx);
 
+        // A caller-retained standalone menu keeps rendering while `exiting`.
+        // Reduced motion has no exit run to show, so the snapped-transparent
+        // panel must not leave clickable rows or accessibility nodes behind
+        // for as long as the caller keeps the view mounted.
+        if self.exiting && cx.reduce_motion() {
+            return gpui::div().into_any_element();
+        }
+
         if self.deferred {
             crate::util::floating(surface).into_any_element()
         } else {
@@ -2171,13 +2179,15 @@ impl RenderOnce for Dropdown {
             self.default_selected_keys.clone(),
         );
         self.selected_keys = selected_keys;
-        // `overlay_scope` takes `cx` mutably too, so it goes here.
+        // `overlay_scope` takes `cx` mutably too, so it goes here. Reduced
+        // motion has no exit to play, so the close must not retain the panel:
+        // a transparent menu would otherwise stay actionable for 100ms.
         let (phase, overlay_token) = crate::util::overlay_scope(
             window,
             cx,
             element_id::scoped(&wrap_base_id, "phase"),
             is_open,
-            true,
+            !cx.reduce_motion(),
         );
         let focus_first = window.use_keyed_state(
             element_id::scoped(&wrap_base_id, "focus-first"),

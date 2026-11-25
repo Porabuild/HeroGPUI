@@ -2,7 +2,9 @@ use crate::harness::{self, open_host};
 
 use std::{cell::Cell, rc::Rc};
 
-use gpui::{prelude::*, px, TestAppContext, VisualTestContext};
+use gpui::{
+    div, prelude::*, px, App, Modifiers, MouseButton, TestAppContext, VisualTestContext, Window,
+};
 use herogpui_components::{Button, Dropdown, MenuItem};
 use herogpui_theme::{set_theme, ComponentTheme, ComponentThemes, MenuStyle, Theme};
 
@@ -266,9 +268,254 @@ fn reduced_motion_snaps_menu_entry_and_exit_without_animation(cx: &mut TestAppCo
         "reduced motion must not schedule an exit animation"
     );
     assert!(
-        cx.debug_bounds("dropdown-menu").is_some(),
-        "the reduced-motion exit remains mounted for the overlay phase but paints its end state"
+        cx.debug_bounds("dropdown-menu").is_none(),
+        "reduced motion has no exit to play, so the close unmounts the panel immediately"
     );
     harness::wait_ms(cx, 120);
     assert!(cx.debug_bounds("dropdown-menu").is_none());
+}
+
+/// Counts how often gpui creates the keyed state inside one row's caller
+/// content: a remount of the row subtree reruns the creation closure.
+#[derive(IntoElement)]
+struct MountProbe(Rc<Cell<u32>>);
+
+impl RenderOnce for MountProbe {
+    fn render(self, window: &mut Window, cx: &mut App) -> impl IntoElement {
+        window.use_keyed_state("mount-probe-state", cx, |_, _| self.0.set(self.0.get() + 1));
+        div()
+            .w(px(90.))
+            .h(px(22.))
+            .debug_selector(|| "motion-probe-row".into())
+            .child("Row")
+    }
+}
+
+#[gpui::test]
+fn menu_state_and_click_survive_entry_settlement(cx: &mut TestAppContext) {
+    let mounts = Rc::new(Cell::new(0u32));
+    let actions = Rc::new(Cell::new(0u32));
+    let counters = (mounts.clone(), actions.clone());
+    let cx = open_host(cx, move || {
+        let (mounts, actions) = counters.clone();
+        herogpui_components::Menu::new("motion-menu", vec![MenuItem::new("row", "Row")])
+            .item_content(move |_, _| MountProbe(mounts.clone()).into_any_element())
+            .on_action(move |_, _, _| actions.set(actions.get() + 1))
+            .into_any_element()
+    });
+    refresh_frame(cx);
+    let entry_mounts = mounts.get();
+    assert!(entry_mounts > 0, "the row content must mount once on open");
+
+    // The press starts at 120ms of the 150ms entry and the release lands at
+    // 180ms: the click spans the settlement frame, and the row must be the
+    // same element-state instance before and after it.
+    cx.executor()
+        .advance_clock(std::time::Duration::from_millis(120));
+    refresh_frame(cx);
+    let pos = cx
+        .debug_bounds("motion-probe-row")
+        .expect("row must be mounted mid-entry")
+        .center();
+    cx.simulate_mouse_move(pos, None, Modifiers::none());
+    cx.simulate_mouse_down(pos, MouseButton::Left, Modifiers::none());
+    cx.executor()
+        .advance_clock(std::time::Duration::from_millis(60));
+    refresh_frame(cx);
+    cx.simulate_mouse_up(pos, MouseButton::Left, Modifiers::none());
+    cx.run_until_parked();
+    assert_eq!(
+        actions.get(),
+        1,
+        "a click spanning the entry settlement must still activate the row"
+    );
+    assert_eq!(
+        mounts.get(),
+        entry_mounts,
+        "settlement must not remount menu row state"
+    );
+    cx.simulate_click(pos, Modifiers::none());
+    cx.run_until_parked();
+    assert_eq!(actions.get(), 2, "the settled row must stay clickable");
+    assert_eq!(
+        mounts.get(),
+        entry_mounts,
+        "the settled row must be the same keyed state instance"
+    );
+}
+
+#[gpui::test]
+fn menu_row_state_survives_close_and_reopen_reversal(cx: &mut TestAppContext) {
+    let exiting = Rc::new(Cell::new(false));
+    let mounts = Rc::new(Cell::new(0u32));
+    let control = (exiting.clone(), mounts.clone());
+    let cx = open_host(cx, move || {
+        let (exiting, mounts) = control.clone();
+        herogpui_components::Menu::new("motion-reversal-menu", vec![MenuItem::new("row", "Row")])
+            .item_content(move |_, _| MountProbe(mounts.clone()).into_any_element())
+            .exiting(exiting.get())
+            .into_any_element()
+    });
+    refresh_frame(cx);
+    let entry_mounts = mounts.get();
+    assert!(entry_mounts > 0);
+
+    // Reverse mid-entry into the exit, then reverse back into the entry; the
+    // motion must continue from painted frames without ever remounting rows.
+    cx.executor()
+        .advance_clock(std::time::Duration::from_millis(60));
+    refresh_frame(cx);
+    exiting.set(true);
+    refresh_frame(cx);
+    cx.executor()
+        .advance_clock(std::time::Duration::from_millis(40));
+    refresh_frame(cx);
+    exiting.set(false);
+    refresh_frame(cx);
+    cx.executor()
+        .advance_clock(std::time::Duration::from_millis(40));
+    refresh_frame(cx);
+    assert_eq!(
+        mounts.get(),
+        entry_mounts,
+        "close/reopen reversals must not remount menu row state"
+    );
+    cx.executor()
+        .advance_clock(std::time::Duration::from_millis(200));
+    refresh_frame(cx);
+    assert_eq!(
+        mounts.get(),
+        entry_mounts,
+        "settling after a reversal must not remount menu row state"
+    );
+    assert!(
+        cx.debug_bounds("motion-probe-row").is_some(),
+        "the reopened menu rows must still be mounted"
+    );
+}
+
+#[gpui::test]
+fn reduced_motion_closed_menu_cannot_run_an_action(cx: &mut TestAppContext) {
+    harness::still();
+    let open = Rc::new(Cell::new(true));
+    let actions = Rc::new(Cell::new(0u32));
+    let control = (open.clone(), actions.clone());
+    let cx = open_host(cx, move || {
+        let (open, actions) = control.clone();
+        Dropdown::new(
+            "reduced-close-probe",
+            Button::new("reduced-close-trigger").label("Open"),
+            vec![MenuItem::new("row", "Row")],
+            open.get(),
+        )
+        .item_content(move |_, _| {
+            div()
+                .w(px(90.))
+                .h(px(22.))
+                .debug_selector(|| "reduced-close-row".into())
+                .child("Row")
+                .into_any_element()
+        })
+        .on_action(move |_, _, _| actions.set(actions.get() + 1))
+        .id("reduced-close-dropdown")
+        .into_any_element()
+    });
+    refresh_frame(cx);
+    let pos = cx
+        .debug_bounds("reduced-close-row")
+        .expect("the open menu must paint its row")
+        .center();
+
+    open.set(false);
+    refresh_frame(cx);
+    assert!(
+        cx.debug_bounds("reduced-close-row").is_none(),
+        "reduced motion must drop the closed menu immediately rather than retain a transparent panel"
+    );
+    cx.simulate_click(pos, Modifiers::none());
+    cx.run_until_parked();
+    assert_eq!(
+        actions.get(),
+        0,
+        "no action may fire from the position a closed menu occupied"
+    );
+}
+
+#[gpui::test]
+fn reduced_motion_retained_standalone_menu_is_inert_while_exiting(cx: &mut TestAppContext) {
+    harness::still();
+    let exiting = Rc::new(Cell::new(false));
+    let actions = Rc::new(Cell::new(0u32));
+    let control = (exiting.clone(), actions.clone());
+    let cx = open_host(cx, move || {
+        let (exiting, actions) = control.clone();
+        herogpui_components::Menu::new("reduced-retained-menu", vec![MenuItem::new("row", "Row")])
+            .item_content(move |_, _| {
+                div()
+                    .w(px(90.))
+                    .h(px(22.))
+                    .debug_selector(|| "reduced-retained-row".into())
+                    .child("Row")
+                    .into_any_element()
+            })
+            .on_action(move |_, _, _| actions.set(actions.get() + 1))
+            .exiting(exiting.get())
+            .into_any_element()
+    });
+    refresh_frame(cx);
+    let pos = cx
+        .debug_bounds("reduced-retained-row")
+        .expect("the open retained menu must paint its row")
+        .center();
+    cx.simulate_click(pos, Modifiers::none());
+    cx.run_until_parked();
+    assert_eq!(actions.get(), 1, "the open menu's row must activate");
+
+    exiting.set(true);
+    refresh_frame(cx);
+    assert!(
+        cx.debug_bounds("reduced-retained-row").is_none(),
+        "a retained menu exiting under reduced motion must not keep mounted rows"
+    );
+    cx.simulate_click(pos, Modifiers::none());
+    cx.run_until_parked();
+    assert_eq!(
+        actions.get(),
+        1,
+        "no action may fire from an invisible exiting menu"
+    );
+
+    exiting.set(false);
+    refresh_frame(cx);
+    assert!(
+        cx.debug_bounds("reduced-retained-row").is_some(),
+        "flipping back to open re-renders the rows for the caller-retained menu"
+    );
+}
+
+#[gpui::test]
+fn normal_motion_retained_standalone_menu_keeps_rows_while_exiting(cx: &mut TestAppContext) {
+    let exiting = Rc::new(Cell::new(false));
+    let control = exiting.clone();
+    let cx = open_host(cx, move || {
+        herogpui_components::Menu::new("normal-retained-menu", vec![MenuItem::new("row", "Row")])
+            .item_content(move |_, _| {
+                div()
+                    .w(px(90.))
+                    .h(px(22.))
+                    .debug_selector(|| "normal-retained-row".into())
+                    .child("Row")
+                    .into_any_element()
+            })
+            .exiting(control.get())
+            .into_any_element()
+    });
+    refresh_frame(cx);
+    harness::wait_ms(cx, 200);
+    exiting.set(true);
+    refresh_frame(cx);
+    assert!(
+        cx.debug_bounds("normal-retained-row").is_some(),
+        "the visible exit run keeps its rows mounted under normal motion"
+    );
 }

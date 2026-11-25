@@ -263,12 +263,14 @@ impl RenderOnce for MenuBar {
                 enabled.iter().position(|e| *e).unwrap_or(0)
             }
         };
+        // Reduced motion has no exit to play, so the close must not retain a
+        // transparent but actionable panel for the exit run.
         let (phase, overlay_token) = crate::util::overlay_scope(
             window,
             cx,
             element_id::scoped(&base, "phase"),
             open_ix.is_some(),
-            true,
+            !cx.reduce_motion(),
         );
         // The last open menu stays mounted through its exit motion.
         let shown =

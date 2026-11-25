@@ -188,12 +188,14 @@ impl RenderOnce for ContextMenu {
         let base = self.id.clone();
         let (is_open, own) =
             crate::util::controlled(window, cx, element_id::scoped(&base, "open"), None, false);
+        // Reduced motion has no exit to play, so the close must not retain a
+        // transparent but actionable panel for the exit run.
         let (phase, overlay_token) = crate::util::overlay_scope(
             window,
             cx,
             element_id::scoped(&base, "phase"),
             is_open,
-            true,
+            !cx.reduce_motion(),
         );
         // The pointer position, as a zero-size anchor the shared popover
         // positioner places the panel against (offset 0, so the panel's
