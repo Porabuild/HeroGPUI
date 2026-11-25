@@ -519,3 +519,75 @@ fn normal_motion_retained_standalone_menu_keeps_rows_while_exiting(cx: &mut Test
         "the visible exit run keeps its rows mounted under normal motion"
     );
 }
+
+#[gpui::test]
+fn reduced_motion_retained_exit_releases_dismissal_order(cx: &mut TestAppContext) {
+    harness::still();
+    let exiting = Rc::new(Cell::new(false));
+    let lower_dismissals = Rc::new(Cell::new(0u32));
+    let upper_dismissals = Rc::new(Cell::new(0u32));
+    let control = (
+        exiting.clone(),
+        lower_dismissals.clone(),
+        upper_dismissals.clone(),
+    );
+    let cx = open_host(cx, move || {
+        let (exiting, lower_dismissals, upper_dismissals) = control.clone();
+        let lower = herogpui_components::Menu::new(
+            "lower-overlay",
+            vec![MenuItem::new("lower-row", "Lower")],
+        )
+        .on_dismiss(move |_, _, _| lower_dismissals.set(lower_dismissals.get() + 1));
+        div()
+            .size_full()
+            .child(lower)
+            .child(
+                herogpui_components::Menu::new(
+                    "upper-overlay",
+                    vec![MenuItem::new("upper-row", "Upper")],
+                )
+                .exiting(exiting.get())
+                .item_content(move |_, _| {
+                    div()
+                        .w(px(90.))
+                        .h(px(22.))
+                        .debug_selector(|| "upper-retained-row".into())
+                        .child("Upper")
+                        .into_any_element()
+                })
+                .on_dismiss(move |_, _, _| upper_dismissals.set(upper_dismissals.get() + 1)),
+            )
+            .into_any_element()
+    });
+    refresh_frame(cx);
+    let pos = cx.update(|window, _| {
+        let size = window.viewport_size();
+        gpui::point(size.width - px(10.), size.height - px(10.))
+    });
+    cx.simulate_click(pos, Modifiers::none());
+    cx.run_until_parked();
+    assert_eq!(
+        (upper_dismissals.get(), lower_dismissals.get()),
+        (1, 0),
+        "an outside press dismisses only the topmost open overlay"
+    );
+
+    exiting.set(true);
+    refresh_frame(cx);
+    assert!(
+        cx.debug_bounds("upper-retained-row").is_none(),
+        "the stripped reduced-motion exit must not paint rows"
+    );
+    cx.simulate_click(pos, Modifiers::none());
+    cx.run_until_parked();
+    assert_eq!(
+        lower_dismissals.get(),
+        1,
+        "the lower overlay must dismiss once the hidden upper releases its registration"
+    );
+    assert_eq!(
+        upper_dismissals.get(),
+        1,
+        "the hidden upper must not absorb another dismissal while stripped"
+    );
+}

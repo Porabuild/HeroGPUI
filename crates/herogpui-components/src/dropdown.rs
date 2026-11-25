@@ -631,12 +631,20 @@ impl RenderOnce for Menu {
         let overlay_token = if let Some(token) = self.overlay_token.clone() {
             Some(token)
         } else if self.on_dismiss.is_some() {
+            // A menu stripped to nothing by the reduced-motion exit must
+            // release its dismissal order in the same frame it stops painting:
+            // a registration left Open would keep an invisible overlay on top
+            // of the stack and shield every overlay below it from
+            // outside-press dismissal. `is_open` was hardcoded true here, so
+            // `keep_exiting` never had an effect to preserve; the stripped
+            // close must not start one either.
+            let stripped = self.exiting && cx.reduce_motion();
             let (_, token) = crate::util::overlay_scope(
                 window,
                 cx,
                 element_id::scoped(&base_id, "overlay"),
-                true,
-                self.exiting,
+                !stripped,
+                false,
             );
             Some(token)
         } else {
