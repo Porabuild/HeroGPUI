@@ -1,5 +1,7 @@
 import { getComponentReference } from "@/app/docs/components/[slug]/data";
 import { getCatalog } from "@/lib/catalog";
+import { getExtensions } from "@/lib/extensions";
+import { getMigrations } from "@/lib/migrations";
 import { buildSearchItems, type SearchApi, type SearchItem } from "@/lib/docs-nav";
 import { builderNames, isCallableRust } from "@/lib/gpui-docs";
 
@@ -37,9 +39,44 @@ export function componentSearchApi(slug: string): SearchApi {
 
 let cached: SearchItem[] | null = null;
 
-/** The site search index: pages, components, and each component's Rust API. */
+/** The site search index: pages, components, each component's Rust API, one entry per HeroGPUI extension, and one per upgrade guide. */
 export function siteSearchItems(): SearchItem[] {
   if (cached && process.env.NODE_ENV === "production") return cached;
-  cached = buildSearchItems(getCatalog(), componentSearchApi);
-  return cached;
+  const items = buildSearchItems(getCatalog(), componentSearchApi);
+  // One entry per HeroGPUI extension, so "HoverCard", "i18n" or "test kit"
+  // lands on the extensions page section for it.
+  for (const entry of getExtensions().entries) {
+    items.push({
+      href: `/docs/extensions#${entry.slug}`,
+      title: entry.name,
+      group: "Extensions",
+      keywords: entry.name,
+    });
+  }
+  // One entry per extension example on a component page, keyed by the Rust
+  // names its summary quotes, so "fit_panel_width" or "TooltipPresenter" finds
+  // the live example.
+  for (const example of getExtensions().componentExtensions) {
+    const names = [...example.summary.matchAll(/`([^`]+)`/g)].flatMap(
+      ([, code]) => code.match(/[A-Za-z_][A-Za-z0-9_]{2,}/g) ?? [],
+    );
+    items.push({
+      href: `/docs/components/${example.component}#${example.anchor}`,
+      title: `${example.title} — ${example.heading}`,
+      group: "Extensions",
+      keywords: [example.heading, ...new Set(names)].join(" "),
+    });
+  }
+  // One entry per upgrade guide, so "migration" or "upgrade 0.15" finds the
+  // guide for that version.
+  for (const guide of getMigrations().guides) {
+    items.push({
+      href: `/docs/migration/${guide.slug}`,
+      title: guide.title,
+      group: "Upgrade guides",
+      keywords: `migration upgrade ${guide.version} breaking changes`,
+    });
+  }
+  cached = items;
+  return items;
 }

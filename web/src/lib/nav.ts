@@ -11,6 +11,11 @@ export const SITE = {
   version: `v${catalog.version}`,
   /** The Cargo requirement install snippets show: `"0.11"` for 0.11.x. */
   crateRequirement: catalog.version.split(".").slice(0, 2).join("."),
+  /**
+   * The minimum Rust toolchain version, from Cargo.toml's
+   * `[workspace.package].rust-version` (catalog.json `rustVersion`).
+   */
+  rustVersion: catalog.rustVersion,
   /** The checkout's actual remote (github.com/Porabuild/HeroGPUI). */
   github: "https://github.com/Porabuild/HeroGPUI",
   upstream: "https://heroui.com",
@@ -60,6 +65,7 @@ export const AI_LINKS: NavLink[] = [
 export const NAV_LINKS: NavLink[] = [
   { href: "/docs/getting-started", label: "Docs" },
   { href: "/docs/components", label: "Components", exact: true },
+  { href: "/docs/extensions", label: "Extensions" },
   { href: "/docs/releases", label: "Releases" },
 ];
 

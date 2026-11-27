@@ -76,7 +76,7 @@ jobs:
           emit rust '^(Cargo\.toml|Cargo\.lock|rust-toolchain\.toml|rustfmt\.toml|deny\.toml|clippy\.toml|\.cargo/|crates/|gallery/|examples/|\.shots/(lint|run-tests)\.sh$|\.shots/(test-control|control|batch|smoke)\.ps1$|\.github/(workflows/|actions/)|web/src/data/rust-examples\.json$)'
           emit rust_libs '^(Cargo\.toml|Cargo\.lock|rust-toolchain\.toml|\.cargo/|crates/herogpui(-core|-theme|-components)?/|\.github/(workflows/ci\.yml|actions/rust-env/))'
           emit wasm '^(Cargo\.toml|Cargo\.lock|rust-toolchain\.toml|\.cargo/|crates/|gallery/|\.shots/build-wasm\.sh$|web/scripts/gallery-smoke(\.test)?\.mjs$|web/scripts/gallery-artifact\.mjs$|web/scripts/extract-wasm-sections\.mjs$|web/scripts/extract-rust-examples\.mjs$|web/scripts/lib/|web/public/gallery/index\.html$|web/src/data/rust-examples\.json$|\.github/workflows/ci\.yml$)'
-          emit web_site '^(web/|crates/|gallery/|examples/|Cargo\.toml$|Cargo\.lock$|rust-toolchain\.toml$|\.cargo/config\.toml$|CHANGELOG\.md$|llms\.txt$|\.shots/build-wasm\.sh$|\.shots/[^/]+-tile(-dark)?-v3\.png$|\.github/(workflows/ci\.yml|actions/))'
+          emit web_site '^(web/|crates/|gallery/|examples/|Cargo\.toml$|Cargo\.lock$|rust-toolchain\.toml$|\.cargo/config\.toml$|CHANGELOG\.md$|docs/migration-[^/]+\.md$|llms\.txt$|\.shots/build-wasm\.sh$|\.shots/[^/]+-tile(-dark)?-v3\.png$|\.github/(workflows/ci\.yml|actions/))'
 
   # Everything that needs no Rust build. A formatting or gallery-sync failure
   # reports in under a minute instead of after a full compile.

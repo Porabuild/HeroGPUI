@@ -59,6 +59,10 @@ const TYPE_PHRASES: [string, string][] = [
 ];
 
 const SCRUB_PHRASES: [string, string][] = [
+  // Gallery sections for repository extensions open with "HeroGPUI extension,
+  // not a HeroUI v3 example: ..."; drop the parity clause whole so the generic
+  // "HeroUI" and "v3 " rules below do not leave "not a example".
+  [", not a HeroUI v3 example", ""],
   ["rather than React Aria's PressEvent", ""],
   ["rather than a browser PressEvent", ""],
   ["; the pinned stylesheet also defines danger-soft.", "."],

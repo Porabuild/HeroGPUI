@@ -6,6 +6,8 @@ import { SidebarMobile, SidebarRail } from "@/components/site/sidebar";
 import { SiteFooter } from "@/components/site/footer";
 import { Toc } from "@/components/site/toc";
 import { getCatalog, getComponentSidebarGroups } from "@/lib/catalog";
+import { getExtensionSidebarLinks } from "@/lib/extensions";
+import { getMigrationSidebarLinks, getMigrations } from "@/lib/migrations";
 import { siteSearchItems } from "@/lib/search-api";
 
 /**
@@ -16,6 +18,12 @@ import { siteSearchItems } from "@/lib/search-api";
 export default function DocsLayout({ children }: { children: ReactNode }) {
   const catalog = getCatalog();
   const groups = getComponentSidebarGroups(catalog);
+  const extensionLinks = getExtensionSidebarLinks();
+  const migrationLinks = getMigrationSidebarLinks();
+  const migrationGuides = getMigrations().guides.map((guide) => ({
+    slug: guide.slug,
+    title: guide.title,
+  }));
   const searchItems = siteSearchItems();
 
   return (
@@ -24,10 +32,18 @@ export default function DocsLayout({ children }: { children: ReactNode }) {
         Skip to content
       </a>
       <Navbar searchItems={searchItems} />
-      <SidebarMobile groups={groups} />
+      <SidebarMobile
+        groups={groups}
+        extensionLinks={extensionLinks}
+        migrationLinks={migrationLinks}
+      />
 
       <div className="mx-auto flex w-full max-w-[1440px] flex-1 items-stretch">
-        <SidebarRail groups={groups} />
+        <SidebarRail
+          groups={groups}
+          extensionLinks={extensionLinks}
+          migrationLinks={migrationLinks}
+        />
 
         {/* data-docs-main marks the size container that `.docs-bleed` measures
             against, so a reference table can use the whole column while the
@@ -35,7 +51,7 @@ export default function DocsLayout({ children }: { children: ReactNode }) {
         <main className="min-w-0 flex-1 px-4 py-8 sm:px-8 lg:py-10" data-docs-main id="main">
           <div className="docs-measure mx-auto">
             <article data-docs-article>
-              <DocBreadcrumbs catalog={catalog} />
+              <DocBreadcrumbs catalog={catalog} migrationGuides={migrationGuides} />
               {children}
               <DocPager catalog={catalog} />
             </article>

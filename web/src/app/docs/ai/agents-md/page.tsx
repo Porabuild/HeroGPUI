@@ -7,6 +7,7 @@ import { PageHeader } from "@/components/ui/page-header";
 import { C, H2, H3, Li, P, Td, Th, Ul } from "@/app/docs/ai/_components/docs";
 import Link from "next/link";
 import { pageMetadata } from "@/lib/seo";
+import { SITE } from "@/lib/nav";
 
 export const metadata: Metadata = pageMetadata({
   path: "/docs/ai/agents-md",
@@ -171,12 +172,12 @@ export default function AgentsMdPage() {
 
       <H3 id="pin-every-upstream-contract">Pin every upstream contract</H3>
       <P>
-        The first paragraph of the root file pins the framework targets: the Zed GPUI git revision
-        in <C>Cargo.toml</C> and <C>Cargo.lock</C>, with Rust 1.98. Newer upstream APIs are not
-        evidence that an API is available here. Rule three pins the design-system contract the same
-        way: HeroUI v3.2.6 with its React Aria and Stately versions. Check{" "}
-        <Link href="/docs/ai/llms-txt">llms.txt</Link> and the task guides before using an API that
-        is not present in the checkout.
+        The first paragraph of the root file pins the framework targets: the crates.io{" "}
+        <C>gpui-pre</C> GPUI crates in <C>Cargo.toml</C> and <C>Cargo.lock</C>, with Rust{" "}
+        {SITE.rustVersion}. Newer upstream APIs are not evidence that an API is available here. Rule
+        three pins the design-system contract the same way: HeroUI 3.2.7 with its React Aria and
+        Stately versions. Check <Link href="/docs/ai/llms-txt">llms.txt</Link> and the task guides
+        before using an API that is not present in the checkout.
       </P>
 
       <H3 id="verification-matches-the-change">Verification matches the change</H3>

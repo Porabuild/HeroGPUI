@@ -108,11 +108,21 @@ const RADII: { rust: string; value: string; usedBy: string }[] = [
     value: "xl (12px)",
     usedBy: "close button, tag, link, tooltip",
   },
+  {
+    rust: "extend::mark_radius(cx)",
+    value: "md (6px)",
+    usedBy: "the checkbox control",
+  },
   { rust: "extend::key_radius(cx)", value: "lg (8px)", usedBy: "Kbd" },
   {
     rust: "extend::hairline_radius(cx)",
     value: "sm (4px)",
     usedBy: "separator, skeleton",
+  },
+  {
+    rust: "extend::micro_radius(cx)",
+    value: "xs (2px)",
+    usedBy: "the small progress bar track",
   },
   { rust: "extend::field_radius(cx)", value: "12px", usedBy: "every form field" },
   {
@@ -120,6 +130,52 @@ const RADII: { rust: string; value: string; usedBy: string }[] = [
     value: "min(32px, 3xl)",
     usedBy:
       "cards, the table and every floating panel. Surface carries none — `.surface` declares no radius.",
+  },
+];
+
+/// The rest of the public `extend` module (crates/herogpui-components/src/lib.rs),
+/// one row per item the radius table above does not already list. Descriptions
+/// summarize each item's rustdoc.
+const HELPERS: { rust: string; does: string }[] = [
+  {
+    rust: "extend::FIELD_HEIGHT",
+    does: "The one height every form field has: 36px.",
+  },
+  {
+    rust: "extend::FIELD_TEXT",
+    does: "Type size inside a form field (14px).",
+  },
+  {
+    rust: "extend::FIELD_ICON",
+    does: "Glyph size for an icon inside a form field (16px).",
+  },
+  {
+    rust: "extend::cursor_interactive(el, cx)",
+    does: "Applies the theme's interactive cursor to an element, the token replacement for GPUI's cursor_pointer().",
+  },
+  {
+    rust: "extend::interactive_cursor(cx)",
+    does: "The theme's interactive cursor as a value, for a closure GPUI does not hand a cx.",
+  },
+  {
+    rust: "extend::focus_visible(cx)",
+    does: "Whether focus rings should currently be shown: the last interaction was keyboard-driven.",
+  },
+  {
+    rust: "extend::set_focus_visible(visible, cx)",
+    does: "Sets whether focus rings are shown, refreshing windows when the value changes.",
+  },
+  {
+    rust: "extend::inner_fill_radius(outer, border)",
+    does: "Corner radius for a fill painted inside a rounded, overflow-hidden clip parent: the parent's radius minus its border width, clamped at zero.",
+  },
+  {
+    rust: "extend::shift_wheel_scroll_x(handle, event, window)",
+    does: "In an on_scroll handler on the web: when shift is held, a mouse wheel's vertical delta scrolls a horizontal handle.",
+  },
+  {
+    rust: "extend::app_focus_root(el, window, cx)",
+    does: "Wrap the app's root element in it once: the root holds the focus when nothing else does, Tab moves the focus, and keyboard-versus-pointer input is recorded so rings show only after keyboard use.",
   },
 ];
 
@@ -196,8 +252,8 @@ export default function StylingPage() {
 
       <h3 id="the-radius-helpers">The radius helpers</h3>
       <p>
-        Each component uses a specific radius step, so <code>util</code> exposes one helper per step
-        rather than a single universal radius:
+        Each component uses a specific radius step, so <code>extend</code> exposes one helper per
+        step rather than a single universal radius:
       </p>
       <StaticTable
         className="mt-4"
@@ -218,6 +274,33 @@ export default function StylingPage() {
             </code>,
             <span className="text-sm text-muted" key="used-by">
               {row.usedBy}
+            </span>,
+          ],
+          id: row.rust.replace(/[^a-z0-9]+/gi, "-"),
+        }))}
+      />
+
+      <h3 id="helpers-for-custom-widgets">Helpers for custom widgets</h3>
+      <p>
+        Everything else in <code>extend</code> exists so a custom widget can match the components:
+        field metrics, the theme&apos;s interactive cursor, the focus-visible modality, and two
+        details GPUI leaves to the caller.
+      </p>
+      <StaticTable
+        className="mt-4"
+        columns={[
+          { header: "Item", id: "rust", isRowHeader: true },
+          { header: "What it does", id: "does" },
+        ]}
+        label="Helpers for custom widgets"
+        layout="prose"
+        rows={HELPERS.map((row) => ({
+          cells: [
+            <code className="font-mono text-xs break-all" key="rust">
+              {row.rust}
+            </code>,
+            <span className="text-sm text-muted" key="does">
+              {row.does}
             </span>,
           ],
           id: row.rust.replace(/[^a-z0-9]+/gi, "-"),

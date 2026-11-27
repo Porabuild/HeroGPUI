@@ -177,7 +177,7 @@ The site does not say "Released", "Now available", "Coming soon", "In
 development", "Unreleased", or anything else about where the project sits in a
 release cycle. It simply documents the library as it is.
 
-The navbar chip carries the **version** (`v0.1.0`) and nothing more. A version
+The navbar chip carries the **version** (`v0.15.5`) and nothing more. A version
 number is a fact a reader can use; a status badge is an announcement, and it
 dates the moment it ships.
 

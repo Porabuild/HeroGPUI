@@ -3,11 +3,18 @@
 import { Link } from "@heroui/react";
 import { usePathname } from "next/navigation";
 import type { Catalog } from "@/lib/catalog";
-import { breadcrumbsFor } from "@/lib/docs-nav";
+import { breadcrumbsFor, type MigrationCrumbGuide } from "@/lib/docs-nav";
 
-export function DocBreadcrumbs({ catalog }: { catalog: Catalog }) {
+export function DocBreadcrumbs({
+  catalog,
+  migrationGuides = [],
+}: {
+  catalog: Catalog;
+  /** The upgrade guides, for the title crumb on /docs/migration/<slug>. */
+  migrationGuides?: MigrationCrumbGuide[];
+}) {
   const pathname = usePathname();
-  const crumbs = breadcrumbsFor(pathname, catalog);
+  const crumbs = breadcrumbsFor(pathname, catalog, migrationGuides);
   if (crumbs.length <= 1) return null;
 
   return (

@@ -35,7 +35,7 @@ interface ComponentSourceInput {
   slug: string;
   title: string;
   importLine: string;
-  /** Workspace version from catalog.json, e.g. `0.12.0`. */
+  /** Workspace version from catalog.json, e.g. `0.15.5`. */
   version: string;
 }
 

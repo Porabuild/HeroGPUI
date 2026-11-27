@@ -5,6 +5,7 @@ import { Chip, Link } from "@heroui/react";
 import { Callout } from "@/components/ui/callout";
 import { PageHeader } from "@/components/ui/page-header";
 import { ReleaseBody } from "./markdown";
+import { getMigrations } from "@/lib/migrations";
 import { pageMetadata } from "@/lib/seo";
 
 export const metadata: Metadata = pageMetadata({
@@ -90,7 +91,20 @@ function formatDay(publishedAt: string): string {
   return DAY_FORMAT.format(date);
 }
 
+/**
+ * The x.y.0 releases that have an upgrade guide link to it: the guide for a
+ * minor version describes the move to that version, which is what an x.y.0
+ * release ships.
+ */
+function upgradeGuideHref(tag: string): string | null {
+  const at = tag.match(/^v(\d+)\.(\d+)\.(\d+)$/);
+  if (!at || at[3] !== "0") return null;
+  const slug = getMigrations().guides.find((guide) => guide.version === `${at[1]}.${at[2]}`)?.slug;
+  return slug ? `/docs/migration/${slug}` : null;
+}
+
 function ReleaseSection({ release }: { release: Release }) {
+  const upgradeHref = upgradeGuideHref(release.tag);
   return (
     <section aria-labelledby={release.tag} className="mt-12">
       <h2 id={release.tag}>{release.tag}</h2>
@@ -106,6 +120,7 @@ function ReleaseSection({ release }: { release: Release }) {
             Pre-release
           </Chip>
         )}
+        {upgradeHref && <Link href={upgradeHref}>Upgrade guide</Link>}
       </p>
       <div className="mt-4">
         <ReleaseBody body={release.body} />

@@ -1,0 +1,242 @@
+{
+  "source": "llms.txt",
+  "intro": "Not HeroUI v3 APIs; each is labelled as an extension in its rustdoc and kept\nout of `reference_metadata`.",
+  "entries": [
+    {
+      "name": "Shared builder traits",
+      "qualifier": "",
+      "slug": "shared-builder-traits",
+      "body": "`Disableable::is_disabled(bool)`,\n`Sizable::size(Self::Size)` and `Selectable::is_selected(bool)`, for generic\ncode over components (`fn f<T: Disableable + Sizable<Size = Size>>(t: T)`).\nEvery impl delegates to the inherent builder of the same name, which stays\nthe documented API. `Sizable::Size` is the component's own scale (`Size`,\n`ModalSize`, `CheckboxSize`, `SpinnerSize`, ...).",
+      "live": []
+    },
+    {
+      "name": "i18n",
+      "qualifier": "",
+      "slug": "i18n",
+      "body": "`i18n::set_locale(\"de-DE\", cx)`, `i18n::locale(cx)`,\n`i18n::ui_string(UiString::Close, cx)`, `i18n::ui_string_with(UiString::Increase,\n\"Quantity\", cx)` (fills a template's one `{..}` placeholder; `i18n::fill`),\n`i18n::set_ui_string(\"fr\", UiString::Loading, \"Chargement\", cx)`,\n`i18n::lookup(locale, key)`. `UiString` (`#[non_exhaustive]`, `ALL`,\n`COUNT`): `SelectPlaceholder`, `NoResults`, `Close`, `Loading`,\n`Previous`, `Next`, `Remove`, `Breadcrumbs`, `Search`, `Increase` /\n`Decrease` (NumberField and TimeField steppers, `{fieldLabel}` templates),\n`Year`, `Month`, `Day`, `Hour`, `Minute`, `Second`, `DayPeriod` (DateField\nand TimeField segment names), `Calendar` (DatePicker / DateRangePicker\ntrigger), `DateSelected` (a selected calendar day, `{date}` template),\n`Hue`, `Saturation`, `Lightness`, `Brightness`, `Red`, `Green`, `Blue`,\n`Alpha` (colour channels; `ColorChannel::localized_label(cx)`, drawn by\nColorSlider), `ClearSelection` (Autocomplete clear button), `Pagination`\n(Pagination's navigation name), `LoadingMore` (Table's pending load-more\nrow, `Loading…`). Resolution: exact override, then an\noverride for the bare language, then the built-in table (exact tag, then\nlanguage), then en-US. Built-in (`LOCALES`): en-US, de-DE, es-ES, fr-FR,\nit-IT, nl-NL, pl-PL, pt-BR, sv-SE, ja-JP, zh-CN, ko-KR, ru-RU, every key\ntranslated — from the pinned React Aria 3.53.1 / React Stately 3.51.0 /\nRAC 1.22.1 dictionaries, except `NoResults`, `Loading`, `Search`,\n`ClearSelection` and `Pagination`, which HeroUI hard-codes in English and\nHeroGPUI translates itself. Dates and numbers keep their own per-component\nICU4X `.locale(..)`. The web gallery bundles Noto Sans SC (hanzi, kana,\nkanji) and Noto Sans KR (Hangul) subsets for the non-Latin rows; Inter\ncovers Cyrillic.",
+      "live": []
+    },
+    {
+      "name": "Theme files",
+      "qualifier": "(`serde` feature)",
+      "slug": "theme-files",
+      "body": "`register_theme_json(json, cx)`\nregisters a `ThemeDocument` without activating it; `load_themes_dir(dir,\ncx)` does that for every `*.json` in a directory (name order);\n`presets::register_presets(cx)` adds `ocean`, `forest`, `midnight` and\n`rose`; switch with `use_theme(id, cx)`. `THEME_SCHEMA` is the JSON Schema\n(`crates/herogpui-theme/theme.schema.json`). `ThemeProvider::insert` and\n`ThemeProvider::theme_ids` are the registry primitives.",
+      "live": []
+    },
+    {
+      "name": "Theme hot reload",
+      "qualifier": "(`watch` feature, implies `serde`; native only)",
+      "slug": "theme-hot-reload",
+      "body": "`watch_themes_dir(dir, |reload: &ThemeReload, cx| .., cx) -> Result<ThemeWatcher, ThemeLoadError>`\npolls `dir` every `THEME_WATCH_INTERVAL` (500ms) on GPUI's executors and\nre-registers each `*.json` whose contents changed, plus new files; an edit\nto the active theme's file swaps its tokens in place and repaints. Files\npresent at the call count as loaded (call `load_themes_dir` first). A file\nthat fails to parse keeps its last good theme and appears once in\n`ThemeReload::errors`; `ThemeReload::reloaded` lists the re-registered ids.\nDropping the `#[must_use]` `ThemeWatcher` stops the watch. Polling, not an\nOS notification crate, so the feature adds no dependency. The native\ngallery watches `HEROGPUI_THEME_DIR=<dir>` (activating its first theme).",
+      "live": []
+    },
+    {
+      "name": "Test kit",
+      "qualifier": "(`test-support` feature)",
+      "slug": "test-kit",
+      "body": "`herogpui::test::open_window(cx,\n|_, _| View)` returns `(Entity<View>, &mut VisualTestContext)`;\n`TestWindowExt` adds `find(selector)`, `expect(selector)`,\n`click(selector)`, `click_at(point)`, `hover`, `press(\"tab enter\")` (with\nthe key-up GPUI activates on), `type_text`, `scroll` and `settle`.\nElements are addressed by `.debug_selector(..)`. With `use herogpui::*;`\nin a test file, add `use ::core::prelude::v1::test;` so `#[gpui::test]`\nexpands to the built-in test attribute.",
+      "live": []
+    },
+    {
+      "name": "VirtualList",
+      "qualifier": "",
+      "slug": "virtual-list",
+      "body": "`VirtualList::new(id, &handle, |ix, window, cx|\nrow.into_any_element()).height(px)` over a caller-owned handle, which\npicks the mode: `VirtualListHandle::new(count)` measures rows that differ\nin height as they are built (GPUI `list`); `VirtualListHandle::uniform(count)`\nlays every row out at the first row's height (GPUI `uniform_list`), and\nwithout `.height(..)` sizes to its rows. `handle.scroll_to_item(ix,\nVirtualListScroll::{Reveal, Top, Center})` (`#[non_exhaustive]`; Center\nmoves only a row that is not fully visible and clamps at the ends),\n`set_item_count(n)` (scrolls to the top), `splice(range, count)` (keeps the\nscroll), `remeasure()`, `scroll_by(px)`, `first_visible_item()`,\n`bounds_for_item(ix)`, `viewport_bounds()` (the laid-out viewport, for\npaging), `remaining_below()` (content below the viewport; exact in uniform\nmode, known in measured mode only once the last row was laid out),\n`is_scrolled_to_top()`, `is_scrolled_to_end()`, `is_uniform()`. In measured\nmode Reveal and Center on a row not laid out in the last frame fall back to\nTop. `ListBox` and `Table` render their `estimated_row_height` bodies in\nmeasured mode and their `row_height` bodies, like ComboBox's popover list,\nin uniform mode.",
+      "live": [
+        {
+          "component": "list-box",
+          "title": "List Box",
+          "heading": "Virtual List",
+          "anchor": "rust-virtual-list"
+        }
+      ]
+    },
+    {
+      "name": "ContextMenu",
+      "qualifier": "",
+      "slug": "context-menu",
+      "body": "`ContextMenu::new(id, area, items).on_action(|key, w,\ncx| ..).on_open_change(..).disabled_keys([..]).is_disabled(bool)`. A\nsecondary (right) press in the area opens the Dropdown `Menu` panel at the\npointer; an item, Escape or an outside press closes it. Shift+F10 or the\nContextMenu key (`menu`, or `contextmenu` on the web) with the focus inside\nthe area opens it below the focused HeroGPUI control when that control\nrecords its painted bounds (including buttons, fields and active list or\ntree rows); otherwise it uses the area's top-left corner. The first item\nreceives focus, and closing returns it. The area is focusable outside the\ntab order: a primary press on non-focusable content focuses it. The panel\ntakes Dropdown's styling surface: `.recipe(\"name\")` stacks\n`Theme.components.menu` recipes (row hover fill, `panel_min_width`,\npadding, radius and the rest of `MenuStyle`), and `.item_content(..)` /\n`.item_start_content(..)` forward to the `Menu` rows.",
+      "live": [
+        {
+          "component": "dropdown",
+          "title": "Dropdown",
+          "heading": "Context Menu",
+          "anchor": "rust-context-menu"
+        }
+      ]
+    },
+    {
+      "name": "MenuBar",
+      "qualifier": "",
+      "slug": "menu-bar",
+      "body": "`MenuBar::new(id, vec![MenuBarMenu::new(key, label,\nitems).disabled_keys([..]).is_disabled(bool), ..]).on_action(|menu, item,\nw, cx| ..).on_open_change(|open: &Option<SharedString>, w, cx| ..)`. A\nhorizontal bar of Dropdown `Menu` panels (HeroGPUI extension). One trigger\nis a tab stop; Left/Right rove between triggers (wrapping, skipping\ndisabled), Home/End jump; a press, Enter, Space or Down opens (keyboard\nopens focus the first item). While open, Left/Right or hovering another\ntrigger switches menus; Escape, a pick, an outside press or pressing the\nopen trigger closes and refocuses its trigger. Roles: `MenuBar`, and\n`MenuItem` + expanded on each trigger.",
+      "live": [
+        {
+          "component": "dropdown",
+          "title": "Dropdown",
+          "heading": "Menu Bar",
+          "anchor": "rust-menu-bar"
+        }
+      ]
+    },
+    {
+      "name": "ResizablePanelGroup",
+      "qualifier": "",
+      "slug": "resizable-panel-group",
+      "body": "`ResizablePanelGroup::new(id).orientation(\nOrientation::{Horizontal, Vertical}).panel(ResizablePanel::new()\n.default_size(pct).min_size(pct).max_size(pct).child(el)).panels([..])\n.on_resize(|sizes: &[f32], w, cx| ..).keyboard_step(pct).is_disabled(bool)`;\n`.sizes([..])` makes it controlled. Sizes are percentages of the space the\npanels share (the group minus its 8px `RESIZABLE_HANDLE_SIZE` handles) and\nsum to 100; panels without a default share the remainder. Defaults and\ncontrolled sizes that do not sum to 100 are scaled to it (an even split\nwhen they sum to zero) and moved inside the panels' min/max. A handle drag\n(pointer captured) or the arrow keys on a focused handle (Left/Right, or\nUp/Down when vertical; Shift is 4x the step; Home/End to the limits)\nresize only the two adjacent panels, clamped to their min/max. Pixel\nlimits `.min_size_px(px)` / `.max_size_px(px)` combine with the percentages\n(the stricter wins) against the group's measured length, from the frame\nafter the first layout, for defaults, drags, keys and window resizes.\n`.collapsible(true).collapsed_size(pct)` (default 0) lets a panel sit\nbelow its minimum at the collapsed size: a drag past halfway between the\ntwo collapses or expands it, an arrow key crosses the gap, Home/End reach\nit, and Enter on a handle collapses the panel before it (or the one after,\nwhen only that is collapsible) and restores its pre-collapse size.\n`.on_resize_end(|sizes, w, cx| ..)` fires once per gesture: on the release\nof a drag that changed the sizes and after each key that did. Each handle\nis a tab stop reporting `Splitter` with orientation and a value range.",
+      "live": [
+        {
+          "component": "separator",
+          "title": "Separator",
+          "heading": "Resizable Panels",
+          "anchor": "rust-resizable-panels"
+        },
+        {
+          "component": "separator",
+          "title": "Separator",
+          "heading": "Collapsible Panels",
+          "anchor": "rust-collapsible-panels"
+        }
+      ]
+    },
+    {
+      "name": "TreeView",
+      "qualifier": "",
+      "slug": "tree-view",
+      "body": "`TreeView::new(id, vec![TreeItem::new(key, label)\n.children([..]).icon(path).is_disabled(bool), ..]).selection_mode(\nSelectionMode::{None, Single, Multiple})` (default `None`),\n`.selected_keys([..])` / `.default_selected_keys([..])`,\n`.expanded_keys([..])` / `.default_expanded_keys([..])`,\n`.disabled_keys([..])`, `.disallow_empty_selection(bool)`,\n`.is_disabled(bool)`, `.max_h(px)`, `.on_selection_change(|&HashSet<SharedString>, w,\ncx| ..)`, `.on_expanded_change(..)`. One tab stop; Up/Down/Home/End over\nvisible rows (skipping disabled), Right expands then enters the first\nchild, Left collapses then goes to the parent, typeahead; the chevron\ntoggles a parent; a press, Enter or Space toggles selection (with mode\n`None`, toggles a parent's expansion); Escape clears the selection. In\n`Multiple`, Shift+Up/Down and a Shift press extend the selection from\nthe anchor (the last row a press or Space selected) over the visible,\nenabled rows between; Shift+Home/End only move. Rows render through a\nuniform `VirtualList`: under `max_h` (or a height-bounding parent) only\nthe rows in view are built and the cursor scrolls into view. Roles:\n`Tree`, `TreeItem` with level, `aria-posinset`/`aria-setsize` among its\nsiblings, expanded and selected.",
+      "live": [
+        {
+          "component": "list-box",
+          "title": "List Box",
+          "heading": "Tree View",
+          "anchor": "rust-tree-view"
+        },
+        {
+          "component": "list-box",
+          "title": "List Box",
+          "heading": "Large Tree View",
+          "anchor": "rust-large-tree-view"
+        }
+      ]
+    },
+    {
+      "name": "Icons",
+      "qualifier": "",
+      "slug": "icons",
+      "body": "`Icon::new(IconName::Search).size(px(20.)).color(hsla)`\ndraws an embedded Lucide icon (default 16px, `DEFAULT_ICON_SIZE`, in the\ntheme `foreground`; gpui svgs do not inherit text colour). `size` also\ntakes an `IconSize` step (`Xs` 12, `Sm` 14, `Md` 16, `Lg` 20, `Xl` 24px;\n`Icon` implements `Sizable<Size = IconSize>`). `.stroke_width(w)` is\nLucide's `strokeWidth` in the 24-unit viewBox (default\n`DEFAULT_STROKE_WIDTH`, 2) and `.absolute_stroke_width(true)` its\n`absoluteStrokeWidth` (`w * 24 / size`, so the stroke stays `w` pixels);\nit draws `IconName::path_with_stroke_width(w)`\n(`<path>?stroke-width=<w>`), which `HeroGpuiAssets` serves as the same\nfile with its root `stroke-width` rewritten (Lucide icons only; an app\nserving Lucide paths itself must forward the query);\n`Icon::from_path(icons::CHECK)` draws any other served SVG. `IconName` is\na curated, `#[non_exhaustive]` subset of Lucide `LUCIDE_VERSION` (1.31.0),\none PascalCase variant per Lucide name (`circle-check` is\n`IconName::CircleCheck`): `IconName::ALL`, `.name()`, `.path()`\n(`herogpui/icons/lucide/<name>.svg`), `.svg()` (the embedded bytes),\n`IconName::from_name(..)` / `from_path(..)`, and `From<IconName> for\nSharedString`, so every builder that takes an icon path takes a name\n(`TreeItem::icon(IconName::Folder)`, `svg().path(IconName::X)`).\n`HeroGpuiAssets` serves them with no setup. The set is listed in\n`.shots/lucide-icons.txt` (pinned version and tarball integrity);\n`python3 .shots/sync-lucide.py` copies the listed icons and regenerates\n`IconName`, `--check` verifies list, files and enum offline. The\ngallery's Icons page (Getting Started) is a searchable grid of every\nname. Decorative: no accessibility node (lucide-react marks its svg\n`aria-hidden`). Lucide is ISC (some\nicons MIT via Feather); the license ships in `assets/lucide/LICENSE`.",
+      "live": []
+    },
+    {
+      "name": "Table data extras",
+      "qualifier": "",
+      "slug": "table-data-extras",
+      "body": "column reordering: `Table::allows_column_reorder(\ntrue).on_column_move(|m: &ColumnMove, w, cx| ..)` with `column_order([..])`\n(controlled) or `default_column_order([..])`; orders are indices into the\ncolumns as given. Drag a header onto another column's place, or Alt+Left\n/ Alt+Right on a focused header (the focus follows the column); cells,\nresized and measured widths and the tree column move with it. `ColumnMove\n{ from, to, order }` uses display positions for `from`/`to`. Cell\nselection: `cell_selectable(true).on_cell_select(|cell: &TableCell, w, cx|\n..)` with `selected_cell(Some(TableCell::new(row_key, column)))`\n(controlled) or `default_selected_cell(..)`; `column` is the given index,\nso a cell keeps its identity across moves. A press selects a cell,\nLeft/Right/Home/End move within the row, and the row keys (Up/Down,\nPageUp/PageDown, Ctrl+Home/End) keep the column. The selected cell carries\nan inset ring and `aria-selected`. Freeze leading columns with\n`TableColumn::frozen(true)`: frozen columns are displayed first in their\nrelative order, followed by scrolling columns; the selection column stays\nfixed too. A column move stays within its frozen or scrolling region.\nHorizontal wheel and trackpad input over either part scrolls the header and\nbody together; keyboard cell navigation reveals an offscreen cell. When\nevery column is frozen, the table uses its ordinary unsplit layout.",
+      "live": [
+        {
+          "component": "table",
+          "title": "Table",
+          "heading": "Column Reordering",
+          "anchor": "rust-column-reordering"
+        },
+        {
+          "component": "table",
+          "title": "Table",
+          "heading": "Cell Selection",
+          "anchor": "rust-cell-selection"
+        },
+        {
+          "component": "table",
+          "title": "Table",
+          "heading": "Frozen Columns",
+          "anchor": "rust-frozen-columns"
+        }
+      ]
+    },
+    {
+      "name": "Toolbar extras",
+      "qualifier": "",
+      "slug": "toolbar-extras",
+      "body": "`Toolbar::new().size(Size::Sm).sized_child(Button::new(\nid).label(..)).sized_children([..]).label(\"Formatting\")`: `size` reaches\nevery `sized_child` (any `Sizable<Size = Size>` control) at render time,\nin any builder order; `child` elements keep their own size. `label` is\nthe toolbar's (or nested group's) accessible name, reported with an\n`.id(..)`.",
+      "live": [
+        {
+          "component": "toolbar",
+          "title": "Toolbar",
+          "heading": "Sized Controls",
+          "anchor": "rust-sized-controls"
+        }
+      ]
+    },
+    {
+      "name": "TitleBar / WindowBorder",
+      "qualifier": "",
+      "slug": "title-bar-window-border",
+      "body": "open the window with\n`TitleBar::window_options()` (or `TitleBar::titlebar_options()` plus\n`app_owns_titlebar_drag: true`), then render\n`WindowBorder::new().child(TitleBar::new(id).title(text).child(el)\n.height(px).controls(TitleBarControls::{Auto, Custom, Hidden})\n.on_window_action(|action: &WindowAction, window, cx| ..))` at the top of\nthe root view. The empty bar drags the window and a double-click zooms;\nchildren keep their presses. `Auto`: macOS keeps the native traffic\nlights (80px `TRAFFIC_LIGHTS_WIDTH` reserved); Windows draws buttons the\nOS performs (`WindowControlArea::{Min, Max, Close}`, not reported to the\nhook); Linux draws buttons only when client-decorated; the web draws\nnone. `Custom` draws minimize, maximize/restore and close everywhere.\n`WindowAction::{Minimize, Zoom, Close, Move, DoubleClick,\nShowWindowMenu(point)}`; the hook replaces `action.perform(window)`.\n`WindowBorder` draws a Linux client-decorated frame (shadow\n`WINDOW_SHADOW_SIZE`, border, resize edges) and is a pass-through\nelsewhere. Roles: `TitleBar` named by the title, `Button` per control.",
+      "live": [
+        {
+          "component": "toolbar",
+          "title": "Toolbar",
+          "heading": "Title Bar",
+          "anchor": "rust-title-bar"
+        }
+      ]
+    },
+    {
+      "name": "Sidebar",
+      "qualifier": "",
+      "slug": "sidebar",
+      "body": "`Sidebar::new(id, vec![SidebarGroup::new(key).label(text)\n.is_collapsible(bool).default_expanded(bool).items(vec![SidebarItem::new(\nkey, label).icon(IconName::Inbox).badge(\"12\").is_disabled(bool), ..]),\n..]).header(el).footer(el).label(name).width(px(256.))\n.collapsed_width(px(56.)).show_collapse_toggle(bool).is_disabled(bool)\n.on_select(|key, w, cx| ..)`; `.active_key(Some(key))` (controlled) or\n`.default_active_key(key)`; `.is_collapsed(bool)` +\n`.on_collapsed_change(|c: &bool, w, cx| ..)` or `.default_collapsed(bool)`;\n`.expanded_keys([..])` + `.on_expanded_change(|&HashSet<SharedString>, w,\ncx| ..)`. A labelled collapsible group's heading toggles its items\n(Disclosure motion). One tab stop: Up/Down/Home/End over items and\ncollapsible headings, Right/Left expand/collapse from a heading,\nEnter/Space activate, typeahead. Collapsed: icons only, group headings\nhidden, each item named by a right-hand `Tooltip` (hover and keyboard\nfocus). Fixed pixel widths; for a draggable width put it in a\n`ResizablePanelGroup` panel. Roles: `Navigation`, `Group`, `Button` +\nexpanded, `Link`.",
+      "live": [
+        {
+          "component": "tabs",
+          "title": "Tabs",
+          "heading": "Sidebar",
+          "anchor": "rust-sidebar"
+        }
+      ]
+    },
+    {
+      "name": "CommandPalette",
+      "qualifier": "",
+      "slug": "command-palette",
+      "body": "`CommandPalette::new(id, vec![CommandItem::new(key,\nlabel).group(name).description(text).icon(IconName::File).shortcut([\"⌘\",\n\"N\"]).keywords([..]).is_disabled(bool), ..]).on_select(|key, w, cx| ..)\n.placeholder(text).empty_text(text).label(name).width(px)\n.max_list_height(px).close_on_select(bool).filter(|item, query| bool)`;\n`.is_open(bool)` + `.on_open_change(|open: &bool, w, cx| ..)` or\n`.default_open(bool)`. A modal dialog on the overlay stack: the search\nfield takes the focus, Tab stays inside, Escape or an outside press closes\nand the focus returns. Default search: every query word must occur\n(case/accent-insensitive) in the label, a keyword or the group. Commands\nkeep their order under group headings; Up/Down wrap over enabled\ncommands, a new query highlights the first match, Enter or a press runs\none. Shortcuts are display-only `Kbd`s. Bind Cmd-K/Ctrl-K yourself:\n`is_command_palette_shortcut(&event.keystroke, cx)` in a root `on_key_down`,\nor a GPUI action on `\"secondary-k\"`. Roles: `Dialog`, `ListBox`,\n`ListBoxOption` (highlight selected, active descendant).",
+      "live": [
+        {
+          "component": "modal",
+          "title": "Modal",
+          "heading": "Command Palette",
+          "anchor": "rust-command-palette"
+        }
+      ]
+    },
+    {
+      "name": "HoverCard",
+      "qualifier": "",
+      "slug": "hover-card",
+      "body": "`HoverCard::new(id).content(|w, cx| el.into_any_element())\n.label(name).child(trigger).placement(Placement::Bottom).offset(px)\n.open_delay(ms).close_delay(ms).width(px).radius(px).is_disabled(bool)\n.on_open_change(|open: &bool, w, cx| ..)`; `.is_open(bool)` makes it\ncontrolled, `.default_open(bool)` seeds it. Hovering the trigger opens\nthe card after `open_delay` (`HOVER_CARD_OPEN_DELAY_MS`, 700); keyboard\nfocus inside the trigger opens it at once. Leaving the trigger starts\n`close_delay` (`HOVER_CARD_CLOSE_DELAY_MS`, 300), which the pointer\nreaching the card cancels; leaving the card starts it again. Escape (from\nanywhere while it is the topmost overlay), a press outside, or the focus\nleaving the trigger close it. Role: `Group` named by `label` (not a\ntooltip).",
+      "live": [
+        {
+          "component": "tooltip",
+          "title": "Tooltip",
+          "heading": "Hover Card",
+          "anchor": "rust-hover-card"
+        }
+      ]
+    }
+  ],
+  "componentExtensions": [
+    {
+      "component": "tooltip",
+      "title": "Tooltip",
+      "heading": "Presenter Boundary",
+      "anchor": "rust-presenter-boundary",
+      "summary": "`presenter_mode(TooltipPresenterMode::SeparateWindow)` routes the tooltip into a non-activating secondary GPUI popup window for compact hosts, while `.presenter(Arc<dyn TooltipPresenter>)` attaches a custom native presenter; `exclude_from_capture` is advisory metadata ignored by the built-in GPUI popup."
+    },
+    {
+      "component": "select",
+      "title": "Select",
+      "heading": "Intrinsic Panel Width",
+      "anchor": "rust-intrinsic-panel-width",
+      "summary": "`fit_panel_width(true)` measures options, icons, and indicators so narrow triggers expand their detached panel without wrapping labels (`intrinsic_panel_width` exposes the same measurement directly)."
+    }
+  ]
+}

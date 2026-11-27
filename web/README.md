@@ -78,12 +78,14 @@ pipeline by hand when the Rust sources it reads change:
 | `node scripts/extract-rust-examples.mjs` | `gallery/src/pages/components/` | `src/data/rust-examples.json` — the per-component Rust snippets the pages display, public-API only; `gallery/build.rs` compiles each one under `cargo test -p herogpui-gallery` |
 | `node scripts/copy-shots.mjs` | `.shots/*-tile*-v3.png` | `public/shots/` — the cropped catalog tiles the components index shows (the full-page captures stay in `.shots/` as parity goldens) |
 | `node scripts/extract-releases.mjs` | `../CHANGELOG.md` | `src/data/releases.json` — the `/docs/releases` notes, one per dated version |
+| `node scripts/extract-extensions.mjs` | `../llms.txt` (the `## HeroGPUI extensions` section), `src/data/rust-examples.json`, `src/data/catalog.json` | `src/data/extensions.json` — the `/docs/extensions` page: the APIs with no HeroUI counterpart, each with links to the component examples that demonstrate it |
+| `node scripts/extract-migrations.mjs` | `../docs/migration-*.md` | `src/data/migrations.json` — the `/docs/migration` upgrade guides, newest first, with the guides' links rewritten for the site |
 | `node scripts/build-data.mjs` | — | runs the four offline extractors in dependency order with one summary |
 | `node scripts/extract-wasm-sections.mjs` (`pnpm run wasm:manifest`) | `gallery/src/pages/components/` — the same native source the desktop gallery builds from — plus every wasm build input | `src/data/wasm-sections.json` + `src/data/wasm-parity.json` — the examples compiled into the wasm artifact and the artifact key (an inputs hash) CI publishes it under; `--check` fails when Rust sources change without regenerating |
 | `node scripts/gallery-artifact.mjs fetch` (first step of `pnpm run build`; `pnpm run gallery:fetch`) | the checkout's wasm inputs, the checkout's `gallery-<key16>` GitHub prerelease | `public/gallery/herogpui_web*` + `build-info.json` — CI's artifact for this checkout, verified by SHA-256 (not committed) |
 | `node scripts/sync-porabuild-brand.mjs` (`pnpm run brand:sync`) | the sibling `@porabuild/brand` package | `src/styles/porabuild/` — the vendored brand layer (never hand-edit; re-sync instead) |
 
-`pnpm run extract` runs the reference, catalog, snippet and releases steps;
+`pnpm run extract` runs the reference, catalog, snippet, releases, extensions and migrations steps;
 `pnpm run extract:check` (CI) checks all of them plus the wasm manifest,
 without network. The `/llms.txt`
 route handler is not generated — it serves the repository root's `llms.txt`,

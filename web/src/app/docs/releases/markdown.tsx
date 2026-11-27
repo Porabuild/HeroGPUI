@@ -6,7 +6,9 @@ import { Link } from "@heroui/react";
  * markdown, stored verbatim in `src/data/releases.json`).
  *
  * Supports the shapes release notes use: fenced code blocks, ATX headings,
- * unordered and ordered lists, paragraphs, and inline code, links, bold and
+ * unordered and ordered lists (a line indented under an item that does not
+ * start a new item folds into that item, so wrapped bullets stay one item),
+ * paragraphs, and inline code, links, bold and
  * italic. Everything else renders as plain paragraphs. All text goes through
  * React children (never `dangerouslySetInnerHTML`), and link targets with an
  * unsafe scheme render as text.
@@ -82,6 +84,8 @@ type Block =
   | { kind: "paragraph"; text: string[] }
   | { kind: "hr" };
 
+type HeadingBlock = Extract<Block, { kind: "heading" }>;
+
 function parseBlocks(body: string): Block[] {
   const blocks: Block[] = [];
   const lines = body.replace(/\r\n?/g, "\n").split("\n");
@@ -123,9 +127,21 @@ function parseBlocks(body: string): Block[] {
       i += 1;
       while (i < lines.length) {
         const next = lines[i].match(ordered ? ORDERED_ITEM : UNORDERED_ITEM);
-        if (!next) break;
-        items.push(next[1]);
-        i += 1;
+        if (next) {
+          items.push(next[1]);
+          i += 1;
+          continue;
+        }
+        // A line indented under the current item that does not start a new
+        // item is that item's wrapped continuation: fold it into the item's
+        // text so inline markup spanning the wrap (a link split across
+        // lines) still renders. A blank or non-indented line ends the list.
+        if (/^ {2,}\S/.test(lines[i])) {
+          items[items.length - 1] = `${items[items.length - 1]} ${lines[i].trim()}`;
+          i += 1;
+          continue;
+        }
+        break;
       }
       blocks.push({ kind: "list", ordered, items });
       continue;
@@ -154,8 +170,19 @@ function parseBlocks(body: string): Block[] {
   return blocks;
 }
 
-/** Render a release body. Release notes sit under an `h2`, so `#`/`##` demote. */
-export function ReleaseBody({ body }: { body: string }) {
+/**
+ * The shared body renderer. Only the heading treatment differs between the
+ * pages that use it: release notes demote every heading (the release tag owns
+ * the h2), while upgrade guides keep the outline and give each heading the
+ * GitHub-style id its in-page links target.
+ */
+function MarkdownBody({
+  body,
+  heading,
+}: {
+  body: string;
+  heading: (block: HeadingBlock, index: number) => ReactNode;
+}) {
   if (body.trim() === "") return null;
   return (
     <>
@@ -171,12 +198,7 @@ export function ReleaseBody({ body }: { body: string }) {
               </pre>
             );
           case "heading":
-            // The release tag owns the h2, so a body `#`/`##`/`###` all land on
-            // h3 and anything deeper on h4. Emitting h1/h2 here would break the
-            // page outline and put release-note sections in the top-level TOC.
-            if (block.level <= 3)
-              return <h3 key={index}>{renderInline(block.text, `h${index}`)}</h3>;
-            return <h4 key={index}>{renderInline(block.text, `h${index}`)}</h4>;
+            return heading(block, index);
           case "list":
             if (block.ordered) {
               return (
@@ -201,5 +223,55 @@ export function ReleaseBody({ body }: { body: string }) {
         }
       })}
     </>
+  );
+}
+
+/** Render a release body. Release notes sit under an `h2`, so `#`/`##` demote. */
+export function ReleaseBody({ body }: { body: string }) {
+  return (
+    <MarkdownBody
+      body={body}
+      heading={(block, index) => {
+        // The release tag owns the h2, so a body `#`/`##`/`###` all land on
+        // h3 and anything deeper on h4. Emitting h1/h2 here would break the
+        // page outline and put release-note sections in the top-level TOC.
+        if (block.level <= 3) return <h3 key={index}>{renderInline(block.text, `h${index}`)}</h3>;
+        return <h4 key={index}>{renderInline(block.text, `h${index}`)}</h4>;
+      }}
+    />
+  );
+}
+
+/**
+ * A heading's in-page anchor, GitHub-style: lowercase, punctuation stripped
+ * except `-` and `_`, one hyphen per space. Kept identical to
+ * `slugifyHeading` in `scripts/extract-migrations.mjs`, whose test checks the
+ * result against the anchors the guides actually link to.
+ */
+function headingSlug(text: string): string {
+  return text
+    .toLowerCase()
+    .replace(/[^\w- ]/g, "")
+    .replaceAll(" ", "-");
+}
+
+/** Render an upgrade-guide body: the outline is the page outline (`##` → h2)
+ * and every heading carries the id the guide's own `[…](#…)` links target. */
+export function MigrationBody({ body }: { body: string }) {
+  return (
+    <MarkdownBody
+      body={body}
+      heading={(block, index) => {
+        const Tag = (block.level <= 2 ? "h2" : block.level === 3 ? "h3" : "h4") as
+          | "h2"
+          | "h3"
+          | "h4";
+        return (
+          <Tag key={index} id={headingSlug(block.text)}>
+            {renderInline(block.text, `h${index}`)}
+          </Tag>
+        );
+      }}
+    />
   );
 }

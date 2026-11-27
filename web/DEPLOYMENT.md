@@ -382,7 +382,7 @@ back from a local build to CI's.
   (a plain, non-shared-memory wasm that renders without COOP/COEP headers on
   any ancestor page), and the environment variable replaces that list; the
   script refuses to run with it set.
-- **`wasm-bindgen` CLI = the crate in `Cargo.lock`** (0.2.127 when written); a
+- **`wasm-bindgen` CLI = the crate in `Cargo.lock`** (0.2.130 when written); a
   mismatched CLI refuses the binary with a descriptor-schema error. The
   script checks it.
 - **`wasm-opt -O1`, binaryen version_133.** Measured on the 0.13 artifact
