@@ -31,9 +31,10 @@ Delete every trace of "not published yet", "prepared but not yet published",
 "the names were unclaimed", "before v0.1.0 use a path dependency", "in
 development", "no git tags". Do not comment on whether the library is
 released. The install instructions are simply the install instructions: quote
-the dependency block from the installation page — GPUI from the pinned Zed git
-revision plus `herogpui` as a git/path dependency — and never invent a
-registry version such as `herogpui = "0.1"`.
+the dependency block from the installation page — `herogpui` from crates.io,
+which brings its exact-pinned `gpui-pre` GPUI with it — and never hardcode a
+version in copy; the requirement snippets derive from `Cargo.toml`
+(`SITE.crateRequirement`).
 
 **3. Drop the parity framing.**
 

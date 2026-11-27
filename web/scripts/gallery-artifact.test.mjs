@@ -56,13 +56,21 @@ function feed(releases) {
   return Buffer.from(`<?xml version="1.0"?><feed>${entries}</feed>`);
 }
 
-/** Serve `assets` (name -> bytes or JSON value) the way the release download URL does. */
+/**
+ * Serve `assets` (name -> bytes, JSON value, or (visits) => bytes|undefined)
+ * the way the release download URL does. A function asset publishes only once
+ * it has been visited enough times, so a test can stage "CI has not published
+ * yet" without racing a wall-clock timer against the poll loop.
+ */
 async function withRelease(assets, body) {
   const requests = [];
+  const visits = {};
   const server = createServer((request, response) => {
     const name = decodeURIComponent(request.url.slice(1));
     requests.push(name);
-    const asset = assets[name];
+    visits[name] = (visits[name] ?? 0) + 1;
+    let asset = assets[name];
+    if (typeof asset === "function") asset = asset(visits[name]);
     if (asset === undefined) {
       response.writeHead(404).end();
       return;
@@ -199,20 +207,31 @@ test("a preview falls back to master's artifact; production requires the exact o
 test("fetch waits for CI to publish the exact artifact", async () => {
   const { info, assets } = build(key, "late wasm", "late glue");
   const jsonPath = `download/${releaseTag(key)}/${keyAssetName(key)}`;
-  const release = { ...assets };
-  delete release[jsonPath];
+  // CI publishes the release's build-info only after some polls: the first
+  // two visits 404, the third and later find it. Deterministic in visit
+  // order, so no machine or Node-version timing can skip the wait.
+  const release = {
+    ...assets,
+    [jsonPath]: (visit) => (visit >= 3 ? info : undefined),
+  };
   const dir = scratch();
   await withRelease(release, async (base, requests) => {
-    setTimeout(() => {
-      release[jsonPath] = info;
-    }, 150);
     const env = {
       HEROGPUI_GALLERY_BASE_URL: base,
       HEROGPUI_GALLERY_WAIT_SECONDS: "5",
       HEROGPUI_GALLERY_POLL_MS: "50",
     };
     assert.equal(await fetchArtifact({ env, dir }), "exact");
-    assert.ok(requests.filter((name) => name === jsonPath).length > 1);
+    const hits = requests.filter((name) => name === jsonPath).length;
+    assert.ok(
+      hits > 1,
+      `the poll loop kept requesting ${jsonPath} until it was published, but saw ${hits}`,
+    );
+    assert.equal(
+      readFileSync(join(dir, WASM_FILE), "utf8"),
+      "late wasm",
+      "the late-published bytes",
+    );
   });
   rmSync(dir, { recursive: true });
 });

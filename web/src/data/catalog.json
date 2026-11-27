@@ -1,5 +1,6 @@
 {
   "version": "0.15.5",
+  "rustVersion": "1.99",
   "gpuiVersion": "0.3.11",
   "categories": [
     {

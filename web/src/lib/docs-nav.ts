@@ -30,11 +30,20 @@ export interface PagerLink {
   label: string;
 }
 
+export interface MigrationCrumbGuide {
+  /** The guide's route slug ("0-15"). */
+  slug: string;
+  /** The guide's title. */
+  title: string;
+}
+
 /**
  * Flat search index: site pages plus every catalog component. `apiFor`
  * supplies each component's builders and types from the generated reference
  * data; it is a parameter because that data is read on the server, while this
- * module is also imported by client components.
+ * module is also imported by client components. `migrationGuides` follows the
+ * same rule: the upgrade-guide titles arrive from the caller so this module
+ * stays free of server-only reads.
  */
 export function buildSearchItems(
   catalog: Catalog,
@@ -84,7 +93,11 @@ export function buildSearchItems(
   return items;
 }
 
-export function breadcrumbsFor(pathname: string, catalog: Catalog): Crumb[] {
+export function breadcrumbsFor(
+  pathname: string,
+  catalog: Catalog,
+  migrationGuides: MigrationCrumbGuide[] = [],
+): Crumb[] {
   const crumbs: Crumb[] = [{ href: "/docs/getting-started", label: "Docs" }];
 
   if (pathname === "/" || pathname === "") return [];
@@ -95,6 +108,23 @@ export function breadcrumbsFor(pathname: string, catalog: Catalog): Crumb[] {
   }
   if (pathname === "/docs/releases") {
     crumbs.push({ href: "/docs/releases", label: "Releases" });
+    return crumbs;
+  }
+  if (pathname === "/docs/extensions") {
+    crumbs.push({ href: "/docs/extensions", label: "Extensions" });
+    return crumbs;
+  }
+  if (pathname === "/docs/migration") {
+    crumbs.push({ href: "/docs/migration", label: "Upgrade guides" });
+    return crumbs;
+  }
+  const migration = pathname.match(/^\/docs\/migration\/([^/]+)$/);
+  if (migration) {
+    crumbs.push({ href: "/docs/migration", label: "Upgrade guides" });
+    crumbs.push({
+      href: pathname,
+      label: migrationGuides.find((guide) => guide.slug === migration[1])?.title ?? migration[1],
+    });
     return crumbs;
   }
 

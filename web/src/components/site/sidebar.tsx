@@ -21,6 +21,10 @@ export const GHOST_SCROLLBAR_OPTIONS = {
 
 interface SidebarNavProps {
   groups: SidebarGroup[];
+  /** The HeroGPUI extensions page's sections, below the component categories. */
+  extensionLinks: { href: string; label: string }[];
+  /** The upgrade guides, newest version first. */
+  migrationLinks: { href: string; label: string }[];
   /** Called after a link is pressed, so the mobile drawer can close. */
   onNavigate?: () => void;
 }
@@ -64,7 +68,7 @@ function SidebarSection({
   );
 }
 
-function SidebarNav({ groups, onNavigate }: SidebarNavProps) {
+function SidebarNav({ groups, extensionLinks, migrationLinks, onNavigate }: SidebarNavProps) {
   return (
     <nav aria-label="Documentation" className="docs-sidebar-nav pb-8">
       <SidebarSection
@@ -81,12 +85,24 @@ function SidebarNav({ groups, onNavigate }: SidebarNavProps) {
           onNavigate={onNavigate}
         />
       ))}
+      {/* The extension links anchor into one page, so no entry ever matches
+          the pathname and none lights up as active. */}
+      <SidebarSection label="Extensions" links={extensionLinks} onNavigate={onNavigate} />
+      <SidebarSection label="Upgrade guides" links={migrationLinks} onNavigate={onNavigate} />
     </nav>
   );
 }
 
 /** Independently-scrolling rail for `lg` and up. */
-export function SidebarRail({ groups }: { groups: SidebarGroup[] }) {
+export function SidebarRail({
+  groups,
+  extensionLinks,
+  migrationLinks,
+}: {
+  groups: SidebarGroup[];
+  extensionLinks: { href: string; label: string }[];
+  migrationLinks: { href: string; label: string }[];
+}) {
   return (
     <aside className="docs-sidebar hidden w-64 shrink-0 lg:block">
       {/* OverlayScrollbars sets `position: relative` on its host from an
@@ -99,7 +115,11 @@ export function SidebarRail({ groups }: { groups: SidebarGroup[] }) {
           element="div"
           options={GHOST_SCROLLBAR_OPTIONS}
         >
-          <SidebarNav groups={groups} />
+          <SidebarNav
+            groups={groups}
+            extensionLinks={extensionLinks}
+            migrationLinks={migrationLinks}
+          />
         </OverlayScrollbarsComponent>
       </div>
     </aside>
@@ -107,7 +127,15 @@ export function SidebarRail({ groups }: { groups: SidebarGroup[] }) {
 }
 
 /** "Browse docs" bar and HeroUI drawer for below `lg`. */
-export function SidebarMobile({ groups }: { groups: SidebarGroup[] }) {
+export function SidebarMobile({
+  groups,
+  extensionLinks,
+  migrationLinks,
+}: {
+  groups: SidebarGroup[];
+  extensionLinks: { href: string; label: string }[];
+  migrationLinks: { href: string; label: string }[];
+}) {
   const drawer = useOverlayState();
 
   return (
@@ -131,7 +159,12 @@ export function SidebarMobile({ groups }: { groups: SidebarGroup[] }) {
                 <Drawer.CloseTrigger />
               </Drawer.Header>
               <Drawer.Body>
-                <SidebarNav groups={groups} onNavigate={drawer.close} />
+                <SidebarNav
+                  groups={groups}
+                  extensionLinks={extensionLinks}
+                  migrationLinks={migrationLinks}
+                  onNavigate={drawer.close}
+                />
               </Drawer.Body>
             </Drawer.Dialog>
           </Drawer.Content>

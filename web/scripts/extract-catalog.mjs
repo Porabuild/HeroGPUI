@@ -123,9 +123,10 @@ export function run({ check = false } = {}) {
     categories.get(page.category).components.push(slug);
   }
 
-  const { version, gpuiVersion } = workspaceVersions(repoRoot);
+  const { version, rustVersion, gpuiVersion } = workspaceVersions(repoRoot);
   const catalog = {
     version,
+    rustVersion,
     gpuiVersion,
     categories: [...categories.values()],
     components,

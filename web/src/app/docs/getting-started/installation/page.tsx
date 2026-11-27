@@ -63,7 +63,7 @@ export default function InstallationPage() {
       <h2 id="prerequisites">Prerequisites</h2>
       <ul>
         <li>
-          A Rust toolchain that supports <strong>Rust 1.98</strong>.
+          A Rust toolchain that supports <strong>Rust {SITE.rustVersion}</strong>.
         </li>
         <li>
           Nothing else: <code>herogpui</code> depends on the published <code>gpui-pre</code> GPUI

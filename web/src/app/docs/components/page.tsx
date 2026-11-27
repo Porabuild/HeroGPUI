@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { Link } from "@heroui/react";
 import { Callout } from "@/components/ui/callout";
 import { PageHeader } from "@/components/ui/page-header";
 import { ComponentCatalog, type CatalogGroup } from "@/components/catalog/component-catalog";
@@ -38,6 +39,13 @@ export default function ComponentsPage() {
         title="Components"
         description={`${totalCount} pages of typed Rust builders, grouped by what they help you build. Each page runs the component as WebAssembly next to its API.`}
       />
+
+      <p>
+        The catalog covers the HeroUI component set. HeroGPUI also ships APIs with no HeroUI
+        counterpart — shared builder traits, i18n, theme files and hot reload, a test kit, and
+        components like TreeView, Sidebar and CommandPalette — documented on the{" "}
+        <Link href="/docs/extensions">extensions page</Link>.
+      </p>
 
       {totalCount === 0 ? (
         <Callout kind="note" title="The catalog has not been generated yet">

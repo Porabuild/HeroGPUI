@@ -7,7 +7,7 @@ when the website structure or contracts change.
 ## What this site is
 
 Public documentation and marketing site for **HeroGPUI**, a native Rust/GPUI
-port of **HeroUI v3.2.6**. Modelled on <https://heroui.com> (structure, docs
+port of **HeroUI v3.2.7**. Modelled on <https://heroui.com> (structure, docs
 experience) and <https://longbridge.github.io/gpui-component/> (a Rust UI
 library presenting itself on the web).
 
@@ -50,8 +50,8 @@ change, regenerate `src/data/wasm-sections.json` and
 
 ## Verified toolchain recipe (do not re-derive)
 
-- Next.js **16.3.3** (App Router, Turbopack), React **19.2.8**,
-  `@heroui/react` **3.2.6**, Tailwind CSS **4.3.3**, TypeScript 5.9.
+- Next.js **16.4.5** (App Router, Turbopack), React **19.3.1**,
+  `@heroui/react` **3.2.7**, Tailwind CSS **4.3.3**, TypeScript 7.
 - Package manager is **pnpm** (`pnpm install`, `pnpm run build`). Never npm.
 - `src/app/globals.css` must keep these lines. `@heroui/styles` already
   imports `tailwindcss` and `tw-animate-css`; do not import `tailwindcss`
@@ -86,7 +86,7 @@ example a switch is **not** `<Switch>Label</Switch>`:
 Before writing any usage of a component, read its real typings:
 
 ```
-node_modules/.pnpm/@heroui+react@3.2.6_*/node_modules/@heroui/react/dist/components/<name>/*.d.ts
+node_modules/.pnpm/@heroui+react@3.2.7_*/node_modules/@heroui/react/dist/components/<name>/*.d.ts
 ```
 
 v3 also removed v2's `color`/`variant` matrix. Colors are
@@ -145,7 +145,7 @@ snippets and GPUI mentions read them from here (`SITE` in `src/lib/nav.ts`).
 
 ```jsonc
 {
-  "version": "0.12.0",
+  "version": "0.15.5",
   "gpuiVersion": "0.3.11",
   "categories": [
     { "name": "Buttons", "slug": "buttons",
@@ -180,8 +180,8 @@ slug:
   "button": {
     "page": "Button",
     "importLine": "...",
-    "version": "3.2.6",
-    "docsSource": "https://github.com/heroui-inc/heroui/blob/v3.2.6/...",
+    "version": "3.2.7",
+    "docsSource": "https://github.com/heroui-inc/heroui/blob/v3.2.7/...",
     "apiSource": "...",
     "styleSource": "...",
     "requiredParts": ["Button", "Button.Label"],
@@ -247,8 +247,8 @@ installs the artifact. Both JSON files are regenerated with
 
 ## Attribution
 
-**HeroUI v3.2.6 is Apache-2.0**, Copyright 2025 NextUI Inc. Verify this against
-`https://raw.githubusercontent.com/heroui-inc/heroui/v3.2.6/LICENSE` rather
+**HeroUI v3.2.7 is Apache-2.0**, Copyright 2025 NextUI Inc. Verify this against
+`https://raw.githubusercontent.com/heroui-inc/heroui/v3.2.7/LICENSE` rather
 than the `@heroui/react` npm manifest, whose `license` field says "MIT" while
 the tarball ships the Apache-2.0 text. The repository's own
 `E:\work\HeroGPUI\NOTICE` already states Apache-2.0; match its wording.

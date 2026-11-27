@@ -6,7 +6,11 @@ Zed editor. It runs on Windows, macOS and Linux from one codebase.
 
 It implements every component HeroUI v3.2.7 documents; the gallery and
 website show one page per component, except that a few pages cover a
-component together with its group or slot siblings.
+component together with its group or slot siblings. Beyond HeroUI it adds
+desktop extensions — `VirtualList`, `TreeView`, `ContextMenu`, `MenuBar`,
+`ResizablePanelGroup`, `TitleBar`, `Sidebar`, `CommandPalette`, `HoverCard`,
+i18n, theme files with hot reload and a test kit — listed at
+<https://porabuild.com/herogpui/docs/extensions>.
 
 ```rust
 use herogpui::*;
@@ -164,7 +168,9 @@ sources or git hooks.
 ## Documentation
 
 - Website: <https://porabuild.com/herogpui> — every component page embeds
-  HeroGPUI compiled to WebAssembly, running live next to its Rust code.
+  HeroGPUI compiled to WebAssembly, running live next to its Rust code, and
+  [`/docs/extensions`](https://porabuild.com/herogpui/docs/extensions) lists
+  every HeroGPUI extension, generated from `llms.txt`.
 - `llms.txt` at the repository root: the full component API reference for
   agents. It is served verbatim at
   <https://porabuild.com/herogpui/llms.txt>.

@@ -440,7 +440,7 @@ path receive no routed messages, so a name can never block invisibly.
 
 gpui reports an element to a screen reader only when it has both an `.id(..)`
 and a role, so the port states each control's role explicitly. The contract is
-React Aria 3.51.0's, read from its hooks: a checkbox is `CheckBox` with
+React Aria 3.53.1's, read from its hooks: a checkbox is `CheckBox` with
 tri-state checked, a switch is `Switch`, a toggle button is `Button` with a
 pressed state — or `RadioButton` inside a single-selection group, as
 `useToggleButtonGroupItem` swaps it — a text field takes the role of its input

@@ -55,7 +55,7 @@ const SECTION_DESCRIPTIONS: Record<string, string> = {
   Validation:
     "The `validate` closure contract, `validation_errors`, the `validation::resolve` precedence (controlled `is_invalid`, then `validationErrors`, then `validate`), and how `Form` routes a server `ValidationErrors` record into per-field slots.",
   Accessibility:
-    "How HeroGPUI translates React Aria 3.51.0 roles to GPUI and AccessKit: explicit roles and element ids, `a11y::Name::field` for labels and descriptions, overlay and collection semantics (ListBox, Grid, TabList), and recorded omissions where GPUI exposes no matching builder.",
+    "How HeroGPUI translates React Aria 3.53.1 roles to GPUI and AccessKit: explicit roles and element ids, `a11y::Name::field` for labels and descriptions, overlay and collection semantics (ListBox, Grid, TabList), and recorded omissions where GPUI exposes no matching builder.",
   "Component API pattern":
     "The shape every component shares: `#[derive(IntoElement)]` builders implementing `RenderOnce`, caller-owned state entities (`InputState`, `CalendarState`, `TimeState`, …), and callback signatures with `Arc` for closures that capture shared fields.",
   Components:
@@ -193,9 +193,9 @@ export default function LlmsTxtPage() {
         <Li>
           <strong>Use the pinned framework assumptions.</strong> The repository targets the
           published <C>gpui-pre</C> GPUI version in <C>Cargo.toml</C> and <C>Cargo.lock</C>, with{" "}
-          <strong>Rust 1.98</strong>. A newer GPUI API may not be available here. Inherited behavior
-          follows React Aria 3.51.0, React Stately 3.49.0 and React Aria Components 1.20.0. Check
-          this file and the repository task guides before using an API.
+          <strong>Rust {SITE.rustVersion}</strong>. A newer GPUI API may not be available here.
+          Inherited behavior follows React Aria 3.53.1, React Stately 3.51.0 and React Aria
+          Components 1.22.1. Check this file and the repository task guides before using an API.
         </Li>
       </Ul>
       <P>
